@@ -1,0 +1,88 @@
+
+import React, { useEffect } from 'react';
+
+interface WelcomeModalProps {
+    onClose: () => void;
+}
+
+const Feature: React.FC<{ icon: string; title: string; children: React.ReactNode }> = ({ icon, title, children }) => (
+    <div className="flex items-start space-x-3">
+        <div className="flex-shrink-0 text-3xl">{icon}</div>
+        <div>
+            <h4 className="font-semibold text-slate-100">{title}</h4>
+            <p className="text-sm text-slate-400">{children}</p>
+        </div>
+    </div>
+);
+
+const WelcomeModal: React.FC<WelcomeModalProps> = ({ onClose }) => {
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                onClose();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [onClose]);
+
+    return (
+        <div 
+            className="fixed inset-0 bg-black/60 flex items-center justify-center z-[3000] p-4 animate-fade-in"
+            onClick={onClose}
+        >
+            <div 
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="welcome-modal-title"
+                className="bg-slate-800 text-white rounded-xl shadow-2xl w-full max-w-lg flex flex-col"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <header className="p-6 text-center border-b border-slate-700">
+                    <h2 id="welcome-modal-title" className="text-2xl font-bold text-cyan-400">Benvenuto in RunCoachAI!</h2>
+                    <p className="text-slate-300 mt-1">Il tuo strumento avanzato per l'analisi della corsa.</p>
+                </header>
+
+                <div className="p-6 space-y-6">
+                    <Feature icon="🗺️" title="Visualizza le tue corse">
+                        Carica file GPX o TCX per vedere le tue attività su una mappa interattiva. Ho pre-caricato un tracciato di esempio per farti esplorare!
+                    </Feature>
+                    <Feature icon="🏁" title="Simula Gare">
+                        Seleziona più tracce simili per gareggiare l'una contro l'altra in una simulazione in tempo reale.
+                    </Feature>
+                    <Feature icon="📊" title="Analizza le Performance">
+                        Approfondisci le tue statistiche con grafici dettagliati, analisi dei parziali, tracciamento dei record personali e approfondimenti basati sull'AI.
+                    </Feature>
+                </div>
+
+                <footer className="p-6 mt-auto flex gap-4">
+                    <button 
+                        onClick={onClose} 
+                        className="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-3 px-4 rounded-md transition-colors text-sm"
+                    >
+                        Salta Intro
+                    </button>
+                    <button 
+                        onClick={onClose} 
+                        className="flex-[2] bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-4 rounded-md transition-colors"
+                    >
+                        Inizia il Tour
+                    </button>
+                </footer>
+            </div>
+             <style>{`
+                @keyframes fade-in {
+                    from { opacity: 0; transform: scale(0.95); }
+                    to { opacity: 1; transform: scale(1); }
+                }
+                .animate-fade-in {
+                    animation: fade-in 0.3s ease-out forwards;
+                }
+            `}</style>
+        </div>
+    );
+};
+
+export default WelcomeModal;
