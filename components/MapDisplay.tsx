@@ -126,7 +126,6 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
   
   const [isAutoFitEnabled, setIsAutoFitEnabled] = useState(true);
   
-  // Initialize map theme from localStorage or default to 'light'
   const [mapTheme, setMapTheme] = useState<'dark' | 'light' | 'satellite' | 'silver' | 'midnight'>(() => {
       const saved = localStorage.getItem('gpx-map-theme');
       return (saved as any) || 'light';
@@ -138,7 +137,6 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
 
   const passedKmsRef = useRef<Set<number>>(new Set());
 
-  // Save map theme to localStorage whenever it changes
   useEffect(() => {
       localStorage.setItem('gpx-map-theme', mapTheme);
   }, [mapTheme]);
@@ -168,22 +166,22 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
       });
   }, []);
 
-  // Bounds Fitting
   const fitMapToBounds = useCallback(() => {
       const map = mapRef.current;
       if (!map) return;
       let bounds: any = null;
+      
+      const safeVisibleIds = visibleTrackIds instanceof Set ? visibleTrackIds : new Set();
+      const safeSelectedIds = selectedTrackIds instanceof Set ? selectedTrackIds : new Set();
+
       if (animationTrack) {
         const allPoints = animationTrack.points.filter(p => isValidLatLng(p.lat, p.lon)).map(p => [p.lat, p.lon]);
         if (allPoints.length > 0) bounds = L.latLngBounds(allPoints);
       } else if (raceRunners && raceRunners.length > 0) {
-          // Special handling for race mode to center on runners
           const points = raceRunners.map(r => r.position).filter(p => isValidLatLng(p.lat, p.lon)).map(p => [p.lat, p.lon]);
           if (points.length > 0) {
                 bounds = L.latLngBounds(points);
-                // Check if bounds are very tight (e.g. all runners at start line)
                 if (bounds.getNorth() === bounds.getSouth() && bounds.getEast() === bounds.getWest()) {
-                    // Zoom into the specific point instead of fitting bounds (which would max zoom)
                     map.setView(points[0], 16, { animate: true });
                     return;
                 }
@@ -194,9 +192,8 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
       } else if (selectionPoints && selectionPoints.length > 1) {
           bounds = L.latLngBounds(selectionPoints.filter(p => isValidLatLng(p.lat, p.lon)).map(p => [p.lat, p.lon]));
       } else {
-          // If there are selected tracks, prioritize fitting to them.
-          const hasSelection = selectedTrackIds && selectedTrackIds.size > 0;
-          const targetIds = hasSelection ? selectedTrackIds : visibleTrackIds;
+          const hasSelection = safeSelectedIds.size > 0;
+          const targetIds = hasSelection ? safeSelectedIds : safeVisibleIds;
           
           const relevantTracks = tracks.filter(t => targetIds.has(t.id));
           if (relevantTracks.length > 0) {
@@ -207,17 +204,14 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
       if (bounds && bounds.isValid()) map.fitBounds(bounds, { padding: [40, 40] });
   }, [selectionPoints, tracks, visibleTrackIds, selectedTrackIds, animationTrack, aiSegmentHighlight, raceRunners]);
 
-  // Initialize Map - Cleanup Logic added
   useEffect(() => {
     if (mapContainerRef.current && !mapRef.current) {
-      // Create map
       mapRef.current = L.map(mapContainerRef.current, { 
           preferCanvas: true, 
           zoomControl: false,
-          attributionControl: false // Custom attribution if needed
+          attributionControl: false 
       }).setView([45.60, 12.88], 13);
 
-      // Attribution
       L.control.attribution({ prefix: false }).addTo(mapRef.current);
 
       mapRef.current.on('dragstart zoomstart', () => setIsAutoFitEnabled(false));
@@ -231,13 +225,11 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
       });
       resizeObserver.observe(mapContainerRef.current);
 
-      // Initial Fit if data exists
       if (tracks.length > 0) {
           fitMapToBounds();
       }
 
       return () => {
-          // Cleanup map on unmount to prevent double initialization issues
           if (mapRef.current) {
               mapRef.current.remove();
               mapRef.current = null;
@@ -245,9 +237,8 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
           resizeObserver.disconnect();
       };
     }
-  }, []); // Empty dependency array means this runs once on mount/unmount
+  }, []);
 
-  // Update Tile Layer based on Theme
   useEffect(() => {
       const map = mapRef.current;
       if (!map) return;
@@ -262,17 +253,16 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
 
       if (mapTheme === 'satellite') {
           tileUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
-          attribution = 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community';
+          attribution = 'Tiles &copy; Esri';
       } else if (mapTheme === 'silver') {
           tileUrl = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
-          attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+          attribution = '&copy; OpenStreetMap';
       } else if (mapTheme === 'midnight') {
           tileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-          attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+          attribution = '&copy; OpenStreetMap';
       } else {
-          // Standard OpenStreetMap for Light and Dark (Dark uses CSS filter)
           tileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-          attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+          attribution = '&copy; OpenStreetMap';
           
           if (mapTheme === 'dark') {
               options.className = 'map-tiles-dark';
@@ -285,7 +275,6 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
 
   }, [mapTheme]);
 
-  // RENDER TRACKS & ANIMATION
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -296,18 +285,15 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
     raceFaintPolylinesRef.current.clear();
     if (!animationTrack) kmMarkersLayerGroupRef.current?.clearLayers();
 
-    // SPECIAL HANDLING FOR SINGLE TRACK ANIMATION (REPLAY)
     if (animationTrack) {
-        // Draw faint base polyline
         const faintLayer = L.polyline(animationTrack.points.map(p => [p.lat, p.lon]), {
             color: animationTrack.color,
             weight: 3,
-            opacity: 0.2, // Slightly more visible for satellite
+            opacity: 0.2,
             interactive: false
         }).addTo(map);
         raceFaintPolylinesRef.current.set('base', faintLayer);
 
-        // Draw colored progress path
         const passedPoints = animationTrack.points.filter(p => p.cummulativeDistance <= animationProgress);
         const currentInterp = getTrackPointAtDistance(animationTrack, animationProgress);
         if (currentInterp) passedPoints.push(currentInterp);
@@ -322,12 +308,10 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
             polylinesRef.current.set('progress', progressLayer);
         }
 
-        // Centering Map during animation (Always follow cursor if in replay mode)
         if (currentInterp && !showSummaryMode) {
             map.setView([currentInterp.lat, currentInterp.lon], map.getZoom(), { animate: false });
         }
 
-        // Draw Runner Cursor
         if (currentInterp) {
             if (animationMarkerRef.current) map.removeLayer(animationMarkerRef.current);
             const icon = L.divIcon({
@@ -339,7 +323,6 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
             animationMarkerRef.current = L.marker([currentInterp.lat, currentInterp.lon], { icon, zIndexOffset: 2000 }).addTo(map);
         }
 
-        // Handle KM Popups
         const currentKm = Math.floor(animationProgress);
         if (currentKm >= 1 && !passedKmsRef.current.has(currentKm)) {
             passedKmsRef.current.add(currentKm);
@@ -366,22 +349,22 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
             }
         }
         
-        // Reset KM refs if progress resets
         if (animationProgress < 0.1) passedKmsRef.current.clear();
 
     } else {
-        // STANDARD RENDER FOR MULTIPLE TRACKS OR GARA
         if (animationMarkerRef.current) { map.removeLayer(animationMarkerRef.current); animationMarkerRef.current = null; }
         passedKmsRef.current.clear();
 
-        const isSelectionActive = selectedTrackIds && selectedTrackIds.size > 0;
-        // Check if ANY track is hovered to trigger the gray-out effect
+        const safeVisibleIds = visibleTrackIds instanceof Set ? visibleTrackIds : new Set();
+        const safeSelectedIds = selectedTrackIds instanceof Set ? selectedTrackIds : new Set();
+
+        const isSelectionActive = safeSelectedIds.size > 0;
         const isAnyHovered = hoveredTrackId !== null;
 
         tracks.forEach(track => {
-            if (!visibleTrackIds.has(track.id)) return;
+            if (!safeVisibleIds.has(track.id)) return;
             const isHovered = hoveredTrackId === track.id;
-            const isSelected = selectedTrackIds ? selectedTrackIds.has(track.id) : false;
+            const isSelected = safeSelectedIds.has(track.id);
             
             if (raceRunners && raceRunners.length > 0) {
                 const runner = raceRunners.find(r => r.trackId === track.id);
@@ -401,45 +384,37 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
                 }
             } 
             else {
-                // Determine styling based on selection and hover state
                 let opacity = 0.6;
                 let weight = 3;
                 let color = track.color;
                 
                 if (isAnyHovered) {
-                    // HOVER MODE: If any track is hovered, focus on it
                     if (isHovered) {
                         opacity = 1.0;
                         weight = 6;
                         color = track.color;
                     } else {
-                        // Gray out non-hovered tracks
                         opacity = 0.3;
                         weight = 2;
-                        color = '#64748b'; // Slate-500 gray
+                        color = '#64748b';
                     }
                 } else if (isSelectionActive) {
-                    // SELECTION MODE: No hover, but selection active
                     if (isSelected) {
                         opacity = 1.0;
                         weight = 6;
                         color = track.color;
                     } else {
-                        // Dim unselected tracks
                         opacity = 0.3;
                         weight = 2;
-                        color = '#475569'; // Slate-600
+                        color = '#475569';
                     }
                 } else {
-                    // DEFAULT MODE
                     const isSatellite = mapTheme === 'satellite';
                     opacity = isSatellite ? 0.9 : 0.6;
                     weight = isSatellite ? 4 : 3;
                 }
                 
                 let layer;
-                // Only apply gradients if the track is fully active (hovered, or selected, or default view)
-                // If it's dimmed because something else is hovered, don't calculate gradients
                 const shouldApplyGradient = mapGradientMetric !== 'none' && (isHovered || (!isAnyHovered && (isSelected || !isSelectionActive)));
 
                 if (shouldApplyGradient) {
@@ -452,20 +427,17 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
                 layer.on('mouseover', () => onTrackHover?.(track.id));
                 layer.on('mouseout', () => onTrackHover?.(null));
                 
-                // CLICK HANDLER: Propagate selection
                 layer.on('click', (e: any) => { 
                     L.DomEvent.stopPropagation(e); 
                     if (onTrackClick) {
                         const isMultiSelect = e.originalEvent.shiftKey || e.originalEvent.ctrlKey || e.originalEvent.metaKey;
                         onTrackClick(track.id, isMultiSelect);
                     }
-                    // Keep point click logic if needed for editors
                     onPointClick?.({ lat: e.latlng.lat, lon: e.latlng.lng, ele: 0, time: new Date(), cummulativeDistance: 0 });
                 });
                 
                 layer.addTo(map);
                 
-                // Ensure hovered/selected track is on top
                 if (isHovered || isSelected) {
                     if (layer.bringToFront) layer.bringToFront();
                     else if (layer.eachLayer) layer.eachLayer((l: any) => l.bringToFront && l.bringToFront());
@@ -473,8 +445,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
                 
                 polylinesRef.current.set(track.id, layer);
             }
-            // Only show KM markers for a single visible track or specifically selected/hovered ones to avoid clutter
-            if (!raceRunners && (visibleTrackIds.size === 1 || isHovered || isSelected)) {
+            if (!raceRunners && (safeVisibleIds.size === 1 || isHovered || isSelected)) {
                 for (let km = 1; km < track.distance; km++) {
                     const pt = getTrackPointAtDistance(track, km);
                     if (pt) {
@@ -557,13 +528,11 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
       <div ref={mapContainerRef} className="h-full w-full" style={{ minHeight: '100%' }} />
        {!animationTrack && (
             <div className="pointer-events-none absolute inset-0 z-[1000] p-4">
-                {/* Top Left Controls: Fit, Layers, Zoom - All Aligned Left */}
                 <div className="absolute top-4 left-4 flex flex-col gap-2 pointer-events-auto">
                     <Tooltip text="Inquadra" subtext="Adatta vista al percorso" position="right">
                         <button onClick={() => { setIsAutoFitEnabled(true); fitMapToBounds(); }} className={`p-3 rounded-lg shadow-xl transition-all border border-slate-700 active:scale-95 ${isAutoFitEnabled ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-300'}`}><FitBoundsIcon /></button>
                     </Tooltip>
                     
-                    {/* Layer Selector */}
                     <div className="relative group">
                         <Tooltip text="Stile Mappa" subtext="Cambia sfondo" position="right">
                             <button onClick={() => setShowLayerMenu(!showLayerMenu)} className="p-3 rounded-lg shadow-xl bg-slate-800 text-slate-300 hover:text-white border border-slate-700 active:scale-95">
@@ -595,9 +564,8 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
                         )}
                     </div>
 
-                    <div className="h-2"></div> {/* Spacer */}
+                    <div className="h-2"></div>
 
-                    {/* Zoom Controls */}
                     <div className="flex flex-col bg-slate-800/90 backdrop-blur-md rounded-lg border border-slate-700 shadow-xl overflow-hidden">
                         <button onClick={() => mapRef.current?.zoomIn()} className="p-3 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors border-b border-slate-700 active:bg-slate-600"><ZoomInIcon /></button>
                         <button onClick={() => mapRef.current?.zoomOut()} className="p-3 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors active:bg-slate-600"><ZoomOutIcon /></button>
@@ -622,8 +590,6 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
         .hover-info-cursor { display: flex; align-items: center; justify-content: center; overflow: visible !important; }
         @keyframes fade-in-down { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in-down { animation: fade-in-down 0.2s ease-out forwards; }
-        
-        /* DARK MODE FILTER HACK FOR OSM TILES */
         .map-tiles-dark {
             filter: invert(100%) hue-rotate(180deg) brightness(70%) contrast(150%) grayscale(20%);
         }
