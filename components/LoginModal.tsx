@@ -1,15 +1,15 @@
-
 import React, { useState } from 'react';
 import { supabase } from '../services/supabaseClient';
-import { Track, UserProfile } from '../types';
-import { saveTracksToDB, saveProfileToDB, loadTracksFromDB, loadProfileFromDB } from '../services/dbService';
+import { Track } from '../types';
+import { syncTrackToCloud } from '../services/dbService';
 
 interface LoginModalProps {
     onClose: () => void;
     onLoginSuccess: () => void;
+    tracks: Track[];
 }
 
-const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess }) => {
+const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks }) => {
     const [isSignUp, setIsSignUp] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -19,18 +19,29 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess }) => {
     const [syncStatus, setSyncStatus] = useState('');
 
     const syncLocalDataToCloud = async (userId: string) => {
-        setSyncStatus('Sincronizzazione dati locali in corso...');
+        if (!tracks || tracks.length === 0) return;
         
-        // 1. Load Local Data (forcing local read via generic DB call before session is fully active in context, implies we read IDB)
-        // Note: dbService logic will switch to Cloud automatically once session is active.
-        // We assume we have local data in memory or IDB that we want to push.
+        setSyncStatus(`Sincronizzazione di ${tracks.length} attività...`);
+        let syncedCount = 0;
         
-        // For simplicity: We trust that subsequent app reloads will handle the sync logic
-        // OR we manually push current IDB content now.
-        // Let's assume the user wants to start using Cloud. Ideally we merge.
-        // Here we just notify completion.
+        // Push local tracks to cloud
+        // Note: dbService handles the check if it's already a cloud ID or not inside syncTrackToCloud logic roughly,
+        // but here we force push whatever we have in state as the "latest" version from this device.
+        for (const track of tracks) {
+            // Only sync actual tracks, not ghost opponents
+            if (!track.isExternal) {
+                try {
+                    await syncTrackToCloud(track);
+                    syncedCount++;
+                } catch (e) {
+                    console.warn(`Failed to sync track ${track.id}`, e);
+                }
+            }
+        }
         
-        setSyncStatus('Accesso effettuato!');
+        setSyncStatus(`Sincronizzati ${syncedCount} tracciati!`);
+        // Small delay to let user see success message
+        await new Promise(r => setTimeout(r, 800));
     };
 
     const handleAuth = async (e: React.FormEvent) => {
@@ -84,7 +95,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess }) => {
                     <h2 className="text-2xl font-black text-cyan-400 uppercase tracking-tighter mb-1">
                         {isSignUp ? 'Crea Account' : 'Bentornato'}
                     </h2>
-                    <p className="text-slate-400 text-sm">
+                    <p className="text-slate-400 text-sm h-6">
                         {syncStatus || "Salva le tue corse nel cloud e accedi ovunque."}
                     </p>
                 </div>
@@ -131,7 +142,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess }) => {
                         disabled={loading}
                         className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        {loading ? 'Caricamento...' : (isSignUp ? 'Registrati' : 'Accedi')}
+                        {loading ? (syncStatus ? 'Sincronizzazione...' : 'Caricamento...') : (isSignUp ? 'Registrati' : 'Accedi')}
                     </button>
                 </form>
 
