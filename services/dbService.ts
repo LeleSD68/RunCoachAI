@@ -7,7 +7,9 @@ const TRACKS_STORE = 'tracks';
 const CHATS_STORE = 'chats';
 const PROFILE_STORE = 'profile';
 const PLANNED_STORE = 'planned_workouts';
-const DB_VERSION = 3;
+// Incrementing DB version to force schema update on client browsers
+// This fixes the "NotFoundError" when restoring backup on devices with old DB schema
+const DB_VERSION = 4;
 
 // --- INDEXED DB INIT ---
 const initDB = (): Promise<IDBDatabase> => {
@@ -360,28 +362,54 @@ export const importAllData = async (data: BackupData): Promise<void> => {
     const profileStore = transaction.objectStore(PROFILE_STORE);
     const plannedStore = transaction.objectStore(PLANNED_STORE);
 
+    // Clear existing data
+    // We do this via request, but we handle the 'put' in the same transaction loop
     tracksStore.clear();
     chatsStore.clear();
     profileStore.clear();
     plannedStore.clear();
 
-    // Use .put() to ensure overwriting instead of failing on key collision if clear() hasn't finished (though it's in same tx)
-    // or if the backup itself contains duplicates.
+    // Import Tracks with Date revival
     if (data.tracks && Array.isArray(data.tracks)) {
-        data.tracks.forEach(t => tracksStore.put(t));
+        data.tracks.forEach(t => {
+            // Ensure points time are actual Date objects before storing
+            const revivedTrack = {
+                ...t,
+                points: t.points.map(p => ({
+                    ...p,
+                    time: new Date(p.time) // Convert string to Date
+                }))
+            };
+            tracksStore.put(revivedTrack);
+        });
     }
+
+    // Import Workouts with Date revival
     if (data.plannedWorkouts && Array.isArray(data.plannedWorkouts)) {
-        data.plannedWorkouts.forEach(w => plannedStore.put(w));
+        data.plannedWorkouts.forEach(w => {
+            const revivedWorkout = {
+                ...w,
+                date: new Date(w.date) // Convert string to Date
+            };
+            plannedStore.put(revivedWorkout);
+        });
     }
+
+    // Import Chats
     if (data.chats && Array.isArray(data.chats)) {
         data.chats.forEach(c => chatsStore.put(c));
     }
+
+    // Import Profile
     if (data.profile) {
         profileStore.put({ id: 'current', ...data.profile });
     }
 
     return new Promise((resolve, reject) => {
         transaction.oncomplete = () => resolve();
-        transaction.onerror = () => reject(transaction.error);
+        transaction.onerror = (e) => {
+            console.error("Transaction Error during import:", e);
+            reject(transaction.error);
+        };
     });
 };
