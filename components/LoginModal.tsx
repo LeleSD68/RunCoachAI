@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
 import { Track } from '../types';
@@ -21,7 +20,7 @@ const translateError = (msg: string) => {
 };
 
 const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks }) => {
-    const [isSignUp, setIsSignUp] = useState(false);
+    const [view, setView] = useState<'login' | 'signup' | 'forgot'>('login');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [fullName, setFullName] = useState('');
@@ -62,7 +61,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
         setSyncStatus('');
 
         try {
-            if (isSignUp) {
+            if (view === 'signup') {
                 const { error, data } = await supabase.auth.signUp({
                     email,
                     password,
@@ -78,7 +77,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
                         // Check if session is null (implies email confirmation required)
                         if (!data.session) {
                             setSuccessMessage('Registrazione creata! Controlla la tua email per il link di conferma, poi fai Login.');
-                            setIsSignUp(false); // Switch to login view
+                            setView('login');
                         } else {
                             // Auto-login worked (email confirm disabled in supabase)
                             await syncLocalDataToCloud(data.user.id);
@@ -93,7 +92,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
                         onClose();
                     }
                 }
-            } else {
+            } else if (view === 'login') {
                 const { error, data } = await supabase.auth.signInWithPassword({
                     email,
                     password,
@@ -105,6 +104,13 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
                     onLoginSuccess();
                     onClose();
                 }
+            } else if (view === 'forgot') {
+                const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                    redirectTo: window.location.origin,
+                });
+                if (error) throw error;
+                setSuccessMessage('Ti abbiamo inviato un\'email per resettare la password.');
+                setView('login');
             }
         } catch (err: any) {
             console.error("Auth Error:", err);
@@ -121,21 +127,21 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
                 
                 <div className="text-center mb-6">
                     <h2 className="text-2xl font-black text-cyan-400 uppercase tracking-tighter mb-1">
-                        {isSignUp ? 'Crea Account' : 'Bentornato'}
+                        {view === 'signup' ? 'Crea Account' : view === 'forgot' ? 'Recupero Password' : 'Bentornato'}
                     </h2>
                     <p className="text-slate-400 text-sm h-6">
-                        {syncStatus || (isSupabaseConfigured() ? "Salva le tue corse nel cloud e accedi ovunque." : "Modalità Offline: Account locale simulato.")}
+                        {syncStatus || (view === 'forgot' ? "Inserisci la tua email per ricevere le istruzioni." : (isSupabaseConfigured() ? "Salva le tue corse nel cloud e accedi ovunque." : "Modalità Offline: Account locale simulato."))}
                     </p>
                 </div>
 
                 <form onSubmit={handleAuth} className="space-y-4">
                     {successMessage && (
-                        <div className="bg-green-500/20 text-green-400 p-3 rounded-lg text-xs font-bold border border-green-500/50 text-center">
+                        <div className="bg-green-500/20 text-green-400 p-3 rounded-lg text-xs font-bold border border-green-500/50 text-center animate-pulse">
                             {successMessage}
                         </div>
                     )}
                     
-                    {isSignUp && (
+                    {view === 'signup' && (
                         <div>
                             <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Nome Completo</label>
                             <input 
@@ -143,7 +149,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
                                 value={fullName}
                                 onChange={(e) => setFullName(e.target.value)}
                                 className="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white focus:border-cyan-500 outline-none"
-                                required={isSignUp}
+                                required={view === 'signup'}
                             />
                         </div>
                     )}
@@ -157,17 +163,31 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
                             required
                         />
                     </div>
-                    <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Password</label>
-                        <input 
-                            type="password" 
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white focus:border-cyan-500 outline-none"
-                            required
-                            minLength={6}
-                        />
-                    </div>
+                    
+                    {view !== 'forgot' && (
+                        <div>
+                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Password</label>
+                            <input 
+                                type="password" 
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white focus:border-cyan-500 outline-none"
+                                required
+                                minLength={6}
+                            />
+                            {view === 'login' && (
+                                <div className="text-right mt-1">
+                                    <button 
+                                        type="button"
+                                        onClick={() => { setView('forgot'); setError(''); setSuccessMessage(''); }}
+                                        className="text-xs text-cyan-500 hover:text-cyan-400"
+                                    >
+                                        Password dimenticata?
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {error && <p className="text-red-400 text-xs bg-red-900/20 p-3 rounded-lg border border-red-900/50 text-center font-bold">{error}</p>}
 
@@ -176,17 +196,27 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
                         disabled={loading}
                         className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        {loading ? (syncStatus ? 'Sincronizzazione...' : 'Caricamento...') : (isSignUp ? 'Registrati' : 'Accedi')}
+                        {loading ? (syncStatus ? 'Sincronizzazione...' : 'Caricamento...') : (view === 'signup' ? 'Registrati' : view === 'forgot' ? 'Invia Link di Reset' : 'Accedi')}
                     </button>
                 </form>
 
-                <div className="mt-6 text-center">
-                    <button 
-                        onClick={() => { setIsSignUp(!isSignUp); setError(''); setSuccessMessage(''); }}
-                        className="text-sm text-slate-400 hover:text-white underline decoration-slate-600 underline-offset-4"
-                    >
-                        {isSignUp ? 'Hai già un account? Accedi' : 'Non hai un account? Registrati'}
-                    </button>
+                <div className="mt-6 text-center space-y-2">
+                    {view === 'login' && (
+                        <button 
+                            onClick={() => { setView('signup'); setError(''); setSuccessMessage(''); }}
+                            className="text-sm text-slate-400 hover:text-white underline decoration-slate-600 underline-offset-4"
+                        >
+                            Non hai un account? Registrati
+                        </button>
+                    )}
+                    {(view === 'signup' || view === 'forgot') && (
+                        <button 
+                            onClick={() => { setView('login'); setError(''); setSuccessMessage(''); }}
+                            className="text-sm text-slate-400 hover:text-white underline decoration-slate-600 underline-offset-4"
+                        >
+                            Torna al Login
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
@@ -194,4 +224,3 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
 };
 
 export default LoginModal;
-        
