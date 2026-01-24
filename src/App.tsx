@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Sidebar from './components/Sidebar';
 import MapDisplay from './components/MapDisplay';
@@ -22,7 +23,7 @@ import LiveCommentary from './components/LiveCommentary';
 import WorkoutConfirmationModal from './components/WorkoutConfirmationModal';
 import AiReviewModal from './components/AiReviewModal';
 import RaceSetupModal from './components/RaceSetupModal';
-import SplashScreen from './components/SplashScreen'; // Import Splash Screen
+import SplashScreen from './components/SplashScreen';
 import MobileTrackSummary from './components/MobileTrackSummary';
 import NavigationDock from './components/NavigationDock';
 import PerformanceAnalysisPanel from './components/PerformanceAnalysisPanel';
@@ -42,7 +43,7 @@ const TRACK_COLORS = [
 
 const App: React.FC = () => {
   // --- STATE ---
-  const [showSplash, setShowSplash] = useState(true); // State for Splash Screen
+  const [showSplash, setShowSplash] = useState(true);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [visibleTrackIds, setVisibleTrackIds] = useState<Set<string>>(new Set());
   const [raceSelectionIds, setRaceSelectionIds] = useState<Set<string>>(new Set());
@@ -107,10 +108,6 @@ const App: React.FC = () => {
   const simulationRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(0);
 
-  // Worker Reference
-  const parsingWorkerRef = useRef<Worker | null>(null);
-  const [isWorkerReady, setIsWorkerReady] = useState(false);
-
   const closeAllViews = useCallback(() => {
       setShowHome(false);
       setShowDiary(false);
@@ -132,14 +129,11 @@ const App: React.FC = () => {
       
       if (storedTracks.length > 0) {
         setTracks(storedTracks);
-        // Only reset visible tracks if empty, otherwise keep user selection?
-        // Actually on reload better to show all if not race mode.
         if (simulationState === 'idle') {
              setVisibleTrackIds(new Set(storedTracks.map(t => t.id)));
         }
         setShowHome(true);
       } else {
-        // First time or no data
         const hasVisited = localStorage.getItem('gpx-app-visited');
         if (!hasVisited) {
           setShowInitialChoice(true);
@@ -154,46 +148,6 @@ const App: React.FC = () => {
     init();
   }, []);
 
-  // Worker Initialization
-  useEffect(() => {
-    let worker: Worker | null = null;
-    try {
-        let workerUrl: string | URL;
-        try {
-            // Try to construct URL relative to current module
-            workerUrl = new URL('./services/parsing.worker.ts', import.meta.url);
-        } catch (e) {
-            // Fallback for environments where import.meta.url is problematic
-            workerUrl = '/services/parsing.worker.ts';
-        }
-        
-        worker = new Worker(workerUrl, { type: 'module' });
-        
-        worker.onmessage = (e) => {
-            handleWorkerMessage(e.data);
-        };
-        
-        worker.onerror = (e) => {
-            // This catches async errors during script loading (like CORS or 404)
-            console.warn("Worker error (likely CORS/Security), falling back to main thread processing.", e);
-            parsingWorkerRef.current = null;
-            setIsWorkerReady(false);
-        };
-
-        parsingWorkerRef.current = worker;
-        setIsWorkerReady(true);
-    } catch (e) {
-        // This catches synchronous errors like SecurityError during construction
-        console.warn("Worker creation failed immediately, falling back to main thread processing.", e);
-        parsingWorkerRef.current = null;
-        setIsWorkerReady(false);
-    }
-
-    return () => {
-        if (worker) worker.terminate();
-    };
-  }, []); 
-
   // Global API Usage Setup
   useEffect(() => {
     window.gpxApp = {
@@ -205,7 +159,6 @@ const App: React.FC = () => {
         setApiUsage(prev => {
           const newDaily = prev.daily + 1;
           const newRpm = prev.rpm + 1;
-          // Simple reset logic for RPM would need a timer, simplifying here
           setTimeout(() => setApiUsage(p => ({ ...p, rpm: Math.max(0, p.rpm - 1) })), 60000);
           return { ...prev, daily: newDaily, rpm: newRpm };
         });
@@ -218,49 +171,11 @@ const App: React.FC = () => {
     setToasts(prev => [...prev, { id, message, type }]);
   };
 
-  const handleWorkerMessage = (data: any) => {
-      const { newTracks, failedCount, skippedCount, errorMessages } = data;
-      
-      if (newTracks.length > 0) {
-        setTracks(prevTracks => {
-            const updatedTracks = [...prevTracks, ...newTracks];
-            saveTracksToDB(updatedTracks);
-            return updatedTracks;
-        });
-        
-        // Auto-select new tracks
-        const newIds = newTracks.map((t: Track) => t.id);
-        setVisibleTrackIds(prev => new Set([...prev, ...newIds]));
-        addToast(`${newTracks.length} tracciati importati con successo.`, 'success');
-        
-        // Check for planned workout matches for new tracks
-        newTracks.forEach((t: Track) => {
-            // Auto-sync individually to ensure cloud ID consistency if needed
-            syncTrackToCloud(t);
-
-            const tDate = t.points[0].time.toDateString();
-            const match = plannedWorkouts.find(w => new Date(w.date).toDateString() === tDate && !w.completedTrackId);
-            if (match) {
-                setWorkoutConfirmation(match);
-            }
-            // Auto PR check
-            const { updated, newRecordsCount } = updateStoredPRs(t, findPersonalRecordsForTrack(t));
-            if (newRecordsCount > 0) {
-               addToast(`${newTracks.length === 1 ? 'Nuovo' : newRecordsCount + ' Nuovi'} Record Personali rilevati!`, 'success');
-            }
-        });
-      }
-
-      if (skippedCount > 0) addToast(`${skippedCount} file ignorati (duplicati).`, 'info');
-      if (failedCount > 0) addToast(`Impossibile importare ${failedCount} file.`, 'error');
-  };
-
   const processFilesOnMainThread = async (files: File[]) => {
       const existingFingerprints = new Set(tracks.map(t => `${t.points.length}-${t.duration}-${t.distance.toFixed(5)}`));
       const newTracks: Track[] = [];
       let skippedCount = 0;
       let failedCount = 0;
-      const errorMessages: string[] = [];
       let newTracksCount = 0;
 
       for (const file of files) {
@@ -297,36 +212,47 @@ const App: React.FC = () => {
                 }
             } else {
                 failedCount++;
-                errorMessages.push(`Failed to parse: ${file.name}`);
             }
         } catch (error) {
             console.error(`Error processing file ${file.name}:`, error);
             failedCount++;
-            errorMessages.push(`Error processing ${file.name}: ${(error as Error).message}`);
         }
       }
 
-      handleWorkerMessage({ newTracks, failedCount, skippedCount, errorMessages });
+      if (newTracks.length > 0) {
+        setTracks(prevTracks => {
+            const updatedTracks = [...prevTracks, ...newTracks];
+            saveTracksToDB(updatedTracks);
+            return updatedTracks;
+        });
+        
+        const newIds = newTracks.map((t: Track) => t.id);
+        setVisibleTrackIds(prev => new Set([...prev, ...newIds]));
+        addToast(`${newTracks.length} tracciati importati con successo.`, 'success');
+        
+        newTracks.forEach((t: Track) => {
+            syncTrackToCloud(t);
+            const tDate = t.points[0].time.toDateString();
+            const match = plannedWorkouts.find(w => new Date(w.date).toDateString() === tDate && !w.completedTrackId);
+            if (match) {
+                setWorkoutConfirmation(match);
+            }
+            const { newRecordsCount } = updateStoredPRs(t, findPersonalRecordsForTrack(t));
+            if (newRecordsCount > 0) {
+               addToast(`${newTracks.length === 1 ? 'Nuovo' : newRecordsCount + ' Nuovi'} Record Personali rilevati!`, 'success');
+            }
+        });
+      }
+
+      if (skippedCount > 0) addToast(`${skippedCount} file ignorati (duplicati).`, 'info');
+      if (failedCount > 0) addToast(`Impossibile importare ${failedCount} file.`, 'error');
   };
 
   // --- FILE HANDLING ---
   const handleFileUpload = (files: File[] | null) => {
     if (!files || files.length === 0) return;
-    
-    // Check if worker is ready and no error occurred during init
-    if (parsingWorkerRef.current && isWorkerReady) {
-        const existingFingerprints = new Set(tracks.map(t => `${t.points.length}-${t.duration}-${t.distance.toFixed(5)}`));
-        parsingWorkerRef.current.postMessage({
-          files,
-          existingTrackFingerprints: existingFingerprints,
-          colors: TRACK_COLORS,
-          tracksLength: tracks.length
-        });
-    } else {
-        // Fallback to main thread
-        addToast("Elaborazione file in corso (Main Thread)...", "info");
-        processFilesOnMainThread(files);
-    }
+    addToast("Elaborazione file in corso...", "info");
+    processFilesOnMainThread(files);
   };
 
   const handleImportBackup = async (file: File) => {
@@ -335,7 +261,6 @@ const App: React.FC = () => {
       const data: BackupData = JSON.parse(text);
       await importAllData(data);
       
-      // Reload state
       const [t, p, w] = await Promise.all([loadTracksFromDB(), loadProfileFromDB(), loadPlannedWorkoutsFromDB()]);
       setTracks(t);
       if (p) setUserProfile(p);
@@ -402,12 +327,11 @@ const App: React.FC = () => {
   };
 
   const confirmWorkoutLink = (workoutId: string) => {
-      const lastTrack = tracks[tracks.length - 1]; // Assume last added
+      const lastTrack = tracks[tracks.length - 1]; 
       if (lastTrack) {
           const updatedTrack = { ...lastTrack, linkedWorkout: plannedWorkouts.find(w => w.id === workoutId) };
           handleUpdateTrackMetadata(lastTrack.id, { linkedWorkout: updatedTrack.linkedWorkout });
           
-          // Mark workout as completed
           const updatedWorkouts = plannedWorkouts.map(w => w.id === workoutId ? { ...w, completedTrackId: lastTrack.id } : w);
           setPlannedWorkouts(updatedWorkouts);
           savePlannedWorkoutsToDB(updatedWorkouts);
@@ -465,9 +389,8 @@ const App: React.FC = () => {
           
           if (newTime >= maxDuration) {
               setSimulationState('finished');
-              // Generate final results
               const results: RaceResult[] = selectedTracks.map((t, i) => ({
-                  rank: i + 1, // Simplified ranking
+                  rank: i + 1,
                   trackId: t.id,
                   name: t.name,
                   color: t.color,
@@ -498,21 +421,19 @@ const App: React.FC = () => {
       return () => { if (simulationRef.current) cancelAnimationFrame(simulationRef.current); };
   }, [simulationState, simulationSpeed]);
 
-  // Derived state for race
   const raceRunners = useMemo(() => {
       if (simulationState === 'idle') return null;
       return tracks.filter(t => raceSelectionIds.has(t.id)).map(t => {
-          const point = getTrackPointAtDistance(t, (simulationTime / t.duration) * t.distance) || t.points[t.points.length - 1]; // Simplified sync
+          const point = getTrackPointAtDistance(t, (simulationTime / t.duration) * t.distance) || t.points[t.points.length - 1]; 
           return {
               trackId: t.id,
               position: point,
               color: t.color,
-              pace: 0 // calc pace
+              pace: 0 
           };
       });
   }, [simulationState, simulationTime, tracks, raceSelectionIds]);
 
-  // Handle Mobile Track Selection
   const handleMobileSummaryClick = () => {
       if (mobileSelectedTrackId) {
           setSelectedDetailTrackId(mobileSelectedTrackId);
@@ -546,22 +467,17 @@ const App: React.FC = () => {
         }
   };
 
-  // Safe Lookups
   const selectedDetailTrack = useMemo(() => tracks.find(t => t.id === selectedDetailTrackId), [tracks, selectedDetailTrackId]);
   const animationTrack = useMemo(() => animationTrackId ? tracks.find(t => t.id === animationTrackId) : null, [tracks, animationTrackId]);
   const mobileSelectedTrack = useMemo(() => mobileSelectedTrackId ? tracks.find(t => t.id === mobileSelectedTrackId) : null, [tracks, mobileSelectedTrackId]);
   const reviewTrack = useMemo(() => aiReviewTrackId ? tracks.find(t => t.id === aiReviewTrackId) : null, [tracks, aiReviewTrackId]);
 
-  // --- RENDER ---
   return (
     <div className="h-screen w-screen bg-slate-900 text-white overflow-hidden flex flex-col">
-        {/* Splash Screen */}
         {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} />}
 
-        {/* Main Layout - Flex Col on Mobile, Row on Desktop */}
         <div className={`flex-grow flex overflow-hidden relative ${isMobile ? 'flex-col' : 'flex-row'}`}>
             
-            {/* Sidebar Wrapper */}
             {(!selectedDetailTrackId && !editorTracks) && (
                 <div 
                     className={`
@@ -595,7 +511,7 @@ const App: React.FC = () => {
                         onTrackHoverStart={setHoveredTrackId}
                         onTrackHoverEnd={() => setHoveredTrackId(null)}
                         hoveredTrackId={hoveredTrackId}
-                        raceProgress={new Map()} // TODO: wire up real progress
+                        raceProgress={new Map()}
                         simulationSpeed={simulationSpeed}
                         onSpeedChange={setSimulationSpeed}
                         lapTimes={new Map()}
@@ -617,7 +533,7 @@ const App: React.FC = () => {
                         onOpenDiary={() => setShowDiary(true)}
                         dailyTokenUsage={{ used: apiUsage.daily, limit: apiUsage.limitDaily }}
                         onExportBackup={handleExportBackup}
-                        onImportBackup={() => {}} // handled via input in sidebar if needed, or global
+                        onImportBackup={() => {}} 
                         onCloseMobile={() => setIsSidebarMobileOpen(false)} 
                         onUpdateTrackMetadata={handleUpdateTrackMetadata}
                         onRegenerateTitles={() => {}}
@@ -628,18 +544,17 @@ const App: React.FC = () => {
                         onAiBulkRate={() => {}}
                         onOpenReview={(id) => setAiReviewTrackId(id)}
                         mobileRaceMode={false}
-                        monthlyStats={{ totalDistance: 0, totalDuration: 0, activityCount: 0, avgPace: 0 }} // TODO: Calculate
+                        monthlyStats={{ totalDistance: 0, totalDuration: 0, activityCount: 0, avgPace: 0 }}
                         plannedWorkouts={plannedWorkouts}
                         onOpenPlannedWorkout={(id) => { setSelectedWorkoutIdForDiary(id); setShowDiary(true); }}
                         apiUsageStats={apiUsage}
                         onOpenHub={() => setShowHome(true)}
                         onOpenPerformanceAnalysis={() => setShowPerformancePanel(true)}
-                        onUserLogin={() => { loadTracksFromDB().then(setTracks); addToast('Dati Cloud sincronizzati', 'success'); }}
+                        onUserLogin={() => { loadTracksFromDB().then(setTracks); addToast('Login effettuato (Locale)', 'success'); }}
                     />
                 </div>
             )}
 
-            {/* Map Area Wrapper */}
             <div className={`
                 relative transition-all duration-300
                 ${selectedDetailTrackId || editorTracks ? 'h-full w-full' : ''}
@@ -744,7 +659,6 @@ const App: React.FC = () => {
             </div>
         </div>
 
-        {/* Persistent Navigation Dock - Visible on Map Screen */}
         {!editorTracks && !showHome && !showDiary && !showExplorer && !selectedDetailTrackId && !showAiChatbot && !simulationState.startsWith('run') && (
             <NavigationDock 
                 onOpenSidebar={() => { closeAllViews(); setIsSidebarMobileOpen(true); }}
@@ -759,7 +673,6 @@ const App: React.FC = () => {
             />
         )}
 
-        {/* MODALS */}
         {showInitialChoice && (
             <InitialChoiceModal 
                 onImportBackup={handleImportBackup} 
@@ -884,7 +797,6 @@ const App: React.FC = () => {
             />
         )}
 
-        {/* Global Components */}
         <ToastContainer toasts={toasts} setToasts={setToasts} />
         {isCommentaryLoading && <LiveCommentary messages={liveCommentary} isLoading={true} />}
     </div>

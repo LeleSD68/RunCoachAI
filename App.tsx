@@ -868,7 +868,7 @@ const App: React.FC = () => {
                 onCancel={() => setWorkoutConfirmation(null)}
             />
         )}
-      
+
         {aiReviewTrackId && (
             <AiReviewModal 
                 track={tracks.find(t => t.id === aiReviewTrackId)!}
