@@ -49,7 +49,9 @@ if (!supabaseInstance) {
             delete: () => builder,
             eq: () => builder,
             order: () => builder,
-            single: () => ({ data: data, error: null }),
+            limit: () => builder,
+            // .single() deve ritornare una Promise che risolve in { data, error }
+            single: () => Promise.resolve({ data: Array.isArray(data) ? data[0] : data, error: null }),
             then: (resolve: any) => resolve({ data: Array.isArray(data) ? data : [data], error: null })
         };
         return builder;
