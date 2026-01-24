@@ -6,7 +6,7 @@ import { getHeartRateZoneInfo } from './HeartRateZonePanel';
 import FormattedAnalysis from './FormattedAnalysis';
 import { calculateTrackStats } from '../services/trackStatsService';
 import { loadChatFromDB, saveChatToDB } from '../services/dbService';
-import { getGenAI, ensureApiKey, isAuthError } from '../services/aiHelper';
+import { getGenAI, retryWithPolicy, isAuthError, ensureApiKey } from '../services/aiHelper';
 
 const personalityPrompts: Record<AiPersonality, string> = {
     'pro_balanced': "Sei un analista delle prestazioni d'élite. Sii chirurgico, diretto e basati esclusivamente sui numeri. Rispondi rigorosamente in ITALIANO.",
@@ -82,7 +82,6 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
         const personalityKey = userProfile.aiPersonality || 'pro_balanced';
         const personality = personalityPrompts[personalityKey] || personalityPrompts['pro_balanced'];
         const userName = userProfile.name || 'Atleta';
-        const goalsStr = userProfile.goals?.length ? userProfile.goals.join(', ') : 'Salute Generale';
         
         // Calcolo variabilità per capire se è ripetute/fartlek
         const validSplits = stats.splits.filter(s => s.distance > 0.5);
@@ -196,12 +195,21 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
 
     const initChat = (forceRecreation = false) => {
         if (!chatSessionRef.current || forceRecreation) {
-            const ai = getGenAI();
-            chatSessionRef.current = ai.chats.create({
-                model: 'gemini-3-flash-preview',
-                config: { systemInstruction: generateSystemInstruction() },
-                history: messages.map(m => ({ role: m.role, parts: [{ text: m.text }] }))
-            });
+            try {
+                const ai = getGenAI();
+                chatSessionRef.current = ai.chats.create({
+                    model: 'gemini-3-flash-preview',
+                    config: { systemInstruction: generateSystemInstruction() },
+                    history: messages.map(m => ({ role: m.role, parts: [{ text: m.text }] }))
+                });
+            } catch (e: any) {
+                if (e.message === 'API_KEY_MISSING') {
+                    // Swallow error during init, handled in runWithRetry
+                    console.warn("AI Init skipped: Key Missing");
+                } else {
+                    throw e;
+                }
+            }
         }
     };
 
@@ -209,10 +217,13 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
         try {
             await action();
         } catch (e: any) {
-            if (isAuthError(e)) {
+            if (isAuthError(e) || e.message === 'API_KEY_MISSING') {
                 await ensureApiKey();
-                initChat(true);
-                await action();
+                // Ensure key availability before recreating chat
+                if (process.env.API_KEY) {
+                    initChat(true);
+                    await action();
+                }
             } else {
                 throw e;
             }
@@ -273,7 +284,10 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
                     }
                 }
             }
-        }).catch(e => console.error(e)).finally(() => setIsLoading(false));
+        }).catch(e => {
+            console.error(e);
+            setMessages(prev => [...prev, { role: 'model', text: "⚠️ Si è verificato un errore di connessione con il Coach AI. Controlla la tua chiave API o riprova più tardi.", timestamp: Date.now() }]);
+        }).finally(() => setIsLoading(false));
     };
 
     const handleSend = (e: React.FormEvent) => {
