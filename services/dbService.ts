@@ -169,4 +169,219 @@ export const savePlannedWorkoutsToDB = async (workouts: PlannedWorkout[]): Promi
     transaction.onerror = () => reject(transaction.error);
   });
 
-  
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session) {
+      for (const w of workouts) {
+          const payload = {
+              id: w.id.length === 36 ? w.id : undefined,
+              user_id: session.user.id,
+              title: w.title,
+              description: w.description,
+              date: w.date.toISOString(),
+              activity_type: w.activityType,
+              is_ai_suggested: w.isAiSuggested,
+              completed_track_id: w.completedTrackId
+          };
+          if (payload.id) {
+              await supabase.from('planned_workouts').upsert(payload);
+          } else {
+              await supabase.from('planned_workouts').insert(payload);
+          }
+      }
+  }
+};
+
+export const loadPlannedWorkoutsFromDB = async (): Promise<PlannedWorkout[]> => {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session) {
+      const { data } = await supabase.from('planned_workouts').select('*');
+      if (data) {
+          const cloudWorkouts = data.map((w: any) => ({
+              id: w.id,
+              title: w.title,
+              description: w.description,
+              date: new Date(w.date),
+              activityType: w.activity_type,
+              isAiSuggested: w.is_ai_suggested,
+              completedTrackId: w.completed_track_id
+          }));
+          return cloudWorkouts;
+      }
+  }
+
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([PLANNED_STORE], 'readonly');
+    const store = transaction.objectStore(PLANNED_STORE);
+    const request = store.getAll();
+    request.onsuccess = () => {
+      const workouts = request.result as PlannedWorkout[];
+      const revived = workouts.map(w => ({
+        ...w,
+        date: w.date instanceof Date ? w.date : new Date(w.date)
+      }));
+      resolve(revived);
+    };
+    request.onerror = () => reject(request.error);
+  });
+};
+
+// --- CHATS ---
+export const saveChatToDB = async (id: string, messages: ChatMessage[]): Promise<void> => {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([CHATS_STORE], 'readwrite');
+    const store = transaction.objectStore(CHATS_STORE);
+    store.put({ id, messages, updatedAt: new Date().getTime() });
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
+};
+
+export const loadChatFromDB = async (id: string): Promise<ChatMessage[] | null> => {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([CHATS_STORE], 'readonly');
+    const store = transaction.objectStore(CHATS_STORE);
+    const request = store.get(id);
+    request.onsuccess = () => resolve(request.result?.messages || null);
+    request.onerror = () => reject(request.error);
+  });
+};
+
+export const deleteChatFromDB = async (id: string): Promise<void> => {
+    const db = await initDB();
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([CHATS_STORE], 'readwrite');
+        const store = transaction.objectStore(CHATS_STORE);
+        const request = store.delete(id);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+    });
+};
+
+// --- PROFILE ---
+export const saveProfileToDB = async (profile: UserProfile): Promise<void> => {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session) {
+      await supabase.from('profiles').upsert({
+          id: session.user.id,
+          name: profile.name,
+          age: profile.age,
+          weight: profile.weight,
+          gender: profile.gender,
+          max_hr: profile.maxHr,
+          resting_hr: profile.restingHr,
+          goals: profile.goals,
+          ai_personality: profile.aiPersonality,
+          personal_notes: profile.personalNotes,
+          shoes: profile.shoes
+      });
+  }
+
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([PROFILE_STORE], 'readwrite');
+    const store = transaction.objectStore(PROFILE_STORE);
+    store.put({ id: 'current', ...profile });
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
+};
+
+export const loadProfileFromDB = async (): Promise<UserProfile | null> => {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session) {
+      const { data } = await supabase.from('profiles').select('*').single();
+      if (data) {
+          return {
+              name: data.name,
+              age: data.age,
+              weight: data.weight,
+              gender: data.gender,
+              maxHr: data.max_hr,
+              restingHr: data.resting_hr,
+              goals: data.goals,
+              aiPersonality: data.ai_personality,
+              personalNotes: data.personal_notes,
+              shoes: data.shoes
+          };
+      }
+  }
+
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([PROFILE_STORE], 'readonly');
+    const store = transaction.objectStore(PROFILE_STORE);
+    const request = store.get('current');
+    request.onsuccess = () => resolve(request.result || null);
+    request.onerror = () => reject(request.error);
+  });
+};
+
+// --- EXPORT/IMPORT ---
+export interface BackupData {
+    tracks: Track[];
+    plannedWorkouts: PlannedWorkout[];
+    chats: any[];
+    profile: UserProfile | null;
+    exportedAt: string;
+}
+
+export const exportAllData = async (): Promise<BackupData> => {
+    const db = await initDB();
+    const transaction = db.transaction([TRACKS_STORE, CHATS_STORE, PROFILE_STORE, PLANNED_STORE], 'readonly');
+    
+    const tracksReq = transaction.objectStore(TRACKS_STORE).getAll();
+    const plannedReq = transaction.objectStore(PLANNED_STORE).getAll();
+    const chatsReq = transaction.objectStore(CHATS_STORE).getAll();
+    const profileReq = transaction.objectStore(PROFILE_STORE).get('current');
+
+    return new Promise((resolve, reject) => {
+        transaction.oncomplete = () => {
+            resolve({
+                tracks: tracksReq.result,
+                plannedWorkouts: plannedReq.result || [],
+                chats: chatsReq.result,
+                profile: profileReq.result || null,
+                exportedAt: new Date().toISOString()
+            });
+        };
+        transaction.onerror = () => reject(transaction.error);
+    });
+};
+
+export const importAllData = async (data: BackupData): Promise<void> => {
+    const db = await initDB();
+    const transaction = db.transaction([TRACKS_STORE, CHATS_STORE, PROFILE_STORE, PLANNED_STORE], 'readwrite');
+    
+    const tracksStore = transaction.objectStore(TRACKS_STORE);
+    const chatsStore = transaction.objectStore(CHATS_STORE);
+    const profileStore = transaction.objectStore(PROFILE_STORE);
+    const plannedStore = transaction.objectStore(PLANNED_STORE);
+
+    tracksStore.clear();
+    chatsStore.clear();
+    profileStore.clear();
+    plannedStore.clear();
+
+    // Use .put() to ensure overwriting instead of failing on key collision if clear() hasn't finished (though it's in same tx)
+    // or if the backup itself contains duplicates.
+    if (data.tracks && Array.isArray(data.tracks)) {
+        data.tracks.forEach(t => tracksStore.put(t));
+    }
+    if (data.plannedWorkouts && Array.isArray(data.plannedWorkouts)) {
+        data.plannedWorkouts.forEach(w => plannedStore.put(w));
+    }
+    if (data.chats && Array.isArray(data.chats)) {
+        data.chats.forEach(c => chatsStore.put(c));
+    }
+    if (data.profile) {
+        profileStore.put({ id: 'current', ...data.profile });
+    }
+
+    return new Promise((resolve, reject) => {
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error);
+    });
+};

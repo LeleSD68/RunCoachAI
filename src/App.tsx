@@ -257,8 +257,15 @@ const App: React.FC = () => {
 
   const handleImportBackup = async (file: File) => {
     try {
+      addToast('Lettura backup...', 'info');
       const text = await file.text();
-      const data: BackupData = JSON.parse(text);
+      let data: BackupData;
+      try {
+          data = JSON.parse(text);
+      } catch (e) {
+          throw new Error("Il file non è un JSON valido.");
+      }
+      
       await importAllData(data);
       
       const [t, p, w] = await Promise.all([loadTracksFromDB(), loadProfileFromDB(), loadPlannedWorkoutsFromDB()]);
@@ -270,8 +277,9 @@ const App: React.FC = () => {
       setShowInitialChoice(false);
       setShowHome(true);
       addToast('Backup ripristinato correttamente.', 'success');
-    } catch (e) {
-      addToast('Errore durante il ripristino del backup.', 'error');
+    } catch (e: any) {
+      console.error(e);
+      addToast(`Errore ripristino: ${e.message}`, 'error');
     }
   };
 
@@ -533,7 +541,7 @@ const App: React.FC = () => {
                         onOpenDiary={() => setShowDiary(true)}
                         dailyTokenUsage={{ used: apiUsage.daily, limit: apiUsage.limitDaily }}
                         onExportBackup={handleExportBackup}
-                        onImportBackup={() => {}} 
+                        onImportBackup={handleImportBackup} 
                         onCloseMobile={() => setIsSidebarMobileOpen(false)} 
                         onUpdateTrackMetadata={handleUpdateTrackMetadata}
                         onRegenerateTitles={() => {}}
