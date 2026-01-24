@@ -86,13 +86,16 @@ export const saveTracksToDB = async (tracks: Track[]): Promise<void> => {
   const { data: { session } } = await supabase.auth.getSession();
   if (session && isSupabaseConfigured()) {
       const validTracks = tracks.filter(t => !t.isExternal);
+      let syncCount = 0;
       for (const t of validTracks) {
           const payload = mapTrackToSupabase(t, session.user.id);
           // Simple UUID regex check
           if (t.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)) {
              await supabase.from('tracks').upsert({ id: t.id, ...payload });
+             syncCount++;
           }
       }
+      if (syncCount > 0) console.log(`☁️ [Supabase] Batch save: ${syncCount} tracks synced.`);
   }
 };
 
@@ -117,10 +120,13 @@ export const syncTrackToCloud = async (track: Track) => {
             const db = await initDB();
             const tx = db.transaction([TRACKS_STORE], 'readwrite');
             tx.objectStore(TRACKS_STORE).put(track);
+            console.log(`☁️ [Supabase] New track created: ${data.id}`);
         }
     } else {
         // Use UPSERT to handle both "update existing" and "insert missing from cloud but present in backup"
-        await supabase.from('tracks').upsert({ id: track.id, ...payload });
+        const { error } = await supabase.from('tracks').upsert({ id: track.id, ...payload });
+        if (!error) console.log(`☁️ [Supabase] Track updated: ${track.id}`);
+        else console.warn(`☁️ [Supabase] Update error:`, error);
     }
 }
 
@@ -129,6 +135,7 @@ export const deleteTrackFromCloud = async (id: string) => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
     await supabase.from('tracks').delete().eq('id', id);
+    console.log(`☁️ [Supabase] Track deleted: ${id}`);
 }
 
 export const loadTracksFromDB = async (): Promise<Track[]> => {
@@ -139,6 +146,7 @@ export const loadTracksFromDB = async (): Promise<Track[]> => {
       // 1. Try Cloud First
       const { data, error } = await supabase.from('tracks').select('*').order('start_time', { ascending: false });
       if (data && !error) {
+          console.log(`☁️ [Supabase] Loaded ${data.length} tracks from cloud.`);
           const cloudTracks = data.map(mapSupabaseToTrack);
           // Update local DB cache
           saveTracksToDB(cloudTracks); 
@@ -199,6 +207,7 @@ export const savePlannedWorkoutsToDB = async (workouts: PlannedWorkout[]): Promi
               await supabase.from('planned_workouts').insert(payload);
           }
       }
+      console.log(`☁️ [Supabase] Synced ${workouts.length} workouts.`);
   }
 };
 
@@ -288,6 +297,7 @@ export const saveProfileToDB = async (profile: UserProfile): Promise<void> => {
           personal_notes: profile.personalNotes,
           shoes: profile.shoes
       });
+      console.log(`☁️ [Supabase] Profile synced.`);
   }
 
   const db = await initDB();
@@ -434,6 +444,8 @@ export const importAllData = async (data: BackupData): Promise<void> => {
     if (session && isSupabaseConfigured()) {
         const userId = session.user.id;
         
+        console.log("☁️ [Supabase] Starting full import sync...");
+
         // Sync Profile
         if (data.profile) {
             await saveProfileToDB(data.profile);
@@ -464,5 +476,6 @@ export const importAllData = async (data: BackupData): Promise<void> => {
                 await supabase.from('planned_workouts').insert(payload);
             }
         }
+        console.log("☁️ [Supabase] Full import sync completed.");
     }
 };
