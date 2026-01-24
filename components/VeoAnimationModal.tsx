@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Track } from '../types';
 import { GoogleGenAI } from '@google/genai';
+import { getGenAI, ensureApiKey } from '../services/aiHelper';
 
 const fileToBase64 = (file: File): Promise<{ mimeType: string; data: string }> => {
     return new Promise((resolve, reject) => {
@@ -129,6 +130,13 @@ const VeoAnimationModal: React.FC<{ track: Track; onClose: () => void }> = ({ tr
                 await window.aistudio.openSelectKey();
             }
             setApiKeySelected(true);
+
+            // Use getGenAI via try/catch block if needed, but for Veo we likely want fresh instance from updated key
+            // So we manually check key again here to be double sure
+            if (!process.env.API_KEY) {
+               await ensureApiKey();
+               if (!process.env.API_KEY) throw new Error("API Key mancante.");
+            }
 
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
             const { mimeType, data: base64Data } = await fileToBase64(imageFile);
