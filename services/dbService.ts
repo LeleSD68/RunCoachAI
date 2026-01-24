@@ -9,7 +9,7 @@ const PROFILE_STORE = 'profile';
 const PLANNED_STORE = 'planned_workouts';
 // Incrementing DB version to force schema update on client browsers
 // This fixes the "NotFoundError" when restoring backup on devices with old DB schema
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 // --- INDEXED DB INIT ---
 const initDB = (): Promise<IDBDatabase> => {
@@ -372,32 +372,44 @@ export const importAllData = async (data: BackupData): Promise<void> => {
     // Import Tracks with Date revival
     if (data.tracks && Array.isArray(data.tracks)) {
         data.tracks.forEach(t => {
-            // Ensure points time are actual Date objects before storing
-            const revivedTrack = {
-                ...t,
-                points: t.points.map(p => ({
-                    ...p,
-                    time: new Date(p.time) // Convert string to Date
-                }))
-            };
-            tracksStore.put(revivedTrack);
+            try {
+                if (!t.id) return; // Skip invalid
+                // Ensure points time are actual Date objects before storing
+                const revivedTrack = {
+                    ...t,
+                    points: t.points.map(p => ({
+                        ...p,
+                        time: new Date(p.time) // Convert string to Date
+                    }))
+                };
+                tracksStore.put(revivedTrack);
+            } catch (err) {
+                console.warn("Skipping bad track in import", err);
+            }
         });
     }
 
     // Import Workouts with Date revival
     if (data.plannedWorkouts && Array.isArray(data.plannedWorkouts)) {
         data.plannedWorkouts.forEach(w => {
-            const revivedWorkout = {
-                ...w,
-                date: new Date(w.date) // Convert string to Date
-            };
-            plannedStore.put(revivedWorkout);
+            try {
+                if (!w.id) return; // Skip invalid
+                const revivedWorkout = {
+                    ...w,
+                    date: new Date(w.date) // Convert string to Date
+                };
+                plannedStore.put(revivedWorkout);
+            } catch (err) {
+                console.warn("Skipping bad workout in import", err);
+            }
         });
     }
 
     // Import Chats
     if (data.chats && Array.isArray(data.chats)) {
-        data.chats.forEach(c => chatsStore.put(c));
+        data.chats.forEach(c => {
+            if (c.id) chatsStore.put(c);
+        });
     }
 
     // Import Profile
