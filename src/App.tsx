@@ -28,7 +28,7 @@ import NavigationDock from './components/NavigationDock';
 import PerformanceAnalysisPanel from './components/PerformanceAnalysisPanel';
 
 import { Track, TrackPoint, UserProfile, Toast, RaceResult, TrackStats, PlannedWorkout, ApiUsageStats, Commentary } from './types';
-import { loadTracksFromDB, saveTracksToDB, loadProfileFromDB, saveProfileToDB, loadPlannedWorkoutsFromDB, savePlannedWorkoutsToDB, exportAllData, importAllData, BackupData } from './services/dbService';
+import { loadTracksFromDB, saveTracksToDB, loadProfileFromDB, saveProfileToDB, loadPlannedWorkoutsFromDB, savePlannedWorkoutsToDB, exportAllData, importAllData, BackupData, syncTrackToCloud } from './services/dbService';
 import { findPersonalRecordsForTrack, updateStoredPRs } from './services/prService';
 import { calculateTrackStats } from './services/trackStatsService';
 import { getTrackPointAtDistance } from './services/trackEditorUtils';
@@ -108,7 +108,7 @@ const App: React.FC = () => {
   const [isCommentaryLoading, setIsCommentaryLoading] = useState(false);
   
   // API Usage Tracking
-  const [apiUsage, setApiUsage] = useState<ApiUsageStats>({ rpm: 0, daily: 0, limitRpm: 15, limitDaily: 1500 });
+  const [apiUsage, setApiUsage] = useState<ApiUsageStats>({ rpm: 0, daily: 0, limitRpm: 15, limitDaily: 1500, totalTokens: 0 });
   
   // Animation Replay
   const [animationTrackId, setAnimationTrackId] = useState<string | null>(null);
@@ -143,7 +143,11 @@ const App: React.FC = () => {
       
       if (storedTracks.length > 0) {
         setTracks(storedTracks);
-        setVisibleTrackIds(new Set(storedTracks.map(t => t.id)));
+        // Only reset visible tracks if empty, otherwise keep user selection?
+        // Actually on reload better to show all if not race mode.
+        if (simulationState === 'idle') {
+             setVisibleTrackIds(new Set(storedTracks.map(t => t.id)));
+        }
         setShowHome(true);
       } else {
         // First time or no data
@@ -200,7 +204,9 @@ const App: React.FC = () => {
   // Global API Usage Setup
   useEffect(() => {
     window.gpxApp = {
-      addTokens: (count) => { /* Token logic if needed */ },
+      addTokens: (count) => { 
+        setApiUsage(prev => ({ ...prev, totalTokens: prev.totalTokens + count }));
+      },
       getDailyTokenCount: () => apiUsage.daily,
       trackApiRequest: () => {
         setApiUsage(prev => {
@@ -236,6 +242,9 @@ const App: React.FC = () => {
         
         // Check for planned workout matches for new tracks
         newTracks.forEach((t: Track) => {
+            // Auto-sync individually to ensure cloud ID consistency if needed
+            syncTrackToCloud(t);
+
             const tDate = t.points[0].time.toDateString();
             const match = plannedWorkouts.find(w => new Date(w.date).toDateString() === tDate && !w.completedTrackId);
             if (match) {
@@ -414,7 +423,14 @@ const App: React.FC = () => {
 
   // --- TRACK METADATA ---
   const handleUpdateTrackMetadata = (id: string, meta: Partial<Track>) => {
-    const updatedTracks = tracks.map(t => t.id === id ? { ...t, ...meta } : t);
+    const updatedTracks = tracks.map(t => {
+        if (t.id === id) {
+            const updated = { ...t, ...meta };
+            syncTrackToCloud(updated);
+            return updated;
+        }
+        return t;
+    });
     setTracks(updatedTracks);
     saveTracksToDB(updatedTracks);
   };
@@ -624,6 +640,7 @@ const App: React.FC = () => {
                         apiUsageStats={apiUsage}
                         onOpenHub={() => setShowHome(true)}
                         onOpenPerformanceAnalysis={() => setShowPerformancePanel(true)}
+                        onUserLogin={() => { loadTracksFromDB().then(setTracks); addToast('Dati Cloud sincronizzati', 'success'); }}
                     />
                 </div>
             )}
