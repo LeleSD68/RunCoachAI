@@ -209,6 +209,9 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
             switch (sortOption) {
                 case 'date_desc': return b.points[0].time.getTime() - a.points[0].time.getTime();
                 case 'date_asc': return a.points[0].time.getTime() - b.points[0].time.getTime();
+                case 'distance_desc': return b.distance - a.distance;
+                case 'distance_asc': return a.distance - b.distance;
+                case 'time_desc': return b.duration - a.duration;
                 default: return 0;
             }
         });
@@ -334,20 +337,69 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                 </div>
             )}
 
-            {!isSimulationInProgress && (
-                <div className="px-3 pb-2 pt-2 border-b border-slate-800 flex flex-col gap-2 bg-slate-900 flex-shrink-0">
-                    <div className="flex gap-2">
-                        <select 
-                            value={groupingMode} 
-                            onChange={e => setGroupingMode(e.target.value as GroupingMode)} 
-                            className="flex-grow bg-slate-800 border border-slate-700 text-slate-300 text-[10px] font-bold rounded px-2 py-1.5 outline-none cursor-pointer"
+            {safeRaceSelectionIds.size > 0 && !isSimulationInProgress ? (
+                <div className="px-3 py-2 bg-slate-800/80 border-b border-slate-700 flex flex-col gap-2 animate-fade-in-down shrink-0 z-10">
+                    <div className="flex justify-between items-center text-[10px] text-cyan-400 font-black uppercase tracking-widest">
+                        <span>{safeRaceSelectionIds.size} SELEZIONATI</span>
+                        <button onClick={onDeselectAll} className="text-slate-400 hover:text-white transition-colors">Annulla</button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                         <button
+                            onClick={onStartRace}
+                            disabled={safeRaceSelectionIds.size < 2}
+                            className="bg-green-600 hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold py-2 rounded-lg transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"
                         >
-                            <option value="activity">Gruppo: Tipo</option>
-                            <option value="date">Gruppo: Data</option>
-                            <option value="none">Gruppo: Nessuno</option>
-                        </select>
+                            <span>🏁</span> Gara
+                        </button>
+                        <button
+                            onClick={onCompareSelected}
+                            disabled={safeRaceSelectionIds.size < 2}
+                            className="bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold py-2 rounded-lg transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"
+                        >
+                            <span>📊</span> Confronta
+                        </button>
+                    </div>
+                     <div className="grid grid-cols-2 gap-2">
+                        <button
+                            onClick={onGoToEditor}
+                            className="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold py-2 rounded-lg transition-all border border-slate-600 flex items-center justify-center gap-2"
+                        >
+                            <span>✂️</span> Editor
+                        </button>
+                        <button
+                            onClick={onDeleteSelected}
+                            className="bg-red-900/30 hover:bg-red-900/50 text-red-400 border border-red-900/50 text-xs font-bold py-2 rounded-lg transition-all flex items-center justify-center gap-2"
+                        >
+                            <span>🗑️</span> Elimina
+                        </button>
                     </div>
                 </div>
+            ) : (
+                !isSimulationInProgress && (
+                    <div className="px-3 pb-2 pt-2 border-b border-slate-800 flex flex-col gap-2 bg-slate-900 flex-shrink-0">
+                        <div className="flex gap-2">
+                            <select 
+                                value={groupingMode} 
+                                onChange={e => setGroupingMode(e.target.value as GroupingMode)} 
+                                className="flex-grow bg-slate-800 border border-slate-700 text-slate-300 text-[10px] font-bold rounded px-2 py-1.5 outline-none cursor-pointer"
+                            >
+                                <option value="activity">Gruppo: Tipo</option>
+                                <option value="date">Gruppo: Data</option>
+                                <option value="none">Gruppo: Nessuno</option>
+                            </select>
+                             <select 
+                                value={sortOption} 
+                                onChange={e => setSortOption(e.target.value as SortOption)} 
+                                className="w-1/3 bg-slate-800 border border-slate-700 text-slate-300 text-[10px] font-bold rounded px-2 py-1.5 outline-none cursor-pointer"
+                            >
+                                <option value="date_desc">Data ↓</option>
+                                <option value="date_asc">Data ↑</option>
+                                <option value="distance_desc">Dist ↓</option>
+                                <option value="time_desc">Tempo ↓</option>
+                            </select>
+                        </div>
+                    </div>
+                )
             )}
 
             <div 
