@@ -39,11 +39,26 @@ const getMockSession = () => {
 if (!supabaseInstance) {
     console.warn("⚠️ Supabase non configurato. Modalità Offline/Demo attiva.");
     
+    // Mock robusto per supportare le chiamate concatenate
+    const createMockBuilder = (data: any = null) => {
+        const builder = {
+            select: () => builder,
+            insert: () => builder,
+            upsert: () => builder,
+            update: () => builder,
+            delete: () => builder,
+            eq: () => builder,
+            order: () => builder,
+            single: () => ({ data: data, error: null }),
+            then: (resolve: any) => resolve({ data: Array.isArray(data) ? data : [data], error: null })
+        };
+        return builder;
+    };
+
     supabaseInstance = {
         auth: {
             getSession: async () => ({ data: { session: getMockSession() }, error: null }),
             onAuthStateChange: (callback: any) => {
-                // Semplice mock che non triggera eventi reali, ma permette il mount
                 return { data: { subscription: { unsubscribe: () => {} } } };
             },
             signUp: async ({ email, options }: any) => {
@@ -64,13 +79,13 @@ if (!supabaseInstance) {
                 return { error: null };
             }
         },
-        from: () => ({
-            select: () => ({ order: () => ({ data: [], error: null }) }),
-            insert: () => ({ select: () => ({ single: () => ({ data: { id: 'mock-id-' + Date.now() }, error: null }) }) }),
-            upsert: () => ({ select: () => ({ single: () => ({ data: { id: 'mock-id-' + Date.now() }, error: null }) }) }),
-            delete: () => ({ eq: () => ({}) }),
-            update: () => ({ eq: () => ({}) }),
-        })
+        from: (table: string) => {
+            // Ritorna dati mock basati sulla tabella richiesta per evitare crash
+            if (table === 'profiles') return createMockBuilder({ name: 'Utente Locale' });
+            if (table === 'tracks') return createMockBuilder([]);
+            if (table === 'planned_workouts') return createMockBuilder([]);
+            return createMockBuilder([]);
+        }
     };
 }
 
