@@ -129,7 +129,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
     const backupInputRef = useRef<HTMLInputElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const addMenuRef = useRef<HTMLDivElement>(null);
-    const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+    const itemRefs = useRef<Map<string, HTMLLIElement>>(new Map());
     const isSidebarHovered = useRef(false);
 
     const isSimulationInProgress = simulationState === 'running' || simulationState === 'paused';
@@ -349,7 +349,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                                         const isSelected = raceSelectionIds.has(track.id);
                                         
                                         return (
-                                            <div 
+                                            <li 
                                                 key={track.id}
                                                 ref={(el) => { if (el) itemRefs.current.set(track.id, el); }}
                                                 className={`
@@ -371,7 +371,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                                                         <span className="text-[10px] font-mono text-slate-500">{track.distance.toFixed(1)}k</span>
                                                     </div>
                                                 </div>
-                                            </div>
+                                            </li>
                                         );
                                     })}
                                 </ul>
