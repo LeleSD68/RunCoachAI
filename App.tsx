@@ -27,6 +27,7 @@ import SplashScreen from './components/SplashScreen';
 import MobileTrackSummary from './components/MobileTrackSummary';
 import NavigationDock from './components/NavigationDock';
 import PerformanceAnalysisPanel from './components/PerformanceAnalysisPanel';
+import ComparisonModal from './components/ComparisonModal';
 
 import { Track, TrackPoint, UserProfile, Toast, RaceResult, TrackStats, PlannedWorkout, ApiUsageStats, Commentary } from './types';
 import { loadTracksFromDB, saveTracksToDB, loadProfileFromDB, saveProfileToDB, loadPlannedWorkoutsFromDB, savePlannedWorkoutsToDB, exportAllData, importAllData, BackupData, syncTrackToCloud } from './services/dbService';
@@ -66,6 +67,7 @@ const App: React.FC = () => {
   const [showVeoModal, setShowVeoModal] = useState(false);
   const [veoTrack, setVeoTrack] = useState<Track | null>(null);
   const [aiReviewTrackId, setAiReviewTrackId] = useState<string | null>(null);
+  const [showComparison, setShowComparison] = useState(false);
   
   // New States for Navigation Dock
   const [isSidebarMobileOpen, setIsSidebarMobileOpen] = useState(false);
@@ -118,37 +120,33 @@ const App: React.FC = () => {
       setShowPerformancePanel(false);
       setShowAiChatbot(false);
       setShowRaceSetup(false);
+      setShowComparison(false);
   }, []);
 
   // --- INITIALIZATION ---
   useEffect(() => {
     const init = async () => {
-      try {
-        const storedTracks = await loadTracksFromDB();
-        const storedProfile = await loadProfileFromDB();
-        const storedWorkouts = await loadPlannedWorkoutsFromDB();
-        
-        if (storedTracks.length > 0) {
-          setTracks(storedTracks);
-          if (simulationState === 'idle') {
-               setVisibleTrackIds(new Set(storedTracks.map(t => t.id)));
-          }
-          setShowHome(true);
-        } else {
-          const hasVisited = localStorage.getItem('gpx-app-visited');
-          if (!hasVisited) {
-            setShowInitialChoice(true);
-          } else {
-            setShowHome(true);
-          }
+      const storedTracks = await loadTracksFromDB();
+      const storedProfile = await loadProfileFromDB();
+      const storedWorkouts = await loadPlannedWorkoutsFromDB();
+      
+      if (storedTracks.length > 0) {
+        setTracks(storedTracks);
+        if (simulationState === 'idle') {
+             setVisibleTrackIds(new Set(storedTracks.map(t => t.id)));
         }
-
-        if (storedProfile) setUserProfile(storedProfile);
-        if (storedWorkouts) setPlannedWorkouts(storedWorkouts);
-      } catch (e) {
-        console.error("Init failed", e);
-        addToast("Errore durante l'inizializzazione del database.", "error");
+        setShowHome(true);
+      } else {
+        const hasVisited = localStorage.getItem('gpx-app-visited');
+        if (!hasVisited) {
+          setShowInitialChoice(true);
+        } else {
+          setShowHome(true);
+        }
       }
+
+      if (storedProfile) setUserProfile(storedProfile);
+      if (storedWorkouts) setPlannedWorkouts(storedWorkouts);
     };
     init();
   }, []);
@@ -262,7 +260,7 @@ const App: React.FC = () => {
 
   const handleImportBackup = async (file: File) => {
     try {
-      addToast('Lettura backup in corso...', 'info');
+      addToast('Lettura backup...', 'info');
       const text = await file.text();
       let data: BackupData;
       try {
@@ -284,7 +282,7 @@ const App: React.FC = () => {
       addToast('Backup ripristinato correttamente.', 'success');
     } catch (e: any) {
       console.error(e);
-      addToast(`Errore ripristino: ${e.message || 'Controlla la console'}`, 'error');
+      addToast(`Errore ripristino: ${e.message}`, 'error');
     }
   };
 
@@ -480,6 +478,14 @@ const App: React.FC = () => {
         }
   };
 
+  const handleCompareSelected = () => {
+      if (raceSelectionIds.size < 2) {
+          addToast('Seleziona almeno 2 tracce per il confronto.', 'info');
+          return;
+      }
+      setShowComparison(true);
+  };
+
   const selectedDetailTrack = useMemo(() => tracks.find(t => t.id === selectedDetailTrackId), [tracks, selectedDetailTrackId]);
   const animationTrack = useMemo(() => animationTrackId ? tracks.find(t => t.id === animationTrackId) : null, [tracks, animationTrackId]);
   const mobileSelectedTrack = useMemo(() => mobileSelectedTrackId ? tracks.find(t => t.id === mobileSelectedTrackId) : null, [tracks, mobileSelectedTrackId]);
@@ -564,6 +570,7 @@ const App: React.FC = () => {
                         onOpenHub={() => setShowHome(true)}
                         onOpenPerformanceAnalysis={() => setShowPerformancePanel(true)}
                         onUserLogin={() => { loadTracksFromDB().then(setTracks); addToast('Login effettuato (Locale)', 'success'); }}
+                        onCompareSelected={handleCompareSelected}
                     />
                 </div>
             )}
@@ -807,6 +814,13 @@ const App: React.FC = () => {
                 tracks={tracks}
                 userProfile={userProfile}
                 onClose={() => setShowPerformancePanel(false)}
+            />
+        )}
+
+        {showComparison && (
+            <ComparisonModal
+                tracks={tracks.filter(t => raceSelectionIds.has(t.id))}
+                onClose={() => setShowComparison(false)}
             />
         )}
 
