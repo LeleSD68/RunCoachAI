@@ -36,17 +36,6 @@ import { parseGpx } from './services/gpxService';
 import { parseTcx } from './services/tcxService';
 import { generateSmartTitle } from './services/titleGenerator';
 
-// Web Worker for parsing
-// Use a try-catch block to handle environments where import.meta.url might be a data URI
-let workerUrl: string | URL;
-try {
-  workerUrl = new URL('./services/parsing.worker.ts', import.meta.url);
-} catch (e) {
-  // Fallback: assume the worker is served from the root /services directory
-  workerUrl = '/services/parsing.worker.ts';
-}
-const parsingWorker = new Worker(workerUrl, { type: 'module' });
-
 const TRACK_COLORS = [
   '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e'
 ];
@@ -171,8 +160,10 @@ const App: React.FC = () => {
     try {
         let workerUrl: string | URL;
         try {
+            // Try to construct URL relative to current module
             workerUrl = new URL('./services/parsing.worker.ts', import.meta.url);
         } catch (e) {
+            // Fallback for environments where import.meta.url is problematic
             workerUrl = '/services/parsing.worker.ts';
         }
         
@@ -183,6 +174,7 @@ const App: React.FC = () => {
         };
         
         worker.onerror = (e) => {
+            // This catches async errors during script loading (like CORS or 404)
             console.warn("Worker error (likely CORS/Security), falling back to main thread processing.", e);
             parsingWorkerRef.current = null;
             setIsWorkerReady(false);
@@ -191,7 +183,8 @@ const App: React.FC = () => {
         parsingWorkerRef.current = worker;
         setIsWorkerReady(true);
     } catch (e) {
-        console.warn("Worker creation failed, falling back to main thread processing.", e);
+        // This catches synchronous errors like SecurityError during construction
+        console.warn("Worker creation failed immediately, falling back to main thread processing.", e);
         parsingWorkerRef.current = null;
         setIsWorkerReady(false);
     }
@@ -199,7 +192,7 @@ const App: React.FC = () => {
     return () => {
         if (worker) worker.terminate();
     };
-  }, [tracks, plannedWorkouts]); // Re-attach handler if state changes? Better to ref
+  }, []); 
 
   // Global API Usage Setup
   useEffect(() => {
@@ -320,6 +313,7 @@ const App: React.FC = () => {
   const handleFileUpload = (files: File[] | null) => {
     if (!files || files.length === 0) return;
     
+    // Check if worker is ready and no error occurred during init
     if (parsingWorkerRef.current && isWorkerReady) {
         const existingFingerprints = new Set(tracks.map(t => `${t.points.length}-${t.duration}-${t.distance.toFixed(5)}`));
         parsingWorkerRef.current.postMessage({
