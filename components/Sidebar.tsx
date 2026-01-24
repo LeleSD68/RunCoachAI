@@ -95,20 +95,38 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = (props) => {
+    // Aggressive defaulting to prevent "undefined reading has" errors
     const { 
-        tracks = [], onFileUpload, visibleTrackIds, onToggleVisibility, 
-        raceSelectionIds, onToggleRaceSelection, onDeselectAll, onSelectAll,
-        onTrackHoverStart, onTrackHoverEnd, hoveredTrackId,
-        onOpenProfile, onOpenDiary, onOpenGuide,
-        onExportBackup, onCloseMobile,
-        onDeleteSelected, onStartRace, onGoToEditor, onCompareSelected,
+        tracks = [], 
+        onFileUpload, 
+        visibleTrackIds = new Set(), 
+        onToggleVisibility, 
+        raceSelectionIds = new Set(), 
+        onToggleRaceSelection, 
+        onDeselectAll, 
+        onSelectAll,
+        onTrackHoverStart, 
+        onTrackHoverEnd, 
+        hoveredTrackId,
+        onOpenProfile, 
+        onOpenDiary, 
+        onOpenGuide,
+        onExportBackup, 
+        onCloseMobile,
+        onDeleteSelected, 
+        onStartRace, 
+        onGoToEditor, 
+        onCompareSelected,
         onViewDetails,
         monthlyStats,
-        listViewMode, onListViewModeChange, onToggleExplorer,
+        listViewMode, 
+        onListViewModeChange, 
+        onToggleExplorer,
         showExplorer,
         onAiBulkRate,
         simulationState,
-        plannedWorkouts = [], onOpenPlannedWorkout,
+        plannedWorkouts = [], 
+        onOpenPlannedWorkout,
         apiUsageStats,
         onUpdateTrackMetadata,
         onOpenPerformanceAnalysis,
@@ -196,7 +214,13 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
         const groups: Record<string, Track[]> = {};
         if (!tracks) return groups;
 
-        const tracksToFilter = isSimulationInProgress ? tracks.filter(t => raceSelectionIds?.has(t.id)) : tracks;
+        // Ensure raceSelectionIds is valid before use
+        const validRaceSelectionIds = raceSelectionIds || new Set();
+        
+        const tracksToFilter = isSimulationInProgress 
+            ? tracks.filter(t => validRaceSelectionIds.has(t.id)) 
+            : tracks;
+            
         const tracksToSort = tracksToFilter.filter(t => showArchived ? t.isArchived : !t.isArchived);
 
         if (groupingMode === 'none') {
@@ -329,8 +353,8 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
             >
                 {Object.entries(groupedTracks).map(([groupName, rawGroupTracks]) => {
                     const groupTracks = rawGroupTracks as Track[];
-                    // Safety check for Set
-                    const isCollapsed = collapsedFolders?.has(groupName);
+                    // Safety check for Set using optional chaining + fallback validation
+                    const isCollapsed = collapsedFolders && collapsedFolders.has ? collapsedFolders.has(groupName) : false;
                     if (groupTracks.length === 0) return null;
                     
                     return (
@@ -349,8 +373,8 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                                 <ul className="space-y-1 pl-1">
                                     {groupTracks.map(track => {
                                         const isHovered = hoveredTrackId === track.id;
-                                        // Safety check for Set
-                                        const isSelected = raceSelectionIds?.has(track.id);
+                                        // Extra safe check for Set existence
+                                        const isSelected = raceSelectionIds && raceSelectionIds.has ? raceSelectionIds.has(track.id) : false;
                                         
                                         return (
                                             <li 
@@ -374,6 +398,16 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                                                         <RatingStars rating={track.rating} size="xs" />
                                                         <span className="text-[10px] font-mono text-slate-500">{track.distance.toFixed(1)}k</span>
                                                     </div>
+                                                </div>
+                                                {/* Selection Checkbox for Race Mode */}
+                                                <div 
+                                                    className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-cyan-500 border-cyan-500' : 'border-slate-600 hover:border-slate-400'}`}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onToggleRaceSelection(track.id);
+                                                    }}
+                                                >
+                                                    {isSelected && <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 text-white"><path fillRule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clipRule="evenodd" /></svg>}
                                                 </div>
                                             </li>
                                         );
