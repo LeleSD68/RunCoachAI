@@ -10,6 +10,16 @@ interface LoginModalProps {
     tracks: Track[];
 }
 
+const translateError = (msg: string) => {
+    const m = msg.toLowerCase();
+    if (m.includes('invalid login credentials')) return 'Credenziali non valide. Controlla email e password.';
+    if (m.includes('email not confirmed')) return 'Indirizzo email non confermato. Controlla la tua casella di posta.';
+    if (m.includes('user already registered')) return 'Utente già registrato. Prova ad accedere.';
+    if (m.includes('password should be at least')) return 'La password deve avere almeno 6 caratteri.';
+    if (m.includes('rate limit')) return 'Troppi tentativi. Riprova più tardi.';
+    return `Errore: ${msg}`;
+};
+
 const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks }) => {
     const [isSignUp, setIsSignUp] = useState(false);
     const [email, setEmail] = useState('');
@@ -18,6 +28,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [syncStatus, setSyncStatus] = useState('');
+    const [successMessage, setSuccessMessage] = useState('');
 
     const syncLocalDataToCloud = async (userId: string) => {
         if (!tracks || tracks.length === 0) return;
@@ -47,6 +58,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
         e.preventDefault();
         setLoading(true);
         setError('');
+        setSuccessMessage('');
         setSyncStatus('');
 
         try {
@@ -63,11 +75,19 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
                 if (error) throw error;
                 if (data.user) {
                     if (isSupabaseConfigured()) {
-                        alert('Registrazione completata! Controlla la tua email per il link di conferma, poi fai Login.');
-                        setIsSignUp(false);
+                        // Check if session is null (implies email confirmation required)
+                        if (!data.session) {
+                            setSuccessMessage('Registrazione creata! Controlla la tua email per il link di conferma, poi fai Login.');
+                            setIsSignUp(false); // Switch to login view
+                        } else {
+                            // Auto-login worked (email confirm disabled in supabase)
+                            await syncLocalDataToCloud(data.user.id);
+                            onLoginSuccess();
+                            onClose();
+                        }
                     } else {
                         // Offline Mode: Auto-login immediately after signup
-                        alert('Account Locale creato con successo! Accesso in corso...');
+                        setSuccessMessage('Account Locale creato! Accesso...');
                         await syncLocalDataToCloud(data.user.id);
                         onLoginSuccess();
                         onClose();
@@ -87,7 +107,8 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
                 }
             }
         } catch (err: any) {
-            setError(err.message);
+            console.error("Auth Error:", err);
+            setError(translateError(err.message || 'Errore sconosciuto'));
         } finally {
             setLoading(false);
         }
@@ -108,6 +129,12 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
                 </div>
 
                 <form onSubmit={handleAuth} className="space-y-4">
+                    {successMessage && (
+                        <div className="bg-green-500/20 text-green-400 p-3 rounded-lg text-xs font-bold border border-green-500/50 text-center">
+                            {successMessage}
+                        </div>
+                    )}
+                    
                     {isSignUp && (
                         <div>
                             <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Nome Completo</label>
@@ -142,7 +169,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
                         />
                     </div>
 
-                    {error && <p className="text-red-400 text-xs bg-red-900/20 p-2 rounded border border-red-900/50">{error}</p>}
+                    {error && <p className="text-red-400 text-xs bg-red-900/20 p-3 rounded-lg border border-red-900/50 text-center font-bold">{error}</p>}
 
                     <button 
                         type="submit" 
@@ -155,7 +182,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
 
                 <div className="mt-6 text-center">
                     <button 
-                        onClick={() => setIsSignUp(!isSignUp)}
+                        onClick={() => { setIsSignUp(!isSignUp); setError(''); setSuccessMessage(''); }}
                         className="text-sm text-slate-400 hover:text-white underline decoration-slate-600 underline-offset-4"
                     >
                         {isSignUp ? 'Hai già un account? Accedi' : 'Non hai un account? Registrati'}
@@ -167,3 +194,4 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
 };
 
 export default LoginModal;
+        
