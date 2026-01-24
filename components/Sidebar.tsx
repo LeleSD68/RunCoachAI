@@ -1,4 +1,3 @@
-
 import React, { useRef, useMemo, useState, useEffect } from 'react';
 import { Track, MonthlyStats, PlannedWorkout, ApiUsageStats } from '../types';
 import Tooltip from './Tooltip';
@@ -143,6 +142,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
     const [showAddMenu, setShowAddMenu] = useState(false);
     const [showArchived, setShowArchived] = useState(false);
     const [showLoginModal, setShowLoginModal] = useState(false);
+    const [showUserMenu, setShowUserMenu] = useState(false);
     const [userSession, setUserSession] = useState<any>(null);
 
     const backupInputRef = useRef<HTMLInputElement>(null);
@@ -170,6 +170,12 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
         if (e.target.files && e.target.files.length > 0) {
             onFileUpload(Array.from(e.target.files));
         }
+    };
+
+    const handleLogout = async () => {
+        await supabase.auth.signOut();
+        setShowUserMenu(false);
+        // Optional: clear local state if desired, but user might want to keep using offline
     };
 
     const nextWorkout = useMemo(() => {
@@ -235,14 +241,37 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                     <h1 className="text-lg sm:text-xl font-black text-cyan-400 italic tracking-tighter">RunCoachAI</h1>
                 </div>
                 <div className="flex gap-2 items-center">
-                    {/* LOGIN BUTTON */}
-                    <button 
-                        onClick={() => setShowLoginModal(true)}
-                        className={`p-1.5 rounded-full text-white shadow-lg transition-all border ${userSession ? 'bg-green-600 border-green-500' : 'bg-slate-700 border-slate-600 hover:bg-slate-600'}`}
-                        title={userSession ? `Loggato come ${userSession.user.email}` : "Accedi / Registrati"}
-                    >
-                        <UserIcon />
-                    </button>
+                    {/* LOGIN / USER BUTTON */}
+                    <div className="relative">
+                        <button 
+                            onClick={() => userSession ? setShowUserMenu(!showUserMenu) : setShowLoginModal(true)}
+                            className={`p-1.5 rounded-full text-white shadow-lg transition-all border ${userSession ? 'bg-green-600 border-green-500' : 'bg-slate-700 border-slate-600 hover:bg-slate-600'}`}
+                            title={userSession ? `Loggato come ${userSession.user.email}` : "Accedi / Registrati"}
+                        >
+                            <UserIcon />
+                        </button>
+                        
+                        {showUserMenu && userSession && (
+                            <div className="absolute top-full right-0 mt-2 w-48 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl p-1.5 z-50 flex flex-col gap-1 animate-fade-in-down">
+                                <div className="px-3 py-2 border-b border-slate-700 mb-1">
+                                    <p className="text-[10px] text-slate-400 uppercase font-bold">Utente</p>
+                                    <p className="text-xs text-white truncate font-mono">{userSession.user.email}</p>
+                                </div>
+                                <button 
+                                    onClick={() => { setShowUserMenu(false); onOpenProfile(); }}
+                                    className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-200 hover:text-white hover:bg-slate-700 rounded-lg transition-colors text-left"
+                                >
+                                    Profilo
+                                </button>
+                                <button 
+                                    onClick={handleLogout}
+                                    className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-lg transition-colors text-left"
+                                >
+                                    Logout
+                                </button>
+                            </div>
+                        )}
+                    </div>
 
                     {!isSimulationInProgress && (
                         <>
@@ -391,6 +420,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                         setShowLoginModal(false);
                         if (onUserLogin) onUserLogin();
                     }} 
+                    tracks={tracks}
                 />
             )}
         </div>
