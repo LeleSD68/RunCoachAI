@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import { supabase } from '../services/supabaseClient';
+import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
 import { Track } from '../types';
 import { syncTrackToCloud } from '../services/dbService';
 
@@ -25,8 +26,6 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
         let syncedCount = 0;
         
         // Push local tracks to cloud
-        // Note: dbService handles the check if it's already a cloud ID or not inside syncTrackToCloud logic roughly,
-        // but here we force push whatever we have in state as the "latest" version from this device.
         for (const track of tracks) {
             // Only sync actual tracks, not ghost opponents
             if (!track.isExternal) {
@@ -63,7 +62,11 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
                 });
                 if (error) throw error;
                 if (data.user) {
-                    alert('Registrazione completata! Se hai ricevuto una mail di conferma, cliccala, poi fai Login.');
+                    if (isSupabaseConfigured()) {
+                        alert('Registrazione completata! Controlla la tua email per il link di conferma, poi fai Login.');
+                    } else {
+                        alert('Account Locale creato con successo! Ora puoi effettuare il Login con le credenziali appena inserite.');
+                    }
                     setIsSignUp(false);
                 }
             } else {
@@ -96,7 +99,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
                         {isSignUp ? 'Crea Account' : 'Bentornato'}
                     </h2>
                     <p className="text-slate-400 text-sm h-6">
-                        {syncStatus || "Salva le tue corse nel cloud e accedi ovunque."}
+                        {syncStatus || (isSupabaseConfigured() ? "Salva le tue corse nel cloud e accedi ovunque." : "Modalità Offline: Account locale simulato.")}
                     </p>
                 </div>
 
