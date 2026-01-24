@@ -16,14 +16,16 @@ const getEnv = (key: string) => {
     return '';
 };
 
-const supabaseUrl = getEnv('VITE_SUPABASE_URL');
-const supabaseAnonKey = getEnv('VITE_SUPABASE_ANON_KEY');
+// Cerca sia il formato standard Vite (VITE_) che quello Next.js/Vercel (NEXT_PUBLIC_)
+const supabaseUrl = getEnv('VITE_SUPABASE_URL') || getEnv('NEXT_PUBLIC_SUPABASE_URL');
+const supabaseAnonKey = getEnv('VITE_SUPABASE_ANON_KEY') || getEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY');
 
 let supabaseInstance: any;
 
 if (supabaseUrl && supabaseAnonKey) {
     try {
         supabaseInstance = createClient(supabaseUrl, supabaseAnonKey);
+        console.log("✅ Supabase client initialized via Cloud Keys");
     } catch (e) {
         console.error("Errore inizializzazione Supabase:", e);
     }
