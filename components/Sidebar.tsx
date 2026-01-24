@@ -96,7 +96,7 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = (props) => {
     const { 
-        tracks, onFileUpload, visibleTrackIds, onToggleVisibility, 
+        tracks = [], onFileUpload, visibleTrackIds, onToggleVisibility, 
         raceSelectionIds, onToggleRaceSelection, onDeselectAll, onSelectAll,
         onTrackHoverStart, onTrackHoverEnd, hoveredTrackId,
         onOpenProfile, onOpenDiary, onOpenGuide,
@@ -194,7 +194,9 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
 
     const groupedTracks = useMemo<Record<string, Track[]>>(() => {
         const groups: Record<string, Track[]> = {};
-        const tracksToFilter = isSimulationInProgress ? tracks.filter(t => raceSelectionIds.has(t.id)) : tracks;
+        if (!tracks) return groups;
+
+        const tracksToFilter = isSimulationInProgress ? tracks.filter(t => raceSelectionIds?.has(t.id)) : tracks;
         const tracksToSort = tracksToFilter.filter(t => showArchived ? t.isArchived : !t.isArchived);
 
         if (groupingMode === 'none') {
@@ -327,7 +329,8 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
             >
                 {Object.entries(groupedTracks).map(([groupName, rawGroupTracks]) => {
                     const groupTracks = rawGroupTracks as Track[];
-                    const isCollapsed = collapsedFolders.has(groupName);
+                    // Safety check for Set
+                    const isCollapsed = collapsedFolders?.has(groupName);
                     if (groupTracks.length === 0) return null;
                     
                     return (
@@ -346,7 +349,8 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                                 <ul className="space-y-1 pl-1">
                                     {groupTracks.map(track => {
                                         const isHovered = hoveredTrackId === track.id;
-                                        const isSelected = raceSelectionIds.has(track.id);
+                                        // Safety check for Set
+                                        const isSelected = raceSelectionIds?.has(track.id);
                                         
                                         return (
                                             <li 
