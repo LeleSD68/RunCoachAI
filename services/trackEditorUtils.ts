@@ -76,15 +76,15 @@ export const getTrackPointAtDistance = (track: Track, targetDistance: number): T
  * Calculates the interpolated state of a track at a specific time offset from the start.
  * Useful for time-based race simulations to determine real-time pace and position.
  */
-export const getTrackStateAtTime = (track: Track, timeOffsetMs: number): { point: TrackPoint, distance: number } | null => {
+export const getTrackStateAtTime = (track: Track, timeOffsetMs: number): { point: TrackPoint, pace: number } | null => {
     if (track.points.length < 2) return null;
     
     const startTime = track.points[0].time.getTime();
     const targetTime = startTime + timeOffsetMs;
     const endTime = track.points[track.points.length - 1].time.getTime();
 
-    if (targetTime <= startTime) return { point: track.points[0], distance: 0 };
-    if (targetTime >= endTime) return { point: track.points[track.points.length - 1], distance: track.distance };
+    if (targetTime <= startTime) return { point: track.points[0], pace: 0 };
+    if (targetTime >= endTime) return { point: track.points[track.points.length - 1], pace: 0 };
 
     // Binary search for efficiency
     let low = 0, high = track.points.length - 1;
@@ -97,22 +97,26 @@ export const getTrackStateAtTime = (track: Track, timeOffsetMs: number): { point
         } else if (pTime > targetTime) {
             high = mid - 1;
         } else {
-            return { point: track.points[mid], distance: track.points[mid].cummulativeDistance };
+            // Exact match (rare)
+            return { point: track.points[mid], pace: 0 }; // Need pace logic here too? Just let fallback handle it below
         }
     }
 
-    // High is the index before, Low is the index after
+    // High is the index before, Low is the index after (because loop ends when low > high)
+    // Actually in standard binary search `high` ends up being `index - 1` and `low` is `index`
+    // We want the segment p[high] -> p[low] where p[high].time < target < p[low].time
+    
     const idxBefore = high;
     const idxAfter = low;
 
-    if (idxBefore < 0) return { point: track.points[0], distance: 0 };
-    if (idxAfter >= track.points.length) return { point: track.points[track.points.length - 1], distance: track.distance };
+    if (idxBefore < 0) return { point: track.points[0], pace: 0 };
+    if (idxAfter >= track.points.length) return { point: track.points[track.points.length - 1], pace: 0 };
 
     const p1 = track.points[idxBefore];
     const p2 = track.points[idxAfter];
     
     const timeDiff = p2.time.getTime() - p1.time.getTime();
-    if (timeDiff === 0) return { point: p1, distance: p1.cummulativeDistance };
+    if (timeDiff === 0) return { point: p1, pace: 0 };
 
     const ratio = (targetTime - p1.time.getTime()) / timeDiff;
 
@@ -120,13 +124,19 @@ export const getTrackStateAtTime = (track: Track, timeOffsetMs: number): { point
     const lon = p1.lon + (p2.lon - p1.lon) * ratio;
     const ele = p1.ele + (p2.ele - p1.ele) * ratio;
     const interpolatedDistance = p1.cummulativeDistance + (p2.cummulativeDistance - p1.cummulativeDistance) * ratio;
-    
-    // We don't really need exact interpolated time in the point object for display, but good for consistency
     const time = new Date(targetTime);
+
+    // Calculate instantaneous pace based on this segment
+    const distDiff = p2.cummulativeDistance - p1.cummulativeDistance; // km
+    let pace = 0;
+    if (distDiff > 0.0001) {
+        // min/km = (ms / 60000) / km
+        pace = (timeDiff / 60000) / distDiff;
+    }
 
     return { 
         point: { lat, lon, ele, time, cummulativeDistance: interpolatedDistance, hr: p1.hr },
-        distance: interpolatedDistance 
+        pace: pace
     };
 };
 
