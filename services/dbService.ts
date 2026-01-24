@@ -75,7 +75,7 @@ export const saveTracksToDB = async (tracks: Track[]): Promise<void> => {
     const transaction = db.transaction([TRACKS_STORE], 'readwrite');
     const store = transaction.objectStore(TRACKS_STORE);
     store.clear().onsuccess = () => {
-      tracks.filter(t => !t.isExternal).forEach(t => store.add(t));
+      tracks.filter(t => !t.isExternal).forEach(t => store.put(t)); // Use PUT to be safe
     };
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error);
@@ -85,23 +85,10 @@ export const saveTracksToDB = async (tracks: Track[]): Promise<void> => {
   const { data: { session } } = await supabase.auth.getSession();
   if (session) {
       const validTracks = tracks.filter(t => !t.isExternal);
-      // For a robust sync, we would check modification timestamps.
-      // For this MVP, we perform a simplified sync: 
-      // If the track has a UUID-like ID, update it. If not, insert it.
-      // Note: This simplistic loop can be heavy with many tracks. In production use bulk upsert.
       for (const t of validTracks) {
           const payload = mapTrackToSupabase(t, session.user.id);
-          
           if (t.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)) {
-             // It's a UUID, likely already in DB or compatible
              await supabase.from('tracks').upsert({ id: t.id, ...payload });
-          } else {
-             // Local ID, insert as new. 
-             // Ideally we should update the local ID with the new UUID from DB to avoid dupes later.
-             // We do this in 'syncTrackToCloud' for individual tracks.
-             // Batch saving all is risky for dupes without ID mapping logic.
-             // We'll skip batch insert of non-UUIDs here to avoid duplicates on every save.
-             // Only explict sync actions will promote local tracks.
           }
       }
   }
@@ -121,9 +108,7 @@ export const syncTrackToCloud = async (track: Track) => {
             // Update IndexedDB with new ID
             const db = await initDB();
             const tx = db.transaction([TRACKS_STORE], 'readwrite');
-            tx.objectStore(TRACKS_STORE).put(track); // Put uses key path, might duplicate if key changed? 
-            // Actually deleting old key is needed if ID changed.
-            // Simplified: We assume ID update propagates via state reload.
+            tx.objectStore(TRACKS_STORE).put(track);
         }
     } else {
         // Update existing
@@ -145,7 +130,6 @@ export const loadTracksFromDB = async (): Promise<Track[]> => {
       const { data, error } = await supabase.from('tracks').select('*').order('start_time', { ascending: false });
       if (data && !error) {
           const cloudTracks = data.map(mapSupabaseToTrack);
-          // Update Local Cache
           saveTracksToDB(cloudTracks); 
           return cloudTracks;
       }
@@ -175,233 +159,14 @@ export const loadTracksFromDB = async (): Promise<Track[]> => {
 // --- PLANNED WORKOUTS ---
 export const savePlannedWorkoutsToDB = async (workouts: PlannedWorkout[]): Promise<void> => {
   const db = await initDB();
-  // Save locally first
   await new Promise<void>((resolve, reject) => {
     const transaction = db.transaction([PLANNED_STORE], 'readwrite');
     const store = transaction.objectStore(PLANNED_STORE);
     store.clear().onsuccess = () => {
-      workouts.forEach(w => store.add(w));
+      workouts.forEach(w => store.put(w)); // Use PUT
     };
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error);
   });
 
-  // Cloud Sync
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session) {
-      // Simple strategy: Delete all user workouts and rewrite (safe for small datasets)
-      // Or upsert. Let's try upsert loop.
-      for (const w of workouts) {
-          const payload = {
-              id: w.id.length === 36 ? w.id : undefined,
-              user_id: session.user.id,
-              title: w.title,
-              description: w.description,
-              date: w.date.toISOString(),
-              activity_type: w.activityType,
-              is_ai_suggested: w.isAiSuggested,
-              completed_track_id: w.completedTrackId
-          };
-          if (payload.id) {
-              await supabase.from('planned_workouts').upsert(payload);
-          } else {
-              // Insert new, but we miss ID update back to local state here without reload.
-              // For now, accept local-only ID until reload.
-              await supabase.from('planned_workouts').insert(payload);
-          }
-      }
-  }
-};
-
-export const loadPlannedWorkoutsFromDB = async (): Promise<PlannedWorkout[]> => {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session) {
-      const { data } = await supabase.from('planned_workouts').select('*');
-      if (data) {
-          const cloudWorkouts = data.map((w: any) => ({
-              id: w.id,
-              title: w.title,
-              description: w.description,
-              date: new Date(w.date),
-              activityType: w.activity_type,
-              isAiSuggested: w.is_ai_suggested,
-              completedTrackId: w.completed_track_id
-          }));
-          return cloudWorkouts;
-      }
-  }
-
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([PLANNED_STORE], 'readonly');
-    const store = transaction.objectStore(PLANNED_STORE);
-    const request = store.getAll();
-    request.onsuccess = () => {
-      const workouts = request.result as PlannedWorkout[];
-      const revived = workouts.map(w => ({
-        ...w,
-        date: w.date instanceof Date ? w.date : new Date(w.date)
-      }));
-      resolve(revived);
-    };
-    request.onerror = () => reject(request.error);
-  });
-};
-
-// --- CHATS ---
-export const saveChatToDB = async (id: string, messages: ChatMessage[]): Promise<void> => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([CHATS_STORE], 'readwrite');
-    const store = transaction.objectStore(CHATS_STORE);
-    store.put({ id, messages, updatedAt: new Date().getTime() });
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error);
-  });
-};
-
-export const loadChatFromDB = async (id: string): Promise<ChatMessage[] | null> => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([CHATS_STORE], 'readonly');
-    const store = transaction.objectStore(CHATS_STORE);
-    const request = store.get(id);
-    request.onsuccess = () => resolve(request.result?.messages || null);
-    request.onerror = () => reject(request.error);
-  });
-};
-
-export const deleteChatFromDB = async (id: string): Promise<void> => {
-    const db = await initDB();
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction([CHATS_STORE], 'readwrite');
-        const store = transaction.objectStore(CHATS_STORE);
-        const request = store.delete(id);
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
-    });
-};
-
-// --- PROFILE ---
-export const saveProfileToDB = async (profile: UserProfile): Promise<void> => {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session) {
-      await supabase.from('profiles').upsert({
-          id: session.user.id,
-          name: profile.name,
-          age: profile.age,
-          weight: profile.weight,
-          gender: profile.gender,
-          max_hr: profile.maxHr,
-          resting_hr: profile.restingHr,
-          goals: profile.goals,
-          ai_personality: profile.aiPersonality,
-          personal_notes: profile.personalNotes,
-          shoes: profile.shoes
-      });
-  }
-
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([PROFILE_STORE], 'readwrite');
-    const store = transaction.objectStore(PROFILE_STORE);
-    store.put({ id: 'current', ...profile });
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error);
-  });
-};
-
-export const loadProfileFromDB = async (): Promise<UserProfile | null> => {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session) {
-      const { data } = await supabase.from('profiles').select('*').single();
-      if (data) {
-          return {
-              name: data.name,
-              age: data.age,
-              weight: data.weight,
-              gender: data.gender,
-              maxHr: data.max_hr,
-              restingHr: data.resting_hr,
-              goals: data.goals,
-              aiPersonality: data.ai_personality,
-              personalNotes: data.personal_notes,
-              shoes: data.shoes
-          };
-      }
-  }
-
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([PROFILE_STORE], 'readonly');
-    const store = transaction.objectStore(PROFILE_STORE);
-    const request = store.get('current');
-    request.onsuccess = () => resolve(request.result || null);
-    request.onerror = () => reject(request.error);
-  });
-};
-
-// --- EXPORT/IMPORT ---
-export interface BackupData {
-    tracks: Track[];
-    plannedWorkouts: PlannedWorkout[];
-    chats: any[];
-    profile: UserProfile | null;
-    exportedAt: string;
-}
-
-export const exportAllData = async (): Promise<BackupData> => {
-    const db = await initDB();
-    const transaction = db.transaction([TRACKS_STORE, CHATS_STORE, PROFILE_STORE, PLANNED_STORE], 'readonly');
-    
-    const tracksReq = transaction.objectStore(TRACKS_STORE).getAll();
-    const plannedReq = transaction.objectStore(PLANNED_STORE).getAll();
-    const chatsReq = transaction.objectStore(CHATS_STORE).getAll();
-    const profileReq = transaction.objectStore(PROFILE_STORE).get('current');
-
-    return new Promise((resolve, reject) => {
-        transaction.oncomplete = () => {
-            resolve({
-                tracks: tracksReq.result,
-                plannedWorkouts: plannedReq.result || [],
-                chats: chatsReq.result,
-                profile: profileReq.result || null,
-                exportedAt: new Date().toISOString()
-            });
-        };
-        transaction.onerror = () => reject(transaction.error);
-    });
-};
-
-export const importAllData = async (data: BackupData): Promise<void> => {
-    const db = await initDB();
-    const transaction = db.transaction([TRACKS_STORE, CHATS_STORE, PROFILE_STORE, PLANNED_STORE], 'readwrite');
-    
-    const tracksStore = transaction.objectStore(TRACKS_STORE);
-    const chatsStore = transaction.objectStore(CHATS_STORE);
-    const profileStore = transaction.objectStore(PROFILE_STORE);
-    const plannedStore = transaction.objectStore(PLANNED_STORE);
-
-    tracksStore.clear();
-    chatsStore.clear();
-    profileStore.clear();
-    plannedStore.clear();
-
-    if (data.tracks && Array.isArray(data.tracks)) {
-        data.tracks.forEach(t => tracksStore.add(t));
-    }
-    if (data.plannedWorkouts && Array.isArray(data.plannedWorkouts)) {
-        data.plannedWorkouts.forEach(w => plannedStore.add(w));
-    }
-    if (data.chats && Array.isArray(data.chats)) {
-        data.chats.forEach(c => chatsStore.add(c));
-    }
-    if (data.profile) {
-        profileStore.put({ id: 'current', ...data.profile });
-    }
-
-    return new Promise((resolve, reject) => {
-        transaction.oncomplete = () => resolve();
-        transaction.onerror = () => reject(transaction.error);
-    });
-};
+  
