@@ -8,8 +8,7 @@ const CHATS_STORE = 'chats';
 const PROFILE_STORE = 'profile';
 const PLANNED_STORE = 'planned_workouts';
 // Incrementing DB version to force schema update on client browsers
-// This fixes the "NotFoundError" when restoring backup on devices with old DB schema
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 
 // --- INDEXED DB INIT ---
 const initDB = (): Promise<IDBDatabase> => {
@@ -89,6 +88,7 @@ export const saveTracksToDB = async (tracks: Track[]): Promise<void> => {
       const validTracks = tracks.filter(t => !t.isExternal);
       for (const t of validTracks) {
           const payload = mapTrackToSupabase(t, session.user.id);
+          // Simple UUID regex check
           if (t.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)) {
              await supabase.from('tracks').upsert({ id: t.id, ...payload });
           }
@@ -102,8 +102,11 @@ export const syncTrackToCloud = async (track: Track) => {
 
     const payload = mapTrackToSupabase(track, session.user.id);
     
-    if (!track.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)) {
-        // Insert new
+    // Check if ID looks like a UUID
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(track.id);
+
+    if (!isUUID) {
+        // Insert new because the ID is likely from a file name (not a UUID)
         const { data } = await supabase.from('tracks').insert(payload).select().single();
         if (data) {
             track.id = data.id; // Update ID locally
@@ -113,8 +116,8 @@ export const syncTrackToCloud = async (track: Track) => {
             tx.objectStore(TRACKS_STORE).put(track);
         }
     } else {
-        // Update existing
-        await supabase.from('tracks').update(payload).eq('id', track.id);
+        // Use UPSERT to handle both "update existing" and "insert missing from cloud but present in backup"
+        await supabase.from('tracks').upsert({ id: track.id, ...payload });
     }
 }
 
@@ -132,6 +135,7 @@ export const loadTracksFromDB = async (): Promise<Track[]> => {
       const { data, error } = await supabase.from('tracks').select('*').order('start_time', { ascending: false });
       if (data && !error) {
           const cloudTracks = data.map(mapSupabaseToTrack);
+          // Update local DB cache
           saveTracksToDB(cloudTracks); 
           return cloudTracks;
       }
@@ -165,7 +169,7 @@ export const savePlannedWorkoutsToDB = async (workouts: PlannedWorkout[]): Promi
     const transaction = db.transaction([PLANNED_STORE], 'readwrite');
     const store = transaction.objectStore(PLANNED_STORE);
     store.clear().onsuccess = () => {
-      workouts.forEach(w => store.put(w)); // Use PUT
+      workouts.forEach(w => store.put(w));
     };
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error);
@@ -355,73 +359,103 @@ export const exportAllData = async (): Promise<BackupData> => {
 
 export const importAllData = async (data: BackupData): Promise<void> => {
     const db = await initDB();
-    const transaction = db.transaction([TRACKS_STORE, CHATS_STORE, PROFILE_STORE, PLANNED_STORE], 'readwrite');
     
-    const tracksStore = transaction.objectStore(TRACKS_STORE);
-    const chatsStore = transaction.objectStore(CHATS_STORE);
-    const profileStore = transaction.objectStore(PROFILE_STORE);
-    const plannedStore = transaction.objectStore(PLANNED_STORE);
+    // 1. Save to Local IndexedDB (First pass)
+    await new Promise<void>((resolve, reject) => {
+        const transaction = db.transaction([TRACKS_STORE, CHATS_STORE, PROFILE_STORE, PLANNED_STORE], 'readwrite');
+        const tracksStore = transaction.objectStore(TRACKS_STORE);
+        const chatsStore = transaction.objectStore(CHATS_STORE);
+        const profileStore = transaction.objectStore(PROFILE_STORE);
+        const plannedStore = transaction.objectStore(PLANNED_STORE);
 
-    // Clear existing data
-    // We do this via request, but we handle the 'put' in the same transaction loop
-    tracksStore.clear();
-    chatsStore.clear();
-    profileStore.clear();
-    plannedStore.clear();
+        tracksStore.clear();
+        chatsStore.clear();
+        profileStore.clear();
+        plannedStore.clear();
 
-    // Import Tracks with Date revival
-    if (data.tracks && Array.isArray(data.tracks)) {
-        data.tracks.forEach(t => {
-            try {
-                if (!t.id) return; // Skip invalid
-                // Ensure points time are actual Date objects before storing
-                const revivedTrack = {
-                    ...t,
-                    points: t.points.map(p => ({
-                        ...p,
-                        time: new Date(p.time) // Convert string to Date
-                    }))
-                };
-                tracksStore.put(revivedTrack);
-            } catch (err) {
-                console.warn("Skipping bad track in import", err);
-            }
-        });
-    }
+        if (data.tracks && Array.isArray(data.tracks)) {
+            data.tracks.forEach(t => {
+                try {
+                    if (!t.id) return;
+                    const revivedTrack = {
+                        ...t,
+                        points: t.points.map(p => ({
+                            ...p,
+                            time: new Date(p.time)
+                        }))
+                    };
+                    tracksStore.put(revivedTrack);
+                } catch (err) {
+                    console.warn("Skipping bad track in import", err);
+                }
+            });
+        }
 
-    // Import Workouts with Date revival
-    if (data.plannedWorkouts && Array.isArray(data.plannedWorkouts)) {
-        data.plannedWorkouts.forEach(w => {
-            try {
-                if (!w.id) return; // Skip invalid
-                const revivedWorkout = {
-                    ...w,
-                    date: new Date(w.date) // Convert string to Date
-                };
-                plannedStore.put(revivedWorkout);
-            } catch (err) {
-                console.warn("Skipping bad workout in import", err);
-            }
-        });
-    }
+        if (data.plannedWorkouts && Array.isArray(data.plannedWorkouts)) {
+            data.plannedWorkouts.forEach(w => {
+                try {
+                    if (!w.id) return;
+                    const revivedWorkout = {
+                        ...w,
+                        date: new Date(w.date)
+                    };
+                    plannedStore.put(revivedWorkout);
+                } catch (err) {
+                    console.warn("Skipping bad workout in import", err);
+                }
+            });
+        }
 
-    // Import Chats
-    if (data.chats && Array.isArray(data.chats)) {
-        data.chats.forEach(c => {
-            if (c.id) chatsStore.put(c);
-        });
-    }
+        if (data.chats && Array.isArray(data.chats)) {
+            data.chats.forEach(c => { if (c.id) chatsStore.put(c); });
+        }
 
-    // Import Profile
-    if (data.profile) {
-        profileStore.put({ id: 'current', ...data.profile });
-    }
+        if (data.profile) {
+            profileStore.put({ id: 'current', ...data.profile });
+        }
 
-    return new Promise((resolve, reject) => {
         transaction.oncomplete = () => resolve();
-        transaction.onerror = (e) => {
-            console.error("Transaction Error during import:", e);
-            reject(transaction.error);
-        };
+        transaction.onerror = (e) => reject(transaction.error);
     });
+
+    // 2. Sync to Supabase if Logged In
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+        const userId = session.user.id;
+        
+        // Sync Profile
+        if (data.profile) {
+            await saveProfileToDB(data.profile);
+        }
+
+        // Sync Tracks
+        if (data.tracks && Array.isArray(data.tracks)) {
+            for (const t of data.tracks) {
+                if (!t.isExternal) {
+                    await syncTrackToCloud(t);
+                }
+            }
+        }
+
+        // Sync Workouts
+        if (data.plannedWorkouts && Array.isArray(data.plannedWorkouts)) {
+            for (const w of data.plannedWorkouts) {
+                const payload = {
+                    id: w.id.length === 36 ? w.id : undefined, // very rough UUID check
+                    user_id: userId,
+                    title: w.title,
+                    description: w.description,
+                    date: w.date instanceof Date ? w.date.toISOString() : w.date,
+                    activity_type: w.activityType,
+                    is_ai_suggested: w.isAiSuggested,
+                    completed_track_id: w.completedTrackId
+                };
+                if (payload.id) {
+                    await supabase.from('planned_workouts').upsert(payload);
+                } else {
+                    await supabase.from('planned_workouts').insert(payload);
+                }
+            }
+        }
+    }
 };
