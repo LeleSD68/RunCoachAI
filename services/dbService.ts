@@ -1,6 +1,6 @@
 
 import { Track, ChatMessage, UserProfile, PlannedWorkout } from '../types';
-import { supabase } from './supabaseClient';
+import { supabase, isSupabaseConfigured } from './supabaseClient';
 
 const DB_NAME = 'GpxVizDB';
 const TRACKS_STORE = 'tracks';
@@ -82,9 +82,9 @@ export const saveTracksToDB = async (tracks: Track[]): Promise<void> => {
     transaction.onerror = () => reject(transaction.error);
   });
 
-  // 2. If User is Logged In, Sync to Cloud
+  // 2. If User is Logged In AND Supabase is Configured (not mock), Sync to Cloud
   const { data: { session } } = await supabase.auth.getSession();
-  if (session) {
+  if (session && isSupabaseConfigured()) {
       const validTracks = tracks.filter(t => !t.isExternal);
       for (const t of validTracks) {
           const payload = mapTrackToSupabase(t, session.user.id);
@@ -97,6 +97,9 @@ export const saveTracksToDB = async (tracks: Track[]): Promise<void> => {
 };
 
 export const syncTrackToCloud = async (track: Track) => {
+    // Only sync if configured
+    if (!isSupabaseConfigured()) return;
+
     const { data: { session } } = await supabase.auth.getSession();
     if (!session || track.isExternal) return;
 
@@ -122,6 +125,7 @@ export const syncTrackToCloud = async (track: Track) => {
 }
 
 export const deleteTrackFromCloud = async (id: string) => {
+    if (!isSupabaseConfigured()) return;
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
     await supabase.from('tracks').delete().eq('id', id);
@@ -130,7 +134,8 @@ export const deleteTrackFromCloud = async (id: string) => {
 export const loadTracksFromDB = async (): Promise<Track[]> => {
   const { data: { session } } = await supabase.auth.getSession();
 
-  if (session) {
+  // ONLY try cloud if session exists AND Supabase is actually configured (not mock)
+  if (session && isSupabaseConfigured()) {
       // 1. Try Cloud First
       const { data, error } = await supabase.from('tracks').select('*').order('start_time', { ascending: false });
       if (data && !error) {
@@ -141,7 +146,7 @@ export const loadTracksFromDB = async (): Promise<Track[]> => {
       }
   }
 
-  // 2. Fallback to Local
+  // 2. Fallback to Local (This handles Offline, Mock mode, or Cloud error)
   const db = await initDB();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([TRACKS_STORE], 'readonly');
@@ -176,7 +181,7 @@ export const savePlannedWorkoutsToDB = async (workouts: PlannedWorkout[]): Promi
   });
 
   const { data: { session } } = await supabase.auth.getSession();
-  if (session) {
+  if (session && isSupabaseConfigured()) {
       for (const w of workouts) {
           const payload = {
               id: w.id.length === 36 ? w.id : undefined,
@@ -199,7 +204,7 @@ export const savePlannedWorkoutsToDB = async (workouts: PlannedWorkout[]): Promi
 
 export const loadPlannedWorkoutsFromDB = async (): Promise<PlannedWorkout[]> => {
   const { data: { session } } = await supabase.auth.getSession();
-  if (session) {
+  if (session && isSupabaseConfigured()) {
       const { data } = await supabase.from('planned_workouts').select('*');
       if (data) {
           const cloudWorkouts = data.map((w: any) => ({
@@ -269,7 +274,7 @@ export const deleteChatFromDB = async (id: string): Promise<void> => {
 // --- PROFILE ---
 export const saveProfileToDB = async (profile: UserProfile): Promise<void> => {
   const { data: { session } } = await supabase.auth.getSession();
-  if (session) {
+  if (session && isSupabaseConfigured()) {
       await supabase.from('profiles').upsert({
           id: session.user.id,
           name: profile.name,
@@ -297,7 +302,7 @@ export const saveProfileToDB = async (profile: UserProfile): Promise<void> => {
 
 export const loadProfileFromDB = async (): Promise<UserProfile | null> => {
   const { data: { session } } = await supabase.auth.getSession();
-  if (session) {
+  if (session && isSupabaseConfigured()) {
       const { data } = await supabase.from('profiles').select('*').single();
       if (data) {
           return {
@@ -368,6 +373,8 @@ export const importAllData = async (data: BackupData): Promise<void> => {
         const profileStore = transaction.objectStore(PROFILE_STORE);
         const plannedStore = transaction.objectStore(PLANNED_STORE);
 
+        // Explicitly clear only if we have data to replace it with, or just clear anyway to avoid duplicates
+        // Clearing is safer for a full restore.
         tracksStore.clear();
         chatsStore.clear();
         profileStore.clear();
@@ -418,9 +425,9 @@ export const importAllData = async (data: BackupData): Promise<void> => {
         transaction.onerror = (e) => reject(transaction.error);
     });
 
-    // 2. Sync to Supabase if Logged In
+    // 2. Sync to Supabase if Logged In AND Configured
     const { data: { session } } = await supabase.auth.getSession();
-    if (session) {
+    if (session && isSupabaseConfigured()) {
         const userId = session.user.id;
         
         // Sync Profile
