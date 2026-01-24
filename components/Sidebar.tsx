@@ -99,9 +99,9 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
     const { 
         tracks = [], 
         onFileUpload, 
-        visibleTrackIds = new Set(), 
+        visibleTrackIds,
         onToggleVisibility, 
-        raceSelectionIds = new Set(), 
+        raceSelectionIds,
         onToggleRaceSelection, 
         onDeselectAll, 
         onSelectAll,
@@ -134,6 +134,10 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
         onOpenChangelog,
         onUserLogin
     } = props;
+
+    // Use default values for optional sets if they are null/undefined
+    const safeRaceSelectionIds = raceSelectionIds instanceof Set ? raceSelectionIds : new Set<string>();
+    const safeVisibleTrackIds = visibleTrackIds instanceof Set ? visibleTrackIds : new Set<string>();
 
     const [groupingMode, setGroupingMode] = useState<GroupingMode>('date');
     const [sortOption, setSortOption] = useState<SortOption>('date_desc');
@@ -215,10 +219,10 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
         if (!tracks) return groups;
 
         // Ensure raceSelectionIds is valid before use
-        const validRaceSelectionIds = raceSelectionIds || new Set();
+        const filterIds = raceSelectionIds instanceof Set ? raceSelectionIds : new Set();
         
         const tracksToFilter = isSimulationInProgress 
-            ? tracks.filter(t => validRaceSelectionIds.has(t.id)) 
+            ? tracks.filter(t => filterIds.has(t.id)) 
             : tracks;
             
         const tracksToSort = tracksToFilter.filter(t => showArchived ? t.isArchived : !t.isArchived);
@@ -354,7 +358,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                 {Object.entries(groupedTracks).map(([groupName, rawGroupTracks]) => {
                     const groupTracks = rawGroupTracks as Track[];
                     // Safety check for Set using optional chaining + fallback validation
-                    const isCollapsed = collapsedFolders && collapsedFolders.has ? collapsedFolders.has(groupName) : false;
+                    const isCollapsed = collapsedFolders instanceof Set ? collapsedFolders.has(groupName) : false;
                     if (groupTracks.length === 0) return null;
                     
                     return (
@@ -374,7 +378,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                                     {groupTracks.map(track => {
                                         const isHovered = hoveredTrackId === track.id;
                                         // Extra safe check for Set existence
-                                        const isSelected = raceSelectionIds && raceSelectionIds.has ? raceSelectionIds.has(track.id) : false;
+                                        const isSelected = safeRaceSelectionIds.has(track.id);
                                         
                                         return (
                                             <li 
