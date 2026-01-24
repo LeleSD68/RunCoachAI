@@ -33,7 +33,7 @@ import { Track, TrackPoint, UserProfile, Toast, RaceResult, TrackStats, PlannedW
 import { loadTracksFromDB, saveTracksToDB, loadProfileFromDB, saveProfileToDB, loadPlannedWorkoutsFromDB, savePlannedWorkoutsToDB, exportAllData, importAllData, BackupData, syncTrackToCloud } from './services/dbService';
 import { findPersonalRecordsForTrack, updateStoredPRs } from './services/prService';
 import { calculateTrackStats } from './services/trackStatsService';
-import { getTrackPointAtDistance } from './services/trackEditorUtils';
+import { getTrackPointAtDistance, getTrackStateAtTime } from './services/trackEditorUtils';
 import { parseGpx } from './services/gpxService';
 import { parseTcx } from './services/tcxService';
 import { generateSmartTitle } from './services/titleGenerator';
@@ -251,6 +251,54 @@ const App: React.FC = () => {
       if (failedCount > 0) addToast(`Impossibile importare ${failedCount} file.`, 'error');
   };
 
+  const handleAddOpponent = async (files: File[]) => {
+      const newTracks: Track[] = [];
+      let count = 0;
+      for (const file of files) {
+          try {
+              const fileContent = await file.text();
+              const fileExtension = file.name.split('.').pop()?.toLowerCase();
+              let parsedData = null;
+              if (fileExtension === 'gpx') parsedData = parseGpx(fileContent, file.name);
+              else if (fileExtension === 'tcx') parsedData = parseTcx(fileContent, file.name);
+
+              if (parsedData) {
+                  const newTrack: Track = {
+                      id: `ghost-${Date.now()}-${count}`,
+                      name: `GHOST: ${parsedData.name}`,
+                      points: parsedData.points,
+                      color: '#94a3b8', // Slate color for ghosts
+                      distance: parsedData.distance,
+                      duration: parsedData.duration,
+                      isExternal: true
+                  };
+                  newTracks.push(newTrack);
+                  count++;
+              }
+          } catch(e) { console.error(e); }
+      }
+
+      if (newTracks.length > 0) {
+          setTracks(prev => [...prev, ...newTracks]);
+          setRaceSelectionIds(prev => {
+              const next = new Set(prev);
+              newTracks.forEach(t => next.add(t.id));
+              return next;
+          });
+          addToast(`${newTracks.length} avversari caricati.`, 'success');
+      }
+  };
+
+  const handleRemoveRaceTrack = (id: string) => {
+      setRaceSelectionIds(prev => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+      });
+      // If it's a ghost/external track, completely remove it from the track list
+      setTracks(prev => prev.filter(t => t.id !== id || !t.isExternal));
+  };
+
   // --- FILE HANDLING ---
   const handleFileUpload = (files: File[] | null) => {
     if (!files || files.length === 0) return;
@@ -435,12 +483,14 @@ const App: React.FC = () => {
   const raceRunners = useMemo(() => {
       if (simulationState === 'idle') return null;
       return tracks.filter(t => raceSelectionIds.has(t.id)).map(t => {
-          const point = getTrackPointAtDistance(t, (simulationTime / t.duration) * t.distance) || t.points[t.points.length - 1]; 
+          const state = getTrackStateAtTime(t, simulationTime);
+          const point = state?.point || t.points[t.points.length - 1];
+          const pace = state?.pace || 0;
           return {
               trackId: t.id,
               position: point,
               color: t.color,
-              pace: 0 
+              pace: pace 
           };
       });
   }, [simulationState, simulationTime, tracks, raceSelectionIds]);
@@ -723,6 +773,8 @@ const App: React.FC = () => {
                 }}
                 onOpenProfile={() => setShowProfile(true)}
                 onOpenChangelog={() => setShowChangelog(true)}
+                onUploadOpponent={handleAddOpponent}
+                onEnterRaceMode={handleStartRace}
             />
         )}
 
@@ -780,6 +832,8 @@ const App: React.FC = () => {
                 tracks={tracks.filter(t => raceSelectionIds.has(t.id))}
                 onConfirm={confirmRaceStart}
                 onCancel={() => setShowRaceSetup(false)}
+                onAddOpponent={handleAddOpponent}
+                onRemoveTrack={handleRemoveRaceTrack}
             />
         )}
 
