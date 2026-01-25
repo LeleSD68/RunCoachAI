@@ -20,6 +20,11 @@ const GridIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 
 const MapFileIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M8.157 2.176a1.5 1.5 0 0 1 1.186-.672h1.314a1.5 1.5 0 0 1 1.186.672l2.36 3.54A1.5 1.5 0 0 1 13.888 7.5H12.5V14a1.5 1.5 0 0 1-1.5 1.5h-2A1.5 1.5 0 0 1 7.5 14V7.5H6.112a1.5 1.5 0 0 1-1.315-1.784l2.36-3.54Z" clipRule="evenodd" /><path d="M15.5 8.5a.75.75 0 0 0-.75.75v4.5a.75.75 0 0 1-.75.75h-8a.75.75 0 0 1-.75-.75v-4.5a.75.75 0 0 0-1.5 0v4.5A2.25 2.25 0 0 0 6 16h8a2.25 2.25 0 0 0 2.25-2.25v-4.5a.75.75 0 0 0-.75-.75Z" /></svg>);
 const UserIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M10 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16Zm-5.5 8a5.5 5.5 0 1 1 11 0 5.5 5.5 0 0 1-11 0Z" clipRule="evenodd" /></svg>);
 const HomeIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M9.293 2.293a1 1 0 0 1 1.414 0l7 7A1 1 0 0 1 17 11h-1v6a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-3a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-6H3a1 1 0 0 1-.707-1.707l7-7Z" clipRule="evenodd" /></svg>);
+// View Icons
+const ListBulletIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M6 4.75A.75.75 0 0 1 6.75 4h10.5a.75.75 0 0 1 0 1.5H6.75A.75.75 0 0 1 6 4.75ZM6 10a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 0 1.5H6.75A.75.75 0 0 1 6 10Zm0 5.25a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 0 1.5H6.75a.75.75 0 0 1-.75-.75ZM1.99 4.75a1 1 0 0 1 1-1h.01a1 1 0 0 1 1 1v.01a1 1 0 0 1-1 1h-.01a1 1 0 0 1-1-1v-.01ZM1.99 15.25a1 1 0 0 1 1-1h.01a1 1 0 0 1 1 1v.01a1 1 0 0 1-1 1h-.01a1 1 0 0 1-1-1v-.01ZM1.99 10a1 1 0 0 1 1-1h.01a1 1 0 0 1 1 1v.01a1 1 0 0 1-1 1h-.01a1 1 0 0 1-1-1V10Z" clipRule="evenodd" /></svg>);
+const SquaresIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M4.25 2A2.25 2.25 0 0 0 2 4.25v2.5A2.25 2.25 0 0 0 4.25 9h2.5A2.25 2.25 0 0 0 9 6.75v-2.5A2.25 2.25 0 0 0 6.75 2h-2.5Zm0 9A2.25 2.25 0 0 0 2 13.25v2.5A2.25 2.25 0 0 0 4.25 18h2.5A2.25 2.25 0 0 0 9 15.75v-2.5A2.25 2.25 0 0 0 6.75 11h-2.5Zm9-9A2.25 2.25 0 0 0 11 4.25v2.5A2.25 2.25 0 0 0 13.25 9h2.5A2.25 2.25 0 0 0 18 6.75v-2.5A2.25 2.25 0 0 0 15.75 2h-2.5Zm0 9A2.25 2.25 0 0 0 11 13.25v2.5A2.25 2.25 0 0 0 13.25 18h2.5A2.25 2.25 0 0 0 18 15.75v-2.5A2.25 2.25 0 0 0 15.75 11h-2.5Z" clipRule="evenodd" /></svg>);
+const QueueListIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M2 4.5A2.5 2.5 0 0 1 4.5 2h11a2.5 2.5 0 0 1 0 5h-11A2.5 2.5 0 0 1 2 4.5ZM2.75 9.75a.75.75 0 0 1 .75-.75h13a.75.75 0 0 1 0 1.5h-13a.75.75 0 0 1-.75-.75ZM3.5 13.25a.75.75 0 0 0 0 1.5h13a.75.75 0 0 0 0-1.5h-13ZM2.75 17.75a.75.75 0 0 1 .75-.75h13a.75.75 0 0 1 0 1.5h-13a.75.75 0 0 1-.75-.75Z" /></svg>);
+const ArchiveBoxIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M2 3a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H2Z" /><path fillRule="evenodd" d="M2 7.5h16l-.811 7.71a2 2 0 0 1-1.99 1.79H4.802a2 2 0 0 1-1.99-1.79L2 7.5ZM7 11a1 1 0 0 1 1-1h4a1 1 0 1 1 0 2H8a1 1 0 0 1-1-1Z" clipRule="evenodd" /></svg>);
 
 const LogoIcon = () => (
     <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg">
@@ -31,6 +36,7 @@ const LogoIcon = () => (
 
 type GroupingMode = 'none' | 'folder' | 'distance' | 'date' | 'activity' | 'tag';
 type SortOption = 'date_desc' | 'date_asc' | 'distance_desc' | 'distance_asc' | 'name_asc' | 'time_desc';
+type ViewMode = 'list' | 'compact' | 'card';
 
 interface SidebarProps {
     tracks: Track[];
@@ -143,6 +149,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
 
     const [groupingMode, setGroupingMode] = useState<GroupingMode>('date');
     const [sortOption, setSortOption] = useState<SortOption>('date_desc');
+    const [viewMode, setViewMode] = useState<ViewMode>('compact');
     const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
     const [showAddMenu, setShowAddMenu] = useState(false);
     const [showArchived, setShowArchived] = useState(false);
@@ -244,6 +251,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
             ? tracks.filter(t => filterIds?.has ? filterIds.has(t.id) : false) 
             : tracks;
             
+        // Archive Logic
         const tracksToSort = tracksToFilter.filter(t => showArchived ? t.isArchived : !t.isArchived);
 
         if (groupingMode === 'none') {
@@ -461,6 +469,35 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                                 <option value="name_asc">Nome A-Z</option>
                             </select>
                         </div>
+                        <div className="flex justify-between items-center bg-slate-800/50 p-1 rounded-lg border border-slate-700">
+                            <div className="flex gap-1">
+                                <Tooltip text="Lista Semplice" position="bottom">
+                                    <button onClick={() => setViewMode('list')} className={`p-1 rounded ${viewMode === 'list' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'}`}>
+                                        <ListBulletIcon />
+                                    </button>
+                                </Tooltip>
+                                <Tooltip text="Scheda Media" position="bottom">
+                                    <button onClick={() => setViewMode('compact')} className={`p-1 rounded ${viewMode === 'compact' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'}`}>
+                                        <QueueListIcon />
+                                    </button>
+                                </Tooltip>
+                                <Tooltip text="Scheda Grande" position="bottom">
+                                    <button onClick={() => setViewMode('card')} className={`p-1 rounded ${viewMode === 'card' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'}`}>
+                                        <SquaresIcon />
+                                    </button>
+                                </Tooltip>
+                            </div>
+                            <div className="flex gap-1 border-l border-slate-600 pl-1 ml-1">
+                                <Tooltip text={showArchived ? "Nascondi Archivio" : "Mostra Archivio"} position="bottom">
+                                    <button onClick={() => setShowArchived(!showArchived)} className={`p-1 rounded ${showArchived ? 'bg-amber-600 text-white' : 'text-slate-400 hover:text-white'}`}>
+                                        <ArchiveBoxIcon />
+                                    </button>
+                                </Tooltip>
+                                <Tooltip text="Seleziona Tutto" position="bottom">
+                                    <button onClick={onSelectAll} className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-700 text-[10px] font-bold px-2">ALL</button>
+                                </Tooltip>
+                            </div>
+                        </div>
                     </div>
                 )
             )}
@@ -489,12 +526,85 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                             )}
                             
                             {!isCollapsed && (
-                                <ul className="space-y-1 pl-1">
+                                <ul className={`pl-1 ${viewMode === 'card' ? 'space-y-3' : 'space-y-1'}`}>
                                     {groupTracks.map(track => {
                                         const isHovered = hoveredTrackId === track.id;
                                         // Extra safe check for Set existence
                                         const isSelected = safeRaceSelectionIds?.has ? safeRaceSelectionIds.has(track.id) : false;
                                         
+                                        if (viewMode === 'list') {
+                                            // LIST VIEW (Minimal)
+                                            return (
+                                                <li 
+                                                    key={track.id}
+                                                    ref={(el) => { if (el) itemRefs.current.set(track.id, el); }}
+                                                    className={`
+                                                        rounded border transition-all cursor-pointer group relative p-1.5 flex items-center gap-2 scroll-mt-4 text-[10px]
+                                                        ${isHovered ? 'bg-slate-700 border-cyan-500 z-10' : 'bg-slate-800/50 border-slate-700/50 hover:bg-slate-700'}
+                                                        ${isSelected ? 'bg-cyan-900/20 border-cyan-500/50' : ''}
+                                                    `}
+                                                    onMouseEnter={() => onTrackHoverStart(track.id)}
+                                                    onMouseLeave={onTrackHoverEnd}
+                                                    onClick={() => onViewDetails(track.id)}
+                                                >
+                                                    <div onClick={(e) => { e.stopPropagation(); onToggleRaceSelection(track.id); }} className={`w-3 h-3 rounded border flex-shrink-0 cursor-pointer ${isSelected ? 'bg-cyan-500 border-cyan-500' : 'border-slate-600'}`}>
+                                                        {isSelected && <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clipRule="evenodd"/></svg>}
+                                                    </div>
+                                                    <div className="flex-grow min-w-0 grid grid-cols-[60px_1fr_40px] gap-2 items-center">
+                                                        <span className="text-slate-500 font-mono truncate">{new Date(track.points[0].time).toLocaleDateString()}</span>
+                                                        <span className={`font-bold truncate ${isHovered ? 'text-cyan-300' : 'text-slate-300'}`}>{track.name}</span>
+                                                        <span className="text-slate-400 font-mono text-right">{track.distance.toFixed(1)}k</span>
+                                                    </div>
+                                                </li>
+                                            );
+                                        }
+
+                                        if (viewMode === 'card') {
+                                            // CARD VIEW (Large)
+                                            return (
+                                                <li 
+                                                    key={track.id}
+                                                    ref={(el) => { if (el) itemRefs.current.set(track.id, el); }}
+                                                    className={`
+                                                        rounded-xl border transition-all cursor-pointer group relative overflow-hidden scroll-mt-4
+                                                        ${isHovered ? 'border-cyan-500 shadow-lg shadow-cyan-900/20 transform scale-[1.01] z-10' : 'bg-slate-800 border-slate-700 hover:border-slate-600'}
+                                                        ${isSelected ? 'ring-2 ring-cyan-500 bg-slate-800' : ''}
+                                                    `}
+                                                    onMouseEnter={() => onTrackHoverStart(track.id)}
+                                                    onMouseLeave={onTrackHoverEnd}
+                                                    onClick={() => onViewDetails(track.id)}
+                                                >
+                                                    <div className="h-24 w-full bg-slate-900 relative">
+                                                        <TrackPreview points={track.points} color={track.color} className="w-full h-full object-cover opacity-80" />
+                                                        <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm rounded px-1.5 py-0.5 pointer-events-none">
+                                                            <RatingStars rating={track.rating} size="xs" />
+                                                        </div>
+                                                        <div 
+                                                            className={`absolute top-2 left-2 w-5 h-5 rounded border flex items-center justify-center transition-colors cursor-pointer ${isSelected ? 'bg-cyan-500 border-cyan-500' : 'bg-black/40 border-white/30 hover:border-white'}`}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                onToggleRaceSelection(track.id);
+                                                            }}
+                                                        >
+                                                            {isSelected && <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 text-white"><path fillRule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clipRule="evenodd" /></svg>}
+                                                        </div>
+                                                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-slate-900 to-transparent h-10"></div>
+                                                        <div className="absolute bottom-2 left-2 text-white font-mono text-xs font-bold drop-shadow-md">
+                                                            {track.distance.toFixed(2)} km
+                                                        </div>
+                                                    </div>
+                                                    <div className="p-3">
+                                                        <h4 className={`text-sm font-bold truncate mb-1 ${isHovered ? 'text-cyan-400' : 'text-slate-200'}`}>{track.name}</h4>
+                                                        <div className="flex justify-between items-center text-[10px] text-slate-500 uppercase font-bold tracking-wider">
+                                                            <span>{new Date(track.points[0].time).toLocaleDateString()}</span>
+                                                            <span>{track.activityType || 'Corsa'}</span>
+                                                        </div>
+                                                    </div>
+                                                </li>
+                                            );
+                                        }
+
+                                        // COMPACT VIEW (Default)
                                         return (
                                             <li 
                                                 key={track.id}
