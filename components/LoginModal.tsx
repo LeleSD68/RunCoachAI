@@ -1,12 +1,15 @@
+
 import React, { useState } from 'react';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
-import { Track } from '../types';
-import { syncTrackToCloud } from '../services/dbService';
+import { Track, UserProfile, PlannedWorkout } from '../types';
+import { syncTrackToCloud, saveProfileToDB, savePlannedWorkoutsToDB, syncAllChatsToCloud } from '../services/dbService';
 
 interface LoginModalProps {
     onClose: () => void;
     onLoginSuccess: () => void;
     tracks: Track[];
+    userProfile: UserProfile;
+    plannedWorkouts: PlannedWorkout[];
 }
 
 const translateError = (msg: string) => {
@@ -33,7 +36,7 @@ const EyeSlashIcon = () => (
     </svg>
 );
 
-const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks }) => {
+const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks, userProfile, plannedWorkouts }) => {
     const [view, setView] = useState<'login' | 'signup' | 'forgot'>('login');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -46,25 +49,48 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
     const [needsConfirmation, setNeedsConfirmation] = useState(false);
 
     const syncLocalDataToCloud = async (userId: string) => {
-        if (!tracks || tracks.length === 0) return;
+        setSyncStatus('Sincronizzazione dati in corso...');
         
-        setSyncStatus(`Sincronizzazione di ${tracks.length} attività...`);
-        let syncedCount = 0;
-        
-        // Push local tracks to cloud
-        for (const track of tracks) {
-            // Only sync actual tracks, not ghost opponents
-            if (!track.isExternal) {
-                try {
-                    await syncTrackToCloud(track);
-                    syncedCount++;
-                } catch (e) {
-                    console.warn(`Failed to sync track ${track.id}`, e);
+        try {
+            // 1. Sync Profile
+            if (userProfile) {
+                await saveProfileToDB(userProfile);
+            }
+
+            // 2. Sync Planned Workouts
+            if (plannedWorkouts && plannedWorkouts.length > 0) {
+                await savePlannedWorkoutsToDB(plannedWorkouts);
+            }
+
+            // 3. Sync Tracks
+            let syncedCount = 0;
+            if (tracks && tracks.length > 0) {
+                for (const track of tracks) {
+                    // Only sync actual tracks, not ghost opponents
+                    if (!track.isExternal) {
+                        try {
+                            await syncTrackToCloud(track);
+                            syncedCount++;
+                        } catch (e) {
+                            console.warn(`Failed to sync track ${track.id}`, e);
+                        }
+                    }
                 }
             }
+
+            // 4. Sync All Chat History (Global & Track-specific)
+            try {
+                await syncAllChatsToCloud();
+            } catch (e) {
+                console.warn("Failed to sync chats", e);
+            }
+
+            setSyncStatus(`Profilo, Diario, ${syncedCount} attività e chat sincronizzati!`);
+        } catch (e) {
+            console.error("Sync error", e);
+            setSyncStatus('Sincronizzazione parziale completata.');
         }
         
-        setSyncStatus(`Sincronizzati ${syncedCount} tracciati!`);
         // Small delay to let user see success message
         await new Promise(r => setTimeout(r, 800));
     };

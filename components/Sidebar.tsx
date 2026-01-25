@@ -1,6 +1,6 @@
 
 import React, { useRef, useMemo, useState, useEffect } from 'react';
-import { Track, MonthlyStats, PlannedWorkout, ApiUsageStats } from '../types';
+import { Track, MonthlyStats, PlannedWorkout, ApiUsageStats, UserProfile } from '../types';
 import Tooltip from './Tooltip';
 import RatingStars from './RatingStars';
 import TrackPreview from './TrackPreview';
@@ -92,6 +92,7 @@ interface SidebarProps {
     onOpenPerformanceAnalysis?: () => void; 
     onOpenHub?: () => void;
     onUserLogin?: () => void; 
+    userProfile: UserProfile; // Added prop
 }
 
 const Sidebar: React.FC<SidebarProps> = (props) => {
@@ -132,7 +133,8 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
         onOpenPerformanceAnalysis,
         onOpenHub,
         onOpenChangelog,
-        onUserLogin
+        onUserLogin,
+        userProfile // Added destructured prop
     } = props;
 
     // Use default values for optional sets if they are null/undefined
@@ -497,6 +499,8 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                         if (onUserLogin) onUserLogin();
                     }} 
                     tracks={tracks}
+                    userProfile={userProfile}
+                    plannedWorkouts={plannedWorkouts || []}
                 />
             )}
         </div>

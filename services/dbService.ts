@@ -249,16 +249,41 @@ export const loadPlannedWorkoutsFromDB = async (): Promise<PlannedWorkout[]> => 
 // --- CHATS ---
 export const saveChatToDB = async (id: string, messages: ChatMessage[]): Promise<void> => {
   const db = await initDB();
-  return new Promise((resolve, reject) => {
+  await new Promise<void>((resolve, reject) => {
     const transaction = db.transaction([CHATS_STORE], 'readwrite');
     const store = transaction.objectStore(CHATS_STORE);
     store.put({ id, messages, updatedAt: new Date().getTime() });
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error);
   });
+
+  // Sync to Cloud
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session && isSupabaseConfigured()) {
+      await supabase.from('chats').upsert({
+          id, // Can be 'global-coach' or 'track-chat-UUID'
+          user_id: session.user.id,
+          messages,
+          updated_at: new Date().toISOString()
+      });
+  }
 };
 
 export const loadChatFromDB = async (id: string): Promise<ChatMessage[] | null> => {
+  // 1. Try Cloud First if Online
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session && isSupabaseConfigured()) {
+      const { data } = await supabase.from('chats').select('*').eq('id', id).single();
+      if (data) {
+          // Update local cache
+          const db = await initDB();
+          const tx = db.transaction([CHATS_STORE], 'readwrite');
+          tx.objectStore(CHATS_STORE).put({ id, messages: data.messages, updatedAt: new Date(data.updated_at).getTime() });
+          return data.messages;
+      }
+  }
+
+  // 2. Fallback Local
   const db = await initDB();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([CHATS_STORE], 'readonly');
@@ -271,13 +296,46 @@ export const loadChatFromDB = async (id: string): Promise<ChatMessage[] | null> 
 
 export const deleteChatFromDB = async (id: string): Promise<void> => {
     const db = await initDB();
-    return new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
         const transaction = db.transaction([CHATS_STORE], 'readwrite');
         const store = transaction.objectStore(CHATS_STORE);
         const request = store.delete(id);
         request.onsuccess = () => resolve();
         request.onerror = () => reject(request.error);
     });
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session && isSupabaseConfigured()) {
+        await supabase.from('chats').delete().eq('id', id);
+    }
+};
+
+export const syncAllChatsToCloud = async () => {
+    if (!isSupabaseConfigured()) return;
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    const db = await initDB();
+    const chats: any[] = await new Promise((resolve, reject) => {
+        const tx = db.transaction([CHATS_STORE], 'readonly');
+        const req = tx.objectStore(CHATS_STORE).getAll();
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+    });
+
+    if (chats.length > 0) {
+        let count = 0;
+        for (const chat of chats) {
+            const { error } = await supabase.from('chats').upsert({
+                id: chat.id,
+                user_id: session.user.id,
+                messages: chat.messages,
+                updated_at: new Date(chat.updatedAt || Date.now()).toISOString()
+            });
+            if (!error) count++;
+        }
+        console.log(`☁️ [Supabase] Synced ${count} chat histories.`);
+    }
 };
 
 // --- PROFILE ---
@@ -476,6 +534,19 @@ export const importAllData = async (data: BackupData): Promise<void> => {
                 await supabase.from('planned_workouts').insert(payload);
             }
         }
+
+        // Sync Chats
+        if (data.chats && Array.isArray(data.chats)) {
+            for (const chat of data.chats) {
+                await supabase.from('chats').upsert({
+                    id: chat.id,
+                    user_id: userId,
+                    messages: chat.messages,
+                    updated_at: new Date(chat.updatedAt || Date.now()).toISOString()
+                });
+            }
+        }
+
         console.log("☁️ [Supabase] Full import sync completed.");
     }
 };
