@@ -220,13 +220,14 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
     };
 
     const sortTracks = (trackList: Track[]) => {
-        return trackList.sort((a, b) => {
+        return [...trackList].sort((a, b) => {
             switch (sortOption) {
                 case 'date_desc': return b.points[0].time.getTime() - a.points[0].time.getTime();
                 case 'date_asc': return a.points[0].time.getTime() - b.points[0].time.getTime();
                 case 'distance_desc': return b.distance - a.distance;
                 case 'distance_asc': return a.distance - b.distance;
                 case 'time_desc': return b.duration - a.duration;
+                case 'name_asc': return a.name.localeCompare(b.name);
                 default: return 0;
             }
         });
@@ -252,13 +253,55 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
         
         tracksToSort.forEach(t => {
              let groupName = 'Altro';
-             if (groupingMode === 'date') groupName = t.points[0].time.toLocaleDateString(undefined, { year: 'numeric', month: 'long' });
-             else if (groupingMode === 'activity') groupName = t.activityType || 'Altro';
-             else groupName = 'Gruppo';
+             if (groupingMode === 'date') {
+                 groupName = t.points[0].time.toLocaleDateString(undefined, { year: 'numeric', month: 'long' });
+             } else if (groupingMode === 'activity') {
+                 groupName = t.activityType || 'Altro';
+             } else if (groupingMode === 'folder') {
+                 groupName = t.folder || 'Senza Cartella';
+             } else if (groupingMode === 'tag') {
+                 const firstTag = (t.tags && t.tags.length > 0) ? t.tags[0] : null;
+                 groupName = firstTag ? `#${firstTag.toUpperCase()}` : 'Nessun Tag';
+             } else if (groupingMode === 'distance') {
+                 const d = t.distance;
+                 if (d < 5) groupName = '< 5 km';
+                 else if (d < 10) groupName = '5 - 10 km';
+                 else if (d < 21) groupName = '10 - 21 km';
+                 else if (d <= 42) groupName = '21 - 42 km';
+                 else groupName = '> 42 km';
+             }
+             
              if (!groups[groupName]) groups[groupName] = [];
              groups[groupName].push(t);
         });
-        return groups;
+
+        // Sort items INSIDE groups
+        Object.keys(groups).forEach(key => {
+            groups[key] = sortTracks(groups[key]);
+        });
+
+        // Sort GROUPS themselves
+        const sortedGroups: Record<string, Track[]> = {};
+        let sortedKeys: string[] = [];
+
+        if (groupingMode === 'date') {
+            sortedKeys = Object.keys(groups).sort((a, b) => {
+                const dateA = groups[a][0]?.points[0].time.getTime() || 0;
+                const dateB = groups[b][0]?.points[0].time.getTime() || 0;
+                return dateB - dateA; // Newest months first
+            });
+        } else if (groupingMode === 'distance') {
+            const order = ['< 5 km', '5 - 10 km', '10 - 21 km', '21 - 42 km', '> 42 km'];
+            sortedKeys = Object.keys(groups).sort((a, b) => order.indexOf(a) - order.indexOf(b));
+        } else {
+            sortedKeys = Object.keys(groups).sort();
+        }
+
+        sortedKeys.forEach(key => {
+            sortedGroups[key] = groups[key];
+        });
+
+        return sortedGroups;
     }, [tracks, groupingMode, sortOption, isSimulationInProgress, raceSelectionIds, showArchived]);
 
     return (
@@ -398,8 +441,11 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                                 onChange={e => setGroupingMode(e.target.value as GroupingMode)} 
                                 className="flex-grow bg-slate-800 border border-slate-700 text-slate-300 text-[10px] font-bold rounded px-2 py-1.5 outline-none cursor-pointer"
                             >
-                                <option value="activity">Gruppo: Tipo</option>
                                 <option value="date">Gruppo: Data</option>
+                                <option value="distance">Gruppo: Distanza</option>
+                                <option value="activity">Gruppo: Tipo</option>
+                                <option value="tag">Gruppo: Tag</option>
+                                <option value="folder">Gruppo: Cartella</option>
                                 <option value="none">Gruppo: Nessuno</option>
                             </select>
                              <select 
@@ -410,7 +456,9 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                                 <option value="date_desc">Data ↓</option>
                                 <option value="date_asc">Data ↑</option>
                                 <option value="distance_desc">Dist ↓</option>
+                                <option value="distance_asc">Dist ↑</option>
                                 <option value="time_desc">Tempo ↓</option>
+                                <option value="name_asc">Nome A-Z</option>
                             </select>
                         </div>
                     </div>
