@@ -52,12 +52,28 @@ const mapTrackToSupabase = (t: Track, userId: string) => ({
 
 const mapSupabaseToTrack = (row: any): Track | null => {
     try {
-        if (!row || !row.points_data || !Array.isArray(row.points_data)) return null;
+        if (!row) return null;
+
+        // Robust parsing for points_data which might be a JSON string or object
+        let pointsData = row.points_data;
+        if (typeof pointsData === 'string') {
+            try {
+                pointsData = JSON.parse(pointsData);
+            } catch (e) {
+                console.error("Error parsing points_data JSON for track:", row.id, e);
+                return null;
+            }
+        }
+
+        if (!pointsData || !Array.isArray(pointsData)) {
+            console.warn("Invalid points_data format for track:", row.id);
+            return null;
+        }
         
         return {
             id: row.id, 
             name: row.name,
-            points: (row.points_data as any[]).map((p: any) => ({ ...p, time: new Date(p.time) })),
+            points: pointsData.map((p: any) => ({ ...p, time: new Date(p.time) })),
             distance: row.distance_km,
             duration: row.duration_ms,
             color: row.color,
@@ -138,18 +154,31 @@ export const deleteTrackFromCloud = async (id: string) => {
 export const loadTracksFromDB = async (forceLocal: boolean = false): Promise<Track[]> => {
   const { data: { session } } = await supabase.auth.getSession();
 
+  // PRIORITIZE CLOUD: If logged in, fetch from cloud and sync DOWN to local.
   if (!forceLocal && session && isSupabaseConfigured()) {
       const { data, error } = await supabase.from('tracks').select('*').order('start_time', { ascending: false });
-      if (data && !error) {
+      
+      if (error) {
+          console.error("Error fetching tracks from Supabase:", error);
+          // Don't fall back immediately if it's a critical auth error, but generally proceed to local
+      } else if (data) {
+          // Successfully fetched from cloud
           const cloudTracks = data
             .map(mapSupabaseToTrack)
             .filter((t): t is Track => t !== null);
             
-          saveTracksToDB(cloudTracks, { skipCloud: true }); 
+          // IMPORTANT: Only overwrite local DB if we actually got a response array (even if empty, implying new user or wiped data)
+          // We assume 'data' being present means the query succeeded.
+          
+          // Save to local WITHOUT sending back to cloud to avoid loops
+          // This ensures Local DB mirrors Cloud DB on login
+          await saveTracksToDB(cloudTracks, { skipCloud: true }); 
+          
           return cloudTracks;
       }
   }
 
+  // FALLBACK: Load from Local IndexedDB
   const db = await initDB();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([TRACKS_STORE], 'readonly');
@@ -223,7 +252,7 @@ export const loadPlannedWorkoutsFromDB = async (forceLocal: boolean = false): Pr
               completedTrackId: w.completed_track_id
           }));
           
-          savePlannedWorkoutsToDB(cloudWorkouts, { skipCloud: true });
+          await savePlannedWorkoutsToDB(cloudWorkouts, { skipCloud: true });
           return cloudWorkouts;
       }
   }
@@ -411,7 +440,7 @@ export const loadProfileFromDB = async (forceLocal: boolean = false): Promise<Us
               weightHistory: data.weight_history
           };
           
-          saveProfileToDB(cloudProfile, { skipCloud: true });
+          await saveProfileToDB(cloudProfile, { skipCloud: true });
           return cloudProfile;
       }
   }
