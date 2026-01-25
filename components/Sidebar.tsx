@@ -452,7 +452,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                                                 key={track.id}
                                                 ref={(el) => { if (el) itemRefs.current.set(track.id, el); }}
                                                 className={`
-                                                    rounded-lg border transition-all cursor-pointer group relative p-2 flex items-center gap-3
+                                                    rounded-lg border transition-all cursor-pointer group relative p-2 flex items-center gap-3 scroll-mt-4
                                                     ${isHovered ? 'bg-slate-700 border-cyan-500 shadow-md shadow-cyan-500/10 z-10 scale-[1.01]' : 'bg-slate-800/80 border-slate-700/50 hover:bg-slate-700 hover:border-slate-600'}
                                                     ${isSelected ? 'ring-1 ring-cyan-500/50 bg-cyan-900/10' : ''}
                                                 `}
