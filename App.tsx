@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Sidebar from './components/Sidebar';
 import MapDisplay from './components/MapDisplay';
@@ -8,6 +9,7 @@ import ExplorerView from './components/ExplorerView';
 import HomeModal from './components/HomeModal';
 import WelcomeModal from './components/WelcomeModal';
 import InitialChoiceModal from './components/InitialChoiceModal';
+import AuthSelectionModal from './components/AuthSelectionModal';
 import GuideModal from './components/GuideModal';
 import Changelog from './components/Changelog';
 import UserProfileModal from './components/UserProfileModal';
@@ -27,15 +29,17 @@ import MobileTrackSummary from './components/MobileTrackSummary';
 import NavigationDock from './components/NavigationDock';
 import PerformanceAnalysisPanel from './components/PerformanceAnalysisPanel';
 import ComparisonModal from './components/ComparisonModal';
+import LoginModal from './components/LoginModal'; 
 
 import { Track, TrackPoint, UserProfile, Toast, RaceResult, TrackStats, PlannedWorkout, ApiUsageStats, Commentary } from './types';
-import { loadTracksFromDB, saveTracksToDB, loadProfileFromDB, saveProfileToDB, loadPlannedWorkoutsFromDB, savePlannedWorkoutsToDB, exportAllData, importAllData, BackupData, syncTrackToCloud } from './services/dbService';
+import { loadTracksFromDB, saveTracksToDB, loadProfileFromDB, saveProfileToDB, loadPlannedWorkoutsFromDB, savePlannedWorkoutsToDB, exportAllData, importAllData, BackupData, syncTrackToCloud, restoreAllChatsFromCloud } from './services/dbService';
 import { findPersonalRecordsForTrack, updateStoredPRs } from './services/prService';
 import { calculateTrackStats } from './services/trackStatsService';
 import { getTrackPointAtDistance, getTrackStateAtTime } from './services/trackEditorUtils';
 import { parseGpx } from './services/gpxService';
 import { parseTcx } from './services/tcxService';
 import { generateSmartTitle } from './services/titleGenerator';
+import { supabase } from './services/supabaseClient';
 
 const TRACK_COLORS = [
   '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e'
@@ -44,6 +48,9 @@ const TRACK_COLORS = [
 const App: React.FC = () => {
   // --- STATE ---
   const [showSplash, setShowSplash] = useState(true);
+  const [showAuthSelection, setShowAuthSelection] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+
   const [tracks, setTracks] = useState<Track[]>([]);
   const [visibleTrackIds, setVisibleTrackIds] = useState<Set<string>>(new Set());
   const [raceSelectionIds, setRaceSelectionIds] = useState<Set<string>>(new Set());
@@ -122,33 +129,59 @@ const App: React.FC = () => {
       setShowComparison(false);
   }, []);
 
-  // --- INITIALIZATION ---
-  useEffect(() => {
-    const init = async () => {
-      const storedTracks = await loadTracksFromDB();
-      const storedProfile = await loadProfileFromDB();
-      const storedWorkouts = await loadPlannedWorkoutsFromDB();
-      
-      if (storedTracks.length > 0) {
-        setTracks(storedTracks);
-        if (simulationState === 'idle') {
-             setVisibleTrackIds(new Set(storedTracks.map(t => t.id)));
-        }
-        setShowHome(true);
-      } else {
-        const hasVisited = localStorage.getItem('gpx-app-visited');
-        if (!hasVisited) {
-          setShowInitialChoice(true);
-        } else {
-          setShowHome(true);
-        }
-      }
+  const loadDataAndEnter = useCallback(async () => {
+      try {
+          const storedTracks = await loadTracksFromDB();
+          const storedProfile = await loadProfileFromDB();
+          const storedWorkouts = await loadPlannedWorkoutsFromDB();
+          
+          // Attempt to restore all chat history from cloud silently
+          restoreAllChatsFromCloud().catch(e => console.warn("Failed to sync chats", e));
+          
+          setTracks(storedTracks);
+          if (storedProfile) setUserProfile(storedProfile);
+          if (storedWorkouts) setPlannedWorkouts(storedWorkouts);
 
-      if (storedProfile) setUserProfile(storedProfile);
-      if (storedWorkouts) setPlannedWorkouts(storedWorkouts);
-    };
-    init();
+          if (storedTracks.length > 0) {
+              if (simulationState === 'idle') {
+                  setVisibleTrackIds(new Set(storedTracks.map(t => t.id)));
+              }
+              setShowHome(true);
+          } else {
+              const hasVisited = localStorage.getItem('gpx-app-visited');
+              if (!hasVisited) {
+                  setShowInitialChoice(true);
+              } else {
+                  setShowHome(true);
+              }
+          }
+      } catch (error) {
+          console.error("Error loading data:", error);
+          // Fallback to initial choice if error
+          setShowInitialChoice(true);
+      }
+  }, [simulationState]);
+
+  // --- INITIALIZATION FLOW ---
+  useEffect(() => {
+    // 1. Splash screen is managed by its own component timer (3.7s)
+    // We wait for splash to finish (onFinish callback below)
   }, []);
+
+  const handleSplashFinish = async () => {
+      setShowSplash(false);
+      
+      // Check for existing session
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session) {
+          // Logged in: Auto-load data and enter
+          await loadDataAndEnter();
+      } else {
+          // Not logged in: Show Auth Selection Modal
+          setShowAuthSelection(true);
+      }
+  };
 
   // Global API Usage Setup
   useEffect(() => {
@@ -542,7 +575,20 @@ const App: React.FC = () => {
 
   return (
     <div className="h-screen w-screen bg-slate-900 text-white overflow-hidden flex flex-col">
-        {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} />}
+        {showSplash && <SplashScreen onFinish={handleSplashFinish} />}
+
+        {showAuthSelection && (
+            <AuthSelectionModal 
+                onGuest={() => {
+                    setShowAuthSelection(false);
+                    loadDataAndEnter();
+                }}
+                onLogin={() => {
+                    setShowAuthSelection(false);
+                    setShowLoginModal(true);
+                }}
+            />
+        )}
 
         <div className={`flex-grow flex overflow-hidden relative ${isMobile ? 'flex-col' : 'flex-row'}`}>
             
@@ -618,7 +664,7 @@ const App: React.FC = () => {
                         apiUsageStats={apiUsage}
                         onOpenHub={() => setShowHome(true)}
                         onOpenPerformanceAnalysis={() => setShowPerformancePanel(true)}
-                        onUserLogin={() => { loadTracksFromDB().then(setTracks); addToast('Login effettuato (Locale)', 'success'); }}
+                        onUserLogin={() => { setShowLoginModal(true); }}
                         onCompareSelected={handleCompareSelected}
                         userProfile={userProfile}
                     />
@@ -728,6 +774,8 @@ const App: React.FC = () => {
                 )}
             </div>
         </div>
+
+        {/* --- DOCK & MODALS --- */}
 
         {!editorTracks && !showHome && !showDiary && !showExplorer && !selectedDetailTrackId && !showAiChatbot && !simulationState.startsWith('run') && (
             <NavigationDock 
@@ -875,6 +923,16 @@ const App: React.FC = () => {
             <ComparisonModal
                 tracks={tracks.filter(t => raceSelectionIds.has(t.id))}
                 onClose={() => setShowComparison(false)}
+            />
+        )}
+
+        {showLoginModal && (
+            <LoginModal 
+                onClose={() => setShowLoginModal(false)}
+                onLoginSuccess={loadDataAndEnter}
+                tracks={tracks}
+                userProfile={userProfile}
+                plannedWorkouts={plannedWorkouts}
             />
         )}
 
