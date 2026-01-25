@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile, PersonalRecord, RunningGoal, AiPersonality, Track, WeightEntry } from '../types';
-import { getStoredPRs } from '../services/prService';
+import { getStoredPRs, findBestTimeForDistance, PR_DISTANCES } from '../services/prService';
 import Tooltip from './Tooltip';
 import SimpleLineChart from './SimpleLineChart';
 
@@ -46,8 +46,8 @@ const formatPRDistance = (meters: number): string => {
     if (meters === 1000) return '1 km';
     if (meters === 5000) return '5 km';
     if (meters === 10000) return '10 km';
-    if (meters === 21097.5) return 'Half Marathon';
-    if (meters === 42195) return 'Marathon';
+    if (meters === 21097.5) return 'Mezza Maratona';
+    if (meters === 42195) return 'Maratona';
     return `${(meters / 1000).toFixed(2)} km`;
 };
 
@@ -61,11 +61,59 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
     const [profile, setProfile] = useState<UserProfile>({ ...currentProfile });
     const [personalRecords, setPersonalRecords] = useState<Record<string, PersonalRecord>>({});
     const [newShoe, setNewShoe] = useState('');
+    const [calculatingPRs, setCalculatingPRs] = useState(false);
 
     useEffect(() => {
         setProfile({ ...currentProfile });
-        setPersonalRecords(getStoredPRs());
-    }, [currentProfile]);
+        
+        // Logica avanzata: Scansiona TUTTE le tracce per trovare i migliori segmenti
+        // Questo assicura che se importi un backup o hai tante corse, i PR siano calcolati su tutto lo storico
+        // e non solo sull'ultimo import.
+        if (tracks && tracks.length > 0) {
+            setCalculatingPRs(true);
+            
+            // Timeout per non bloccare l'apertura del modale UI
+            setTimeout(() => {
+                const computedPRs: Record<string, PersonalRecord> = {};
+                
+                PR_DISTANCES.forEach(distanceDef => {
+                    const targetKm = distanceDef.meters / 1000;
+                    let globalBestTime = Infinity;
+                    let globalBestTrack: Track | null = null;
+
+                    tracks.forEach(track => {
+                        // Salta tracce troppo corte
+                        if (track.distance < targetKm) return;
+
+                        // findBestTimeForDistance usa una finestra scorrevole (sliding window)
+                        // Analizza OGNI possibile segmento (es. da 7.25 a 8.25 km), non solo i km interi.
+                        const time = findBestTimeForDistance(track.points, targetKm);
+                        
+                        if (time !== null && time < globalBestTime) {
+                            globalBestTime = time;
+                            globalBestTrack = track;
+                        }
+                    });
+
+                    if (globalBestTrack && globalBestTime !== Infinity) {
+                        computedPRs[distanceDef.meters] = {
+                            distance: distanceDef.meters,
+                            time: globalBestTime,
+                            trackId: (globalBestTrack as Track).id,
+                            trackName: (globalBestTrack as Track).name,
+                            date: new Date((globalBestTrack as Track).points[0].time).toISOString()
+                        };
+                    }
+                });
+
+                setPersonalRecords(computedPRs);
+                setCalculatingPRs(false);
+            }, 100);
+        } else {
+            // Fallback se non ci sono tracce caricate
+            setPersonalRecords(getStoredPRs());
+        }
+    }, [currentProfile, tracks]);
 
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
@@ -359,16 +407,32 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
                             </div>
                         </div>
 
-                        {sortedPRs.length > 0 && !isWelcomeMode && (
+                        {!isWelcomeMode && (
                              <div className="p-6 border-t border-slate-700 bg-slate-900/30">
-                                <h3 className="text-lg font-semibold text-slate-200 mb-2">Record Personali</h3>
+                                <h3 className="text-lg font-semibold text-slate-200 mb-2 flex items-center justify-between">
+                                    Record Personali
+                                    {calculatingPRs && (
+                                        <span className="text-[10px] text-cyan-400 font-normal animate-pulse flex items-center gap-1">
+                                            <div className="w-2 h-2 bg-cyan-400 rounded-full animate-ping"></div>
+                                            Analisi segmenti in corso...
+                                        </span>
+                                    )}
+                                </h3>
                                 <div className="space-y-2">
-                                    {sortedPRs.map((pr: PersonalRecord) => (
+                                    {sortedPRs.length > 0 ? sortedPRs.map((pr: PersonalRecord) => (
                                         <div key={pr.distance} className="flex justify-between items-center bg-slate-700/50 p-2 rounded-md border border-slate-600/50">
-                                            <span className="font-semibold text-slate-300 text-sm">{formatPRDistance(pr.distance)}</span>
-                                            <span className="font-mono text-white text-sm font-bold">{formatPRTime(pr.time)}</span>
+                                            <div>
+                                                <span className="font-semibold text-slate-300 text-sm block">{formatPRDistance(pr.distance)}</span>
+                                                <span className="text-[10px] text-slate-500">{new Date(pr.date).toLocaleDateString()}</span>
+                                            </div>
+                                            <div className="text-right">
+                                                <span className="font-mono text-white text-sm font-bold block">{formatPRTime(pr.time)}</span>
+                                                <span className="text-[9px] text-slate-500 max-w-[150px] truncate block" title={pr.trackName}>{pr.trackName}</span>
+                                            </div>
                                         </div>
-                                    ))}
+                                    )) : (
+                                        <p className="text-xs text-slate-500 italic text-center">Nessun record trovato. Carica delle corse per analizzare i tuoi tempi migliori.</p>
+                                    )}
                                 </div>
                             </div>
                         )}
