@@ -29,6 +29,7 @@ const initDB = (): Promise<IDBDatabase> => {
 };
 
 // --- MAPPERS ---
+// Mappa da oggetto Track (App) a riga Database (Supabase)
 const mapTrackToSupabase = (t: Track, userId: string) => ({
     user_id: userId,
     name: t.name,
@@ -47,8 +48,11 @@ const mapTrackToSupabase = (t: Track, userId: string) => ({
     tags: t.tags,
     is_favorite: t.isFavorite,
     is_archived: t.isArchived,
+    has_chat: t.hasChat, // Campo aggiunto
+    linked_workout: t.linkedWorkout, // Campo aggiunto (JSONB)
 });
 
+// Mappa da riga Database (Supabase) a oggetto Track (App)
 const mapSupabaseToTrack = (row: any): Track => ({
     id: row.id, 
     name: row.name,
@@ -66,6 +70,8 @@ const mapSupabaseToTrack = (row: any): Track => ({
     tags: row.tags,
     isFavorite: row.is_favorite,
     isArchived: row.is_archived,
+    hasChat: row.has_chat, // Lettura campo aggiunto
+    linkedWorkout: row.linked_workout, // Lettura campo aggiunto
 });
 
 // --- TRACKS ---
@@ -89,7 +95,7 @@ export const saveTracksToDB = async (tracks: Track[]): Promise<void> => {
       let syncCount = 0;
       for (const t of validTracks) {
           const payload = mapTrackToSupabase(t, session.user.id);
-          // Simple UUID regex check
+          // Simple UUID regex check to ensure we only sync valid UUIDs (not local temp IDs)
           if (t.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)) {
              await supabase.from('tracks').upsert({ id: t.id, ...payload });
              syncCount++;
@@ -113,10 +119,11 @@ export const syncTrackToCloud = async (track: Track) => {
 
     if (!isUUID) {
         // Insert new because the ID is likely from a file name (not a UUID)
+        // We let Supabase generate the ID and return it
         const { data } = await supabase.from('tracks').insert(payload).select().single();
         if (data) {
-            track.id = data.id; // Update ID locally
-            // Update IndexedDB with new ID
+            track.id = data.id; // Update ID locally to match Cloud UUID
+            // Update IndexedDB with new ID to keep sync
             const db = await initDB();
             const tx = db.transaction([TRACKS_STORE], 'readwrite');
             tx.objectStore(TRACKS_STORE).put(track);
@@ -148,7 +155,7 @@ export const loadTracksFromDB = async (): Promise<Track[]> => {
       if (data && !error) {
           console.log(`☁️ [Supabase] Loaded ${data.length} tracks from cloud.`);
           const cloudTracks = data.map(mapSupabaseToTrack);
-          // Update local DB cache
+          // Update local DB cache so offline mode has latest data
           saveTracksToDB(cloudTracks); 
           return cloudTracks;
       }
@@ -192,7 +199,7 @@ export const savePlannedWorkoutsToDB = async (workouts: PlannedWorkout[]): Promi
   if (session && isSupabaseConfigured()) {
       for (const w of workouts) {
           const payload = {
-              id: w.id.length === 36 ? w.id : undefined,
+              id: w.id.length === 36 ? w.id : undefined, // Send ID only if it looks like a UUID
               user_id: session.user.id,
               title: w.title,
               description: w.description,
