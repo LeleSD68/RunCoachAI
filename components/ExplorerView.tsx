@@ -59,9 +59,9 @@ const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTr
                  const d = t.distance;
                  if (d < 5) groupName = '< 5 km';
                  else if (d < 10) groupName = '5 - 10 km';
-                 else if (d < 15) groupName = '10 - 15 km';
-                 else if (d <= 22) groupName = '15 - 22 km';
-                 else groupName = '> 22 km';
+                 else if (d < 21) groupName = '10 - 21 km';
+                 else if (d <= 42) groupName = '21 - 42 km';
+                 else groupName = '> 42 km';
             } else if (groupingMode === 'date') {
                 groupName = t.points[0].time.toLocaleDateString(undefined, { year: 'numeric', month: 'long' });
             } else if (groupingMode === 'activity') {
@@ -75,12 +75,12 @@ const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTr
             groups[groupName].push(t);
         });
         
-        // Sort inside groups
+        // Sort items INSIDE groups
         Object.keys(groups).forEach(key => {
             groups[key] = sortTracks(groups[key]);
         });
 
-        // Sort Group Keys
+        // Sort GROUPS themselves
         const sortedGroups: Record<string, Track[]> = {};
         let sortedKeys: string[] = [];
 
@@ -91,7 +91,7 @@ const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTr
                 return dateB - dateA; // Newest months first
             });
         } else if (groupingMode === 'distance') {
-            const order = ['< 5 km', '5 - 10 km', '10 - 15 km', '15 - 22 km', '> 22 km'];
+            const order = ['< 5 km', '5 - 10 km', '10 - 21 km', '21 - 42 km', '> 42 km'];
             sortedKeys = Object.keys(groups).sort((a, b) => order.indexOf(a) - order.indexOf(b));
         } else {
             sortedKeys = Object.keys(groups).sort();
@@ -133,9 +133,9 @@ const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTr
                                 <option value="none">Raggruppa: Nessuno</option>
                                 <option value="activity">Tipo</option>
                                 <option value="date">Data (Mese)</option>
+                                <option value="distance">Distanza</option>
                                 <option value="tag">Tag</option>
                                 <option value="folder">Cartella</option>
-                                <option value="distance">Distanza</option>
                             </select>
 
                             <select 
