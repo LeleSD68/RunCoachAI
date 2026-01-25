@@ -82,7 +82,7 @@ const App: React.FC = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    const handleResize = () => setIsMobile(window.innerWidth <768);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -115,6 +115,11 @@ const App: React.FC = () => {
   
   const simulationRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(0);
+
+  const addToast = useCallback((message: string, type: Toast['type']) => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, message, type }]);
+  }, []);
 
   const closeAllViews = useCallback(() => {
       setShowHome(false);
@@ -155,12 +160,20 @@ const App: React.FC = () => {
                   setShowHome(true);
               }
           }
+          
+          if (storedProfile && storedProfile.name) {
+              addToast(`Bentornato ${storedProfile.name}! Profilo e dati sincronizzati.`, 'success');
+          } else if (storedTracks.length > 0) {
+              addToast('Profilo e Dati sincronizzati.', 'success');
+          }
+
       } catch (error) {
           console.error("Error loading data:", error);
           // Fallback to initial choice if error
           setShowInitialChoice(true);
+          addToast("Impossibile caricare alcuni dati dal cloud.", "error");
       }
-  }, [simulationState]);
+  }, [simulationState, addToast]);
 
   // --- INITIALIZATION FLOW ---
   useEffect(() => {
@@ -200,11 +213,6 @@ const App: React.FC = () => {
       }
     };
   }, []);
-
-  const addToast = (message: string, type: Toast['type']) => {
-    const id = Date.now();
-    setToasts(prev => [...prev, { id, message, type }]);
-  };
 
   const processFilesOnMainThread = async (files: File[]) => {
       const existingFingerprints = new Set(tracks.map(t => `${t.points.length}-${t.duration}-${t.distance.toFixed(5)}`));

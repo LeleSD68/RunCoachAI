@@ -52,9 +52,19 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
         setSyncStatus('Sincronizzazione dati in corso...');
         
         try {
-            // 1. Sync Profile
-            if (userProfile) {
+            // 1. Sync Profile - SAFETY CHECK
+            // Only sync if local profile actually has data to avoid wiping cloud profile on fresh login
+            const hasLocalProfileData = userProfile && (
+                (userProfile.name && userProfile.name.trim() !== '') || 
+                (userProfile.weightHistory && userProfile.weightHistory.length > 0) ||
+                (userProfile.age && userProfile.age > 0)
+            );
+
+            if (hasLocalProfileData) {
                 await saveProfileToDB(userProfile);
+                console.log("Local profile synced to cloud.");
+            } else {
+                console.log("Local profile empty, skipping sync to avoid overwrite.");
             }
 
             // 2. Sync Planned Workouts
@@ -78,14 +88,15 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
                 }
             }
 
-            // 4. Sync All Chat History (Global & Track-specific)
+            // 4. Sync All Chat History (Global & Track-specific) - Only if local DB has chats
+            // syncAllChatsToCloud iterates local DB, so if empty it does nothing (safe)
             try {
                 await syncAllChatsToCloud();
             } catch (e) {
                 console.warn("Failed to sync chats", e);
             }
 
-            setSyncStatus(`Profilo, Diario, ${syncedCount} attività e chat sincronizzati!`);
+            setSyncStatus(`Profilo e Diario aggiornati.`);
         } catch (e) {
             console.error("Sync error", e);
             setSyncStatus('Sincronizzazione parziale completata.');
