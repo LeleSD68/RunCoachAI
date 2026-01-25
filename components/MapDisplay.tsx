@@ -391,12 +391,13 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
                 if (isAnyHovered) {
                     if (isHovered) {
                         opacity = 1.0;
-                        weight = 6;
+                        weight = 8; // Highlight heavily
                         color = track.color;
                     } else {
-                        opacity = 0.3;
+                        // Decolor other tracks
+                        opacity = 0.15; // Fade out significantly
                         weight = 2;
-                        color = '#64748b';
+                        color = '#334155'; // Grey/Slate
                     }
                 } else if (isSelectionActive) {
                     if (isSelected) {
@@ -404,7 +405,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
                         weight = 6;
                         color = track.color;
                     } else {
-                        opacity = 0.3;
+                        opacity = 0.2;
                         weight = 2;
                         color = '#475569';
                     }
@@ -415,6 +416,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
                 }
                 
                 let layer;
+                // Apply gradient logic only if highlighted or no focus mode is active
                 const shouldApplyGradient = mapGradientMetric !== 'none' && (isHovered || (!isAnyHovered && (isSelected || !isSelectionActive)));
 
                 if (shouldApplyGradient) {
