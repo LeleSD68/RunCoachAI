@@ -527,15 +527,20 @@ export const importAllData = async (data: BackupData): Promise<void> => {
         transaction.onerror = (e) => reject(transaction.error);
     });
 
-    // 2. Sync to Cloud (Background Update)
+    // 2. Wipe Cloud & Upload (Background Update)
     const { data: { session } } = await supabase.auth.getSession();
     if (session && isSupabaseConfigured()) {
         const userId = session.user.id;
-        console.log("☁️ [Supabase] Starting full backup sync...");
+        console.log("☁️ [Supabase] Wiping existing cloud data for clean restore...");
 
-        // We do NOT clear cloud data (safest approach), we upsert/overwrite with backup data.
-        // Any data on cloud NOT in backup will remain on cloud but won't be seen locally 
-        // until a fresh load (without forceLocal) is done in a future session.
+        // --- DANGER: DELETE ALL CLOUD DATA FOR THIS USER ---
+        await supabase.from('tracks').delete().eq('user_id', userId);
+        await supabase.from('planned_workouts').delete().eq('user_id', userId);
+        await supabase.from('chats').delete().eq('user_id', userId);
+        // Profile is usually kept 1:1 via upsert, but conceptually could be wiped too.
+        // We'll stick to overwriting profile via saveProfileToDB.
+
+        console.log("☁️ [Supabase] Uploading backup data to empty cloud...");
 
         if (data.profile) await saveProfileToDB(data.profile); // Syncs to cloud internally
 
@@ -554,13 +559,13 @@ export const importAllData = async (data: BackupData): Promise<void> => {
                 is_ai_suggested: w.isAiSuggested,
                 completed_track_id: w.completedTrackId
             };
-            if (payload.id) await supabase.from('planned_workouts').upsert(payload);
-            else await supabase.from('planned_workouts').insert(payload);
+            // Use insert since we just wiped the table
+            await supabase.from('planned_workouts').insert(payload);
         }
 
         if (data.chats && Array.isArray(data.chats)) {
             for (const chat of data.chats) {
-                await supabase.from('chats').upsert({
+                await supabase.from('chats').insert({
                     id: chat.id,
                     user_id: userId,
                     messages: chat.messages,
@@ -568,5 +573,6 @@ export const importAllData = async (data: BackupData): Promise<void> => {
                 });
             }
         }
+        console.log("☁️ [Supabase] Restore complete.");
     }
 };
