@@ -32,7 +32,7 @@ import ComparisonModal from './components/ComparisonModal';
 import LoginModal from './components/LoginModal'; 
 
 import { Track, TrackPoint, UserProfile, Toast, RaceResult, TrackStats, PlannedWorkout, ApiUsageStats, Commentary } from './types';
-import { loadTracksFromDB, saveTracksToDB, loadProfileFromDB, saveProfileToDB, loadPlannedWorkoutsFromDB, savePlannedWorkoutsToDB, exportAllData, importAllData, BackupData, syncTrackToCloud, restoreAllChatsFromCloud } from './services/dbService';
+import { loadTracksFromDB, saveTracksToDB, loadProfileFromDB, saveProfileToDB, loadPlannedWorkoutsFromDB, savePlannedWorkoutsToDB, exportAllData, importAllData, syncBackupToCloud, BackupData, syncTrackToCloud, restoreAllChatsFromCloud } from './services/dbService';
 import { findPersonalRecordsForTrack, updateStoredPRs } from './services/prService';
 import { calculateTrackStats } from './services/trackStatsService';
 import { getTrackPointAtDistance, getTrackStateAtTime } from './services/trackEditorUtils';
@@ -357,11 +357,10 @@ const App: React.FC = () => {
           throw new Error("Il file non è un JSON valido.");
       }
       
-      // Import into IndexedDB (Backgrond Cloud sync starts here)
+      // 1. Import into Local IndexedDB (Wait for completion)
       await importAllData(data);
       
-      // FORCE load from LOCAL IndexedDB to ensure UI reflects the backup immediately
-      // This bypasses the cloud fetch which might still be stale or partial
+      // 2. FORCE load from LOCAL IndexedDB to update UI immediately
       const [t, p, w] = await Promise.all([
           loadTracksFromDB(true), 
           loadProfileFromDB(true), 
@@ -375,7 +374,16 @@ const App: React.FC = () => {
       setVisibleTrackIds(new Set(t.map(tr => tr.id)));
       setShowInitialChoice(false);
       setShowHome(true);
-      addToast('Backup ripristinato correttamente.', 'success');
+      addToast('Backup ripristinato. Sincronizzazione cloud in corso...', 'success');
+
+      // 3. Trigger Background Cloud Sync (Fire and Forget for UI)
+      syncBackupToCloud().then(() => {
+          console.log("Cloud sync finished");
+      }).catch(err => {
+          console.warn("Cloud sync warning:", err);
+          // Optional: Notify user if sync fails? Usually silent is better for UX if local works.
+      });
+
     } catch (e: any) {
       console.error(e);
       addToast(`Errore ripristino: ${e.message}`, 'error');
