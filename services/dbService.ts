@@ -50,29 +50,38 @@ const mapTrackToSupabase = (t: Track, userId: string) => ({
     linked_workout: t.linkedWorkout,
 });
 
-const mapSupabaseToTrack = (row: any): Track => ({
-    id: row.id, 
-    name: row.name,
-    points: (row.points_data as any[]).map((p: any) => ({ ...p, time: new Date(p.time) })),
-    distance: row.distance_km,
-    duration: row.duration_ms,
-    color: row.color,
-    activityType: row.activity_type,
-    folder: row.folder,
-    notes: row.notes,
-    shoe: row.shoe,
-    rpe: row.rpe,
-    rating: row.rating,
-    ratingReason: row.rating_reason,
-    tags: row.tags,
-    isFavorite: row.is_favorite,
-    isArchived: row.is_archived,
-    hasChat: row.has_chat,
-    linkedWorkout: row.linked_workout,
-});
+const mapSupabaseToTrack = (row: any): Track | null => {
+    try {
+        if (!row || !row.points_data || !Array.isArray(row.points_data)) return null;
+        
+        return {
+            id: row.id, 
+            name: row.name,
+            points: (row.points_data as any[]).map((p: any) => ({ ...p, time: new Date(p.time) })),
+            distance: row.distance_km,
+            duration: row.duration_ms,
+            color: row.color,
+            activityType: row.activity_type,
+            folder: row.folder,
+            notes: row.notes,
+            shoe: row.shoe,
+            rpe: row.rpe,
+            rating: row.rating,
+            ratingReason: row.rating_reason,
+            tags: row.tags,
+            isFavorite: row.is_favorite,
+            isArchived: row.is_archived,
+            hasChat: row.has_chat,
+            linkedWorkout: row.linked_workout,
+        };
+    } catch (e) {
+        console.error("Error mapping track from Supabase:", e);
+        return null;
+    }
+};
 
 // --- TRACKS ---
-export const saveTracksToDB = async (tracks: Track[]): Promise<void> => {
+export const saveTracksToDB = async (tracks: Track[], options: { skipCloud?: boolean } = {}): Promise<void> => {
   const db = await initDB();
   await new Promise<void>((resolve, reject) => {
     const transaction = db.transaction([TRACKS_STORE], 'readwrite');
@@ -84,13 +93,15 @@ export const saveTracksToDB = async (tracks: Track[]): Promise<void> => {
     transaction.onerror = () => reject(transaction.error);
   });
 
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session && isSupabaseConfigured()) {
-      const validTracks = tracks.filter(t => !t.isExternal);
-      for (const t of validTracks) {
-          const payload = mapTrackToSupabase(t, session.user.id);
-          if (t.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)) {
-             await supabase.from('tracks').upsert({ id: t.id, ...payload });
+  if (!options.skipCloud) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session && isSupabaseConfigured()) {
+          const validTracks = tracks.filter(t => !t.isExternal);
+          for (const t of validTracks) {
+              const payload = mapTrackToSupabase(t, session.user.id);
+              if (t.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)) {
+                 await supabase.from('tracks').upsert({ id: t.id, ...payload });
+              }
           }
       }
   }
@@ -130,9 +141,13 @@ export const loadTracksFromDB = async (): Promise<Track[]> => {
   if (session && isSupabaseConfigured()) {
       const { data, error } = await supabase.from('tracks').select('*').order('start_time', { ascending: false });
       if (data && !error) {
-          const cloudTracks = data.map(mapSupabaseToTrack);
-          // IMPORTANTE: Salva in locale subito dopo il download
-          saveTracksToDB(cloudTracks); 
+          const cloudTracks = data
+            .map(mapSupabaseToTrack)
+            .filter((t): t is Track => t !== null);
+            
+          // IMPORTANTE: Salva in locale SENZA rispedire al cloud (skipCloud: true)
+          // Questo previene il loop infinito di sync
+          saveTracksToDB(cloudTracks, { skipCloud: true }); 
           return cloudTracks;
       }
   }
@@ -158,7 +173,7 @@ export const loadTracksFromDB = async (): Promise<Track[]> => {
 };
 
 // --- PLANNED WORKOUTS ---
-export const savePlannedWorkoutsToDB = async (workouts: PlannedWorkout[]): Promise<void> => {
+export const savePlannedWorkoutsToDB = async (workouts: PlannedWorkout[], options: { skipCloud?: boolean } = {}): Promise<void> => {
   const db = await initDB();
   await new Promise<void>((resolve, reject) => {
     const transaction = db.transaction([PLANNED_STORE], 'readwrite');
@@ -170,23 +185,25 @@ export const savePlannedWorkoutsToDB = async (workouts: PlannedWorkout[]): Promi
     transaction.onerror = () => reject(transaction.error);
   });
 
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session && isSupabaseConfigured()) {
-      for (const w of workouts) {
-          const payload = {
-              id: w.id.length === 36 ? w.id : undefined,
-              user_id: session.user.id,
-              title: w.title,
-              description: w.description,
-              date: w.date.toISOString(),
-              activity_type: w.activityType,
-              is_ai_suggested: w.isAiSuggested,
-              completed_track_id: w.completedTrackId
-          };
-          if (payload.id) {
-              await supabase.from('planned_workouts').upsert(payload);
-          } else {
-              await supabase.from('planned_workouts').insert(payload);
+  if (!options.skipCloud) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session && isSupabaseConfigured()) {
+          for (const w of workouts) {
+              const payload = {
+                  id: w.id.length === 36 ? w.id : undefined,
+                  user_id: session.user.id,
+                  title: w.title,
+                  description: w.description,
+                  date: w.date.toISOString(),
+                  activity_type: w.activityType,
+                  is_ai_suggested: w.isAiSuggested,
+                  completed_track_id: w.completedTrackId
+              };
+              if (payload.id) {
+                  await supabase.from('planned_workouts').upsert(payload);
+              } else {
+                  await supabase.from('planned_workouts').insert(payload);
+              }
           }
       }
   }
@@ -207,12 +224,8 @@ export const loadPlannedWorkoutsFromDB = async (): Promise<PlannedWorkout[]> => 
               completedTrackId: w.completed_track_id
           }));
           
-          // IMPORTANTE: Aggiorna cache locale
-          const db = await initDB();
-          const tx = db.transaction([PLANNED_STORE], 'readwrite');
-          const store = tx.objectStore(PLANNED_STORE);
-          store.clear();
-          cloudWorkouts.forEach((w: PlannedWorkout) => store.put(w));
+          // Salva in locale SENZA rispedire al cloud
+          savePlannedWorkoutsToDB(cloudWorkouts, { skipCloud: true });
           
           return cloudWorkouts;
       }
@@ -236,7 +249,7 @@ export const loadPlannedWorkoutsFromDB = async (): Promise<PlannedWorkout[]> => 
 };
 
 // --- CHATS ---
-export const saveChatToDB = async (id: string, messages: ChatMessage[]): Promise<void> => {
+export const saveChatToDB = async (id: string, messages: ChatMessage[], options: { skipCloud?: boolean } = {}): Promise<void> => {
   const db = await initDB();
   await new Promise<void>((resolve, reject) => {
     const transaction = db.transaction([CHATS_STORE], 'readwrite');
@@ -246,14 +259,16 @@ export const saveChatToDB = async (id: string, messages: ChatMessage[]): Promise
     transaction.onerror = () => reject(transaction.error);
   });
 
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session && isSupabaseConfigured()) {
-      await supabase.from('chats').upsert({
-          id, 
-          user_id: session.user.id,
-          messages,
-          updated_at: new Date().toISOString()
-      });
+  if (!options.skipCloud) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session && isSupabaseConfigured()) {
+          await supabase.from('chats').upsert({
+              id, 
+              user_id: session.user.id,
+              messages,
+              updated_at: new Date().toISOString()
+          });
+      }
   }
 };
 
@@ -285,7 +300,8 @@ export const loadChatFromDB = async (id: string): Promise<ChatMessage[] | null> 
   if (session && isSupabaseConfigured()) {
       const { data } = await supabase.from('chats').select('*').eq('id', id).single();
       if (data) {
-          // Update local cache
+          // Salva in locale, ma non serve skipCloud qui perché saveChatToDB non è chiamato dentro loadChat in modo massivo
+          // Tuttavia per coerenza potremmo passarlo, ma in questo caso specifico è un update singolo
           const db = await initDB();
           const tx = db.transaction([CHATS_STORE], 'readwrite');
           tx.objectStore(CHATS_STORE).put({ id, messages: data.messages, updatedAt: new Date(data.updated_at).getTime() });
@@ -349,24 +365,26 @@ export const syncAllChatsToCloud = async () => {
 };
 
 // --- PROFILE ---
-export const saveProfileToDB = async (profile: UserProfile): Promise<void> => {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session && isSupabaseConfigured()) {
-      await supabase.from('profiles').upsert({
-          id: session.user.id,
-          name: profile.name,
-          age: profile.age,
-          weight: profile.weight,
-          height: profile.height || null, 
-          gender: profile.gender || null,
-          max_hr: profile.maxHr,
-          resting_hr: profile.restingHr,
-          goals: profile.goals || [], 
-          ai_personality: profile.aiPersonality || null,
-          personal_notes: profile.personalNotes || null,
-          shoes: profile.shoes || [], 
-          weight_history: profile.weightHistory || [], 
-      });
+export const saveProfileToDB = async (profile: UserProfile, options: { skipCloud?: boolean } = {}): Promise<void> => {
+  if (!options.skipCloud) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session && isSupabaseConfigured()) {
+          await supabase.from('profiles').upsert({
+              id: session.user.id,
+              name: profile.name,
+              age: profile.age,
+              weight: profile.weight,
+              height: profile.height || null, 
+              gender: profile.gender || null,
+              max_hr: profile.maxHr,
+              resting_hr: profile.restingHr,
+              goals: profile.goals || [], 
+              ai_personality: profile.aiPersonality || null,
+              personal_notes: profile.personalNotes || null,
+              shoes: profile.shoes || [], 
+              weight_history: profile.weightHistory || [], 
+          });
+      }
   }
 
   const db = await initDB();
@@ -399,10 +417,8 @@ export const loadProfileFromDB = async (): Promise<UserProfile | null> => {
               weightHistory: data.weight_history
           };
           
-          // IMPORTANTE: Salva in locale la cache del profilo
-          const db = await initDB();
-          const tx = db.transaction([PROFILE_STORE], 'readwrite');
-          tx.objectStore(PROFILE_STORE).put({ id: 'current', ...cloudProfile });
+          // IMPORTANTE: Salva in locale SENZA rispedire al cloud
+          saveProfileToDB(cloudProfile, { skipCloud: true });
           
           return cloudProfile;
       }
