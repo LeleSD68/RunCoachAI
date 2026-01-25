@@ -354,15 +354,15 @@ export const saveProfileToDB = async (profile: UserProfile): Promise<void> => {
           name: profile.name,
           age: profile.age,
           weight: profile.weight,
-          height: profile.height,
-          gender: profile.gender,
+          height: profile.height || null, // Handle optional field
+          gender: profile.gender || null, // Handle optional field
           max_hr: profile.maxHr,
           resting_hr: profile.restingHr,
-          goals: profile.goals,
-          ai_personality: profile.aiPersonality,
-          personal_notes: profile.personalNotes,
-          shoes: profile.shoes,
-          weight_history: profile.weightHistory,
+          goals: profile.goals || [], // Ensure array
+          ai_personality: profile.aiPersonality || null,
+          personal_notes: profile.personalNotes || null,
+          shoes: profile.shoes || [], // Ensure array
+          weight_history: profile.weightHistory || [], // Ensure array for JSONB
       });
       console.log(`☁️ [Supabase] Profile synced.`);
   }
