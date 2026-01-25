@@ -357,9 +357,17 @@ const App: React.FC = () => {
           throw new Error("Il file non è un JSON valido.");
       }
       
+      // Import into IndexedDB (Backgrond Cloud sync starts here)
       await importAllData(data);
       
-      const [t, p, w] = await Promise.all([loadTracksFromDB(), loadProfileFromDB(), loadPlannedWorkoutsFromDB()]);
+      // FORCE load from LOCAL IndexedDB to ensure UI reflects the backup immediately
+      // This bypasses the cloud fetch which might still be stale or partial
+      const [t, p, w] = await Promise.all([
+          loadTracksFromDB(true), 
+          loadProfileFromDB(true), 
+          loadPlannedWorkoutsFromDB(true)
+      ]);
+      
       setTracks(t);
       if (p) setUserProfile(p);
       setPlannedWorkouts(w);
