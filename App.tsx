@@ -32,7 +32,7 @@ import { Track, TrackPoint, UserProfile, Toast, RaceResult, TrackStats, PlannedW
 import { loadTracksFromDB, saveTracksToDB, loadProfileFromDB, saveProfileToDB, loadPlannedWorkoutsFromDB, savePlannedWorkoutsToDB, exportAllData, importAllData, BackupData, syncTrackToCloud } from './services/dbService';
 import { findPersonalRecordsForTrack, updateStoredPRs } from './services/prService';
 import { calculateTrackStats } from './services/trackStatsService';
-import { getTrackPointAtDistance } from './services/trackEditorUtils';
+import { getTrackPointAtDistance, getTrackStateAtTime } from './services/trackEditorUtils';
 import { parseGpx } from './services/gpxService';
 import { parseTcx } from './services/tcxService';
 import { generateSmartTitle } from './services/titleGenerator';

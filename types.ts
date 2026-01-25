@@ -194,11 +194,18 @@ export interface AiSegment {
 
 export type RunningGoal = 'none' | '5k' | '10k' | 'half_marathon' | 'marathon' | 'speed' | 'endurance' | 'weight_loss';
 
+export interface WeightEntry {
+    date: string; // ISO String
+    weight: number;
+}
+
 export interface UserProfile {
-  name?: string; // Added name field
+  name?: string; 
   age?: number;
   weight?: number;
-  gender?: 'male' | 'female' | 'other';
+  height?: number; // in cm
+  weightHistory?: WeightEntry[]; // Historical weight data
+  gender?: 'M' | 'F' | 'Altro';
   maxHr?: number;
   restingHr?: number;
   goals?: RunningGoal[];

@@ -47,7 +47,7 @@ const calculateTrimp = (track: Track, userProfile: UserProfile, historyAvgSpeed:
         const hrReserve = userProfile.maxHr - userProfile.restingHr;
         const avgHrReserve = (stats.avgHr - userProfile.restingHr) / hrReserve;
         // Generic factor (1.92 men, 1.67 women). Using 1.92 as distinct default.
-        const genderFactor = userProfile.gender === 'female' ? 1.67 : 1.92;
+        const genderFactor = userProfile.gender === 'F' ? 1.67 : 1.92;
         return durationMin * avgHrReserve * 0.64 * Math.exp(genderFactor * avgHrReserve);
     }
     

@@ -347,13 +347,15 @@ export const saveProfileToDB = async (profile: UserProfile): Promise<void> => {
           name: profile.name,
           age: profile.age,
           weight: profile.weight,
+          height: profile.height,
           gender: profile.gender,
           max_hr: profile.maxHr,
           resting_hr: profile.restingHr,
           goals: profile.goals,
           ai_personality: profile.aiPersonality,
           personal_notes: profile.personalNotes,
-          shoes: profile.shoes
+          shoes: profile.shoes,
+          weight_history: profile.weightHistory,
       });
       console.log(`☁️ [Supabase] Profile synced.`);
   }
@@ -377,13 +379,15 @@ export const loadProfileFromDB = async (): Promise<UserProfile | null> => {
               name: data.name,
               age: data.age,
               weight: data.weight,
+              height: data.height,
               gender: data.gender,
               maxHr: data.max_hr,
               restingHr: data.resting_hr,
               goals: data.goals,
               aiPersonality: data.ai_personality,
               personalNotes: data.personal_notes,
-              shoes: data.shoes
+              shoes: data.shoes,
+              weightHistory: data.weight_history
           };
       }
   }

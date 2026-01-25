@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { UserProfile, PersonalRecord, RunningGoal, AiPersonality, Track } from '../types';
+import { UserProfile, PersonalRecord, RunningGoal, AiPersonality, Track, WeightEntry } from '../types';
 import { getStoredPRs } from '../services/prService';
 import Tooltip from './Tooltip';
+import SimpleLineChart from './SimpleLineChart';
 
 interface UserProfileModalProps {
     onClose: () => void;
@@ -90,7 +91,10 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
-        setProfile(prev => ({ ...prev, [name]: value ? (['gender', 'aiPersonality', 'personalNotes', 'name'].includes(name) ? value : Number(value)) : undefined }));
+        setProfile(prev => ({ 
+            ...prev, 
+            [name]: value ? (['gender', 'aiPersonality', 'personalNotes', 'name'].includes(name) ? value : Number(value)) : undefined 
+        }));
     };
 
     const toggleGoal = (goal: RunningGoal) => {
@@ -127,11 +131,37 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
     };
     
     const handleSave = () => {
-        onSave(profile);
+        const updatedProfile = { ...profile };
+        
+        // Weight history logic
+        const currentWeight = Number(profile.weight);
+        const history = [...(profile.weightHistory || [])];
+        
+        // If there's a weight set and (history is empty OR last entry is different)
+        if (!isNaN(currentWeight) && currentWeight > 0) {
+            const lastEntry = history.length > 0 ? history[history.length - 1] : null;
+            if (!lastEntry || Math.abs(lastEntry.weight - currentWeight) > 0.1) {
+                history.push({
+                    date: new Date().toISOString(),
+                    weight: currentWeight
+                });
+            }
+        }
+        
+        updatedProfile.weightHistory = history;
+        onSave(updatedProfile);
         onClose();
     };
     
     const sortedPRs = Object.values(personalRecords).sort((a: PersonalRecord, b: PersonalRecord) => a.distance - b.distance);
+
+    const weightChartData = useMemo(() => {
+        if (!profile.weightHistory || profile.weightHistory.length < 2) return null;
+        return profile.weightHistory.map(entry => ({
+            date: new Date(entry.date),
+            value: entry.weight
+        }));
+    }, [profile.weightHistory]);
 
     return (
         <div 
@@ -160,19 +190,70 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
                     <form onSubmit={(e) => { e.preventDefault(); handleSave(); }} className="flex flex-col h-full">
                         <div className="p-6 space-y-6">
                             
-                            <div>
-                                <label htmlFor="name" className="block text-sm font-medium text-slate-300">Nome Atleta <span className="text-slate-500 text-xs">(opzionale)</span></label>
-                                <input type="text" name="name" id="name" value={profile.name || ''} onChange={handleChange} className="mt-1 block w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white focus:ring-cyan-500 focus:border-cyan-500 placeholder-slate-500" placeholder="Il tuo nome" />
+                            {/* Personal Info Group */}
+                            <div className="space-y-4">
+                                <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest border-b border-slate-700 pb-1">Dati Anagrafici</h3>
+                                <div>
+                                    <label htmlFor="name" className="block text-sm font-medium text-slate-300">Nome Atleta</label>
+                                    <input type="text" name="name" id="name" value={profile.name || ''} onChange={handleChange} className="mt-1 block w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white focus:ring-cyan-500 focus:border-cyan-500 placeholder-slate-500" placeholder="Il tuo nome" />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label htmlFor="gender" className="block text-sm font-medium text-slate-300">Genere</label>
+                                        <select 
+                                            name="gender" 
+                                            id="gender" 
+                                            value={profile.gender || ''} 
+                                            onChange={handleChange} 
+                                            className="mt-1 block w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white focus:ring-cyan-500 focus:border-cyan-500"
+                                        >
+                                            <option value="">Seleziona</option>
+                                            <option value="M">Uomo</option>
+                                            <option value="F">Donna</option>
+                                            <option value="Altro">Altro</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label htmlFor="age" className="block text-sm font-medium text-slate-300">Età</label>
+                                        <input type="number" name="age" id="age" value={profile.age || ''} onChange={handleChange} className="mt-1 block w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white focus:ring-cyan-500 focus:border-cyan-500 placeholder-slate-500" placeholder="Es. 30" />
+                                    </div>
+                                </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label htmlFor="age" className="block text-sm font-medium text-slate-300">Età <span className="text-slate-500 text-xs">(opzionale)</span></label>
-                                    <input type="number" name="age" id="age" value={profile.age || ''} onChange={handleChange} className="mt-1 block w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white focus:ring-cyan-500 focus:border-cyan-500 placeholder-slate-500" placeholder="Es. 30" />
+                            {/* Body Composition Group */}
+                            <div className="space-y-4">
+                                <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest border-b border-slate-700 pb-1">Fisiologia</h3>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label htmlFor="height" className="block text-sm font-medium text-slate-300">Altezza (cm)</label>
+                                        <input type="number" name="height" id="height" value={profile.height || ''} onChange={handleChange} className="mt-1 block w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white focus:ring-cyan-500 focus:border-cyan-500 placeholder-slate-500" placeholder="Es. 175" />
+                                    </div>
+                                    <div>
+                                        <label htmlFor="weight" className="block text-sm font-medium text-slate-300">Peso (kg)</label>
+                                        <input type="number" step="0.1" name="weight" id="weight" value={profile.weight || ''} onChange={handleChange} className="mt-1 block w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white focus:ring-cyan-500 focus:border-cyan-500 placeholder-slate-500" placeholder="Es. 70" />
+                                    </div>
                                 </div>
-                                <div>
-                                    <label htmlFor="maxHr" className="block text-sm font-medium text-slate-300">FC Max (bpm) <span className="text-cyan-400">*</span></label>
-                                    <input type="number" name="maxHr" id="maxHr" value={profile.maxHr || ''} onChange={handleChange} className="mt-1 block w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white focus:ring-cyan-500 focus:border-cyan-500 placeholder-slate-500" placeholder="Es. 190" />
+                                {weightChartData && (
+                                    <div className="bg-slate-900 rounded-lg p-2 border border-slate-700 mt-2">
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Storico Peso</p>
+                                        <SimpleLineChart 
+                                            data={weightChartData} 
+                                            color1="#22d3ee" 
+                                            title="" 
+                                            yLabel="Kg" 
+                                        />
+                                    </div>
+                                )}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label htmlFor="maxHr" className="block text-sm font-medium text-slate-300">FC Max (bpm) <span className="text-cyan-400">*</span></label>
+                                        <input type="number" name="maxHr" id="maxHr" value={profile.maxHr || ''} onChange={handleChange} className="mt-1 block w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white focus:ring-cyan-500 focus:border-cyan-500 placeholder-slate-500" placeholder="Es. 190" />
+                                    </div>
+                                    <div>
+                                        <label htmlFor="restingHr" className="block text-sm font-medium text-slate-300">FC Riposo (bpm)</label>
+                                        <input type="number" name="restingHr" id="restingHr" value={profile.restingHr || ''} onChange={handleChange} className="mt-1 block w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white focus:ring-cyan-500 focus:border-cyan-500 placeholder-slate-500" placeholder="Es. 50" />
+                                    </div>
                                 </div>
                             </div>
 
