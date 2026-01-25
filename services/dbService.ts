@@ -138,9 +138,6 @@ export const deleteTrackFromCloud = async (id: string) => {
 export const loadTracksFromDB = async (forceLocal: boolean = false): Promise<Track[]> => {
   const { data: { session } } = await supabase.auth.getSession();
 
-  // If forceLocal is true, we SKIP the cloud check.
-  // This allows the UI to update immediately from the restored Backup (IndexedDB)
-  // without risking that a slower Cloud fetch overwrites it with old data.
   if (!forceLocal && session && isSupabaseConfigured()) {
       const { data, error } = await supabase.from('tracks').select('*').order('start_time', { ascending: false });
       if (data && !error) {
@@ -148,7 +145,6 @@ export const loadTracksFromDB = async (forceLocal: boolean = false): Promise<Tra
             .map(mapSupabaseToTrack)
             .filter((t): t is Track => t !== null);
             
-          // Save to local WITHOUT sending back to cloud to avoid loops
           saveTracksToDB(cloudTracks, { skipCloud: true }); 
           return cloudTracks;
       }
@@ -294,9 +290,10 @@ export const restoreAllChatsFromCloud = async () => {
     }
 };
 
-export const loadChatFromDB = async (id: string): Promise<ChatMessage[] | null> => {
+export const loadChatFromDB = async (id: string, forceLocal: boolean = false): Promise<ChatMessage[] | null> => {
   const { data: { session } } = await supabase.auth.getSession();
-  if (session && isSupabaseConfigured()) {
+  
+  if (!forceLocal && session && isSupabaseConfigured()) {
       const { data } = await supabase.from('chats').select('*').eq('id', id).single();
       if (data) {
           const db = await initDB();
@@ -461,6 +458,11 @@ export const exportAllData = async (): Promise<BackupData> => {
     });
 };
 
+/**
+ * Executes a full backup restore.
+ * IMPORTANT: This function only updates Local IndexedDB.
+ * The caller is responsible for triggering the cloud sync afterwards if needed.
+ */
 export const importAllData = async (data: BackupData): Promise<void> => {
     const db = await initDB();
     
@@ -526,8 +528,13 @@ export const importAllData = async (data: BackupData): Promise<void> => {
         transaction.oncomplete = () => resolve();
         transaction.onerror = (e) => reject(transaction.error);
     });
+};
 
-    // 2. Wipe Cloud & Upload (Background Update)
+/**
+ * Separate function to sync the current local data (restored from backup) to cloud.
+ * This should be called after importAllData finishes successfully.
+ */
+export const syncBackupToCloud = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (session && isSupabaseConfigured()) {
         const userId = session.user.id;
@@ -537,18 +544,25 @@ export const importAllData = async (data: BackupData): Promise<void> => {
         await supabase.from('tracks').delete().eq('user_id', userId);
         await supabase.from('planned_workouts').delete().eq('user_id', userId);
         await supabase.from('chats').delete().eq('user_id', userId);
-        // Profile is usually kept 1:1 via upsert, but conceptually could be wiped too.
-        // We'll stick to overwriting profile via saveProfileToDB.
 
         console.log("☁️ [Supabase] Uploading backup data to empty cloud...");
 
-        if (data.profile) await saveProfileToDB(data.profile); // Syncs to cloud internally
+        // Re-read local data to be sure we upload what is in DB
+        const db = await initDB();
+        
+        // Profile
+        const profile = await loadProfileFromDB(true);
+        if (profile) await saveProfileToDB(profile); 
 
-        for (const t of revivedTracks) {
+        // Tracks
+        const tracks = await loadTracksFromDB(true);
+        for (const t of tracks) {
             if (!t.isExternal) await syncTrackToCloud(t);
         }
 
-        for (const w of revivedWorkouts) {
+        // Workouts
+        const workouts = await loadPlannedWorkoutsFromDB(true);
+        for (const w of workouts) {
             const payload = {
                 id: w.id.length === 36 ? w.id : undefined, 
                 user_id: userId,
@@ -559,12 +573,18 @@ export const importAllData = async (data: BackupData): Promise<void> => {
                 is_ai_suggested: w.isAiSuggested,
                 completed_track_id: w.completedTrackId
             };
-            // Use insert since we just wiped the table
             await supabase.from('planned_workouts').insert(payload);
         }
 
-        if (data.chats && Array.isArray(data.chats)) {
-            for (const chat of data.chats) {
+        // Chats
+        const tx = db.transaction([CHATS_STORE], 'readonly');
+        const chats: any[] = await new Promise((resolve) => {
+            const req = tx.objectStore(CHATS_STORE).getAll();
+            req.onsuccess = () => resolve(req.result || []);
+        });
+
+        if (chats.length > 0) {
+            for (const chat of chats) {
                 await supabase.from('chats').insert({
                     id: chat.id,
                     user_id: userId,
