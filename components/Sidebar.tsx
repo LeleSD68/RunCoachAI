@@ -92,7 +92,7 @@ interface SidebarProps {
     onOpenPerformanceAnalysis?: () => void; 
     onOpenHub?: () => void;
     onUserLogin?: () => void; 
-    userProfile: UserProfile; // Added prop
+    userProfile: UserProfile; 
 }
 
 const Sidebar: React.FC<SidebarProps> = (props) => {
@@ -134,7 +134,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
         onOpenHub,
         onOpenChangelog,
         onUserLogin,
-        userProfile // Added destructured prop
+        userProfile 
     } = props;
 
     // Use default values for optional sets if they are null/undefined
@@ -170,6 +170,19 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
         });
         return () => subscription.unsubscribe();
     }, []);
+
+    // SCROLL TO HOVERED TRACK LOGIC
+    useEffect(() => {
+        if (hoveredTrackId && !isSidebarHovered.current) {
+            const el = itemRefs.current.get(hoveredTrackId);
+            if (el) {
+                el.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start'
+                });
+            }
+        }
+    }, [hoveredTrackId]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
