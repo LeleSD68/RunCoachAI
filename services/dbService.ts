@@ -135,18 +135,20 @@ export const deleteTrackFromCloud = async (id: string) => {
     await supabase.from('tracks').delete().eq('id', id);
 }
 
-export const loadTracksFromDB = async (): Promise<Track[]> => {
+export const loadTracksFromDB = async (forceLocal: boolean = false): Promise<Track[]> => {
   const { data: { session } } = await supabase.auth.getSession();
 
-  if (session && isSupabaseConfigured()) {
+  // If forceLocal is true, we SKIP the cloud check.
+  // This allows the UI to update immediately from the restored Backup (IndexedDB)
+  // without risking that a slower Cloud fetch overwrites it with old data.
+  if (!forceLocal && session && isSupabaseConfigured()) {
       const { data, error } = await supabase.from('tracks').select('*').order('start_time', { ascending: false });
       if (data && !error) {
           const cloudTracks = data
             .map(mapSupabaseToTrack)
             .filter((t): t is Track => t !== null);
             
-          // IMPORTANTE: Salva in locale SENZA rispedire al cloud (skipCloud: true)
-          // Questo previene il loop infinito di sync
+          // Save to local WITHOUT sending back to cloud to avoid loops
           saveTracksToDB(cloudTracks, { skipCloud: true }); 
           return cloudTracks;
       }
@@ -209,9 +211,10 @@ export const savePlannedWorkoutsToDB = async (workouts: PlannedWorkout[], option
   }
 };
 
-export const loadPlannedWorkoutsFromDB = async (): Promise<PlannedWorkout[]> => {
+export const loadPlannedWorkoutsFromDB = async (forceLocal: boolean = false): Promise<PlannedWorkout[]> => {
   const { data: { session } } = await supabase.auth.getSession();
-  if (session && isSupabaseConfigured()) {
+  
+  if (!forceLocal && session && isSupabaseConfigured()) {
       const { data, error } = await supabase.from('planned_workouts').select('*');
       if (data && !error) {
           const cloudWorkouts = data.map((w: any) => ({
@@ -224,9 +227,7 @@ export const loadPlannedWorkoutsFromDB = async (): Promise<PlannedWorkout[]> => 
               completedTrackId: w.completed_track_id
           }));
           
-          // Salva in locale SENZA rispedire al cloud
           savePlannedWorkoutsToDB(cloudWorkouts, { skipCloud: true });
-          
           return cloudWorkouts;
       }
   }
@@ -272,7 +273,6 @@ export const saveChatToDB = async (id: string, messages: ChatMessage[], options:
   }
 };
 
-// Scarica TUTTE le chat dal cloud e le salva in locale (per sync iniziale)
 export const restoreAllChatsFromCloud = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (session && isSupabaseConfigured()) {
@@ -295,13 +295,10 @@ export const restoreAllChatsFromCloud = async () => {
 };
 
 export const loadChatFromDB = async (id: string): Promise<ChatMessage[] | null> => {
-  // 1. Try Cloud First if Online
   const { data: { session } } = await supabase.auth.getSession();
   if (session && isSupabaseConfigured()) {
       const { data } = await supabase.from('chats').select('*').eq('id', id).single();
       if (data) {
-          // Salva in locale, ma non serve skipCloud qui perché saveChatToDB non è chiamato dentro loadChat in modo massivo
-          // Tuttavia per coerenza potremmo passarlo, ma in questo caso specifico è un update singolo
           const db = await initDB();
           const tx = db.transaction([CHATS_STORE], 'readwrite');
           tx.objectStore(CHATS_STORE).put({ id, messages: data.messages, updatedAt: new Date(data.updated_at).getTime() });
@@ -309,7 +306,6 @@ export const loadChatFromDB = async (id: string): Promise<ChatMessage[] | null> 
       }
   }
 
-  // 2. Fallback Local
   const db = await initDB();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([CHATS_STORE], 'readonly');
@@ -397,9 +393,10 @@ export const saveProfileToDB = async (profile: UserProfile, options: { skipCloud
   });
 };
 
-export const loadProfileFromDB = async (): Promise<UserProfile | null> => {
+export const loadProfileFromDB = async (forceLocal: boolean = false): Promise<UserProfile | null> => {
   const { data: { session } } = await supabase.auth.getSession();
-  if (session && isSupabaseConfigured()) {
+  
+  if (!forceLocal && session && isSupabaseConfigured()) {
       const { data, error } = await supabase.from('profiles').select('*').single();
       if (data && !error) {
           const cloudProfile: UserProfile = {
@@ -417,9 +414,7 @@ export const loadProfileFromDB = async (): Promise<UserProfile | null> => {
               weightHistory: data.weight_history
           };
           
-          // IMPORTANTE: Salva in locale SENZA rispedire al cloud
           saveProfileToDB(cloudProfile, { skipCloud: true });
-          
           return cloudProfile;
       }
   }
@@ -504,6 +499,7 @@ export const importAllData = async (data: BackupData): Promise<void> => {
         });
     }
 
+    // 1. Wipe Local DB and Fill with Backup
     await new Promise<void>((resolve, reject) => {
         const transaction = db.transaction([TRACKS_STORE, CHATS_STORE, PROFILE_STORE, PLANNED_STORE], 'readwrite');
         const tracksStore = transaction.objectStore(TRACKS_STORE);
@@ -531,12 +527,17 @@ export const importAllData = async (data: BackupData): Promise<void> => {
         transaction.onerror = (e) => reject(transaction.error);
     });
 
+    // 2. Sync to Cloud (Background Update)
     const { data: { session } } = await supabase.auth.getSession();
     if (session && isSupabaseConfigured()) {
         const userId = session.user.id;
-        console.log("☁️ [Supabase] Starting full import sync...");
+        console.log("☁️ [Supabase] Starting full backup sync...");
 
-        if (data.profile) await saveProfileToDB(data.profile);
+        // We do NOT clear cloud data (safest approach), we upsert/overwrite with backup data.
+        // Any data on cloud NOT in backup will remain on cloud but won't be seen locally 
+        // until a fresh load (without forceLocal) is done in a future session.
+
+        if (data.profile) await saveProfileToDB(data.profile); // Syncs to cloud internally
 
         for (const t of revivedTracks) {
             if (!t.isExternal) await syncTrackToCloud(t);
