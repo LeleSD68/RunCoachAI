@@ -167,14 +167,16 @@ export const loadTracksFromDB = async (forceLocal: boolean = false): Promise<Tra
             .map(mapSupabaseToTrack)
             .filter((t): t is Track => t !== null);
             
-          // IMPORTANT: Only overwrite local DB if we actually got a response array (even if empty, implying new user or wiped data)
-          // We assume 'data' being present means the query succeeded.
-          
-          // Save to local WITHOUT sending back to cloud to avoid loops
-          // This ensures Local DB mirrors Cloud DB on login
-          await saveTracksToDB(cloudTracks, { skipCloud: true }); 
-          
-          return cloudTracks;
+          // IMPORTANT: Only overwrite local DB if we actually got a response array.
+          // Safety Check: If data has items but cloudTracks is empty, mapping failed. Don't wipe local.
+          if (data.length > 0 && cloudTracks.length === 0) {
+              console.warn("Cloud returned data but parsing failed. Keeping local data safe.");
+          } else {
+              // Save to local WITHOUT sending back to cloud to avoid loops
+              // This ensures Local DB mirrors Cloud DB on login
+              await saveTracksToDB(cloudTracks, { skipCloud: true }); 
+              return cloudTracks;
+          }
       }
   }
 

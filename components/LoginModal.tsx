@@ -1,629 +1,340 @@
 
-import { Track, ChatMessage, UserProfile, PlannedWorkout } from '../types';
-import { supabase, isSupabaseConfigured } from './supabaseClient';
+import React, { useState } from 'react';
+import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
+import { Track, UserProfile, PlannedWorkout } from '../types';
+import { syncTrackToCloud, saveProfileToDB, savePlannedWorkoutsToDB, syncAllChatsToCloud } from '../services/dbService';
 
-const DB_NAME = 'GpxVizDB';
-const TRACKS_STORE = 'tracks';
-const CHATS_STORE = 'chats';
-const PROFILE_STORE = 'profile';
-const PLANNED_STORE = 'planned_workouts';
-const DB_VERSION = 6;
-
-// --- INDEXED DB INIT ---
-const initDB = (): Promise<IDBDatabase> => {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
-      if (!db.objectStoreNames.contains(TRACKS_STORE)) db.createObjectStore(TRACKS_STORE, { keyPath: 'id' });
-      if (!db.objectStoreNames.contains(CHATS_STORE)) db.createObjectStore(CHATS_STORE, { keyPath: 'id' });
-      if (!db.objectStoreNames.contains(PROFILE_STORE)) db.createObjectStore(PROFILE_STORE, { keyPath: 'id' });
-      if (!db.objectStoreNames.contains(PLANNED_STORE)) db.createObjectStore(PLANNED_STORE, { keyPath: 'id' });
-    };
-
-    request.onsuccess = (event) => resolve((event.target as IDBOpenDBRequest).result);
-    request.onerror = (event) => reject((event.target as IDBOpenDBRequest).error);
-  });
-};
-
-// --- MAPPERS ---
-const mapTrackToSupabase = (t: Track, userId: string) => ({
-    user_id: userId,
-    name: t.name,
-    start_time: t.points[0].time.toISOString(),
-    distance_km: t.distance,
-    duration_ms: t.duration,
-    activity_type: t.activityType,
-    points_data: t.points, 
-    color: t.color,
-    folder: t.folder,
-    notes: t.notes,
-    shoe: t.shoe,
-    rpe: t.rpe,
-    rating: t.rating,
-    rating_reason: t.ratingReason,
-    tags: t.tags,
-    is_favorite: t.isFavorite,
-    is_archived: t.isArchived,
-    has_chat: t.hasChat,
-    linked_workout: t.linkedWorkout,
-});
-
-const mapSupabaseToTrack = (row: any): Track | null => {
-    try {
-        if (!row) return null;
-
-        // Robust parsing for points_data which might be a JSON string or object
-        let pointsData = row.points_data;
-        if (typeof pointsData === 'string') {
-            try {
-                pointsData = JSON.parse(pointsData);
-            } catch (e) {
-                console.error("Error parsing points_data JSON for track:", row.id, e);
-                return null;
-            }
-        }
-
-        if (!pointsData || !Array.isArray(pointsData)) {
-            console.warn("Invalid points_data format for track:", row.id);
-            return null;
-        }
-        
-        return {
-            id: row.id, 
-            name: row.name,
-            points: pointsData.map((p: any) => ({ ...p, time: new Date(p.time) })),
-            distance: row.distance_km,
-            duration: row.duration_ms,
-            color: row.color,
-            activityType: row.activity_type,
-            folder: row.folder,
-            notes: row.notes,
-            shoe: row.shoe,
-            rpe: row.rpe,
-            rating: row.rating,
-            ratingReason: row.rating_reason,
-            tags: row.tags,
-            isFavorite: row.is_favorite,
-            isArchived: row.is_archived,
-            hasChat: row.has_chat,
-            linkedWorkout: row.linked_workout,
-        };
-    } catch (e) {
-        console.error("Error mapping track from Supabase:", e);
-        return null;
-    }
-};
-
-// --- TRACKS ---
-export const saveTracksToDB = async (tracks: Track[], options: { skipCloud?: boolean } = {}): Promise<void> => {
-  const db = await initDB();
-  await new Promise<void>((resolve, reject) => {
-    const transaction = db.transaction([TRACKS_STORE], 'readwrite');
-    const store = transaction.objectStore(TRACKS_STORE);
-    store.clear().onsuccess = () => {
-      tracks.filter(t => !t.isExternal).forEach(t => store.put(t));
-    };
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error);
-  });
-
-  if (!options.skipCloud) {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session && isSupabaseConfigured()) {
-          const validTracks = tracks.filter(t => !t.isExternal);
-          for (const t of validTracks) {
-              const payload = mapTrackToSupabase(t, session.user.id);
-              if (t.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)) {
-                 await supabase.from('tracks').upsert({ id: t.id, ...payload });
-              }
-          }
-      }
-  }
-};
-
-export const syncTrackToCloud = async (track: Track) => {
-    if (!isSupabaseConfigured()) return;
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session || track.isExternal) return;
-
-    const payload = mapTrackToSupabase(track, session.user.id);
-    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(track.id);
-
-    if (!isUUID) {
-        const { data } = await supabase.from('tracks').insert(payload).select().single();
-        if (data) {
-            track.id = data.id;
-            const db = await initDB();
-            const tx = db.transaction([TRACKS_STORE], 'readwrite');
-            tx.objectStore(TRACKS_STORE).put(track);
-        }
-    } else {
-        await supabase.from('tracks').upsert({ id: track.id, ...payload });
-    }
-}
-
-export const deleteTrackFromCloud = async (id: string) => {
-    if (!isSupabaseConfigured()) return;
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
-    await supabase.from('tracks').delete().eq('id', id);
-}
-
-export const loadTracksFromDB = async (forceLocal: boolean = false): Promise<Track[]> => {
-  const { data: { session } } = await supabase.auth.getSession();
-
-  // PRIORITIZE CLOUD: If logged in, fetch from cloud and sync DOWN to local.
-  if (!forceLocal && session && isSupabaseConfigured()) {
-      const { data, error } = await supabase.from('tracks').select('*').order('start_time', { ascending: false });
-      
-      if (error) {
-          console.error("Error fetching tracks from Supabase:", error);
-          // Don't fall back immediately if it's a critical auth error, but generally proceed to local
-      } else if (data) {
-          // Successfully fetched from cloud
-          const cloudTracks = data
-            .map(mapSupabaseToTrack)
-            .filter((t): t is Track => t !== null);
-            
-          // IMPORTANT: Only overwrite local DB if we actually got a response array.
-          // Safety Check: If data has items but cloudTracks is empty, mapping failed. Don't wipe local.
-          if (data.length > 0 && cloudTracks.length === 0) {
-              console.warn("Cloud returned data but parsing failed. Keeping local data safe.");
-          } else {
-              // Save to local WITHOUT sending back to cloud to avoid loops
-              // This ensures Local DB mirrors Cloud DB on login
-              await saveTracksToDB(cloudTracks, { skipCloud: true }); 
-              return cloudTracks;
-          }
-      }
-  }
-
-  // FALLBACK: Load from Local IndexedDB
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([TRACKS_STORE], 'readonly');
-    const store = transaction.objectStore(TRACKS_STORE);
-    const request = store.getAll();
-    request.onsuccess = () => {
-      const tracks = request.result as Track[];
-      const revived = tracks.map(t => ({
-        ...t,
-        points: t.points.map(p => ({
-          ...p,
-          time: p.time instanceof Date ? p.time : new Date(p.time)
-        }))
-      }));
-      resolve(revived);
-    };
-    request.onerror = () => reject(request.error);
-  });
-};
-
-// --- PLANNED WORKOUTS ---
-export const savePlannedWorkoutsToDB = async (workouts: PlannedWorkout[], options: { skipCloud?: boolean } = {}): Promise<void> => {
-  const db = await initDB();
-  await new Promise<void>((resolve, reject) => {
-    const transaction = db.transaction([PLANNED_STORE], 'readwrite');
-    const store = transaction.objectStore(PLANNED_STORE);
-    store.clear().onsuccess = () => {
-      workouts.forEach(w => store.put(w));
-    };
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error);
-  });
-
-  if (!options.skipCloud) {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session && isSupabaseConfigured()) {
-          for (const w of workouts) {
-              const payload = {
-                  id: w.id.length === 36 ? w.id : undefined,
-                  user_id: session.user.id,
-                  title: w.title,
-                  description: w.description,
-                  date: w.date.toISOString(),
-                  activity_type: w.activityType,
-                  is_ai_suggested: w.isAiSuggested,
-                  completed_track_id: w.completedTrackId
-              };
-              if (payload.id) {
-                  await supabase.from('planned_workouts').upsert(payload);
-              } else {
-                  await supabase.from('planned_workouts').insert(payload);
-              }
-          }
-      }
-  }
-};
-
-export const loadPlannedWorkoutsFromDB = async (forceLocal: boolean = false): Promise<PlannedWorkout[]> => {
-  const { data: { session } } = await supabase.auth.getSession();
-  
-  if (!forceLocal && session && isSupabaseConfigured()) {
-      const { data, error } = await supabase.from('planned_workouts').select('*');
-      if (data && !error) {
-          const cloudWorkouts = data.map((w: any) => ({
-              id: w.id,
-              title: w.title,
-              description: w.description,
-              date: new Date(w.date),
-              activityType: w.activity_type,
-              isAiSuggested: w.is_ai_suggested,
-              completedTrackId: w.completed_track_id
-          }));
-          
-          await savePlannedWorkoutsToDB(cloudWorkouts, { skipCloud: true });
-          return cloudWorkouts;
-      }
-  }
-
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([PLANNED_STORE], 'readonly');
-    const store = transaction.objectStore(PLANNED_STORE);
-    const request = store.getAll();
-    request.onsuccess = () => {
-      const workouts = request.result as PlannedWorkout[];
-      const revived = workouts.map(w => ({
-        ...w,
-        date: w.date instanceof Date ? w.date : new Date(w.date)
-      }));
-      resolve(revived);
-    };
-    request.onerror = () => reject(request.error);
-  });
-};
-
-// --- CHATS ---
-export const saveChatToDB = async (id: string, messages: ChatMessage[], options: { skipCloud?: boolean } = {}): Promise<void> => {
-  const db = await initDB();
-  await new Promise<void>((resolve, reject) => {
-    const transaction = db.transaction([CHATS_STORE], 'readwrite');
-    const store = transaction.objectStore(CHATS_STORE);
-    store.put({ id, messages, updatedAt: new Date().getTime() });
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error);
-  });
-
-  if (!options.skipCloud) {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session && isSupabaseConfigured()) {
-          await supabase.from('chats').upsert({
-              id, 
-              user_id: session.user.id,
-              messages,
-              updated_at: new Date().toISOString()
-          });
-      }
-  }
-};
-
-export const restoreAllChatsFromCloud = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session && isSupabaseConfigured()) {
-        const { data, error } = await supabase.from('chats').select('*');
-        if (data && !error && data.length > 0) {
-            const db = await initDB();
-            const tx = db.transaction([CHATS_STORE], 'readwrite');
-            const store = tx.objectStore(CHATS_STORE);
-            
-            for (const chat of data) {
-                store.put({ 
-                    id: chat.id, 
-                    messages: chat.messages, 
-                    updatedAt: new Date(chat.updated_at).getTime() 
-                });
-            }
-            console.log(`☁️ [Supabase] Restored ${data.length} chats to local DB.`);
-        }
-    }
-};
-
-export const loadChatFromDB = async (id: string, forceLocal: boolean = false): Promise<ChatMessage[] | null> => {
-  const { data: { session } } = await supabase.auth.getSession();
-  
-  if (!forceLocal && session && isSupabaseConfigured()) {
-      const { data } = await supabase.from('chats').select('*').eq('id', id).single();
-      if (data) {
-          const db = await initDB();
-          const tx = db.transaction([CHATS_STORE], 'readwrite');
-          tx.objectStore(CHATS_STORE).put({ id, messages: data.messages, updatedAt: new Date(data.updated_at).getTime() });
-          return data.messages;
-      }
-  }
-
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([CHATS_STORE], 'readonly');
-    const store = transaction.objectStore(CHATS_STORE);
-    const request = store.get(id);
-    request.onsuccess = () => resolve(request.result?.messages || null);
-    request.onerror = () => reject(request.error);
-  });
-};
-
-export const deleteChatFromDB = async (id: string): Promise<void> => {
-    const db = await initDB();
-    await new Promise<void>((resolve, reject) => {
-        const transaction = db.transaction([CHATS_STORE], 'readwrite');
-        const store = transaction.objectStore(CHATS_STORE);
-        const request = store.delete(id);
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
-    });
-
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session && isSupabaseConfigured()) {
-        await supabase.from('chats').delete().eq('id', id);
-    }
-};
-
-export const syncAllChatsToCloud = async () => {
-    if (!isSupabaseConfigured()) return;
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
-
-    const db = await initDB();
-    const chats: any[] = await new Promise((resolve, reject) => {
-        const tx = db.transaction([CHATS_STORE], 'readonly');
-        const req = tx.objectStore(CHATS_STORE).getAll();
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-    });
-
-    if (chats.length > 0) {
-        let count = 0;
-        for (const chat of chats) {
-            const { error } = await supabase.from('chats').upsert({
-                id: chat.id,
-                user_id: session.user.id,
-                messages: chat.messages,
-                updated_at: new Date(chat.updatedAt || Date.now()).toISOString()
-            });
-            if (!error) count++;
-        }
-        console.log(`☁️ [Supabase] Synced ${count} chat histories.`);
-    }
-};
-
-// --- PROFILE ---
-export const saveProfileToDB = async (profile: UserProfile, options: { skipCloud?: boolean } = {}): Promise<void> => {
-  if (!options.skipCloud) {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session && isSupabaseConfigured()) {
-          await supabase.from('profiles').upsert({
-              id: session.user.id,
-              name: profile.name,
-              age: profile.age,
-              weight: profile.weight,
-              height: profile.height || null, 
-              gender: profile.gender || null,
-              max_hr: profile.maxHr,
-              resting_hr: profile.restingHr,
-              goals: profile.goals || [], 
-              ai_personality: profile.aiPersonality || null,
-              personal_notes: profile.personalNotes || null,
-              shoes: profile.shoes || [], 
-              weight_history: profile.weightHistory || [], 
-          });
-      }
-  }
-
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([PROFILE_STORE], 'readwrite');
-    const store = transaction.objectStore(PROFILE_STORE);
-    store.put({ id: 'current', ...profile });
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error);
-  });
-};
-
-export const loadProfileFromDB = async (forceLocal: boolean = false): Promise<UserProfile | null> => {
-  const { data: { session } } = await supabase.auth.getSession();
-  
-  if (!forceLocal && session && isSupabaseConfigured()) {
-      const { data, error } = await supabase.from('profiles').select('*').single();
-      if (data && !error) {
-          const cloudProfile: UserProfile = {
-              name: data.name,
-              age: data.age,
-              weight: data.weight,
-              height: data.height,
-              gender: data.gender,
-              maxHr: data.max_hr,
-              restingHr: data.resting_hr,
-              goals: data.goals,
-              aiPersonality: data.ai_personality,
-              personalNotes: data.personal_notes,
-              shoes: data.shoes,
-              weightHistory: data.weight_history
-          };
-          
-          await saveProfileToDB(cloudProfile, { skipCloud: true });
-          return cloudProfile;
-      }
-  }
-
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([PROFILE_STORE], 'readonly');
-    const store = transaction.objectStore(PROFILE_STORE);
-    const request = store.get('current');
-    request.onsuccess = () => resolve(request.result || null);
-    request.onerror = () => reject(request.error);
-  });
-};
-
-// --- EXPORT/IMPORT ---
-export interface BackupData {
+interface LoginModalProps {
+    onClose: () => void;
+    onLoginSuccess: () => void;
     tracks: Track[];
+    userProfile: UserProfile;
     plannedWorkouts: PlannedWorkout[];
-    chats: any[];
-    profile: UserProfile | null;
-    exportedAt: string;
 }
 
-export const exportAllData = async (): Promise<BackupData> => {
-    const db = await initDB();
-    const transaction = db.transaction([TRACKS_STORE, CHATS_STORE, PROFILE_STORE, PLANNED_STORE], 'readonly');
-    
-    const tracksReq = transaction.objectStore(TRACKS_STORE).getAll();
-    const plannedReq = transaction.objectStore(PLANNED_STORE).getAll();
-    const chatsReq = transaction.objectStore(CHATS_STORE).getAll();
-    const profileReq = transaction.objectStore(PROFILE_STORE).get('current');
-
-    return new Promise((resolve, reject) => {
-        transaction.oncomplete = () => {
-            resolve({
-                tracks: tracksReq.result,
-                plannedWorkouts: plannedReq.result || [],
-                chats: chatsReq.result,
-                profile: profileReq.result || null,
-                exportedAt: new Date().toISOString()
-            });
-        };
-        transaction.onerror = () => reject(transaction.error);
-    });
+const translateError = (msg: string) => {
+    const m = msg.toLowerCase();
+    if (m.includes('invalid login credentials')) return 'Credenziali non valide. Controlla email e password.';
+    if (m.includes('email not confirmed')) return 'Indirizzo email non confermato.';
+    if (m.includes('user already registered')) return 'Utente già registrato. Prova ad accedere.';
+    if (m.includes('password should be at least')) return 'La password deve avere almeno 6 caratteri.';
+    if (m.includes('rate limit')) return 'Troppi tentativi. Riprova più tardi.';
+    return `Errore: ${msg}`;
 };
 
-/**
- * Executes a full backup restore.
- * IMPORTANT: This function only updates Local IndexedDB.
- * The caller is responsible for triggering the cloud sync afterwards if needed.
- */
-export const importAllData = async (data: BackupData): Promise<void> => {
-    const db = await initDB();
-    
-    const revivedTracks: Track[] = [];
-    if (data.tracks && Array.isArray(data.tracks)) {
-        data.tracks.forEach(t => {
-            try {
-                if (!t.id) return;
-                const revivedTrack = {
-                    ...t,
-                    points: t.points.map(p => ({
-                        ...p,
-                        time: new Date(p.time) 
-                    }))
-                };
-                revivedTracks.push(revivedTrack);
-            } catch (err) {
-                console.warn("Skipping bad track in import", err);
-            }
-        });
-    }
+const EyeIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+        <path d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" />
+        <path fillRule="evenodd" d="M.664 10.59a1.651 1.651 0 0 1 0-1.186A10.004 10.004 0 0 1 10 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0 1 10 17c-4.257 0-7.893-2.66-9.336-6.41ZM14 10a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" clipRule="evenodd" />
+    </svg>
+);
 
-    const revivedWorkouts: PlannedWorkout[] = [];
-    if (data.plannedWorkouts && Array.isArray(data.plannedWorkouts)) {
-        data.plannedWorkouts.forEach(w => {
-            try {
-                if (!w.id) return;
-                const revivedWorkout = {
-                    ...w,
-                    date: new Date(w.date)
-                };
-                revivedWorkouts.push(revivedWorkout);
-            } catch (err) {
-                console.warn("Skipping bad workout in import", err);
-            }
-        });
-    }
+const EyeSlashIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+        <path fillRule="evenodd" d="M3.28 2.22a.75.75 0 0 0-1.06 1.06l14.5 14.5a.75.75 0 1 0 1.06-1.06l-1.745-1.745a10.029 10.029 0 0 0 3.3-5.59 1.651 1.651 0 0 0 0-1.185A10.004 10.004 0 0 0 9.999 3a9.956 9.956 0 0 0-4.744 1.194L3.28 2.22ZM7.752 6.69l1.092 1.092a2.5 2.5 0 0 1 3.374 3.373l1.091 1.092a4 4 0 0 0-5.557-5.557Z" clipRule="evenodd" />
+        <path d="M10.748 13.93 5.39 8.57a10.015 10.015 0 0 0-3.39 1.42 1.651 1.651 0 0 0 0 1.186A10.004 10.004 0 0 0 9.999 17c1.9 0 3.682-.534 5.194-1.465l-2.637-2.637a3.987 3.987 0 0 1-1.808.032Z" />
+    </svg>
+);
 
-    // 1. Wipe Local DB and Fill with Backup
-    await new Promise<void>((resolve, reject) => {
-        const transaction = db.transaction([TRACKS_STORE, CHATS_STORE, PROFILE_STORE, PLANNED_STORE], 'readwrite');
-        const tracksStore = transaction.objectStore(TRACKS_STORE);
-        const chatsStore = transaction.objectStore(CHATS_STORE);
-        const profileStore = transaction.objectStore(PROFILE_STORE);
-        const plannedStore = transaction.objectStore(PLANNED_STORE);
+const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks, userProfile, plannedWorkouts }) => {
+    const [view, setView] = useState<'login' | 'signup' | 'forgot'>('login');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [fullName, setFullName] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [syncStatus, setSyncStatus] = useState('');
+    const [successMessage, setSuccessMessage] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
+    const [needsConfirmation, setNeedsConfirmation] = useState(false);
 
-        tracksStore.clear();
-        chatsStore.clear();
-        profileStore.clear();
-        plannedStore.clear();
-
-        revivedTracks.forEach(t => tracksStore.put(t));
-        revivedWorkouts.forEach(w => plannedStore.put(w));
-
-        if (data.chats && Array.isArray(data.chats)) {
-            data.chats.forEach(c => { if (c.id) chatsStore.put(c); });
-        }
-
-        if (data.profile) {
-            profileStore.put({ id: 'current', ...data.profile });
-        }
-
-        transaction.oncomplete = () => resolve();
-        transaction.onerror = (e) => reject(transaction.error);
-    });
-};
-
-/**
- * Separate function to sync the current local data (restored from backup) to cloud.
- * This should be called after importAllData finishes successfully.
- */
-export const syncBackupToCloud = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session && isSupabaseConfigured()) {
-        const userId = session.user.id;
-        console.log("☁️ [Supabase] Wiping existing cloud data for clean restore...");
-
-        // --- DANGER: DELETE ALL CLOUD DATA FOR THIS USER ---
-        await supabase.from('tracks').delete().eq('user_id', userId);
-        await supabase.from('planned_workouts').delete().eq('user_id', userId);
-        await supabase.from('chats').delete().eq('user_id', userId);
-
-        console.log("☁️ [Supabase] Uploading backup data to empty cloud...");
-
-        // Re-read local data to be sure we upload what is in DB
-        const db = await initDB();
+    const syncLocalDataToCloud = async (userId: string) => {
+        setSyncStatus('Sincronizzazione dati locali con il cloud...');
         
-        // Profile
-        const profile = await loadProfileFromDB(true);
-        if (profile) await saveProfileToDB(profile); 
+        try {
+            // 1. Sync Profile - SAFETY CHECK
+            // Only sync if local profile actually has data to avoid wiping cloud profile on fresh login
+            const hasLocalProfileData = userProfile && (
+                (userProfile.name && userProfile.name.trim() !== '') || 
+                (userProfile.weightHistory && userProfile.weightHistory.length > 0) ||
+                (userProfile.age && userProfile.age > 0)
+            );
 
-        // Tracks
-        const tracks = await loadTracksFromDB(true);
-        for (const t of tracks) {
-            if (!t.isExternal) await syncTrackToCloud(t);
-        }
-
-        // Workouts
-        const workouts = await loadPlannedWorkoutsFromDB(true);
-        for (const w of workouts) {
-            const payload = {
-                id: w.id.length === 36 ? w.id : undefined, 
-                user_id: userId,
-                title: w.title,
-                description: w.description,
-                date: w.date.toISOString(),
-                activity_type: w.activityType,
-                is_ai_suggested: w.isAiSuggested,
-                completed_track_id: w.completedTrackId
-            };
-            await supabase.from('planned_workouts').insert(payload);
-        }
-
-        // Chats
-        const tx = db.transaction([CHATS_STORE], 'readonly');
-        const chats: any[] = await new Promise((resolve) => {
-            const req = tx.objectStore(CHATS_STORE).getAll();
-            req.onsuccess = () => resolve(req.result || []);
-        });
-
-        if (chats.length > 0) {
-            for (const chat of chats) {
-                await supabase.from('chats').insert({
-                    id: chat.id,
-                    user_id: userId,
-                    messages: chat.messages,
-                    updated_at: new Date(chat.updatedAt || Date.now()).toISOString()
-                });
+            if (hasLocalProfileData) {
+                await saveProfileToDB(userProfile);
+                console.log("Local profile synced to cloud.");
+            } else {
+                console.log("Local profile empty, skipping sync to avoid overwrite.");
             }
+
+            // 2. Sync Planned Workouts
+            if (plannedWorkouts && plannedWorkouts.length > 0) {
+                await savePlannedWorkoutsToDB(plannedWorkouts);
+            }
+
+            // 3. Sync Tracks
+            // IMPORTANT: If we have local tracks (e.g. from Guest mode), upload them now.
+            // This ensures they are merged with any existing cloud tracks.
+            let syncedCount = 0;
+            if (tracks && tracks.length > 0) {
+                for (const track of tracks) {
+                    // Only sync actual tracks, not ghost opponents
+                    if (!track.isExternal) {
+                        try {
+                            await syncTrackToCloud(track);
+                            syncedCount++;
+                        } catch (e) {
+                            console.warn(`Failed to sync track ${track.id}`, e);
+                        }
+                    }
+                }
+                setSyncStatus(`Caricati ${syncedCount} percorsi.`);
+            }
+
+            // 4. Sync All Chat History (Global & Track-specific) - Only if local DB has chats
+            try {
+                await syncAllChatsToCloud();
+            } catch (e) {
+                console.warn("Failed to sync chats", e);
+            }
+
+            setSyncStatus(`Sincronizzazione completata!`);
+        } catch (e) {
+            console.error("Sync error", e);
+            setSyncStatus('Sincronizzazione parziale completata.');
         }
-        console.log("☁️ [Supabase] Restore complete.");
-    }
+        
+        // Small delay to let user see success message and for Supabase to process inserts
+        await new Promise(r => setTimeout(r, 800));
+    };
+
+    const resendConfirmation = async () => {
+        if (!email) {
+            setError('Inserisci la tua email per rinviare la conferma.');
+            return;
+        }
+        setLoading(true);
+        setError('');
+        try {
+            const { error } = await supabase.auth.resend({
+                type: 'signup',
+                email: email.trim(),
+                options: {
+                    emailRedirectTo: window.location.origin,
+                }
+            });
+            if (error) throw error;
+            setSuccessMessage('Nuova email di conferma inviata! Controlla anche la cartella Spam.');
+        } catch (err: any) {
+            setError(translateError(err.message));
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleAuth = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        setError('');
+        setSuccessMessage('');
+        setSyncStatus('');
+        setNeedsConfirmation(false);
+
+        const cleanEmail = email.trim();
+        const cleanPassword = password.trim();
+
+        try {
+            if (view === 'signup') {
+                const { error, data } = await supabase.auth.signUp({
+                    email: cleanEmail,
+                    password: cleanPassword,
+                    options: {
+                        data: {
+                            full_name: fullName,
+                        },
+                    },
+                });
+                if (error) throw error;
+                if (data.user) {
+                    if (isSupabaseConfigured()) {
+                        // Check if session is null (implies email confirmation required)
+                        if (!data.session) {
+                            setSuccessMessage('Registrazione creata! Controlla la tua email per il link di conferma.');
+                            setView('login');
+                            setNeedsConfirmation(true);
+                        } else {
+                            // Auto-login worked (email confirm disabled in supabase)
+                            await syncLocalDataToCloud(data.user.id);
+                            onLoginSuccess();
+                            onClose();
+                        }
+                    } else {
+                        // Offline Mode: Auto-login immediately after signup
+                        setSuccessMessage('Account Locale creato! Accesso...');
+                        await syncLocalDataToCloud(data.user.id);
+                        onLoginSuccess();
+                        onClose();
+                    }
+                }
+            } else if (view === 'login') {
+                const { error, data } = await supabase.auth.signInWithPassword({
+                    email: cleanEmail,
+                    password: cleanPassword,
+                });
+                if (error) {
+                    if (error.message.toLowerCase().includes('email not confirmed')) {
+                        setNeedsConfirmation(true);
+                        throw new Error('Email not confirmed');
+                    }
+                    throw error;
+                }
+                
+                if (data.user) {
+                    await syncLocalDataToCloud(data.user.id);
+                    onLoginSuccess(); // This triggers loadDataAndEnter in App.tsx
+                    onClose();
+                }
+            } else if (view === 'forgot') {
+                const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+                    redirectTo: window.location.origin,
+                });
+                if (error) throw error;
+                setSuccessMessage('Ti abbiamo inviato un\'email per resettare la password.');
+                setView('login');
+            }
+        } catch (err: any) {
+            console.error("Auth Error:", err);
+            setError(translateError(err.message || 'Errore sconosciuto'));
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[10000] flex items-center justify-center p-4 animate-fade-in">
+            <div className="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md p-8 relative">
+                <button onClick={onClose} className="absolute top-4 right-4 text-slate-500 hover:text-white">&times;</button>
+                
+                <div className="text-center mb-6">
+                    <h2 className="text-2xl font-black text-cyan-400 uppercase tracking-tighter mb-1">
+                        {view === 'signup' ? 'Crea Account' : view === 'forgot' ? 'Recupero Password' : 'Bentornato'}
+                    </h2>
+                    <p className="text-slate-400 text-sm h-6">
+                        {syncStatus || (view === 'forgot' ? "Inserisci la tua email per ricevere le istruzioni." : (isSupabaseConfigured() ? "Salva le tue corse nel cloud e accedi ovunque." : "Modalità Offline: Account locale simulato."))}
+                    </p>
+                </div>
+
+                <form onSubmit={handleAuth} className="space-y-4">
+                    {successMessage && (
+                        <div className="bg-green-500/20 text-green-400 p-3 rounded-lg text-xs font-bold border border-green-500/50 text-center animate-pulse">
+                            {successMessage}
+                        </div>
+                    )}
+                    
+                    {needsConfirmation && (
+                        <div className="bg-amber-900/20 border border-amber-500/30 p-3 rounded-lg text-amber-200 text-xs text-center animate-fade-in">
+                            <p className="mb-2 font-bold">Non hai ricevuto l'email?</p>
+                            <button 
+                                type="button" 
+                                onClick={resendConfirmation}
+                                disabled={loading}
+                                className="bg-amber-600 hover:bg-amber-500 text-white font-bold py-1.5 px-3 rounded transition-colors text-xs"
+                            >
+                                {loading ? 'Invio in corso...' : 'Invia di nuovo link conferma'}
+                            </button>
+                            <p className="mt-2 text-[10px] opacity-70">Controlla la cartella Spam o Posta Indesiderata.</p>
+                        </div>
+                    )}
+                    
+                    {view === 'signup' && (
+                        <div>
+                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Nome Completo</label>
+                            <input 
+                                type="text" 
+                                value={fullName}
+                                onChange={(e) => setFullName(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white focus:border-cyan-500 outline-none"
+                                required={view === 'signup'}
+                            />
+                        </div>
+                    )}
+                    <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Email</label>
+                        <input 
+                            type="email" 
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white focus:border-cyan-500 outline-none"
+                            required
+                        />
+                    </div>
+                    
+                    {view !== 'forgot' && (
+                        <div>
+                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Password</label>
+                            <div className="relative">
+                                <input 
+                                    type={showPassword ? "text" : "password"} 
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    className="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white focus:border-cyan-500 outline-none pr-10"
+                                    required
+                                    minLength={6}
+                                />
+                                <button 
+                                    type="button" 
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
+                                >
+                                    {showPassword ? <EyeSlashIcon /> : <EyeIcon />}
+                                </button>
+                            </div>
+                            {view === 'login' && (
+                                <div className="text-right mt-1">
+                                    <button 
+                                        type="button"
+                                        onClick={() => { setView('forgot'); setError(''); setSuccessMessage(''); setNeedsConfirmation(false); }}
+                                        className="text-xs text-cyan-500 hover:text-cyan-400"
+                                    >
+                                        Password dimenticata?
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {error && <p className="text-red-400 text-xs bg-red-900/20 p-3 rounded-lg border border-red-900/50 text-center font-bold">{error}</p>}
+
+                    <button 
+                        type="submit" 
+                        disabled={loading}
+                        className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {loading ? (syncStatus ? 'Sincronizzazione...' : 'Caricamento...') : (view === 'signup' ? 'Registrati' : view === 'forgot' ? 'Invia Link di Reset' : 'Accedi')}
+                    </button>
+                </form>
+
+                <div className="mt-6 text-center space-y-2">
+                    {view === 'login' && (
+                        <button 
+                            onClick={() => { setView('signup'); setError(''); setSuccessMessage(''); setNeedsConfirmation(false); }}
+                            className="text-sm text-slate-400 hover:text-white underline decoration-slate-600 underline-offset-4"
+                        >
+                            Non hai un account? Registrati
+                        </button>
+                    )}
+                    {(view === 'signup' || view === 'forgot') && (
+                        <button 
+                            onClick={() => { setView('login'); setError(''); setSuccessMessage(''); setNeedsConfirmation(false); }}
+                            className="text-sm text-slate-400 hover:text-white underline decoration-slate-600 underline-offset-4"
+                        >
+                            Torna al Login
+                        </button>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
 };
+
+export default LoginModal;
