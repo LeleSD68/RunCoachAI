@@ -153,13 +153,14 @@ const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTr
                         </div>
 
                         <div className="flex items-center bg-slate-700 rounded-lg p-1 flex-shrink-0 overflow-x-auto no-scrollbar">
-                            {[2, 3, 4, 5, 6].map(cols => (
+                            {[1, 2, 3, 4, 5, 6].map(cols => (
                                 <button 
                                     key={cols}
                                     onClick={() => setGridCols(cols)}
                                     className={`px-2 py-1 text-xs font-bold rounded transition-colors min-w-[24px] ${gridCols === cols ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                                    title={cols === 1 ? 'Lista' : `Griglia ${cols}`}
                                 >
-                                    {cols}
+                                    {cols === 1 ? 'List' : cols}
                                 </button>
                             ))}
                         </div>
@@ -182,29 +183,43 @@ const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTr
                         
                         <div 
                             className="grid gap-4" 
-                            style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${Math.max(140, 300 / (gridCols/2))}px, 1fr))` }} 
+                            style={{ gridTemplateColumns: `repeat(${gridCols === 1 ? 1 : 'auto-fill'}, minmax(${gridCols === 1 ? '100%' : Math.max(140, 300 / (gridCols/2)) + 'px'}, 1fr))` }} 
                         >
                             {tracksInGroup.map(track => (
                                 <div 
                                     key={track.id} 
                                     onClick={() => onSelectTrack(track.id)}
-                                    className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden cursor-pointer hover:border-cyan-500/50 hover:shadow-lg transition-all group flex flex-col"
+                                    className={`bg-slate-800 border border-slate-700 rounded-xl overflow-hidden cursor-pointer hover:border-cyan-500/50 hover:shadow-lg transition-all group flex ${gridCols === 1 ? 'flex-row items-center p-2' : 'flex-col'}`}
                                 >
-                                    <div className="relative aspect-video bg-slate-900 overflow-hidden">
+                                    <div className={`relative bg-slate-900 overflow-hidden ${gridCols === 1 ? 'w-16 h-12 rounded mr-4' : 'aspect-video w-full'}`}>
                                         <TrackPreview points={track.points} color={track.color} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
-                                        <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm rounded px-1.5 py-0.5">
-                                            <RatingStars rating={track.rating} size="xs" />
-                                        </div>
-                                        <div className="absolute bottom-2 left-2 bg-slate-900/80 backdrop-blur-md px-2 py-1 rounded text-[10px] font-mono text-white font-bold border border-slate-700">
-                                            {track.distance.toFixed(2)} km
-                                        </div>
+                                        {gridCols > 1 && (
+                                            <>
+                                                <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm rounded px-1.5 py-0.5">
+                                                    <RatingStars rating={track.rating} size="xs" />
+                                                </div>
+                                                <div className="absolute bottom-2 left-2 bg-slate-900/80 backdrop-blur-md px-2 py-1 rounded text-[10px] font-mono text-white font-bold border border-slate-700">
+                                                    {track.distance.toFixed(2)} km
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
-                                    <div className="p-3">
-                                        <h3 className="text-sm font-bold text-slate-200 truncate mb-1 group-hover:text-cyan-400 transition-colors">{track.name}</h3>
-                                        <div className="flex justify-between items-center text-[10px] text-slate-500 font-mono uppercase">
-                                            <span>{new Date(track.points[0].time).toLocaleDateString()}</span>
-                                            <span>{track.activityType || 'Corsa'}</span>
+                                    <div className={gridCols === 1 ? 'flex-grow flex items-center justify-between' : 'p-3'}>
+                                        <div>
+                                            <h3 className={`font-bold text-slate-200 truncate mb-1 group-hover:text-cyan-400 transition-colors ${gridCols === 1 ? 'text-sm' : 'text-sm'}`}>{track.name}</h3>
+                                            <div className="flex items-center text-[10px] text-slate-500 font-mono uppercase gap-3">
+                                                <span>{new Date(track.points[0].time).toLocaleDateString()}</span>
+                                                <span>{track.activityType || 'Corsa'}</span>
+                                            </div>
                                         </div>
+                                        {gridCols === 1 && (
+                                            <div className="text-right">
+                                                <div className="text-xs font-mono font-bold text-white">{track.distance.toFixed(2)} km</div>
+                                                <div className="text-[10px] text-slate-500">
+                                                    <RatingStars rating={track.rating} size="xs" />
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             ))}
