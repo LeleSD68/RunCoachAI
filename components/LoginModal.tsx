@@ -49,7 +49,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
     const [needsConfirmation, setNeedsConfirmation] = useState(false);
 
     const syncLocalDataToCloud = async (userId: string) => {
-        setSyncStatus('Sincronizzazione dati in corso...');
+        setSyncStatus('Caricamento dati locali nel cloud...');
         
         try {
             // 1. Sync Profile - SAFETY CHECK
@@ -73,6 +73,8 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
             }
 
             // 3. Sync Tracks
+            // IMPORTANT: If we have local tracks (e.g. from Guest mode), upload them now.
+            // This ensures they are merged with any existing cloud tracks.
             let syncedCount = 0;
             if (tracks && tracks.length > 0) {
                 for (const track of tracks) {
@@ -86,6 +88,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
                         }
                     }
                 }
+                setSyncStatus(`Caricati ${syncedCount} percorsi.`);
             }
 
             // 4. Sync All Chat History (Global & Track-specific) - Only if local DB has chats
@@ -102,7 +105,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
             setSyncStatus('Sincronizzazione parziale completata.');
         }
         
-        // Small delay to let user see success message
+        // Small delay to let user see success message and for Supabase to process inserts
         await new Promise(r => setTimeout(r, 800));
     };
 
@@ -189,7 +192,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
                 
                 if (data.user) {
                     await syncLocalDataToCloud(data.user.id);
-                    onLoginSuccess();
+                    onLoginSuccess(); // This triggers loadDataAndEnter in App.tsx
                     onClose();
                 }
             } else if (view === 'forgot') {
