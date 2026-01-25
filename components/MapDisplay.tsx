@@ -115,9 +115,12 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const tileLayerRef = useRef<any>(null);
+  
+  // Storage for Leaflet Layers
   const polylinesRef = useRef<Map<string, any>>(new Map());
   const raceFaintPolylinesRef = useRef<Map<string, any>>(new Map());
   const raceRunnerMarkersRef = useRef<Map<string, any>>(new Map());
+  
   const kmMarkersLayerGroupRef = useRef<any>(null);
   const hoverMarkerRef = useRef<any>(null);
   const animationMarkerRef = useRef<any>(null);
@@ -204,6 +207,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
       if (bounds && bounds.isValid()) map.fitBounds(bounds, { padding: [40, 40] });
   }, [selectionPoints, tracks, visibleTrackIds, selectedTrackIds, animationTrack, aiSegmentHighlight, raceRunners]);
 
+  // Init Map
   useEffect(() => {
     if (mapContainerRef.current && !mapRef.current) {
       mapRef.current = L.map(mapContainerRef.current, { 
@@ -239,6 +243,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
     }
   }, []);
 
+  // Tile Layer
   useEffect(() => {
       const map = mapRef.current;
       if (!map) return;
@@ -275,22 +280,26 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
 
   }, [mapTheme]);
 
+  // Main Track Rendering Effect (Create Layers)
+  // This ONLY runs when the track data structure changes or modes switch.
+  // It does NOT run on hover.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
+    // Clear everything if mode changes or tracks update significantly
     polylinesRef.current.forEach(layer => map.removeLayer(layer));
     polylinesRef.current.clear();
     raceFaintPolylinesRef.current.forEach(layer => map.removeLayer(layer));
     raceFaintPolylinesRef.current.clear();
+    
     if (!animationTrack) kmMarkersLayerGroupRef.current?.clearLayers();
 
+    // 1. Animation Mode
     if (animationTrack) {
+        // ... (Animation logic remains the same) ...
         const faintLayer = L.polyline(animationTrack.points.map(p => [p.lat, p.lon]), {
-            color: animationTrack.color,
-            weight: 3,
-            opacity: 0.2,
-            interactive: false
+            color: animationTrack.color, weight: 3, opacity: 0.2, interactive: false
         }).addTo(map);
         raceFaintPolylinesRef.current.set('base', faintLayer);
 
@@ -300,72 +309,20 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
 
         if (passedPoints.length > 1) {
             const progressLayer = L.polyline(passedPoints.map(p => [p.lat, p.lon]), {
-                color: animationTrack.color,
-                weight: 5,
-                opacity: 0.9,
-                lineJoin: 'round'
+                color: animationTrack.color, weight: 5, opacity: 0.9, lineJoin: 'round'
             }).addTo(map);
             polylinesRef.current.set('progress', progressLayer);
         }
-
-        if (currentInterp && !showSummaryMode) {
-            map.setView([currentInterp.lat, currentInterp.lon], map.getZoom(), { animate: false });
-        }
-
-        if (currentInterp) {
-            if (animationMarkerRef.current) map.removeLayer(animationMarkerRef.current);
-            const icon = L.divIcon({
-                className: 'race-cursor-icon',
-                html: `<div class="relative flex flex-col items-center"><div class="cursor-dot animate-pulse shadow-lg" style="background-color: ${animationTrack.color}; width: 20px; height: 20px; border: 3px solid white;"></div><div class="pace-label font-black" style="background-color: ${animationTrack.color};">${animationPace > 0 ? formatPace(animationPace) : '--:--'}</div></div>`,
-                iconSize: [60, 40],
-                iconAnchor: [30, 20]
-            });
-            animationMarkerRef.current = L.marker([currentInterp.lat, currentInterp.lon], { icon, zIndexOffset: 2000 }).addTo(map);
-        }
-
-        const currentKm = Math.floor(animationProgress);
-        if (currentKm >= 1 && !passedKmsRef.current.has(currentKm)) {
-            passedKmsRef.current.add(currentKm);
-            const kmPoint = getTrackPointAtDistance(animationTrack, currentKm);
-            if (kmPoint && animationTrackStats) {
-                const split = animationTrackStats.splits.find(s => s.splitNumber === currentKm);
-                const icon = L.divIcon({
-                    className: 'km-marker border-cyan-400 border-2 shadow-cyan-500/50 shadow-md',
-                    html: `<span>${currentKm}</span>`,
-                    iconSize: [22, 22],
-                    iconAnchor: [11, 11]
-                });
-                const marker = L.marker([kmPoint.lat, kmPoint.lon], { icon }).addTo(kmMarkersLayerGroupRef.current);
-                if (split) {
-                    marker.bindPopup(`
-                        <div class="p-1 font-sans">
-                            <div class="text-[10px] font-black text-cyan-400 uppercase tracking-tighter mb-0.5">Km ${currentKm}</div>
-                            <div class="text-sm font-black text-white leading-tight">${formatPace(split.pace)}/km</div>
-                            <div class="text-[9px] text-slate-400 font-bold mt-1">Tempo: ${formatDuration(split.duration)}</div>
-                            <div class="text-[9px] text-slate-500">Alt: +${Math.round(split.elevationGain)}m</div>
-                        </div>
-                    `, { closeButton: false, offset: [0, -10], className: 'km-info-popup' }).openPopup();
-                }
-            }
-        }
-        
-        if (animationProgress < 0.1) passedKmsRef.current.clear();
-
-    } else {
-        if (animationMarkerRef.current) { map.removeLayer(animationMarkerRef.current); animationMarkerRef.current = null; }
-        passedKmsRef.current.clear();
-
+        // ... (Animation Marker logic is handled in next effect or below) ...
+    } 
+    // 2. Normal / Race Mode Layer Creation
+    else {
         const safeVisibleIds = visibleTrackIds instanceof Set ? visibleTrackIds : new Set();
-        const safeSelectedIds = selectedTrackIds instanceof Set ? selectedTrackIds : new Set();
-
-        const isSelectionActive = safeSelectedIds.size > 0;
-        const isAnyHovered = hoveredTrackId !== null;
-
+        
         tracks.forEach(track => {
             if (!safeVisibleIds.has(track.id)) return;
-            const isHovered = hoveredTrackId === track.id;
-            const isSelected = safeSelectedIds.has(track.id);
-            
+
+            // RACE MODE LOGIC
             if (raceRunners && raceRunners.length > 0) {
                 const runner = raceRunners.find(r => r.trackId === track.id);
                 if (!runner) return;
@@ -373,6 +330,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
                     color: track.color, weight: 2, opacity: 0.15, interactive: false
                 }).addTo(map);
                 raceFaintPolylinesRef.current.set(track.id, faintLayer);
+                
                 const currentDist = runner.position.cummulativeDistance;
                 const passedPoints = track.points.filter(p => p.cummulativeDistance <= currentDist);
                 if (passedPoints.length > 1) {
@@ -383,51 +341,34 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
                     polylinesRef.current.set(track.id, passedLayer);
                 }
             } 
+            // NORMAL MODE LOGIC
             else {
-                let opacity = 0.6;
-                let weight = 3;
-                let color = track.color;
-                
-                if (isAnyHovered) {
-                    if (isHovered) {
-                        opacity = 1.0;
-                        weight = 8; // Highlight heavily
-                        color = track.color;
-                    } else {
-                        // Decolor other tracks
-                        opacity = 0.15; // Fade out significantly
-                        weight = 2;
-                        color = '#334155'; // Grey/Slate
-                    }
-                } else if (isSelectionActive) {
-                    if (isSelected) {
-                        opacity = 1.0;
-                        weight = 6;
-                        color = track.color;
-                    } else {
-                        opacity = 0.2;
-                        weight = 2;
-                        color = '#475569';
-                    }
-                } else {
-                    const isSatellite = mapTheme === 'satellite';
-                    opacity = isSatellite ? 0.9 : 0.6;
-                    weight = isSatellite ? 4 : 3;
-                }
-                
                 let layer;
-                // Apply gradient logic only if highlighted or no focus mode is active
-                const shouldApplyGradient = mapGradientMetric !== 'none' && (isHovered || (!isAnyHovered && (isSelected || !isSelectionActive)));
-
-                if (shouldApplyGradient) {
-                    const coloredSegments = getTrackSegmentColors(track, mapGradientMetric as GradientMetric, color);
-                    layer = L.featureGroup(coloredSegments.map(seg => L.polyline([[seg.p1.lat, seg.p1.lon], [seg.p2.lat, seg.p2.lon]], { color: seg.color, weight: weight + 1, opacity: opacity, lineJoin: 'round' })));
+                // If gradient metric is active, we create a feature group of segments
+                // Note: Gradient metric updates cause this effect to re-run because mapGradientMetric is in deps.
+                if (mapGradientMetric !== 'none') {
+                    const coloredSegments = getTrackSegmentColors(track, mapGradientMetric as GradientMetric, track.color);
+                    layer = L.featureGroup(coloredSegments.map(seg => 
+                        L.polyline([[seg.p1.lat, seg.p1.lon], [seg.p2.lat, seg.p2.lon]], { 
+                            color: seg.color, weight: 4, opacity: 0.7, lineJoin: 'round' 
+                        })
+                    ));
                 } else {
-                    layer = L.polyline(track.points.map(p => [p.lat, p.lon]), { color: color, weight: weight, opacity: opacity, lineJoin: 'round' });
+                    // Standard Polyline
+                    layer = L.polyline(track.points.map(p => [p.lat, p.lon]), { 
+                        color: track.color, weight: 4, opacity: 0.7, lineJoin: 'round',
+                        bubblingMouseEvents: false 
+                    });
                 }
                 
-                layer.on('mouseover', () => onTrackHover?.(track.id));
-                layer.on('mouseout', () => onTrackHover?.(null));
+                // Add Interactions
+                layer.on('mouseover', () => {
+                    // Important: Don't trigger if already hovered to avoid loops if logic was in render
+                    onTrackHover?.(track.id);
+                });
+                layer.on('mouseout', () => {
+                    onTrackHover?.(null);
+                });
                 
                 layer.on('click', (e: any) => { 
                     L.DomEvent.stopPropagation(e); 
@@ -439,40 +380,91 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
                 });
                 
                 layer.addTo(map);
-                
-                if (isHovered || isSelected) {
-                    if (layer.bringToFront) layer.bringToFront();
-                    else if (layer.eachLayer) layer.eachLayer((l: any) => l.bringToFront && l.bringToFront());
-                }
-                
                 polylinesRef.current.set(track.id, layer);
-            }
-            if (!raceRunners && (safeVisibleIds.size === 1 || isHovered || isSelected)) {
-                for (let km = 1; km < track.distance; km++) {
-                    const pt = getTrackPointAtDistance(track, km);
-                    if (pt) {
-                        const icon = L.divIcon({ className: 'km-marker', html: `<span>${km}</span>`, iconSize: [20, 20], iconAnchor: [10, 10] });
-                        L.marker([pt.lat, pt.lon], { icon, interactive: false }).addTo(kmMarkersLayerGroupRef.current);
-                    }
-                }
             }
         });
     }
+  }, [tracks, visibleTrackIds, mapGradientMetric, raceRunners, animationTrack, animationProgress, showSummaryMode]);
 
-    if (selectionPolylineRef.current) map.removeLayer(selectionPolylineRef.current);
-    if (selectionPoints && selectionPoints.length > 1) {
-        selectionPolylineRef.current = L.polyline(selectionPoints.map(p => [p.lat, p.lon]), { color: '#fde047', weight: 8, opacity: 0.8, lineCap: 'round', dashArray: '1, 10' }).addTo(map);
-    }
-    if (aiSegmentPolylineRef.current) map.removeLayer(aiSegmentPolylineRef.current);
-    if (aiSegmentHighlight && tracks.length > 0) {
-        const pts = getPointsInDistanceRange(tracks[0], aiSegmentHighlight.startDistance, aiSegmentHighlight.endDistance);
-        if (pts.length > 1) {
-            aiSegmentPolylineRef.current = L.polyline(pts.map(p => [p.lat, p.lon]), { color: '#22d3ee', weight: 10, opacity: 0.9, lineCap: 'round' }).addTo(map);
-        }
-    }
-  }, [tracks, visibleTrackIds, selectedTrackIds, hoveredTrackId, mapGradientMetric, selectionPoints, aiSegmentHighlight, onTrackHover, raceRunners, animationTrack, animationProgress, animationPace, isAnimationPlaying, showSummaryMode, animationTrackStats, mapTheme, onTrackClick]);
-
+  // Separate Effect for HIGHLIGHTING (Style Updates)
+  // This runs when hoveredTrackId or selectedTrackIds change, WITHOUT destroying layers.
   useEffect(() => {
+      const map = mapRef.current;
+      if (!map || animationTrack || (raceRunners && raceRunners.length > 0)) return;
+
+      const safeSelectedIds = selectedTrackIds instanceof Set ? selectedTrackIds : new Set();
+      const isAnyHovered = hoveredTrackId !== null;
+      const isSelectionActive = safeSelectedIds.size > 0;
+
+      polylinesRef.current.forEach((layer, trackId) => {
+          const isHovered = hoveredTrackId === trackId;
+          const isSelected = safeSelectedIds.has(trackId);
+          const track = tracks.find(t => t.id === trackId);
+          if (!track) return;
+
+          let opacity = 0.7;
+          let weight = 4;
+          let color = track.color;
+          let bringToFront = false;
+
+          if (isAnyHovered) {
+              if (isHovered) {
+                  opacity = 1.0;
+                  weight = 8; // Bold highlight
+                  bringToFront = true;
+              } else {
+                  // Decolor non-hovered tracks
+                  opacity = 0.15;
+                  weight = 2;
+                  color = '#334155'; // Grey/Slate
+              }
+          } else if (isSelectionActive) {
+              if (isSelected) {
+                  opacity = 1.0;
+                  weight = 6;
+                  bringToFront = true;
+              } else {
+                  opacity = 0.2;
+                  weight = 2;
+                  color = '#475569';
+              }
+          } else {
+              // Default state
+              if (mapTheme === 'satellite') {
+                  opacity = 0.9;
+                  weight = 4;
+              }
+          }
+
+          // Apply styles
+          // If it's a FeatureGroup (gradient), we iterate layers
+          if (layer instanceof L.FeatureGroup) {
+              layer.eachLayer((l: any) => {
+                  if (l.setStyle) {
+                      // Keep gradient color if highlighted, otherwise force grey
+                      const segColor = (isAnyHovered && !isHovered) ? color : (l.options.originalColor || l.options.color);
+                      l.setStyle({ opacity, weight, color: segColor });
+                      if (!l.options.originalColor) l.options.originalColor = l.options.color; // Hack to save gradient color
+                  }
+              });
+          } else {
+              // Standard Polyline
+              if (layer.setStyle) {
+                  layer.setStyle({ color, opacity, weight });
+              }
+          }
+
+          if (bringToFront && layer.bringToFront) {
+              layer.bringToFront();
+          }
+      });
+
+  }, [hoveredTrackId, selectedTrackIds, animationTrack, raceRunners, tracks, mapTheme]);
+
+
+  // Helper Effects for Markers/Overlays (Same as before)
+  useEffect(() => {
+    // ... (Race markers logic) ...
     const map = mapRef.current;
     if (!map) return;
     raceRunnerMarkersRef.current.forEach(m => map.removeLayer(m));
@@ -492,6 +484,59 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
     }
   }, [raceRunners, tracks]);
 
+  // Animation Marker & KM Markers
+  useEffect(() => {
+      // ... Re-implement animation specific marker logic tied to animationProgress ...
+      const map = mapRef.current;
+      if (!map || !animationTrack) {
+          if (animationMarkerRef.current) { map?.removeLayer(animationMarkerRef.current); animationMarkerRef.current = null; }
+          return;
+      }
+
+      const currentInterp = getTrackPointAtDistance(animationTrack, animationProgress);
+      if (currentInterp) {
+          if (!showSummaryMode) map.setView([currentInterp.lat, currentInterp.lon], map.getZoom(), { animate: false });
+          
+          if (animationMarkerRef.current) map.removeLayer(animationMarkerRef.current);
+          const icon = L.divIcon({
+              className: 'race-cursor-icon',
+              html: `<div class="relative flex flex-col items-center"><div class="cursor-dot animate-pulse shadow-lg" style="background-color: ${animationTrack.color}; width: 20px; height: 20px; border: 3px solid white;"></div><div class="pace-label font-black" style="background-color: ${animationTrack.color};">${animationPace > 0 ? formatPace(animationPace) : '--:--'}</div></div>`,
+              iconSize: [60, 40],
+              iconAnchor: [30, 20]
+          });
+          animationMarkerRef.current = L.marker([currentInterp.lat, currentInterp.lon], { icon, zIndexOffset: 2000 }).addTo(map);
+      }
+
+      // KM Markers logic for animation
+      const currentKm = Math.floor(animationProgress);
+      if (currentKm >= 1 && !passedKmsRef.current.has(currentKm)) {
+          passedKmsRef.current.add(currentKm);
+          const kmPoint = getTrackPointAtDistance(animationTrack, currentKm);
+          if (kmPoint && animationTrackStats) {
+              const split = animationTrackStats.splits.find(s => s.splitNumber === currentKm);
+              const icon = L.divIcon({
+                  className: 'km-marker border-cyan-400 border-2 shadow-cyan-500/50 shadow-md',
+                  html: `<span>${currentKm}</span>`,
+                  iconSize: [22, 22],
+                  iconAnchor: [11, 11]
+              });
+              const marker = L.marker([kmPoint.lat, kmPoint.lon], { icon }).addTo(kmMarkersLayerGroupRef.current);
+              if (split) {
+                  marker.bindPopup(`
+                      <div class="p-1 font-sans">
+                          <div class="text-[10px] font-black text-cyan-400 uppercase tracking-tighter mb-0.5">Km ${currentKm}</div>
+                          <div class="text-sm font-black text-white leading-tight">${formatPace(split.pace)}/km</div>
+                          <div class="text-[9px] text-slate-400 font-bold mt-1">Tempo: ${formatDuration(split.duration)}</div>
+                      </div>
+                  `, { closeButton: false, offset: [0, -10], className: 'km-info-popup' }).openPopup();
+              }
+          }
+      }
+      if (animationProgress < 0.1) passedKmsRef.current.clear();
+
+  }, [animationTrack, animationProgress, animationPace, showSummaryMode, animationTrackStats]);
+
+  // Hover Marker
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !hoveredPoint) {
@@ -522,9 +567,29 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
     }
   }, [hoveredPoint, hoveredData]);
 
+  // Selections / AI Segments
+  useEffect(() => {
+      const map = mapRef.current;
+      if (!map) return;
+      
+      if (selectionPolylineRef.current) map.removeLayer(selectionPolylineRef.current);
+      if (selectionPoints && selectionPoints.length > 1) {
+          selectionPolylineRef.current = L.polyline(selectionPoints.map(p => [p.lat, p.lon]), { color: '#fde047', weight: 8, opacity: 0.8, lineCap: 'round', dashArray: '1, 10' }).addTo(map);
+      }
+      
+      if (aiSegmentPolylineRef.current) map.removeLayer(aiSegmentPolylineRef.current);
+      if (aiSegmentHighlight && tracks.length > 0) {
+          const pts = getPointsInDistanceRange(tracks[0], aiSegmentHighlight.startDistance, aiSegmentHighlight.endDistance);
+          if (pts.length > 1) {
+              aiSegmentPolylineRef.current = L.polyline(pts.map(p => [p.lat, p.lon]), { color: '#22d3ee', weight: 10, opacity: 0.9, lineCap: 'round' }).addTo(map);
+          }
+      }
+  }, [selectionPoints, aiSegmentHighlight, tracks]);
+
   useEffect(() => { if (isAutoFitEnabled && !raceRunners && !animationTrack) fitMapToBounds(); }, [isAutoFitEnabled, fitMapToBounds, raceRunners, animationTrack, visibleTrackIds, selectedTrackIds]);
   useEffect(() => { if (fitBoundsCounter > 0) fitMapToBounds(); }, [fitBoundsCounter, fitMapToBounds]);
 
+  // Standard Render (Controls)
   return (
     <div className="relative h-full w-full bg-slate-900 overflow-hidden">
       <div ref={mapContainerRef} className="h-full w-full" style={{ minHeight: '100%' }} />
