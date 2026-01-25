@@ -49,7 +49,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
     const [needsConfirmation, setNeedsConfirmation] = useState(false);
 
     const syncLocalDataToCloud = async (userId: string) => {
-        setSyncStatus('Caricamento dati locali nel cloud...');
+        setSyncStatus('Sincronizzazione dati locali con il cloud...');
         
         try {
             // 1. Sync Profile - SAFETY CHECK
@@ -92,14 +92,13 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
             }
 
             // 4. Sync All Chat History (Global & Track-specific) - Only if local DB has chats
-            // syncAllChatsToCloud iterates local DB, so if empty it does nothing (safe)
             try {
                 await syncAllChatsToCloud();
             } catch (e) {
                 console.warn("Failed to sync chats", e);
             }
 
-            setSyncStatus(`Profilo e Diario aggiornati.`);
+            setSyncStatus(`Sincronizzazione completata!`);
         } catch (e) {
             console.error("Sync error", e);
             setSyncStatus('Sincronizzazione parziale completata.');
