@@ -7,6 +7,17 @@ interface ChangelogProps {
 
 const changelogData = [
     {
+        version: 'v1.32',
+        date: '2026-01-26',
+        changes: [
+            '☁️ Sincronizzazione Cloud Blindata: Risolto un problema critico per cui i dati potevano non apparire dopo il login. Migliorato il parsing dei dati e aggiunto il pulsante manuale "Salva su Database" nell\'Hub.',
+            '👁️ Nuove Modalità di Visualizzazione: La Sidebar e l\'Explorer ora supportano le viste "Lista Compatta", "Scheda Media" e "Scheda Grande".',
+            '🗂️ Raggruppamento Avanzato: Ora puoi raggruppare le tue corse per Distanza (<5k, 10k, ecc.), Cartella, Tag o Tipo di attività, oltre che per Data.',
+            '📥 Ripristino Backup Totale: L\'importazione di un file di backup ora sostituisce e sincronizza immediatamente il database Cloud, garantendo un ripristino fedele al 100%.',
+            '🗄️ Gestione Archivio & Selezione: Aggiunto filtro per mostrare/nascondere le corse archiviate e pulsanti rapidi per selezionare/deselezionare tutto.'
+        ]
+    },
+    {
         version: 'v1.31',
         date: '2026-01-25',
         changes: [

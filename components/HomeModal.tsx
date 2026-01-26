@@ -1,6 +1,7 @@
 
 import React, { useRef, useMemo, useState } from 'react';
 import { PlannedWorkout } from '../types';
+import { isSupabaseConfigured } from '../services/supabaseClient';
 
 interface HomeModalProps {
     onOpenDiary: () => void;
@@ -17,10 +18,12 @@ interface HomeModalProps {
     onOpenChangelog?: () => void;
     onUploadOpponent?: (files: File[]) => void;
     onEnterRaceMode?: () => void;
+    onManualCloudSave?: () => void; // Nuova prop per il salvataggio manuale
 }
 
 const SettingsIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M7.84 1.804A1 1 0 0 1 8.82 1h2.36a1 1 0 0 1 .98.804l.331 1.652a6.993 6.993 0 0 1 1.929 1.115l1.598-.54a1 1 0 0 1 1.186.447l1.18 2.044a1 1 0 0 1-.205 1.251l-1.267 1.113a7.047 7.047 0 0 1 0 2.228l1.267 1.113a1 1 0 0 1 .206 1.25l-1.18 2.045a1 1 0 0 1 1.187-.447l1.598.54a6.993 6.993 0 0 1 7.51 3.456l.33-1.652ZM10 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" clipRule="evenodd" /></svg>);
 const HelpIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7.75-4.25a1.25 1.25 0 1 1 2.5 0c0 .533-.335.918-.78 1.163-.407.224-.72.576-.72 1.087v.25a.75.75 0 0 1-1.5 0v-.25c0-.942.667-1.761 1.547-2.035.25-.078.453-.312.453-.565 0-.138-.112-.25-.25-.25a.25.25 0 0 0-.25.25.75.75 0 0 1-1.5 0 1.75 1.75 0 0 1 1.75-1.75ZM10 13a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z" clipRule="evenodd" /></svg>);
+const CloudUpIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M5.5 17a4.5 4.5 0 0 1-1.44-8.765 4.5 4.5 0 0 1 8.302-3.046 3.5 3.5 0 0 1 4.504 4.272A4 4 0 0 1 15 17H5.5Zm3.75-2.75a.75.75 0 0 0 1.5 0V9.66l1.95 2.1a.75.75 0 1 0 1.1-1.02l-3.25-3.5a.75.75 0 0 0-1.1 0l-3.25 3.5a.75.75 0 1 0 1.1 1.02l1.95-2.1v4.59Z" clipRule="evenodd" /></svg>);
 
 const LargeLogoIcon = () => (
     <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-2xl border-2 border-cyan-500/20 relative z-10">
@@ -41,7 +44,7 @@ const MobileLogoIcon = () => (
 const HomeModal: React.FC<HomeModalProps> = ({ 
     onOpenDiary, onOpenExplorer, onOpenHelp, onImportBackup, onExportBackup, 
     onUploadTracks, onClose, trackCount, plannedWorkouts = [], onOpenWorkout, 
-    onOpenProfile, onOpenChangelog, onUploadOpponent, onEnterRaceMode 
+    onOpenProfile, onOpenChangelog, onUploadOpponent, onEnterRaceMode, onManualCloudSave
 }) => {
     const backupInputRef = useRef<HTMLInputElement>(null);
     const trackInputRef = useRef<HTMLInputElement>(null);
@@ -178,7 +181,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
                 
                 <div className="hidden md:flex absolute top-4 right-4 items-center gap-3 z-50">
                     <button onClick={onOpenHelp} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-700 rounded-lg text-xs font-bold text-slate-300 hover:text-cyan-400 border border-slate-700 transition-colors"><HelpIcon /> Guida</button>
-                    <button onClick={onOpenChangelog} className="px-3 py-1.5 bg-slate-900 hover:bg-slate-700 rounded-lg text-xs font-mono text-slate-400 hover:text-white border border-slate-700 transition-colors">v1.31</button>
+                    <button onClick={onOpenChangelog} className="px-3 py-1.5 bg-slate-900 hover:bg-slate-700 rounded-lg text-xs font-mono text-slate-400 hover:text-white border border-slate-700 transition-colors">v1.32</button>
                     <button onClick={onOpenProfile} className="flex items-center gap-2 px-3 py-1.5 bg-slate-900 hover:bg-slate-700 rounded-lg text-xs font-bold text-slate-300 hover:text-white border border-slate-700 transition-colors"><SettingsIcon /> Impostazioni</button>
                 </div>
 
@@ -194,7 +197,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
                             </div>
                             <div className="flex gap-2">
                                 <button onClick={onOpenHelp} className="p-1.5 bg-slate-800 rounded-full text-slate-300 hover:text-cyan-400 border border-slate-700"><HelpIcon /></button>
-                                <button onClick={onOpenChangelog} className="px-2 py-1 bg-slate-800 rounded text-[9px] text-slate-400 font-mono border border-slate-700">v1.31</button>
+                                <button onClick={onOpenChangelog} className="px-2 py-1 bg-slate-800 rounded text-[9px] text-slate-400 font-mono border border-slate-700">v1.32</button>
                                 <button onClick={onOpenProfile} className="p-1.5 bg-slate-800 rounded-full text-slate-300 hover:text-white border border-slate-700"><SettingsIcon /></button>
                             </div>
                         </div>
@@ -216,15 +219,26 @@ const HomeModal: React.FC<HomeModalProps> = ({
                             <span className="text-3xl font-black text-white">{trackCount}</span>
                         </div>
                         
-                        <div className="grid grid-cols-2 gap-2">
-                             <button onClick={() => backupInputRef.current?.click()} className="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl text-center border border-slate-700 transition-colors group">
-                                <span className="block text-xl mb-1 group-hover:scale-110 transition-transform">📥</span>
-                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Importa</span>
+                        <div className="grid grid-cols-3 gap-2">
+                             <button onClick={() => backupInputRef.current?.click()} className="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl text-center border border-slate-700 transition-colors group flex flex-col items-center justify-center">
+                                <span className="block text-lg mb-1 group-hover:scale-110 transition-transform">📥</span>
+                                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Importa</span>
                                 <input type="file" ref={backupInputRef} accept=".json" className="hidden" onChange={handleFileChange} />
                              </button>
-                             <button onClick={onExportBackup} className="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl text-center border border-slate-700 transition-colors group">
-                                <span className="block text-xl mb-1 group-hover:scale-110 transition-transform">💾</span>
-                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Backup</span>
+                             <button onClick={onExportBackup} className="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl text-center border border-slate-700 transition-colors group flex flex-col items-center justify-center">
+                                <span className="block text-lg mb-1 group-hover:scale-110 transition-transform">💾</span>
+                                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Backup</span>
+                             </button>
+                             <button 
+                                onClick={onManualCloudSave} 
+                                disabled={!isSupabaseConfigured()}
+                                className={`p-3 bg-slate-800 hover:bg-slate-700 rounded-xl text-center border border-slate-700 transition-colors group flex flex-col items-center justify-center ${!isSupabaseConfigured() ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                title={!isSupabaseConfigured() ? 'Cloud non configurato' : 'Salva su Database'}
+                             >
+                                <span className="block text-lg mb-1 group-hover:scale-110 transition-transform text-cyan-400">
+                                    <CloudUpIcon />
+                                </span>
+                                <span className="text-[8px] font-bold text-cyan-400 uppercase tracking-wider">Salva DB</span>
                              </button>
                         </div>
                     </div>

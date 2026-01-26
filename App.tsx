@@ -39,7 +39,7 @@ import { getTrackPointAtDistance, getTrackStateAtTime } from './services/trackEd
 import { parseGpx } from './services/gpxService';
 import { parseTcx } from './services/tcxService';
 import { generateSmartTitle } from './services/titleGenerator';
-import { supabase } from './services/supabaseClient';
+import { supabase, isSupabaseConfigured } from './services/supabaseClient';
 
 const TRACK_COLORS = [
   '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e'
@@ -346,6 +346,25 @@ const App: React.FC = () => {
     processFilesOnMainThread(files);
   };
 
+  const handleManualCloudSave = async () => {
+      if (!isSupabaseConfigured()) {
+          addToast("Cloud non configurato. Impossibile salvare.", "error");
+          return;
+      }
+      
+      addToast("Inizio salvataggio forzato su Database...", "info");
+      
+      try {
+          // This performs a wipe of current cloud data for this user and pushes all local data.
+          // This ensures the cloud is a perfect mirror of the current local state.
+          await syncBackupToCloud(); 
+          addToast("Database cloud aggiornato e sincronizzato con successo.", "success");
+      } catch (e: any) {
+          console.error("Manual Save Error:", e);
+          addToast("Errore durante il salvataggio su database.", "error");
+      }
+  };
+
   const handleImportBackup = async (file: File) => {
     try {
       addToast('Lettura backup...', 'info');
@@ -376,13 +395,17 @@ const App: React.FC = () => {
       setShowHome(true);
       addToast('Backup ripristinato. Sincronizzazione cloud in corso...', 'success');
 
-      // 3. Trigger Background Cloud Sync (Fire and Forget for UI)
-      syncBackupToCloud().then(() => {
-          console.log("Cloud sync finished");
-      }).catch(err => {
-          console.warn("Cloud sync warning:", err);
-          // Optional: Notify user if sync fails? Usually silent is better for UX if local works.
-      });
+      // 3. Trigger Background Cloud Sync (Crucial Step for "Replace Database")
+      // We force a full overwrite of the cloud database with the newly imported backup data
+      if (isSupabaseConfigured()) {
+          syncBackupToCloud().then(() => {
+              console.log("Cloud sync finished after restore.");
+              addToast("Database Cloud sincronizzato col Backup.", "success");
+          }).catch(err => {
+              console.warn("Cloud sync warning:", err);
+              addToast("Attenzione: Errore sincronizzazione Cloud.", "error");
+          });
+      }
 
     } catch (e: any) {
       console.error(e);
@@ -847,6 +870,7 @@ const App: React.FC = () => {
                 onOpenChangelog={() => setShowChangelog(true)}
                 onUploadOpponent={handleAddOpponent}
                 onEnterRaceMode={handleStartRace}
+                onManualCloudSave={handleManualCloudSave}
             />
         )}
 
