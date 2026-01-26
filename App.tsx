@@ -45,7 +45,7 @@ const TRACK_COLORS = [
   '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e'
 ];
 
-const GUEST_AI_LIMIT = 3;
+const GUEST_AI_LIMIT = 4;
 
 const App: React.FC = () => {
   // --- STATE ---
@@ -199,10 +199,14 @@ const App: React.FC = () => {
           const newUsage = guestAiUsage + 1;
           setGuestAiUsage(newUsage);
           localStorage.setItem('guest_ai_usage', newUsage.toString());
-          // Optional: Show warning on last use?
-          if (newUsage === GUEST_AI_LIMIT) {
-              addToast("Hai usato il tuo ultimo credito AI gratuito da ospite.", "info");
+          
+          const remaining = GUEST_AI_LIMIT - newUsage;
+          if (remaining > 0) {
+              addToast(`AI Attivata. Ti rimangono ${remaining} utilizzi gratuiti.`, "info");
+          } else {
+              addToast("Hai utilizzato l'ultimo credito AI gratuito.", "info");
           }
+          
           return true;
       } else {
           setLoginModalLimitMessage(true);

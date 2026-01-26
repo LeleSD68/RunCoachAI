@@ -176,7 +176,7 @@ const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTr
                 </div>
             </header>
 
-            <div className="flex-grow overflow-y-auto p-4 custom-scrollbar bg-slate-900">
+            <div className="flex-grow overflow-y-auto p-4 custom-scrollbar bg-slate-900 min-h-0 overscroll-y-contain">
                 {Object.entries(groupedTracks).map(([groupName, tracksInGroup]: [string, Track[]]) => (
                     <div key={groupName} className="mb-8">
                         {groupingMode !== 'none' && (

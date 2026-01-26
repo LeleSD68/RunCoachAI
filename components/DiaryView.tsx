@@ -341,7 +341,7 @@ const DiaryView: React.FC<DiaryViewProps> = ({ tracks, plannedWorkouts = [], use
                     </div>
 
                     {/* Added padding-bottom 28 (112px) to ensure content is visibly scrolling above dock */}
-                    <div className="flex-grow overflow-y-auto bg-slate-900 p-1 sm:p-2 pb-28">
+                    <div className="flex-grow overflow-y-auto bg-slate-900 p-1 sm:p-2 pb-28 min-h-0 overscroll-y-contain">
                         <div className="grid grid-cols-7 gap-1 sm:gap-2 w-full" style={{ minHeight: '100%', gridTemplateRows: `repeat(${weeksCount}, minmax(100px, 1fr))` }}>
                             {calendarGrid.map((cell, idx) => {
                                 if (!cell) return <div key={`empty-${idx}`} className="bg-slate-800/20 rounded-lg min-h-[80px]"></div>;
@@ -634,16 +634,14 @@ const DiaryView: React.FC<DiaryViewProps> = ({ tracks, plannedWorkouts = [], use
                                     </button>
                                 </div>
                             ) : (
-                                currentSelectedWorkout.activityType !== 'Nota' && (
-                                    <div className="mb-4">
-                                        <button 
-                                            onClick={() => setShowRescheduleModal(true)}
-                                            className="w-full bg-slate-700 hover:bg-cyan-600 hover:text-white text-cyan-400 font-bold py-2 rounded-lg border border-cyan-500/30 transition-colors text-xs flex items-center justify-center gap-2"
-                                        >
-                                            <SparklesIcon /> Sposta con AI
-                                        </button>
-                                    </div>
-                                )
+                                <div className="mb-4">
+                                    <button 
+                                        onClick={() => setShowRescheduleModal(true)}
+                                        className="w-full bg-slate-700 hover:bg-cyan-600 hover:text-white text-cyan-400 font-bold py-2 rounded-lg border border-cyan-500/30 transition-colors text-xs flex items-center justify-center gap-2"
+                                    >
+                                        <SparklesIcon /> Sposta con AI
+                                    </button>
+                                </div>
                             )}
 
                             <div className="flex gap-3 mt-auto">

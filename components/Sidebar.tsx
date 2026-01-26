@@ -503,7 +503,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
             )}
 
             <div 
-                className="flex-grow overflow-y-auto p-2 space-y-2 custom-scrollbar relative pb-16"
+                className="flex-grow overflow-y-auto p-2 space-y-2 custom-scrollbar relative pb-16 min-h-0 overscroll-y-contain"
                 onMouseEnter={() => isSidebarHovered.current = true}
                 onMouseLeave={() => isSidebarHovered.current = false}
             >

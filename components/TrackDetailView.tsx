@@ -601,7 +601,7 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
                         minSizeSecondary={150} // Ensure bottom has space
                     >
                         {/* Top: Stats */}
-                        <div ref={statsContainerRef} className="h-full w-full overflow-y-auto bg-slate-800 custom-scrollbar">
+                        <div ref={statsContainerRef} className="h-full w-full overflow-y-auto bg-slate-800 custom-scrollbar min-h-0 overscroll-y-contain">
                             {statsContent}
                         </div>
 
