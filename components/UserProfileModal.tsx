@@ -57,11 +57,18 @@ const ShoeIcon = () => (
     </svg>
 );
 
+const ChartIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+        <path d="M15.5 2A1.5 1.5 0 0 0 14 3.5v8a1.5 1.5 0 0 0 1.5 1.5h1a1.5 1.5 0 0 0 1.5-1.5v-8A1.5 1.5 0 0 0 16.5 2h-1ZM9.5 6A1.5 1.5 0 0 0 8 7.5v4a1.5 1.5 0 0 0 1.5 1.5h1a1.5 1.5 0 0 0 1.5-1.5v-4A1.5 1.5 0 0 0 10.5 6h-1ZM3.5 10A1.5 1.5 0 0 0 2 11.5v0A1.5 1.5 0 0 0 3.5 13h1a1.5 1.5 0 0 0 1.5-1.5v0A1.5 1.5 0 0 0 4.5 10h-1Z" />
+    </svg>
+);
+
 const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, currentProfile, isWelcomeMode = false, tracks = [] }) => {
     const [profile, setProfile] = useState<UserProfile>({ ...currentProfile });
     const [personalRecords, setPersonalRecords] = useState<Record<string, PersonalRecord>>({});
     const [newShoe, setNewShoe] = useState('');
     const [calculatingPRs, setCalculatingPRs] = useState(false);
+    const [showWeightHistory, setShowWeightHistory] = useState(false);
 
     useEffect(() => {
         setProfile({ ...currentProfile });
@@ -278,13 +285,29 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
                                         <input type="number" name="height" id="height" value={profile.height || ''} onChange={handleChange} className="mt-1 block w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white focus:ring-cyan-500 focus:border-cyan-500 placeholder-slate-500" placeholder="Es. 175" />
                                     </div>
                                     <div>
-                                        <label htmlFor="weight" className="block text-sm font-medium text-slate-300">Peso (kg)</label>
+                                        <div className="flex justify-between items-center">
+                                            <label htmlFor="weight" className="block text-sm font-medium text-slate-300">Peso (kg)</label>
+                                            {weightChartData && (
+                                                <button 
+                                                    type="button" 
+                                                    onClick={() => setShowWeightHistory(!showWeightHistory)} 
+                                                    className={`p-1 rounded transition-colors ${showWeightHistory ? 'text-cyan-400 bg-slate-700' : 'text-slate-400 hover:text-white'}`}
+                                                    title="Mostra/Nascondi Storico Peso"
+                                                >
+                                                    <ChartIcon />
+                                                </button>
+                                            )}
+                                        </div>
                                         <input type="number" step="0.1" name="weight" id="weight" value={profile.weight || ''} onChange={handleChange} className="mt-1 block w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white focus:ring-cyan-500 focus:border-cyan-500 placeholder-slate-500" placeholder="Es. 70" />
                                     </div>
                                 </div>
-                                {weightChartData && (
-                                    <div className="bg-slate-900 rounded-lg p-2 border border-slate-700 mt-2">
-                                        <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Storico Peso</p>
+                                
+                                {showWeightHistory && weightChartData && (
+                                    <div className="bg-slate-900 rounded-lg p-3 border border-slate-700 mt-2 animate-fade-in-down">
+                                        <div className="flex justify-between items-center mb-2">
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase">Storico Peso</p>
+                                            <button onClick={() => setShowWeightHistory(false)} className="text-slate-500 hover:text-white">&times;</button>
+                                        </div>
                                         <SimpleLineChart 
                                             data={weightChartData} 
                                             color1="#22d3ee" 
@@ -293,6 +316,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
                                         />
                                     </div>
                                 )}
+
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label htmlFor="maxHr" className="block text-sm font-medium text-slate-300">FC Max (bpm) <span className="text-cyan-400">*</span></label>
@@ -447,6 +471,15 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
                         </footer>
                     </form>
                 </div>
+                <style>{`
+                    @keyframes fade-in-down {
+                        from { opacity: 0; transform: translateY(-10px); }
+                        to { opacity: 1; transform: translateY(0); }
+                    }
+                    .animate-fade-in-down {
+                        animation: fade-in-down 0.2s ease-out forwards;
+                    }
+                `}</style>
             </div>
         </div>
     );
