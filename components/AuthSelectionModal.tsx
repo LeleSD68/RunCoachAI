@@ -26,53 +26,55 @@ const LogoIcon = () => (
 
 const AuthSelectionModal: React.FC<AuthSelectionModalProps> = ({ onGuest, onLogin }) => {
     return (
-        <div className="fixed inset-0 bg-slate-950 z-[9000] flex items-center justify-center p-4 animate-fade-in">
-            {/* Background Effects */}
-            <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                <div className="absolute -top-1/2 -left-1/2 w-full h-full bg-cyan-500/5 blur-[120px] rounded-full"></div>
-                <div className="absolute bottom-0 right-0 w-2/3 h-2/3 bg-blue-600/5 blur-[100px] rounded-full"></div>
-            </div>
+        <div className="fixed inset-0 bg-slate-950 z-[9000] overflow-y-auto animate-fade-in">
+            <div className="min-h-full w-full flex items-center justify-center p-4">
+                {/* Background Effects - Fixed position to stay in place during scroll */}
+                <div className="fixed inset-0 overflow-hidden pointer-events-none">
+                    <div className="absolute -top-1/2 -left-1/2 w-full h-full bg-cyan-500/5 blur-[120px] rounded-full"></div>
+                    <div className="absolute bottom-0 right-0 w-2/3 h-2/3 bg-blue-600/5 blur-[100px] rounded-full"></div>
+                </div>
 
-            <div className="relative z-10 w-full max-w-4xl flex flex-col items-center">
-                <LogoIcon />
-                <h1 className="text-3xl md:text-4xl font-black text-white italic tracking-tighter mb-2 text-center">
-                    Benvenuto in <span className="text-cyan-400">RunCoachAI</span>
-                </h1>
-                <p className="text-slate-400 text-sm md:text-base font-medium mb-10 text-center max-w-lg">
-                    La piattaforma avanzata per analizzare, simulare e migliorare le tue prestazioni di corsa.
-                </p>
+                <div className="relative z-10 w-full max-w-4xl flex flex-col items-center">
+                    <LogoIcon />
+                    <h1 className="text-3xl md:text-4xl font-black text-white italic tracking-tighter mb-2 text-center">
+                        Benvenuto in <span className="text-cyan-400">RunCoachAI</span>
+                    </h1>
+                    <p className="text-slate-400 text-sm md:text-base font-medium mb-10 text-center max-w-lg">
+                        La piattaforma avanzata per analizzare, simulare e migliorare le tue prestazioni di corsa.
+                    </p>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full px-4 md:px-0">
-                    {/* Registered User Card */}
-                    <button 
-                        onClick={onLogin}
-                        className="group relative bg-slate-900/50 backdrop-blur-md border border-cyan-500/30 hover:border-cyan-400 rounded-3xl p-8 flex flex-col items-center text-center transition-all hover:shadow-[0_0_40px_-10px_rgba(34,211,238,0.2)] hover:-translate-y-1 active:scale-[0.98]"
-                    >
-                        <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/5 to-transparent rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                        <UserIcon />
-                        <h3 className="text-xl font-bold text-white mb-2 group-hover:text-cyan-400 transition-colors">Utente Registrato</h3>
-                        <p className="text-xs text-slate-400 mb-6 leading-relaxed">
-                            Accesso completo. Sincronizzazione Cloud, storico AI persistente e accesso da tutti i dispositivi.
-                        </p>
-                        <div className="mt-auto w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-colors text-sm uppercase tracking-wide">
-                            Accedi / Registrati
-                        </div>
-                    </button>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full px-4 md:px-0">
+                        {/* Registered User Card */}
+                        <button 
+                            onClick={onLogin}
+                            className="group relative bg-slate-900/50 backdrop-blur-md border border-cyan-500/30 hover:border-cyan-400 rounded-3xl p-8 flex flex-col items-center text-center transition-all hover:shadow-[0_0_40px_-10px_rgba(34,211,238,0.2)] hover:-translate-y-1 active:scale-[0.98]"
+                        >
+                            <div className="absolute inset-0 bg-gradient-to-b from-cyan-500/5 to-transparent rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                            <UserIcon />
+                            <h3 className="text-xl font-bold text-white mb-2 group-hover:text-cyan-400 transition-colors">Utente Registrato</h3>
+                            <p className="text-xs text-slate-400 mb-6 leading-relaxed">
+                                Accesso completo. Sincronizzazione Cloud, storico AI persistente e accesso da tutti i dispositivi.
+                            </p>
+                            <div className="mt-auto w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-colors text-sm uppercase tracking-wide">
+                                Accedi / Registrati
+                            </div>
+                        </button>
 
-                    {/* Guest Card */}
-                    <button 
-                        onClick={onGuest}
-                        className="group relative bg-slate-900/30 backdrop-blur-md border border-slate-700 hover:border-slate-500 rounded-3xl p-8 flex flex-col items-center text-center transition-all hover:bg-slate-800/50 hover:-translate-y-1 active:scale-[0.98]"
-                    >
-                        <GuestIcon />
-                        <h3 className="text-xl font-bold text-slate-200 mb-2 group-hover:text-white transition-colors">Ospite</h3>
-                        <p className="text-xs text-slate-500 mb-6 leading-relaxed">
-                            Accesso locale (Offline). Dati salvati solo su questo dispositivo. Funzioni AI limitate alla sessione.
-                        </p>
-                        <div className="mt-auto w-full bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white font-bold py-3 px-6 rounded-xl border border-slate-600 transition-colors text-sm uppercase tracking-wide">
-                            Continua come Ospite
-                        </div>
-                    </button>
+                        {/* Guest Card */}
+                        <button 
+                            onClick={onGuest}
+                            className="group relative bg-slate-900/30 backdrop-blur-md border border-slate-700 hover:border-slate-500 rounded-3xl p-8 flex flex-col items-center text-center transition-all hover:bg-slate-800/50 hover:-translate-y-1 active:scale-[0.98]"
+                        >
+                            <GuestIcon />
+                            <h3 className="text-xl font-bold text-slate-200 mb-2 group-hover:text-white transition-colors">Ospite</h3>
+                            <p className="text-xs text-slate-500 mb-6 leading-relaxed">
+                                Accesso locale (Offline). Dati salvati solo su questo dispositivo. Funzioni AI limitate alla sessione.
+                            </p>
+                            <div className="mt-auto w-full bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white font-bold py-3 px-6 rounded-xl border border-slate-600 transition-colors text-sm uppercase tracking-wide">
+                                Continua come Ospite
+                            </div>
+                        </button>
+                    </div>
                 </div>
             </div>
             <style>{`
