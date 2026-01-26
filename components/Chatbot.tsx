@@ -14,6 +14,7 @@ interface ChatbotProps {
     isStandalone?: boolean;
     onAddPlannedWorkout?: (workout: PlannedWorkout) => void;
     plannedWorkouts?: PlannedWorkout[];
+    onCheckAiAccess?: () => boolean; // New prop
 }
 
 const SparklesIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 mr-2 text-cyan-400"><path d="M10.89 2.11a.75.75 0 0 0-1.78 0l-1.5 3.22-3.53.51a.75.75 0 0 0-.42 1.28l2.55 2.49-.6 3.52a.75.75 0 0 0 1.09.79l3.16-1.66 3.16 1.66a.75.75 0 0 0 1.09-.79l-.6-3.52 2.55-2.49a.75.75 0 0 0-.42-1.28l-3.53-.51-1.5-3.22Z" /></svg>);
@@ -33,7 +34,7 @@ const LogoIcon = () => (
 
 const SUGGESTIONS = ["Come sto andando?", "Analizza ultima corsa", "Consigli recupero", "Genera tabella", "Prossima gara?"];
 
-const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, onClose, isStandalone = false, onAddPlannedWorkout, plannedWorkouts = [] }) => {
+const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, onClose, isStandalone = false, onAddPlannedWorkout, plannedWorkouts = [], onCheckAiAccess }) => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -223,6 +224,9 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
     const performSendMessage = async (text: string) => {
         if (!text.trim() || isLoading) return;
         
+        // CHECK LIMIT HERE
+        if (onCheckAiAccess && !onCheckAiAccess()) return;
+
         const userMsg = { role: 'user' as const, text, timestamp: Date.now() };
         isSendingRef.current = true;
         setMessages(prev => [...prev, userMsg]);
@@ -399,7 +403,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
             <div ref={scrollAreaRef} className="flex-grow p-4 overflow-y-auto space-y-4 custom-scrollbar bg-slate-800/50">
                 {messages.length <= 1 && contextMode === 'global' && (
                     <div className="mb-6 animate-fade-in-down">
-                        <AiTrainingCoachPanel userProfile={userProfile} allHistory={tracksToAnalyze} onAddPlannedWorkout={onAddPlannedWorkout} plannedWorkouts={plannedWorkouts} isCompact={true} />
+                        <AiTrainingCoachPanel userProfile={userProfile} allHistory={tracksToAnalyze} onAddPlannedWorkout={onAddPlannedWorkout} plannedWorkouts={plannedWorkouts} isCompact={true} onCheckAiAccess={onCheckAiAccess} />
                     </div>
                 )}
                 

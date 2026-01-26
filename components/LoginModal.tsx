@@ -10,6 +10,7 @@ interface LoginModalProps {
     tracks: Track[];
     userProfile: UserProfile;
     plannedWorkouts: PlannedWorkout[];
+    limitReached?: boolean; // New prop
 }
 
 const translateError = (msg: string) => {
@@ -36,8 +37,8 @@ const EyeSlashIcon = () => (
     </svg>
 );
 
-const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks, userProfile, plannedWorkouts }) => {
-    const [view, setView] = useState<'login' | 'signup' | 'forgot'>('login');
+const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks, userProfile, plannedWorkouts, limitReached }) => {
+    const [view, setView] = useState<'login' | 'signup' | 'forgot'>(limitReached ? 'signup' : 'login');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [fullName, setFullName] = useState('');
@@ -53,7 +54,6 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
         
         try {
             // 1. Sync Profile - SAFETY CHECK
-            // Only sync if local profile actually has data to avoid wiping cloud profile on fresh login
             const hasLocalProfileData = userProfile && (
                 (userProfile.name && userProfile.name.trim() !== '') || 
                 (userProfile.weightHistory && userProfile.weightHistory.length > 0) ||
@@ -63,8 +63,6 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
             if (hasLocalProfileData) {
                 await saveProfileToDB(userProfile);
                 console.log("Local profile synced to cloud.");
-            } else {
-                console.log("Local profile empty, skipping sync to avoid overwrite.");
             }
 
             // 2. Sync Planned Workouts
@@ -73,12 +71,9 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
             }
 
             // 3. Sync Tracks
-            // IMPORTANT: If we have local tracks (e.g. from Guest mode), upload them now.
-            // This ensures they are merged with any existing cloud tracks.
             let syncedCount = 0;
             if (tracks && tracks.length > 0) {
                 for (const track of tracks) {
-                    // Only sync actual tracks, not ghost opponents
                     if (!track.isExternal) {
                         try {
                             await syncTrackToCloud(track);
@@ -91,7 +86,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
                 setSyncStatus(`Caricati ${syncedCount} percorsi.`);
             }
 
-            // 4. Sync All Chat History (Global & Track-specific) - Only if local DB has chats
+            // 4. Sync All Chat History
             try {
                 await syncAllChatsToCloud();
             } catch (e) {
@@ -104,7 +99,6 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
             setSyncStatus('Sincronizzazione parziale completata.');
         }
         
-        // Small delay to let user see success message and for Supabase to process inserts
         await new Promise(r => setTimeout(r, 800));
     };
 
@@ -119,9 +113,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
             const { error } = await supabase.auth.resend({
                 type: 'signup',
                 email: email.trim(),
-                options: {
-                    emailRedirectTo: window.location.origin,
-                }
+                options: { emailRedirectTo: window.location.origin }
             });
             if (error) throw error;
             setSuccessMessage('Nuova email di conferma inviata! Controlla anche la cartella Spam.');
@@ -148,28 +140,21 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
                 const { error, data } = await supabase.auth.signUp({
                     email: cleanEmail,
                     password: cleanPassword,
-                    options: {
-                        data: {
-                            full_name: fullName,
-                        },
-                    },
+                    options: { data: { full_name: fullName } },
                 });
                 if (error) throw error;
                 if (data.user) {
                     if (isSupabaseConfigured()) {
-                        // Check if session is null (implies email confirmation required)
                         if (!data.session) {
                             setSuccessMessage('Registrazione creata! Controlla la tua email per il link di conferma.');
                             setView('login');
                             setNeedsConfirmation(true);
                         } else {
-                            // Auto-login worked (email confirm disabled in supabase)
                             await syncLocalDataToCloud(data.user.id);
                             onLoginSuccess();
                             onClose();
                         }
                     } else {
-                        // Offline Mode: Auto-login immediately after signup
                         setSuccessMessage('Account Locale creato! Accesso...');
                         await syncLocalDataToCloud(data.user.id);
                         onLoginSuccess();
@@ -191,7 +176,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
                 
                 if (data.user) {
                     await syncLocalDataToCloud(data.user.id);
-                    onLoginSuccess(); // This triggers loadDataAndEnter in App.tsx
+                    onLoginSuccess();
                     onClose();
                 }
             } else if (view === 'forgot') {
@@ -219,9 +204,27 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
                     <h2 className="text-2xl font-black text-cyan-400 uppercase tracking-tighter mb-1">
                         {view === 'signup' ? 'Crea Account' : view === 'forgot' ? 'Recupero Password' : 'Bentornato'}
                     </h2>
-                    <p className="text-slate-400 text-sm h-6">
-                        {syncStatus || (view === 'forgot' ? "Inserisci la tua email per ricevere le istruzioni." : (isSupabaseConfigured() ? "Salva le tue corse nel cloud e accedi ovunque." : "Modalità Offline: Account locale simulato."))}
-                    </p>
+                    
+                    {limitReached ? (
+                        <div className="bg-gradient-to-r from-purple-900/40 to-cyan-900/40 border border-purple-500/50 rounded-xl p-4 my-4 text-left">
+                            <p className="text-sm font-bold text-white mb-2 flex items-center gap-2">
+                                <span className="text-xl">🚀</span> Limite AI Ospite Raggiunto
+                            </p>
+                            <p className="text-xs text-slate-300 mb-3">
+                                Hai usato i tuoi 3 crediti AI gratuiti. Registrati ora (è gratis!) per sbloccare il potenziale completo:
+                            </p>
+                            <ul className="text-[11px] text-cyan-100 space-y-1 list-disc list-inside">
+                                <li>✨ <strong>Analisi AI Illimitate</strong></li>
+                                <li>☁️ <strong>Salvataggio Cloud Sicuro</strong></li>
+                                <li>🧠 <strong>Storico Coach AI Permanente</strong></li>
+                                <li>📱 <strong>Accesso Multi-dispositivo</strong></li>
+                            </ul>
+                        </div>
+                    ) : (
+                        <p className="text-slate-400 text-sm h-6">
+                            {syncStatus || (view === 'forgot' ? "Inserisci la tua email per ricevere le istruzioni." : (isSupabaseConfigured() ? "Salva le tue corse nel cloud e accedi ovunque." : "Modalità Offline: Account locale simulato."))}
+                        </p>
+                    )}
                 </div>
 
                 <form onSubmit={handleAuth} className="space-y-4">
@@ -308,9 +311,9 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
                     <button 
                         type="submit" 
                         disabled={loading}
-                        className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className={`w-full text-white font-bold py-3 rounded-xl transition-all shadow-lg active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${limitReached ? 'bg-purple-600 hover:bg-purple-500' : 'bg-cyan-600 hover:bg-cyan-500'}`}
                     >
-                        {loading ? (syncStatus ? 'Sincronizzazione...' : 'Caricamento...') : (view === 'signup' ? 'Registrati' : view === 'forgot' ? 'Invia Link di Reset' : 'Accedi')}
+                        {loading ? (syncStatus ? 'Sincronizzazione...' : 'Caricamento...') : (view === 'signup' ? 'Registrati Gratis' : view === 'forgot' ? 'Invia Link di Reset' : 'Accedi')}
                     </button>
                 </form>
 

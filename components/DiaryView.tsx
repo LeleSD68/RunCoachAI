@@ -19,8 +19,9 @@ interface DiaryViewProps {
     onUpdatePlannedWorkout?: (workout: PlannedWorkout) => void; 
     onMassUpdatePlannedWorkouts?: (workouts: PlannedWorkout[]) => void;
     onOpenTrackChat?: (trackId: string) => void;
-    onOpenGlobalChat?: () => void; // Added Prop to open global chat
+    onOpenGlobalChat?: () => void;
     initialSelectedWorkoutId?: string | null;
+    onCheckAiAccess?: () => boolean;
 }
 
 const DAYS_OF_WEEK = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
@@ -108,7 +109,7 @@ const extractStatsFromDescription = (description: string) => {
     };
 };
 
-const DiaryView: React.FC<DiaryViewProps> = ({ tracks, plannedWorkouts = [], userProfile, onClose, onSelectTrack, onDeletePlannedWorkout, onAddPlannedWorkout, onUpdatePlannedWorkout, onMassUpdatePlannedWorkouts, onOpenTrackChat, onOpenGlobalChat, initialSelectedWorkoutId }) => {
+const DiaryView: React.FC<DiaryViewProps> = ({ tracks, plannedWorkouts = [], userProfile, onClose, onSelectTrack, onDeletePlannedWorkout, onAddPlannedWorkout, onUpdatePlannedWorkout, onMassUpdatePlannedWorkouts, onOpenTrackChat, onOpenGlobalChat, initialSelectedWorkoutId, onCheckAiAccess }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedWorkoutId, setSelectedWorkoutId] = useState<string | null>(initialSelectedWorkoutId || null);
     const [showAiCoach, setShowAiCoach] = useState(false);
@@ -325,6 +326,7 @@ const DiaryView: React.FC<DiaryViewProps> = ({ tracks, plannedWorkouts = [], use
                             plannedWorkouts={plannedWorkouts}
                             isCompact={false}
                             layoutMode="horizontal"
+                            onCheckAiAccess={onCheckAiAccess}
                         />
                     </div>
                 </div>
@@ -428,10 +430,8 @@ const DiaryView: React.FC<DiaryViewProps> = ({ tracks, plannedWorkouts = [], use
                 </div>
             </div>
 
-            {/* ... (rest of the modal code same as before) ... */}
             {selectedDateForMenu && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[3000] flex items-center justify-center p-4 animate-fade-in" onClick={() => setSelectedDateForMenu(null)}>
-                    {/* ... (Menu content) ... */}
                     <div className={`bg-slate-800 rounded-2xl border border-slate-700 shadow-2xl w-full ${creationMode === 'ai-coach' ? 'max-w-xl h-[80vh]' : 'max-w-sm'} overflow-hidden flex flex-col transition-all duration-300`} onClick={e => e.stopPropagation()}>
                         <header className="p-4 bg-slate-900 border-b border-slate-700 flex justify-between items-center shrink-0">
                             <h3 className="font-bold text-white uppercase tracking-wider text-sm">
@@ -459,6 +459,7 @@ const DiaryView: React.FC<DiaryViewProps> = ({ tracks, plannedWorkouts = [], use
                                             isCompact={false}
                                             layoutMode="vertical"
                                             targetDate={selectedDateForMenu}
+                                            onCheckAiAccess={onCheckAiAccess}
                                         />
                                     </div>
                                 </div>

@@ -25,6 +25,7 @@ interface TrackDetailViewProps {
     onStartAnimation?: (id: string) => void;
     onOpenReview?: (trackId: string) => void;
     autoOpenAi?: boolean;
+    onCheckAiAccess?: () => boolean; // New prop
 }
 
 const useIsMobile = () => {
@@ -163,7 +164,7 @@ const RPE_SCALE: Record<number, { label: string, desc: string, color: string }> 
     10: { label: "Esaurimento", desc: "Sforzo massimo assoluto, impossibile continuare.", color: "text-red-600" }
 };
 
-const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, onExit, allHistory = [], onUpdateTrackMetadata, onAddPlannedWorkout, onStartAnimation, onOpenReview, autoOpenAi = false }) => {
+const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, onExit, allHistory = [], onUpdateTrackMetadata, onAddPlannedWorkout, onStartAnimation, onOpenReview, autoOpenAi = false, onCheckAiAccess }) => {
     const isMobile = useIsMobile();
     const [yAxisMetrics, setYAxisMetrics] = useState<YAxisMetric[]>(['pace']);
     const [hoveredPoint, setHoveredPoint] = useState<TrackPoint | null>(null);
@@ -449,10 +450,17 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
                 onUpdateTrackMetadata={onUpdateTrackMetadata} 
                 onAddPlannedWorkout={onAddPlannedWorkout}
                 startOpen={autoOpenAi} 
+                onCheckAiAccess={onCheckAiAccess}
             />
             
             <div className="grid grid-cols-1 gap-4">
-                <GeminiSegmentsPanel track={displayTrack} stats={stats} onSegmentSelect={handleSegmentSelect} selectedSegment={selectedSegment as AiSegment} />
+                <GeminiSegmentsPanel 
+                    track={displayTrack} 
+                    stats={stats} 
+                    onSegmentSelect={handleSegmentSelect} 
+                    selectedSegment={selectedSegment as AiSegment} 
+                    onCheckAiAccess={onCheckAiAccess}
+                />
             </div>
             <WeatherPanel track={track} />
         </div>
@@ -547,7 +555,7 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
                              <RatingStars 
                                 rating={track.rating} 
                                 size="md" 
-                                onDetailClick={(e) => { e.stopPropagation(); onOpenReview?.(track.id); }}
+                                onDetailClick={(e) => { e.stopPropagation(); if(onCheckAiAccess?.() !== false) onOpenReview?.(track.id); }}
                                 onRate={(newRating) => onUpdateTrackMetadata?.(track.id, { rating: newRating })}
                              />
                              {!isMobile && <p className="text-xs text-slate-100 font-bold truncate max-w-md">{track.name}</p>}

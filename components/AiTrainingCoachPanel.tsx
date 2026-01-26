@@ -17,6 +17,7 @@ interface AiTrainingCoachPanelProps {
     isCompact?: boolean;
     layoutMode?: 'vertical' | 'horizontal';
     targetDate?: Date; 
+    onCheckAiAccess?: () => boolean; // New prop
 }
 
 type GenerationMode = 'today' | 'next2' | 'weekly' | 'specific';
@@ -81,7 +82,7 @@ const ChevronDownIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
 );
 
 const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({ 
-    track, stats, userProfile, allHistory, onAddPlannedWorkout, onDeletePlannedWorkout, plannedWorkouts = [], isCompact, layoutMode = 'vertical', targetDate
+    track, stats, userProfile, allHistory, onAddPlannedWorkout, onDeletePlannedWorkout, plannedWorkouts = [], isCompact, layoutMode = 'vertical', targetDate, onCheckAiAccess
 }) => {
     const [isGenerating, setIsGenerating] = useState(false);
     const [suggestions, setSuggestions] = useState<any[]>([]);
@@ -121,6 +122,8 @@ const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({
     };
 
     const handleGenerateProgram = async () => {
+        if (onCheckAiAccess && !onCheckAiAccess()) return;
+
         setIsGenerating(true);
         setError('');
         setSuggestions([]);

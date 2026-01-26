@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback } from 'react';
 import { Type } from '@google/genai';
 import { Track, TrackStats, AiSegment } from '../types';
@@ -9,6 +10,7 @@ interface GeminiSegmentsPanelProps {
     stats: TrackStats;
     onSegmentSelect: (segment: AiSegment | null) => void;
     selectedSegment: AiSegment | null;
+    onCheckAiAccess?: () => boolean; // New prop
 }
 
 const formatDuration = (ms: number) => {
@@ -32,13 +34,15 @@ const SparklesIcon = () => (
     </svg>
 );
 
-const GeminiSegmentsPanel: React.FC<GeminiSegmentsPanelProps> = ({ track, stats, onSegmentSelect, selectedSegment }) => {
+const GeminiSegmentsPanel: React.FC<GeminiSegmentsPanelProps> = ({ track, stats, onSegmentSelect, selectedSegment, onCheckAiAccess }) => {
     const [segments, setSegments] = useState<AiSegment[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     const [wasAnalyzed, setWasAnalyzed] = useState(false);
 
     const handleAnalyze = useCallback(async () => {
+        if (onCheckAiAccess && !onCheckAiAccess()) return;
+
         setIsLoading(true);
         setError('');
         setSegments([]);
@@ -106,7 +110,7 @@ ${track.points.filter((_, i) => i % Math.max(1, Math.floor(track.points.length /
         } finally {
             setIsLoading(false);
         }
-    }, [track, stats]);
+    }, [track, stats, onCheckAiAccess]);
 
     const handleSegmentClick = (segment: AiSegment) => {
         if (selectedSegment && selectedSegment.title === segment.title && selectedSegment.startDistance === segment.startDistance) {

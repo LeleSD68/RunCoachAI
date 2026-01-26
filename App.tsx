@@ -45,11 +45,17 @@ const TRACK_COLORS = [
   '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e'
 ];
 
+const GUEST_AI_LIMIT = 3;
+
 const App: React.FC = () => {
   // --- STATE ---
   const [showSplash, setShowSplash] = useState(true);
   const [showAuthSelection, setShowAuthSelection] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [loginModalLimitMessage, setLoginModalLimitMessage] = useState(false);
+
+  const [isGuest, setIsGuest] = useState(true);
+  const [guestAiUsage, setGuestAiUsage] = useState<number>(() => parseInt(localStorage.getItem('guest_ai_usage') || '0'));
 
   const [tracks, setTracks] = useState<Track[]>([]);
   const [visibleTrackIds, setVisibleTrackIds] = useState<Set<string>>(new Set());
@@ -136,11 +142,13 @@ const App: React.FC = () => {
 
   const loadDataAndEnter = useCallback(async () => {
       try {
+          const { data: { session } } = await supabase.auth.getSession();
+          setIsGuest(!session);
+
           const storedTracks = await loadTracksFromDB();
           const storedProfile = await loadProfileFromDB();
           const storedWorkouts = await loadPlannedWorkoutsFromDB();
           
-          // Attempt to restore all chat history from cloud silently
           restoreAllChatsFromCloud().catch(e => console.warn("Failed to sync chats", e));
           
           setTracks(storedTracks);
@@ -169,32 +177,39 @@ const App: React.FC = () => {
 
       } catch (error) {
           console.error("Error loading data:", error);
-          // Fallback to initial choice if error
           setShowInitialChoice(true);
           addToast("Impossibile caricare alcuni dati dal cloud.", "error");
       }
   }, [simulationState, addToast]);
 
-  // --- INITIALIZATION FLOW ---
-  useEffect(() => {
-    // 1. Splash screen is managed by its own component timer (3.7s)
-    // We wait for splash to finish (onFinish callback below)
-  }, []);
-
   const handleSplashFinish = async () => {
       setShowSplash(false);
-      
-      // Check for existing session
       const { data: { session } } = await supabase.auth.getSession();
       
       if (session) {
-          // Logged in: Auto-load data and enter
           await loadDataAndEnter();
       } else {
-          // Not logged in: Show Auth Selection Modal
           setShowAuthSelection(true);
       }
   };
+
+  const checkAiAccess = useCallback(() => {
+      if (!isGuest) return true;
+      if (guestAiUsage < GUEST_AI_LIMIT) {
+          const newUsage = guestAiUsage + 1;
+          setGuestAiUsage(newUsage);
+          localStorage.setItem('guest_ai_usage', newUsage.toString());
+          // Optional: Show warning on last use?
+          if (newUsage === GUEST_AI_LIMIT) {
+              addToast("Hai usato il tuo ultimo credito AI gratuito da ospite.", "info");
+          }
+          return true;
+      } else {
+          setLoginModalLimitMessage(true);
+          setShowLoginModal(true);
+          return false;
+      }
+  }, [isGuest, guestAiUsage, addToast]);
 
   // Global API Usage Setup
   useEffect(() => {
@@ -356,6 +371,7 @@ const App: React.FC = () => {
       
       if (!session) {
           addToast("Accedi o registrati per salvare i dati.", "info");
+          setLoginModalLimitMessage(false);
           setShowLoginModal(true);
           return;
       }
@@ -363,8 +379,6 @@ const App: React.FC = () => {
       addToast("Inizio salvataggio forzato su Database...", "info");
       
       try {
-          // This performs a wipe of current cloud data for this user and pushes all local data.
-          // This ensures the cloud is a perfect mirror of the current local state.
           await syncBackupToCloud(); 
           addToast("Database cloud aggiornato e sincronizzato con successo.", "success");
       } catch (e: any) {
@@ -384,10 +398,8 @@ const App: React.FC = () => {
           throw new Error("Il file non è un JSON valido.");
       }
       
-      // 1. Import into Local IndexedDB (Wait for completion)
       await importAllData(data);
       
-      // 2. FORCE load from LOCAL IndexedDB to update UI immediately
       const [t, p, w] = await Promise.all([
           loadTracksFromDB(true), 
           loadProfileFromDB(true), 
@@ -403,8 +415,6 @@ const App: React.FC = () => {
       setShowHome(true);
       addToast('Backup ripristinato. Sincronizzazione cloud in corso...', 'success');
 
-      // 3. Trigger Background Cloud Sync (Crucial Step for "Replace Database")
-      // We force a full overwrite of the cloud database with the newly imported backup data
       if (isSupabaseConfigured()) {
           syncBackupToCloud().then(() => {
               console.log("Cloud sync finished after restore.");
@@ -640,6 +650,7 @@ const App: React.FC = () => {
                 }}
                 onLogin={() => {
                     setShowAuthSelection(false);
+                    setLoginModalLimitMessage(false);
                     setShowLoginModal(true);
                 }}
             />
@@ -711,7 +722,7 @@ const App: React.FC = () => {
                         listViewMode={'full'}
                         onListViewModeChange={() => {}}
                         onAiBulkRate={() => {}}
-                        onOpenReview={(id) => setAiReviewTrackId(id)}
+                        onOpenReview={(id) => checkAiAccess() && setAiReviewTrackId(id)}
                         mobileRaceMode={false}
                         monthlyStats={{ totalDistance: 0, totalDuration: 0, activityCount: 0, avgPace: 0 }}
                         plannedWorkouts={plannedWorkouts}
@@ -719,7 +730,7 @@ const App: React.FC = () => {
                         apiUsageStats={apiUsage}
                         onOpenHub={() => setShowHome(true)}
                         onOpenPerformanceAnalysis={() => setShowPerformancePanel(true)}
-                        onUserLogin={() => { setShowLoginModal(true); }}
+                        onUserLogin={() => { setLoginModalLimitMessage(false); setShowLoginModal(true); }}
                         onCompareSelected={handleCompareSelected}
                         userProfile={userProfile}
                     />
@@ -745,7 +756,8 @@ const App: React.FC = () => {
                         onUpdateTrackMetadata={handleUpdateTrackMetadata}
                         onAddPlannedWorkout={handleAddPlannedWorkout}
                         onStartAnimation={(id) => { setAnimationTrackId(id); setIsAnimationPlaying(true); }}
-                        onOpenReview={setAiReviewTrackId}
+                        onOpenReview={(id) => checkAiAccess() && setAiReviewTrackId(id)}
+                        onCheckAiAccess={checkAiAccess}
                     />
                 ) : editorTracks ? (
                     <TrackEditor 
@@ -830,8 +842,6 @@ const App: React.FC = () => {
             </div>
         </div>
 
-        {/* --- DOCK & MODALS --- */}
-
         {!editorTracks && !showHome && !showDiary && !showExplorer && !selectedDetailTrackId && !showAiChatbot && !simulationState.startsWith('run') && (
             <NavigationDock 
                 onOpenSidebar={() => { closeAllViews(); setIsSidebarMobileOpen(true); }}
@@ -879,6 +889,7 @@ const App: React.FC = () => {
                 onUploadOpponent={handleAddOpponent}
                 onEnterRaceMode={handleStartRace}
                 onManualCloudSave={handleManualCloudSave}
+                onCheckAiAccess={checkAiAccess}
             />
         )}
 
@@ -896,6 +907,7 @@ const App: React.FC = () => {
                 onOpenTrackChat={(id) => { setShowDiary(false); setSelectedDetailTrackId(id); }}
                 onOpenGlobalChat={() => { setShowDiary(false); setShowAiChatbot(true); }}
                 initialSelectedWorkoutId={selectedWorkoutIdForDiary}
+                onCheckAiAccess={checkAiAccess}
             />
         )}
 
@@ -927,6 +939,7 @@ const App: React.FC = () => {
                     onClose={() => setShowAiChatbot(false)}
                     isStandalone={true}
                     onAddPlannedWorkout={handleAddPlannedWorkout}
+                    onCheckAiAccess={checkAiAccess}
                 />
             </div>
         )}
@@ -989,6 +1002,7 @@ const App: React.FC = () => {
                 tracks={tracks}
                 userProfile={userProfile}
                 plannedWorkouts={plannedWorkouts}
+                limitReached={loginModalLimitMessage}
             />
         )}
 

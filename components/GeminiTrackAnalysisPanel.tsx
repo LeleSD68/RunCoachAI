@@ -63,9 +63,10 @@ interface GeminiTrackAnalysisPanelProps {
     onUpdateTrackMetadata?: (id: string, metadata: Partial<Track>) => void;
     onAddPlannedWorkout?: (workout: PlannedWorkout) => void;
     startOpen?: boolean;
+    onCheckAiAccess?: () => boolean; // New prop
 }
 
-const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ stats, userProfile, track, allHistory = [], onUpdateTrackMetadata, onAddPlannedWorkout, startOpen = false }) => {
+const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ stats, userProfile, track, allHistory = [], onUpdateTrackMetadata, onAddPlannedWorkout, startOpen = false, onCheckAiAccess }) => {
     const [messages, setMessages] = useState<ChatMessage[]>([] as ChatMessage[]);
     const [isLoading, setIsLoading] = useState(false);
     const [input, setInput] = useState('');
@@ -233,6 +234,9 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
     const performSendMessage = async (text: string) => {
         if (!text.trim() || isLoading) return;
         
+        // CHECK LIMIT
+        if (onCheckAiAccess && !onCheckAiAccess()) return;
+
         window.gpxApp?.trackApiRequest();
         onUpdateTrackMetadata?.(track.id, { hasChat: true });
 
@@ -296,6 +300,9 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
     };
 
     const handleStartAnalysis = () => {
+        // CHECK LIMIT for auto-start too
+        if (onCheckAiAccess && !onCheckAiAccess()) return;
+
         if (messages.length <= 1) { 
              performSendMessage("Analizza questa sessione. Identifica se si tratta di un lavoro specifico (Ripetute/Fartlek) o corsa continua e valuta l'esecuzione rispetto alla tipologia rilevata.");
         }
@@ -324,12 +331,14 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
     // Auto-start if requested
     useEffect(() => {
         if (startOpen && !isOpen) {
-            setIsOpen(true);
+            // Delay auto-open slightly to allow parent to render
+            setTimeout(() => {
+                setIsOpen(true);
+            }, 100);
         }
         if (startOpen && !hasAutoStartedRef.current && messages.length <= 1) {
             hasAutoStartedRef.current = true;
-            // Delay slightly to ensure init
-            setTimeout(() => handleStartAnalysis(), 500);
+            setTimeout(() => handleStartAnalysis(), 600);
         }
     }, [startOpen, messages.length]);
 
@@ -380,7 +389,11 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
             {!isOpen ? (
                 <>
                     <button 
-                        onClick={() => { setIsOpen(true); handleStartAnalysis(); }}
+                        onClick={() => { 
+                            if(onCheckAiAccess && !onCheckAiAccess()) return;
+                            setIsOpen(true); 
+                            handleStartAnalysis(); 
+                        }}
                         className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 border border-purple-400/30"
                     >
                         <SparklesIcon />
