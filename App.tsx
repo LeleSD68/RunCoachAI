@@ -352,6 +352,14 @@ const App: React.FC = () => {
           return;
       }
       
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+          addToast("Accedi o registrati per salvare i dati.", "info");
+          setShowLoginModal(true);
+          return;
+      }
+      
       addToast("Inizio salvataggio forzato su Database...", "info");
       
       try {
