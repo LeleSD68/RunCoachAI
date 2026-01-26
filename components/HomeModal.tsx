@@ -82,29 +82,39 @@ const HomeModal: React.FC<HomeModalProps> = ({
     }, [plannedWorkouts]);
 
     const MainMenu = () => (
-        <div className="grid grid-cols-2 gap-3 md:gap-4 flex-grow md:flex-grow-0">
-            <button onClick={() => setMenuStep('analyze')} className="flex flex-col items-center justify-center p-4 md:p-6 bg-cyan-600/5 hover:bg-cyan-600/10 border-2 border-cyan-500/20 hover:border-cyan-400 rounded-2xl transition-all group active:scale-95 shadow-lg min-h-[120px]">
-                <div className="text-3xl md:text-4xl mb-2 group-hover:scale-110 transition-transform">📈</div>
-                <span className="text-sm md:text-lg font-black text-white uppercase tracking-tight">Analizza</span>
-                <span className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest mt-1 opacity-60">Studia una prestazione</span>
-            </button>
+        <div className="flex flex-col gap-3 md:gap-4 flex-grow md:flex-grow-0">
+            <div className="grid grid-cols-2 gap-3 md:gap-4">
+                <button onClick={() => setMenuStep('analyze')} className="flex flex-col items-center justify-center p-4 md:p-6 bg-cyan-600/5 hover:bg-cyan-600/10 border-2 border-cyan-500/20 hover:border-cyan-400 rounded-2xl transition-all group active:scale-95 shadow-lg min-h-[120px]">
+                    <div className="text-3xl md:text-4xl mb-2 group-hover:scale-110 transition-transform">📈</div>
+                    <span className="text-sm md:text-lg font-black text-white uppercase tracking-tight">Analizza</span>
+                    <span className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest mt-1 opacity-60">Studia una prestazione</span>
+                </button>
 
-            <button onClick={() => setMenuStep('plan')} className="flex flex-col items-center justify-center p-4 md:p-6 bg-purple-600/5 hover:bg-purple-600/10 border-2 border-purple-500/20 hover:border-purple-400 rounded-2xl transition-all group active:scale-95 shadow-lg min-h-[120px]">
-                <div className="text-3xl md:text-4xl mb-2 group-hover:scale-110 transition-transform">📅</div>
-                <span className="text-sm md:text-lg font-black text-white uppercase tracking-tight">Pianifica</span>
-                <span className="text-[10px] text-purple-400 font-bold uppercase tracking-widest mt-1 opacity-60">Crea il tuo programma</span>
-            </button>
+                <button onClick={() => setMenuStep('plan')} className="flex flex-col items-center justify-center p-4 md:p-6 bg-purple-600/5 hover:bg-purple-600/10 border-2 border-purple-500/20 hover:border-purple-400 rounded-2xl transition-all group active:scale-95 shadow-lg min-h-[120px]">
+                    <div className="text-3xl md:text-4xl mb-2 group-hover:scale-110 transition-transform">📅</div>
+                    <span className="text-sm md:text-lg font-black text-white uppercase tracking-tight">Pianifica</span>
+                    <span className="text-[10px] text-purple-400 font-bold uppercase tracking-widest mt-1 opacity-60">Crea il tuo programma</span>
+                </button>
 
-            <button onClick={onOpenExplorer} className="flex flex-col items-center justify-center p-4 md:p-6 bg-slate-700/20 hover:bg-slate-700/40 border-2 border-slate-600/40 hover:border-white/40 rounded-2xl transition-all group active:scale-95 shadow-lg min-h-[120px]">
-                <div className="text-3xl md:text-4xl mb-2 group-hover:scale-110 transition-transform">👁️</div>
-                <span className="text-sm md:text-lg font-black text-white uppercase tracking-tight">Rivedi</span>
-                <span className="text-[10px] text-slate-400 group-hover:text-white font-bold uppercase tracking-widest mt-1 opacity-60">Esplora storico</span>
-            </button>
+                <button onClick={onOpenExplorer} className="flex flex-col items-center justify-center p-4 md:p-6 bg-slate-700/20 hover:bg-slate-700/40 border-2 border-slate-600/40 hover:border-white/40 rounded-2xl transition-all group active:scale-95 shadow-lg min-h-[120px]">
+                    <div className="text-3xl md:text-4xl mb-2 group-hover:scale-110 transition-transform">👁️</div>
+                    <span className="text-sm md:text-lg font-black text-white uppercase tracking-tight">Rivedi</span>
+                    <span className="text-[10px] text-slate-400 group-hover:text-white font-bold uppercase tracking-widest mt-1 opacity-60">Esplora storico</span>
+                </button>
 
-            <button onClick={() => setMenuStep('race')} className="flex flex-col items-center justify-center p-4 md:p-6 bg-green-600/5 hover:bg-green-600/10 border-2 border-green-500/20 hover:border-green-400 rounded-2xl transition-all group active:scale-95 shadow-lg min-h-[120px]">
-                <div className="text-3xl md:text-4xl mb-2 group-hover:scale-110 transition-transform">🏁</div>
-                <span className="text-sm md:text-lg font-black text-white uppercase tracking-tight">Gareggia</span>
-                <span className="text-[10px] text-green-400 font-bold uppercase tracking-widest mt-1 opacity-60">Simulazione Live</span>
+                <button onClick={() => setMenuStep('race')} className="flex flex-col items-center justify-center p-4 md:p-6 bg-green-600/5 hover:bg-green-600/10 border-2 border-green-500/20 hover:border-green-400 rounded-2xl transition-all group active:scale-95 shadow-lg min-h-[120px]">
+                    <div className="text-3xl md:text-4xl mb-2 group-hover:scale-110 transition-transform">🏁</div>
+                    <span className="text-sm md:text-lg font-black text-white uppercase tracking-tight">Gareggia</span>
+                    <span className="text-[10px] text-green-400 font-bold uppercase tracking-widest mt-1 opacity-60">Simulazione Live</span>
+                </button>
+            </div>
+
+            <button 
+                onClick={onClose} 
+                className="w-full bg-gradient-to-r from-slate-800 to-slate-800 hover:from-slate-700 hover:to-slate-700 border border-slate-600 hover:border-cyan-500/50 text-white font-bold py-3 md:py-4 rounded-2xl transition-all shadow-lg flex items-center justify-center gap-3 group active:scale-95"
+            >
+                <span className="text-xl group-hover:scale-110 transition-transform">🗺️</span>
+                <span className="uppercase tracking-widest text-sm text-slate-200 group-hover:text-white">Vai alla Mappa</span>
             </button>
         </div>
     );
@@ -183,7 +193,15 @@ const HomeModal: React.FC<HomeModalProps> = ({
                     <h2 className="text-2xl md:text-3xl font-black text-white italic tracking-tighter uppercase mb-1">
                         RunCoach<span className="text-cyan-400">AI</span>
                     </h2>
-                    <p className="text-xs md:text-sm text-slate-400 font-medium">Hub di controllo v1.32</p>
+                    
+                    <div className="flex items-center justify-center gap-2 mt-2">
+                         <span className="bg-slate-800 border border-slate-700 text-slate-400 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                            v1.32
+                        </span>
+                        <span className={`border text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${trackCount > 0 ? 'bg-cyan-900/20 border-cyan-500/30 text-cyan-400' : 'bg-slate-800 border-slate-700 text-slate-500'}`}>
+                            {trackCount} {trackCount === 1 ? 'Attività' : 'Attività'}
+                        </span>
+                    </div>
                 </header>
 
                 <div className="px-6 md:px-8 pb-8">
