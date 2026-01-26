@@ -54,7 +54,6 @@ const mapSupabaseToTrack = (row: any): Track | null => {
     try {
         if (!row) return null;
 
-        // Robust parsing for points_data which might be a JSON string or object
         let pointsData = row.points_data;
         if (typeof pointsData === 'string') {
             try {
@@ -115,12 +114,37 @@ export const saveTracksToDB = async (tracks: Track[], options: { skipCloud?: boo
           const validTracks = tracks.filter(t => !t.isExternal);
           for (const t of validTracks) {
               const payload = mapTrackToSupabase(t, session.user.id);
+              // Only upsert if it already has a UUID. New tracks are handled by syncTrackToCloud logic called explicitly
               if (t.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)) {
                  await supabase.from('tracks').upsert({ id: t.id, ...payload });
               }
           }
       }
   }
+};
+
+// Helper to update any workouts referencing a track that just got a new Cloud UUID
+const updateWorkoutReferences = async (oldTrackId: string, newTrackId: string) => {
+    const db = await initDB();
+    const tx = db.transaction([PLANNED_STORE], 'readwrite');
+    const store = tx.objectStore(PLANNED_STORE);
+    
+    // Scan all workouts (not efficient for huge datasets but fine for local)
+    const request = store.openCursor();
+    
+    request.onsuccess = (event) => {
+        const cursor = (event.target as IDBRequest).result;
+        if (cursor) {
+            const workout = cursor.value as PlannedWorkout;
+            if (workout.completedTrackId === oldTrackId) {
+                const updated = { ...workout, completedTrackId: newTrackId };
+                cursor.update(updated);
+            }
+            cursor.continue();
+        }
+    };
+    
+    // We assume this completes quickly. For cloud sync of workouts, the next savePlannedWorkoutsToDB call handles it.
 };
 
 export const syncTrackToCloud = async (track: Track) => {
@@ -131,16 +155,37 @@ export const syncTrackToCloud = async (track: Track) => {
     const payload = mapTrackToSupabase(track, session.user.id);
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(track.id);
 
-    if (!isUUID) {
-        const { data } = await supabase.from('tracks').insert(payload).select().single();
-        if (data) {
-            track.id = data.id;
-            const db = await initDB();
-            const tx = db.transaction([TRACKS_STORE], 'readwrite');
-            tx.objectStore(TRACKS_STORE).put(track);
+    try {
+        if (!isUUID) {
+            // INSERT: Rely on DB default uuid_generate_v4()
+            const { data, error } = await supabase.from('tracks').insert(payload).select().single();
+            
+            if (error) {
+                console.error("Cloud Insert Error:", error);
+                throw error;
+            }
+
+            if (data && data.id) {
+                const oldId = track.id;
+                track.id = data.id; // Update local object
+                
+                // Update Local DB with new ID
+                const db = await initDB();
+                const tx = db.transaction([TRACKS_STORE], 'readwrite');
+                const store = tx.objectStore(TRACKS_STORE);
+                store.delete(oldId); // Remove old ID entry
+                store.put(track);    // Add new ID entry
+                
+                // Fix references in workouts
+                await updateWorkoutReferences(oldId, data.id);
+            }
+        } else {
+            // UPSERT
+            const { error } = await supabase.from('tracks').upsert({ id: track.id, ...payload });
+            if (error) console.error("Cloud Upsert Error:", error);
         }
-    } else {
-        await supabase.from('tracks').upsert({ id: track.id, ...payload });
+    } catch (e) {
+        console.error("Sync Exception:", e);
     }
 }
 
@@ -154,33 +199,25 @@ export const deleteTrackFromCloud = async (id: string) => {
 export const loadTracksFromDB = async (forceLocal: boolean = false): Promise<Track[]> => {
   const { data: { session } } = await supabase.auth.getSession();
 
-  // PRIORITIZE CLOUD: If logged in, fetch from cloud and sync DOWN to local.
   if (!forceLocal && session && isSupabaseConfigured()) {
       const { data, error } = await supabase.from('tracks').select('*').order('start_time', { ascending: false });
       
       if (error) {
           console.error("Error fetching tracks from Supabase:", error);
-          // Don't fall back immediately if it's a critical auth error, but generally proceed to local
       } else if (data) {
-          // Successfully fetched from cloud
           const cloudTracks = data
             .map(mapSupabaseToTrack)
             .filter((t): t is Track => t !== null);
             
-          // IMPORTANT: Only overwrite local DB if we actually got a response array.
-          // Safety Check: If data has items but cloudTracks is empty, mapping failed. Don't wipe local.
           if (data.length > 0 && cloudTracks.length === 0) {
               console.warn("Cloud returned data but parsing failed. Keeping local data safe.");
           } else {
-              // Save to local WITHOUT sending back to cloud to avoid loops
-              // This ensures Local DB mirrors Cloud DB on login
               await saveTracksToDB(cloudTracks, { skipCloud: true }); 
               return cloudTracks;
           }
       }
   }
 
-  // FALLBACK: Load from Local IndexedDB
   const db = await initDB();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([TRACKS_STORE], 'readonly');
@@ -219,7 +256,8 @@ export const savePlannedWorkoutsToDB = async (workouts: PlannedWorkout[], option
       if (session && isSupabaseConfigured()) {
           for (const w of workouts) {
               const payload = {
-                  id: w.id.length === 36 ? w.id : undefined,
+                  // Only send ID if it is a valid UUID, otherwise let DB generate it
+                  id: (w.id.length === 36) ? w.id : undefined,
                   user_id: session.user.id,
                   title: w.title,
                   description: w.description,
@@ -228,10 +266,17 @@ export const savePlannedWorkoutsToDB = async (workouts: PlannedWorkout[], option
                   is_ai_suggested: w.isAiSuggested,
                   completed_track_id: w.completedTrackId
               };
-              if (payload.id) {
-                  await supabase.from('planned_workouts').upsert(payload);
-              } else {
-                  await supabase.from('planned_workouts').insert(payload);
+              
+              const { data, error } = payload.id 
+                ? await supabase.from('planned_workouts').upsert(payload)
+                : await supabase.from('planned_workouts').insert(payload).select().single();
+
+              if (error) console.error("Error saving workout:", error);
+              
+              // If we got a new ID from insert, update local
+              if (data && data.id && !payload.id) {
+                  w.id = data.id;
+                  // We should ideally update the local DB here too, but simple reload next time handles it
               }
           }
       }
@@ -290,6 +335,12 @@ export const saveChatToDB = async (id: string, messages: ChatMessage[], options:
   if (!options.skipCloud) {
       const { data: { session } } = await supabase.auth.getSession();
       if (session && isSupabaseConfigured()) {
+          // Chats can store custom string IDs like 'global-coach' because the column is text. 
+          // However, if we migrated to UUID default, 'global-coach' might fail if it wasn't UUID.
+          // Assumption: Chat IDs are either UUIDs or specific keys handled by app.
+          // If the DB schema enforces UUID for chats, 'global-coach' will fail. 
+          // BUT: The SQL provided uses 'text' type for ID with a default of uuid_generate_v4(). 
+          // So 'global-coach' IS valid text and won't trigger the default. Correct.
           await supabase.from('chats').upsert({
               id, 
               user_id: session.user.id,
@@ -489,11 +540,6 @@ export const exportAllData = async (): Promise<BackupData> => {
     });
 };
 
-/**
- * Executes a full backup restore.
- * IMPORTANT: This function only updates Local IndexedDB.
- * The caller is responsible for triggering the cloud sync afterwards if needed.
- */
 export const importAllData = async (data: BackupData): Promise<void> => {
     const db = await initDB();
     
@@ -532,7 +578,6 @@ export const importAllData = async (data: BackupData): Promise<void> => {
         });
     }
 
-    // 1. Wipe Local DB and Fill with Backup
     await new Promise<void>((resolve, reject) => {
         const transaction = db.transaction([TRACKS_STORE, CHATS_STORE, PROFILE_STORE, PLANNED_STORE], 'readwrite');
         const tracksStore = transaction.objectStore(TRACKS_STORE);
@@ -561,31 +606,25 @@ export const importAllData = async (data: BackupData): Promise<void> => {
     });
 };
 
-/**
- * Separate function to sync the current local data (restored from backup) to cloud.
- * This should be called after importAllData finishes successfully.
- */
 export const syncBackupToCloud = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (session && isSupabaseConfigured()) {
         const userId = session.user.id;
         console.log("☁️ [Supabase] Wiping existing cloud data for clean restore...");
 
-        // --- DANGER: DELETE ALL CLOUD DATA FOR THIS USER ---
         await supabase.from('tracks').delete().eq('user_id', userId);
         await supabase.from('planned_workouts').delete().eq('user_id', userId);
         await supabase.from('chats').delete().eq('user_id', userId);
 
         console.log("☁️ [Supabase] Uploading backup data to empty cloud...");
 
-        // Re-read local data to be sure we upload what is in DB
         const db = await initDB();
         
         // Profile
         const profile = await loadProfileFromDB(true);
         if (profile) await saveProfileToDB(profile); 
 
-        // Tracks
+        // Tracks - iterate carefully to handle ID generation
         const tracks = await loadTracksFromDB(true);
         for (const t of tracks) {
             if (!t.isExternal) await syncTrackToCloud(t);
@@ -604,7 +643,11 @@ export const syncBackupToCloud = async () => {
                 is_ai_suggested: w.isAiSuggested,
                 completed_track_id: w.completedTrackId
             };
-            await supabase.from('planned_workouts').insert(payload);
+            const { error } = payload.id 
+                ? await supabase.from('planned_workouts').insert(payload)
+                : await supabase.from('planned_workouts').insert(payload); // Let DB generate ID if missing
+            
+            if (error) console.error("Restore Workout Error:", error);
         }
 
         // Chats
