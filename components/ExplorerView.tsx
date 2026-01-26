@@ -109,10 +109,18 @@ const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTr
             <header className="p-4 bg-slate-800 border-b border-slate-700 shadow-md z-10 flex flex-col gap-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex items-center justify-between sm:justify-start w-full sm:w-auto gap-4">
-                        <h2 className="text-xl font-black text-cyan-400 uppercase tracking-tighter italic">Explorer</h2>
-                        <button onClick={onClose} className="sm:hidden p-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white transition-colors">
-                            &times;
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button 
+                                onClick={onClose} 
+                                className="p-2 -ml-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-full transition-colors active:scale-95"
+                                title="Chiudi Explorer"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-6 h-6">
+                                    <path fillRule="evenodd" d="M17 10a.75.75 0 0 1-.75.75H5.612l4.158 3.96a.75.75 0 1 1-1.04 1.08l-5.5-5.25a.75.75 0 0 1 0-1.08l5.5-5.25a.75.75 0 1 1 1.04 1.08L5.612 9.25H16.25A.75.75 0 0 1 17 10Z" clipRule="evenodd" />
+                                </svg>
+                            </button>
+                            <h2 className="text-xl font-black text-cyan-400 uppercase tracking-tighter italic">Explorer</h2>
+                        </div>
                     </div>
                     
                     <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
@@ -164,10 +172,6 @@ const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTr
                                 </button>
                             ))}
                         </div>
-
-                        <button onClick={onClose} className="hidden sm:block p-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white transition-colors">
-                            &times;
-                        </button>
                     </div>
                 </div>
             </header>
