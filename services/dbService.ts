@@ -95,6 +95,19 @@ const mapSupabaseToTrack = (row: any): Track | null => {
     }
 };
 
+// --- HELPER DEDUPLICAZIONE ---
+const deduplicateTracks = (tracks: Track[]): Track[] => {
+    const seen = new Set<string>();
+    return tracks.filter(t => {
+        if (!t.points || t.points.length === 0) return false;
+        // Fingerprint: StartTime + Distance (3 decimals) + Duration
+        const fingerprint = `${t.points[0].time.getTime()}-${t.distance.toFixed(3)}-${t.duration}`;
+        if (seen.has(fingerprint)) return false;
+        seen.add(fingerprint);
+        return true;
+    });
+};
+
 // --- TRACKS ---
 export const saveTracksToDB = async (tracks: Track[], options: { skipCloud?: boolean } = {}): Promise<void> => {
   const db = await initDB();
@@ -205,13 +218,17 @@ export const loadTracksFromDB = async (forceLocal: boolean = false): Promise<Tra
       if (error) {
           console.error("Error fetching tracks from Supabase:", error);
       } else if (data) {
-          const cloudTracks = data
+          // Parse e poi DEDUPLICA
+          const parsedTracks = data
             .map(mapSupabaseToTrack)
             .filter((t): t is Track => t !== null);
             
+          const cloudTracks = deduplicateTracks(parsedTracks);
+            
           if (data.length > 0 && cloudTracks.length === 0) {
-              console.warn("Cloud returned data but parsing failed. Keeping local data safe.");
+              console.warn("Cloud returned data but parsing failed or all were filtered. Keeping local data safe.");
           } else {
+              // Save clean list to local
               await saveTracksToDB(cloudTracks, { skipCloud: true }); 
               return cloudTracks;
           }
@@ -232,7 +249,8 @@ export const loadTracksFromDB = async (forceLocal: boolean = false): Promise<Tra
           time: p.time instanceof Date ? p.time : new Date(p.time)
         }))
       }));
-      resolve(revived);
+      // Local fallback deduplication just in case
+      resolve(deduplicateTracks(revived));
     };
     request.onerror = () => reject(request.error);
   });
