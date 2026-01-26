@@ -12,10 +12,8 @@ const UserIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" view
 const MapIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8 mb-2 text-slate-400"><path strokeLinecap="round" strokeLinejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z" /></svg>);
 
 const LogoIcon = () => (
-    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg border border-slate-700">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" className="w-6 h-6">
-            <path d="M13.5 2c-5.621 0-10.212 4.43-10.475 10h-3.006l4.492 4.5 4.492-4.5h-2.975c.26-3.902 3.504-7 7.472-7 4.142 0 7.5 3.358 7.5 7.5s-3.358 7.5-7.5 7.5c-2.381 0-4.502-1.119-5.876-2.854l-1.847 2.449c1.919 2.088 4.664 3.405 7.723 3.405 5.799 0 10.5-4.701 10.5-10.5s-4.701-10.5-10.5-10.5z"/>
-        </svg>
+    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg border border-slate-700 p-1">
+        <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
     </div>
 );
 

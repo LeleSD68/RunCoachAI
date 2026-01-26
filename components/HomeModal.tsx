@@ -27,10 +27,8 @@ const HelpIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 
 const CloudUpIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M5.5 17a4.5 4.5 0 0 1-1.44-8.765 4.5 4.5 0 0 1 8.302-3.046 3.5 3.5 0 0 1 4.504 4.272A4 4 0 0 1 15 17H5.5Zm3.75-2.75a.75.75 0 0 0 1.5 0V9.66l1.95 2.1a.75.75 0 1 0 1.1-1.02l-3.25-3.5a.75.75 0 0 0-1.1 0l-3.25 3.5a.75.75 0 1 0 1.1 1.02l1.95-2.1v4.59Z" clipRule="evenodd" /></svg>);
 
 const LargeLogoIcon = () => (
-    <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-2xl border-2 border-cyan-500/20 relative z-10">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" className="w-14 h-14">
-            <path d="M13.5 2c-5.621 0-10.212 4.43-10.475 10h-3.006l4.492 4.5 4.492-4.5h-2.975c.26-3.902 3.504-7 7.472-7 4.142 0 7.5 3.358 7.5 7.5s-3.358 7.5-7.5 7.5c-2.381 0-4.502-1.119-5.876-2.854l-1.847 2.449c1.919 2.088 4.664 3.405 7.723 3.405 5.799 0 10.5-4.701 10.5-10.5s-4.701-10.5-10.5-10.5z"/>
-        </svg>
+    <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-2xl border-2 border-cyan-500/20 relative z-10 p-2">
+        <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
     </div>
 );
 
@@ -39,6 +37,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
     onUploadTracks, onClose, trackCount, plannedWorkouts = [], onOpenWorkout, 
     onOpenProfile, onOpenChangelog, onUploadOpponent, onEnterRaceMode, onManualCloudSave, onCheckAiAccess
 }) => {
+    // ... (rest of the component remains unchanged)
     const backupInputRef = useRef<HTMLInputElement>(null);
     const trackInputRef = useRef<HTMLInputElement>(null);
     const opponentInputRef = useRef<HTMLInputElement>(null);
