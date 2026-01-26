@@ -21,7 +21,7 @@ const MapFileIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 
 const UserIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M10 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16Zm-5.5 8a5.5 5.5 0 1 1 11 0 5.5 5.5 0 0 1-11 0Z" clipRule="evenodd" /></svg>);
 const HomeIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M9.293 2.293a1 1 0 0 1 1.414 0l7 7A1 1 0 0 1 17 11h-1v6a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-3a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-6H3a1 1 0 0 1-.707-1.707l7-7Z" clipRule="evenodd" /></svg>);
 // View Icons
-const ListBulletIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M6 4.75A.75.75 0 0 1 6.75 4h10.5a.75.75 0 0 1 0 1.5H6.75A.75.75 0 0 1 6 4.75ZM6 10a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 0 1.5H6.75A.75.75 0 0 1 6 10Zm0 5.25a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 0 1.5H6.75a.75.75 0 0 1-.75-.75ZM1.99 4.75a1 1 0 0 1 1-1h.01a1 1 0 0 1 1 1v.01a1 1 0 0 1-1 1h-.01a1 1 0 0 1-1-1v-.01ZM1.99 15.25a1 1 0 0 1 1-1h.01a1 1 0 0 1 1 1v.01a1 1 0 0 1-1 1h-.01a1 1 0 0 1-1-1v-.01ZM1.99 10a1 1 0 0 1 1-1h.01a1 1 0 0 1 1 1v.01a1 1 0 0 1-1 1h-.01a1 1 0 0 1-1-1V10Z" clipRule="evenodd" /></svg>);
+const ListBulletIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M6 4.75A.75.75 0 0 1 6.75 4h10.5a.75.75 0 0 1 0 1.5H6.75A.75.75 0 0 1 6 4.75ZM6 10a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 0 1.5H6.75A.75.75 0 0 1 6 10Zm0 5.25a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 0 1.5H6.75A.75.75 0 0 1-.75-.75ZM1.99 4.75a1 1 0 0 1 1-1h.01a1 1 0 0 1 1 1v.01a1 1 0 0 1-1-1h-.01a1 1 0 0 1-1-1v-.01ZM1.99 15.25a1 1 0 0 1 1-1h.01a1 1 0 0 1 1 1v.01a1 1 0 0 1-1 1h-.01a1 1 0 0 1-1-1v-.01ZM1.99 10a1 1 0 0 1 1-1h.01a1 1 0 0 1 1 1v.01a1 1 0 0 1-1 1h-.01a1 1 0 0 1-1-1V10Z" clipRule="evenodd" /></svg>);
 const SquaresIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M4.25 2A2.25 2.25 0 0 0 2 4.25v2.5A2.25 2.25 0 0 0 4.25 9h2.5A2.25 2.25 0 0 0 9 6.75v-2.5A2.25 2.25 0 0 0 6.75 2h-2.5Zm0 9A2.25 2.25 0 0 0 2 13.25v2.5A2.25 2.25 0 0 0 4.25 18h2.5A2.25 2.25 0 0 0 9 15.75v-2.5A2.25 2.25 0 0 0 6.75 11h-2.5Zm9-9A2.25 2.25 0 0 0 11 4.25v2.5A2.25 2.25 0 0 0 13.25 9h2.5A2.25 2.25 0 0 0 18 6.75v-2.5A2.25 2.25 0 0 0 15.75 2h-2.5Zm0 9A2.25 2.25 0 0 0 11 13.25v2.5A2.25 2.25 0 0 0 13.25 18h2.5A2.25 2.25 0 0 0 18 15.75v-2.5A2.25 2.25 0 0 0 15.75 11h-2.5Z" clipRule="evenodd" /></svg>);
 const QueueListIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M2 4.5A2.5 2.5 0 0 1 4.5 2h11a2.5 2.5 0 0 1 0 5h-11A2.5 2.5 0 0 1 2 4.5ZM2.75 9.75a.75.75 0 0 1 .75-.75h13a.75.75 0 0 1 0 1.5h-13a.75.75 0 0 1-.75-.75ZM3.5 13.25a.75.75 0 0 0 0 1.5h13a.75.75 0 0 0 0-1.5h-13ZM2.75 17.75a.75.75 0 0 1 .75-.75h13a.75.75 0 0 1 0 1.5h-13a.75.75 0 0 1-.75-.75Z" /></svg>);
 const ArchiveBoxIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M2 3a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H2Z" /><path fillRule="evenodd" d="M2 7.5h16l-.811 7.71a2 2 0 0 1-1.99 1.79H4.802a2 2 0 0 1-1.99-1.79L2 7.5ZM7 11a1 1 0 0 1 1-1h4a1 1 0 1 1 0 2H8a1 1 0 0 1-1-1Z" clipRule="evenodd" /></svg>);
@@ -102,7 +102,6 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = (props) => {
-    // Aggressive defaulting to prevent "undefined reading has" errors
     const { 
         tracks = [], 
         onFileUpload, 
@@ -143,7 +142,6 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
         userProfile 
     } = props;
 
-    // Use default values for optional sets if they are null/undefined
     const safeRaceSelectionIds = raceSelectionIds instanceof Set ? raceSelectionIds : new Set<string>();
     const safeVisibleTrackIds = visibleTrackIds instanceof Set ? visibleTrackIds : new Set<string>();
 
@@ -178,7 +176,6 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
         return () => subscription.unsubscribe();
     }, []);
 
-    // SCROLL TO HOVERED TRACK LOGIC
     useEffect(() => {
         if (hoveredTrackId && !isSidebarHovered.current) {
             const el = itemRefs.current.get(hoveredTrackId);
@@ -244,14 +241,12 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
         const groups: Record<string, Track[]> = {};
         if (!tracks) return groups;
 
-        // Ensure raceSelectionIds is valid before use
         const filterIds = raceSelectionIds instanceof Set ? raceSelectionIds : new Set();
         
         const tracksToFilter = isSimulationInProgress 
             ? tracks.filter(t => filterIds?.has ? filterIds.has(t.id) : false) 
             : tracks;
             
-        // Archive Logic
         const tracksToSort = tracksToFilter.filter(t => showArchived ? t.isArchived : !t.isArchived);
 
         if (groupingMode === 'none') {
@@ -283,12 +278,10 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
              groups[groupName].push(t);
         });
 
-        // Sort items INSIDE groups
         Object.keys(groups).forEach(key => {
             groups[key] = sortTracks(groups[key]);
         });
 
-        // Sort GROUPS themselves
         const sortedGroups: Record<string, Track[]> = {};
         let sortedKeys: string[] = [];
 
@@ -296,7 +289,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
             sortedKeys = Object.keys(groups).sort((a, b) => {
                 const dateA = groups[a][0]?.points[0].time.getTime() || 0;
                 const dateB = groups[b][0]?.points[0].time.getTime() || 0;
-                return dateB - dateA; // Newest months first
+                return dateB - dateA;
             });
         } else if (groupingMode === 'distance') {
             const order = ['< 5 km', '5 - 10 km', '10 - 21 km', '21 - 42 km', '> 42 km'];
@@ -503,13 +496,12 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
             )}
 
             <div 
-                className="flex-grow overflow-y-auto p-2 space-y-2 custom-scrollbar relative pb-16 min-h-0 overscroll-y-contain"
+                className="flex-grow overflow-y-auto p-2 space-y-2 custom-scrollbar relative pb-16 min-h-0 overscroll-y-contain touch-pan-y"
                 onMouseEnter={() => isSidebarHovered.current = true}
                 onMouseLeave={() => isSidebarHovered.current = false}
             >
                 {Object.entries(groupedTracks).map(([groupName, rawGroupTracks]) => {
                     const groupTracks = rawGroupTracks as Track[];
-                    // Safety check for Set using optional chaining + fallback validation
                     const isCollapsed = collapsedFolders instanceof Set ? collapsedFolders.has(groupName) : false;
                     if (groupTracks.length === 0) return null;
                     
@@ -529,11 +521,9 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                                 <ul className={`pl-1 ${viewMode === 'card' ? 'space-y-3' : 'space-y-1'}`}>
                                     {groupTracks.map(track => {
                                         const isHovered = hoveredTrackId === track.id;
-                                        // Extra safe check for Set existence
                                         const isSelected = safeRaceSelectionIds?.has ? safeRaceSelectionIds.has(track.id) : false;
                                         
                                         if (viewMode === 'list') {
-                                            // LIST VIEW (Minimal)
                                             return (
                                                 <li 
                                                     key={track.id}
@@ -560,7 +550,6 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                                         }
 
                                         if (viewMode === 'card') {
-                                            // CARD VIEW (Large)
                                             return (
                                                 <li 
                                                     key={track.id}
@@ -604,7 +593,6 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                                             );
                                         }
 
-                                        // COMPACT VIEW (Default)
                                         return (
                                             <li 
                                                 key={track.id}
@@ -628,7 +616,6 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                                                         <span className="text-[10px] font-mono text-slate-500">{track.distance.toFixed(1)}k</span>
                                                     </div>
                                                 </div>
-                                                {/* Selection Checkbox for Race Mode */}
                                                 <div 
                                                     className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-cyan-500 border-cyan-500' : 'border-slate-600 hover:border-slate-400'}`}
                                                     onClick={(e) => {

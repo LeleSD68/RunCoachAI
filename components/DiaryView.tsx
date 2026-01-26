@@ -95,7 +95,6 @@ const HeartIcon = () => (
 );
 
 const extractStatsFromDescription = (description: string) => {
-    // Regex looking for the specific format used by AiTrainingCoachPanel
     const durationMatch = description.match(/- ⏱️ Durata: (.*?)(\n|$)/);
     const distanceMatch = description.match(/- 📏 Distanza: (.*?)(\n|$)/);
     const hrMatch = description.match(/- ❤️ FC Target: (.*?)(\n|$)/);
@@ -123,7 +122,6 @@ const DiaryView: React.FC<DiaryViewProps> = ({ tracks, plannedWorkouts = [], use
     const [newItemType, setNewItemType] = useState<ActivityType>('Lento');
     const [newItemDesc, setNewItemDesc] = useState('');
 
-    // Load global chat history to identify dates with messages
     useEffect(() => {
         const fetchGlobalChatDates = async () => {
             const messages = await loadChatFromDB('global-coach');
@@ -140,11 +138,9 @@ const DiaryView: React.FC<DiaryViewProps> = ({ tracks, plannedWorkouts = [], use
         fetchGlobalChatDates();
     }, []);
 
-    // Effect to update selected workout if prop changes
     useEffect(() => {
         if (initialSelectedWorkoutId) {
             setSelectedWorkoutId(initialSelectedWorkoutId);
-            // Optionally, switch to the month of the workout
             const workout = plannedWorkouts.find(w => w.id === initialSelectedWorkoutId);
             if (workout) {
                 setCurrentDate(new Date(workout.date));
@@ -234,7 +230,7 @@ const DiaryView: React.FC<DiaryViewProps> = ({ tracks, plannedWorkouts = [], use
 
     const handleDayClick = (date: Date) => {
         setSelectedDateForMenu(date);
-        setCreationMode(null); // Reset creation mode when opening menu
+        setCreationMode(null); 
     };
 
     const handleCreateItem = () => {
@@ -260,7 +256,7 @@ const DiaryView: React.FC<DiaryViewProps> = ({ tracks, plannedWorkouts = [], use
     const handleAddToGoogleCalendar = (workout: PlannedWorkout) => {
         const title = encodeURIComponent(workout.title);
         const details = encodeURIComponent(workout.description);
-        const dateStr = new Date(workout.date).toISOString().replace(/-|:|\.\d\d\d/g, "").slice(0, 8); // YYYYMMDD
+        const dateStr = new Date(workout.date).toISOString().replace(/-|:|\.\d\d\d/g, "").slice(0, 8); 
         const start = `${dateStr}T090000`;
         const end = `${dateStr}T100000`;
         const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${details}&dates=${start}/${end}`;
@@ -341,7 +337,7 @@ const DiaryView: React.FC<DiaryViewProps> = ({ tracks, plannedWorkouts = [], use
                     </div>
 
                     {/* Added padding-bottom 28 (112px) to ensure content is visibly scrolling above dock */}
-                    <div className="flex-grow overflow-y-auto bg-slate-900 p-1 sm:p-2 pb-28 min-h-0 overscroll-y-contain">
+                    <div className="flex-grow overflow-y-auto bg-slate-900 p-1 sm:p-2 pb-28 min-h-0 overscroll-y-contain touch-pan-y">
                         <div className="grid grid-cols-7 gap-1 sm:gap-2 w-full" style={{ minHeight: '100%', gridTemplateRows: `repeat(${weeksCount}, minmax(100px, 1fr))` }}>
                             {calendarGrid.map((cell, idx) => {
                                 if (!cell) return <div key={`empty-${idx}`} className="bg-slate-800/20 rounded-lg min-h-[80px]"></div>;

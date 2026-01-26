@@ -39,6 +39,7 @@ import { getTrackPointAtDistance, getTrackStateAtTime } from './services/trackEd
 import { parseGpx } from './services/gpxService';
 import { parseTcx } from './services/tcxService';
 import { generateSmartTitle } from './services/titleGenerator';
+import { generateAiRating } from './services/aiHelper';
 import { supabase, isSupabaseConfigured } from './services/supabaseClient';
 
 const TRACK_COLORS = [
@@ -233,6 +234,46 @@ const App: React.FC = () => {
     };
   }, []);
 
+  const handleAutoAiRating = async (newTracks: Track[]) => {
+      // Check limits before starting automatic background analysis
+      // We only rate the first track if guest to prevent eating all credits instantly
+      const limit = isGuest ? 1 : newTracks.length;
+      const tracksToRate = newTracks.slice(0, limit);
+
+      if (tracksToRate.length === 0) return;
+      // We don't call checkAiAccess here to avoid blocking import, 
+      // but we respect the logic: if out of credits, we skip silently or log.
+      if (isGuest && guestAiUsage >= GUEST_AI_LIMIT) return;
+
+      for (const t of tracksToRate) {
+          try {
+             // Increment usage if guest
+             if (isGuest) {
+                 const current = parseInt(localStorage.getItem('guest_ai_usage') || '0');
+                 if (current >= GUEST_AI_LIMIT) break;
+                 setGuestAiUsage(current + 1);
+                 localStorage.setItem('guest_ai_usage', (current + 1).toString());
+             }
+
+             // Find planned workout for this date
+             const tDate = t.points[0].time.toDateString();
+             const linkedWorkout = plannedWorkouts.find(w => new Date(w.date).toDateString() === tDate);
+
+             const ratingResult = await generateAiRating(t, tracks, userProfile, linkedWorkout);
+             
+             if (ratingResult) {
+                 handleUpdateTrackMetadata(t.id, { 
+                     rating: ratingResult.rating, 
+                     ratingReason: ratingResult.reason 
+                 });
+                 addToast(`Valutazione AI per "${t.name}": ${ratingResult.rating}/5 ⭐`, 'success');
+             }
+          } catch (e) {
+              console.error("Auto rating failed", e);
+          }
+      }
+  };
+
   const processFilesOnMainThread = async (files: File[]) => {
       const existingFingerprints = new Set(tracks.map(t => `${t.points.length}-${t.duration}-${t.distance.toFixed(5)}`));
       const newTracks: Track[] = [];
@@ -304,6 +345,9 @@ const App: React.FC = () => {
                addToast(`${newTracks.length === 1 ? 'Nuovo' : newRecordsCount + ' Nuovi'} Record Personali rilevati!`, 'success');
             }
         });
+
+        // Trigger AI Rating in background
+        handleAutoAiRating(newTracks);
       }
 
       if (skippedCount > 0) addToast(`${skippedCount} file ignorati (duplicati).`, 'info');
