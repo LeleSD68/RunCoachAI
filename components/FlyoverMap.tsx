@@ -45,6 +45,7 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
     const map = useRef<any>(null);
     const markersRef = useRef<Map<string, any>>(new Map());
     const sourcesInitializedRef = useRef<Set<string>>(new Set());
+    const [userInteracting, setUserInteracting] = useState(false);
     
     // Sanitize token on initial load
     const getStoredToken = () => {
@@ -104,6 +105,13 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
 
             m.addControl(new mapboxgl.AttributionControl({ compact: true }));
 
+            // Add interaction listeners to detect when user is manually moving the map
+            m.on('mousedown', () => setUserInteracting(true));
+            m.on('touchstart', () => setUserInteracting(true));
+            m.on('mouseup', () => setUserInteracting(false));
+            m.on('touchend', () => setUserInteracting(false));
+            m.on('dragend', () => setUserInteracting(false));
+
             m.on('load', () => {
                 m.addSource('mapbox-dem', {
                     'type': 'raster-dem',
@@ -111,7 +119,8 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
                     'tileSize': 512,
                     'maxzoom': 14
                 });
-                m.setTerrain({ 'source': 'mapbox-dem', 'exaggeration': 1.5 });
+                // Slightly reduced exaggeration for performance and realism
+                m.setTerrain({ 'source': 'mapbox-dem', 'exaggeration': 1.2 });
 
                 m.addLayer({
                     'id': 'sky',
@@ -140,7 +149,7 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isTokenValid]); 
 
-    // 2. Setup Sources & Layers for Active Tracks
+    // 2. Setup Sources & Layers for Active Tracks (Re-runs when tracks change)
     useEffect(() => {
         const m = map.current;
         if (!m) return;
@@ -198,26 +207,31 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
         }
     }, [activeTracks]);
 
-    // 3. Animation Loop: Update Geometry, Markers & Camera with Smoothing
+    // 3. Animation Loop: Update Geometry, Markers & Camera
     useEffect(() => {
         if (!map.current || !map.current.isStyleLoaded()) return;
         const m = map.current;
 
         // --- A. Update Geometries (Progressive Trail) ---
+        // This ensures the trail is drawn even if paused
         activeTracks.forEach(t => {
             const sourceId = `route-${t.id}`;
             const source = m.getSource(sourceId);
             if (!source) return;
 
             let currentDist = 0;
-            if (raceRunners) {
+            if (raceRunners && raceRunners.length > 0) {
                 const runner = raceRunners.find(r => r.trackId === t.id);
                 currentDist = runner ? runner.position.cummulativeDistance : 0;
             } else {
                 currentDist = progress;
             }
 
+            // Ensure we always have at least one point to avoid "disappearing"
             const visiblePoints = t.points.filter(p => p.cummulativeDistance <= currentDist);
+            if (visiblePoints.length === 0 && t.points.length > 0) {
+                visiblePoints.push(t.points[0]);
+            }
             
             if (visiblePoints.length > 0) {
                 source.setData({
@@ -256,16 +270,17 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
 
         // --- C. Cinematic Camera Logic (Smoothed) ---
         
-        // Smoothing Factors: Lower = Slower/Smoother, Higher = More Reactive
-        const POS_SMOOTH = 0.05; // Position catch-up speed
-        const BEARING_SMOOTH = 0.02; // Rotation speed (very slow to prevent nausea)
-        const ZOOM_SMOOTH = 0.05;
-
-        // Get current camera state as starting point
+        // Use slower smoothing for better feel, less jerky
+        const POS_SMOOTH = 0.08; 
+        const BEARING_SMOOTH = 0.04;
+        
+        // READ CURRENT STATE to allow manual Zoom/Pitch overrides
+        // Instead of forcing zoom to 16.5, we interpolate towards the target center
+        // but keep the user's current zoom/pitch to allow manual control.
         const currentCenter = m.getCenter();
         const currentBearing = m.getBearing();
-        const currentPitch = m.getPitch();
         const currentZoom = m.getZoom();
+        const currentPitch = m.getPitch();
 
         if (raceRunners && raceRunners.length > 0) {
             // --- RACE MODE (Group) ---
@@ -273,37 +288,41 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
                 updateMarker(runner.trackId, runner.position.lat, runner.position.lon, runner.color);
             });
 
-            // Calculate target bounding box
-            const bounds = new mapboxgl.LngLatBounds();
-            raceRunners.forEach(r => bounds.extend([r.position.lon, r.position.lat]));
+            if (!userInteracting) {
+                const bounds = new mapboxgl.LngLatBounds();
+                raceRunners.forEach(r => bounds.extend([r.position.lon, r.position.lat]));
 
-            // Calculate ideal camera for bounds
-            // We use the CURRENT bearing to avoid forced rotation, allowing user to look around
-            const targetCamera = m.cameraForBounds(bounds, {
-                padding: { top: 100, bottom: 100, left: 100, right: 100 },
-                bearing: currentBearing, 
-                pitch: currentPitch,
-                maxZoom: 17.5 
-            });
-
-            if (targetCamera) {
-                // Smoothly interpolate towards the target center/zoom
-                const nextLng = lerp(currentCenter.lng, targetCamera.center.lng, POS_SMOOTH);
-                const nextLat = lerp(currentCenter.lat, targetCamera.center.lat, POS_SMOOTH);
-                const nextZoom = lerp(currentZoom, targetCamera.zoom, ZOOM_SMOOTH);
-
-                m.jumpTo({
-                    center: [nextLng, nextLat],
-                    zoom: nextZoom,
-                    bearing: currentBearing, // Maintain user bearing
-                    pitch: currentPitch
+                const targetCamera = m.cameraForBounds(bounds, {
+                    padding: { top: 80, bottom: 80, left: 80, right: 80 },
+                    bearing: currentBearing, // Respect user bearing
+                    pitch: currentPitch, // Respect user pitch
+                    maxZoom: 18 // Cap max zoom
                 });
-            } else if (raceRunners.length > 0) {
-                // Fallback for single runner start
-                const r = raceRunners[0];
-                const nextLng = lerp(currentCenter.lng, r.position.lon, POS_SMOOTH);
-                const nextLat = lerp(currentCenter.lat, r.position.lat, POS_SMOOTH);
-                m.jumpTo({ center: [nextLng, nextLat] });
+
+                if (targetCamera) {
+                    const nextLng = lerp(currentCenter.lng, targetCamera.center.lng, POS_SMOOTH);
+                    const nextLat = lerp(currentCenter.lat, targetCamera.center.lat, POS_SMOOTH);
+                    // For race mode, we might want some auto-zoom to keep everyone in frame, 
+                    // but let's blend it with current zoom to not fight the user too hard.
+                    const nextZoom = lerp(currentZoom, targetCamera.zoom, 0.05);
+
+                    m.jumpTo({
+                        center: [nextLng, nextLat],
+                        zoom: nextZoom,
+                        bearing: currentBearing,
+                        pitch: currentPitch
+                    });
+                } else if (raceRunners.length > 0) {
+                    const r = raceRunners[0];
+                    const nextLng = lerp(currentCenter.lng, r.position.lon, POS_SMOOTH);
+                    const nextLat = lerp(currentCenter.lat, r.position.lat, POS_SMOOTH);
+                    m.jumpTo({ 
+                        center: [nextLng, nextLat],
+                        zoom: currentZoom,
+                        bearing: currentBearing,
+                        pitch: currentPitch
+                    });
+                }
             }
 
         } else if (track) {
@@ -315,33 +334,36 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
             if (currentPoint) {
                 updateMarker('single-replay', currentPoint.lat, currentPoint.lon, track.color);
 
-                // Lookahead: Look 150m ahead for smoother bearing (was 80m)
-                // This prevents the camera from jerking on small GPS zig-zags
-                let lookAheadIndex = track.points.findIndex((p, i) => i > currentIndex && p.cummulativeDistance >= progress + 0.15);
-                if (lookAheadIndex === -1) lookAheadIndex = track.points.length - 1;
-                const nextPoint = track.points[lookAheadIndex];
+                // Skip camera update if user is interacting to allow free look
+                if (!userInteracting) {
+                    // Lookahead logic
+                    let lookAheadIndex = track.points.findIndex((p, i) => i > currentIndex && p.cummulativeDistance >= progress + 0.15);
+                    if (lookAheadIndex === -1) lookAheadIndex = track.points.length - 1;
+                    const nextPoint = track.points[lookAheadIndex];
 
-                // Calculate targets
-                let targetBearing = currentBearing;
-                if (nextPoint && nextPoint !== currentPoint) {
-                    targetBearing = getBearing(currentPoint.lat, currentPoint.lon, nextPoint.lat, nextPoint.lon);
+                    let targetBearing = currentBearing;
+                    if (nextPoint && nextPoint !== currentPoint) {
+                        targetBearing = getBearing(currentPoint.lat, currentPoint.lon, nextPoint.lat, nextPoint.lon);
+                    }
+
+                    // Smoothly Interpolate
+                    const nextLng = lerp(currentCenter.lng, currentPoint.lon, POS_SMOOTH);
+                    const nextLat = lerp(currentCenter.lat, currentPoint.lat, POS_SMOOTH);
+                    const nextBearing = lerpAngle(currentBearing, targetBearing, BEARING_SMOOTH);
+
+                    // KEY CHANGE: Use currentZoom and currentPitch instead of hardcoded values
+                    // This allows the user to Zoom In/Out during replay
+                    m.jumpTo({
+                        center: [nextLng, nextLat],
+                        bearing: nextBearing,
+                        pitch: currentPitch, 
+                        zoom: currentZoom 
+                    });
                 }
-
-                // Smoothly Interpolate values
-                const nextLng = lerp(currentCenter.lng, currentPoint.lon, POS_SMOOTH);
-                const nextLat = lerp(currentCenter.lat, currentPoint.lat, POS_SMOOTH);
-                const nextBearing = lerpAngle(currentBearing, targetBearing, BEARING_SMOOTH);
-
-                m.jumpTo({
-                    center: [nextLng, nextLat],
-                    bearing: nextBearing,
-                    pitch: 60, // Keep consistent pitch for cinematic feel
-                    zoom: 16.5
-                });
             }
         }
 
-    }, [progress, raceRunners, activeTracks]);
+    }, [progress, raceRunners, activeTracks, userInteracting]);
 
     if (!isTokenValid) {
         return (
@@ -376,15 +398,15 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
         <div className="absolute inset-0 z-0 w-full h-full bg-slate-900">
             <div ref={mapContainer} className="w-full h-full" />
             
-            {/* Overlay Info & Reset */}
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-md px-4 py-1.5 rounded-full border border-cyan-500/30 pointer-events-none flex items-center gap-2 z-[1010]">
-                <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                <span className="text-[10px] font-black text-white uppercase tracking-[0.2em]">Flyover 3D Live</span>
+            {/* Overlay Info & Reset - Made Smaller */}
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/40 backdrop-blur-sm px-3 py-1 rounded-full border border-cyan-500/20 pointer-events-none flex items-center gap-2 z-[1010]">
+                <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></div>
+                <span className="text-[9px] font-black text-white/80 uppercase tracking-[0.2em]">3D Live</span>
             </div>
 
             <button 
                 onClick={handleResetToken}
-                className="absolute bottom-4 right-4 bg-slate-800/80 hover:bg-red-900/80 text-slate-400 hover:text-white p-2 rounded-lg text-xs font-bold border border-slate-600 transition-colors z-[1010]"
+                className="absolute bottom-4 right-4 text-slate-500 hover:text-white text-[9px] font-bold transition-colors z-[1010] opacity-50 hover:opacity-100"
                 title="Cambia Token Mapbox"
             >
                 Reset Token
