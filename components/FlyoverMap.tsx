@@ -7,7 +7,7 @@ declare const mapboxgl: any;
 
 interface FlyoverMapProps {
     track?: Track | null; // Primary track for camera following
-    tracks?: Track[]; // All tracks to render lines for
+    tracks?: Track[]; // All tracks available in the context
     raceRunners?: RaceRunner[] | null; // Live positions of all runners
     progress: number; // Current distance in km of primary track
     isPlaying: boolean;
@@ -31,6 +31,7 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
     const mapContainer = useRef<HTMLDivElement>(null);
     const map = useRef<any>(null);
     const markersRef = useRef<Map<string, any>>(new Map());
+    const sourcesInitializedRef = useRef<Set<string>>(new Set());
     
     // Sanitize token on initial load
     const getStoredToken = () => {
@@ -59,22 +60,27 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
         setToken('');
     };
 
-    // Determine the focus track (camera target) - used for initial center only
-    const initialCenterTrack = track || (tracks.length > 0 ? tracks[0] : null);
+    // Determine active tracks (Racing or Single Animation)
+    // If raceRunners exist, we only care about those tracks.
+    // If single track, only that one.
+    const activeTracks = React.useMemo(() => {
+        if (raceRunners && raceRunners.length > 0) {
+            const runnerIds = new Set(raceRunners.map(r => r.trackId));
+            return tracks.filter(t => runnerIds.has(t.id));
+        }
+        if (track) return [track];
+        return [];
+    }, [tracks, track, raceRunners]);
 
-    // 1. Initialize Map (Run ONCE when token validates)
+    // 1. Initialize Map (Run ONCE)
     useEffect(() => {
         if (!mapContainer.current || !isTokenValid) return;
-
-        if (typeof mapboxgl === 'undefined') {
-            console.error("Mapbox GL JS not loaded");
-            return;
-        }
+        if (typeof mapboxgl === 'undefined') return;
 
         mapboxgl.accessToken = token;
 
         try {
-            const startPoint = initialCenterTrack ? initialCenterTrack.points[0] : { lon: 0, lat: 0 };
+            const startPoint = activeTracks.length > 0 ? activeTracks[0].points[0] : { lon: 0, lat: 0 };
             const m = new mapboxgl.Map({
                 container: mapContainer.current,
                 style: 'mapbox://styles/mapbox/satellite-streets-v12',
@@ -89,17 +95,13 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
             m.addControl(new mapboxgl.AttributionControl({ compact: true }));
 
             m.on('load', () => {
-                try {
-                    m.addSource('mapbox-dem', {
-                        'type': 'raster-dem',
-                        'url': 'mapbox://mapbox.mapbox-terrain-dem-v1',
-                        'tileSize': 512,
-                        'maxzoom': 14
-                    });
-                    m.setTerrain({ 'source': 'mapbox-dem', 'exaggeration': 1.5 });
-                } catch (e) {
-                    console.warn("Terrain error:", e);
-                }
+                m.addSource('mapbox-dem', {
+                    'type': 'raster-dem',
+                    'url': 'mapbox://mapbox.mapbox-terrain-dem-v1',
+                    'tileSize': 512,
+                    'maxzoom': 14
+                });
+                m.setTerrain({ 'source': 'mapbox-dem', 'exaggeration': 1.5 });
 
                 m.addLayer({
                     'id': 'sky',
@@ -110,12 +112,6 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
                         'sky-atmosphere-sun-intensity': 15
                     }
                 });
-            });
-
-            m.on('error', (e: any) => {
-                if (e.error && (e.error.status === 401 || e.error.message?.includes('Forbidden'))) {
-                    handleResetToken();
-                }
             });
 
             map.current = m;
@@ -129,39 +125,30 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
             map.current?.remove();
             map.current = null;
             markersRef.current.clear();
+            sourcesInitializedRef.current.clear();
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isTokenValid, token]); // Only depend on token validity
+    }, [isTokenValid]); 
 
-    // 2. Update Track Layers (Run when tracks change)
+    // 2. Setup Sources & Layers for Active Tracks
     useEffect(() => {
         const m = map.current;
         if (!m) return;
 
-        const updateLayers = () => {
-            // Render ALL tracks lines
-            const tracksToRender = tracks.length > 0 ? tracks : (track ? [track] : []);
-            
-            tracksToRender.forEach((t) => {
-                const coordinates = t.points.map(p => [p.lon, p.lat]);
+        const setupLayers = () => {
+            activeTracks.forEach((t) => {
                 const sourceId = `route-${t.id}`;
-                
-                const geoJsonData = {
-                    'type': 'Feature',
-                    'properties': {},
-                    'geometry': {
-                        'type': 'LineString',
-                        'coordinates': coordinates
-                    }
-                };
-
-                const source = m.getSource(sourceId);
-                if (source) {
-                    source.setData(geoJsonData);
-                } else {
+                if (!m.getSource(sourceId)) {
                     m.addSource(sourceId, {
                         'type': 'geojson',
-                        'data': geoJsonData
+                        'data': {
+                            'type': 'Feature',
+                            'properties': {},
+                            'geometry': {
+                                'type': 'LineString',
+                                'coordinates': [] // Start empty, filled by animation loop
+                            }
+                        }
                     });
 
                     // Glow
@@ -190,101 +177,146 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
                             'line-opacity': 1
                         }
                     });
+                    
+                    sourcesInitializedRef.current.add(sourceId);
                 }
             });
         };
 
         if (m.isStyleLoaded()) {
-            updateLayers();
+            setupLayers();
         } else {
-            m.on('load', updateLayers);
+            m.on('load', setupLayers);
         }
-    }, [tracks, track]); // Update lines if tracks change
+    }, [activeTracks]);
 
-    // 3. Animation Loop: Update Markers & Camera (Run on every frame update)
+    // 3. Animation Loop: Update Geometry (Progressive), Markers & Camera
     useEffect(() => {
-        if (!map.current) return;
+        if (!map.current || !map.current.isStyleLoaded()) return;
+        const m = map.current;
 
-        const updateRunner = (id: string, lat: number, lon: number, color: string) => {
+        // --- A. Update Geometries (Progressive Trail) ---
+        activeTracks.forEach(t => {
+            const sourceId = `route-${t.id}`;
+            const source = m.getSource(sourceId);
+            if (!source) return;
+
+            // Determine how much of the track to show
+            let currentDist = 0;
+            
+            if (raceRunners) {
+                const runner = raceRunners.find(r => r.trackId === t.id);
+                currentDist = runner ? runner.position.cummulativeDistance : 0;
+            } else {
+                currentDist = progress;
+            }
+
+            // Slice coordinates based on distance
+            // Optimization: Find index roughly. 
+            // Since points are sorted, we can filter or findIndex.
+            // For visualization, simple filter is okay for moderate track sizes.
+            // For large tracks, we might optimize by remembering last index.
+            const visiblePoints = t.points.filter(p => p.cummulativeDistance <= currentDist);
+            
+            // Add the current interpolated head position if needed to make it smooth
+            // (Optional, simplified here to just use points for robustness)
+            
+            if (visiblePoints.length > 0) {
+                source.setData({
+                    'type': 'Feature',
+                    'properties': {},
+                    'geometry': {
+                        'type': 'LineString',
+                        'coordinates': visiblePoints.map(p => [p.lon, p.lat])
+                    }
+                });
+            }
+        });
+
+        // --- B. Update Markers ---
+        const updateMarker = (id: string, lat: number, lon: number, color: string) => {
             let marker = markersRef.current.get(id);
             if (!marker) {
                 const el = document.createElement('div');
                 el.className = 'flyover-marker';
-                el.style.width = '20px';
-                el.style.height = '20px';
+                el.style.width = '24px';
+                el.style.height = '24px';
                 el.style.backgroundColor = color;
                 el.style.borderRadius = '50%';
-                el.style.boxShadow = `0 0 15px 2px ${color}, inset 0 0 5px white`;
-                el.style.border = '2px solid white';
+                el.style.boxShadow = `0 0 15px 4px ${color}, inset 0 0 8px white`;
+                el.style.border = '3px solid white';
                 el.style.zIndex = '10';
 
                 marker = new mapboxgl.Marker(el)
                     .setLngLat([lon, lat])
-                    .addTo(map.current);
+                    .addTo(m);
                 markersRef.current.set(id, marker);
             } else {
                 marker.setLngLat([lon, lat]);
             }
         };
 
-        // 1. Handle Race Runners (Multi-runner mode)
+        // --- C. Handle Camera & Markers Logic ---
         if (raceRunners && raceRunners.length > 0) {
+            // Race Mode
             raceRunners.forEach(runner => {
-                updateRunner(runner.trackId, runner.position.lat, runner.position.lon, runner.color);
+                updateMarker(runner.trackId, runner.position.lat, runner.position.lon, runner.color);
             });
 
-            // Camera follows the first runner (Leader usually)
+            // Camera follows Leader (first in array usually sorted by rank, or just first)
+            // We assume raceRunners[0] is the one to follow or the "Leader"
             const leader = raceRunners[0];
-            const leaderTrack = tracks.find(t => t.id === leader.trackId);
+            const leaderTrack = activeTracks.find(t => t.id === leader.trackId);
             
             if (leader && leaderTrack) {
-                // Find next point for bearing
                 const currentDist = leader.position.cummulativeDistance;
-                const lookAheadDist = currentDist + 0.05; // 50m ahead
+                const lookAheadDist = currentDist + 0.08; // 80m ahead for smoother bearing
                 const nextPoint = leaderTrack.points.find(p => p.cummulativeDistance >= lookAheadDist);
 
+                const cameraParams: any = {
+                    center: [leader.position.lon, leader.position.lat],
+                    pitch: 60,
+                    zoom: 17
+                };
+
                 if (nextPoint) {
-                    const bearing = getBearing(leader.position.lat, leader.position.lon, nextPoint.lat, nextPoint.lon);
-                    map.current.easeTo({
-                        center: [leader.position.lon, leader.position.lat],
-                        bearing: bearing,
-                        pitch: 70,
-                        zoom: 17,
-                        duration: 500,
-                        easing: (t: number) => t 
-                    });
+                    cameraParams.bearing = getBearing(leader.position.lat, leader.position.lon, nextPoint.lat, nextPoint.lon);
                 }
+
+                // CRITICAL: Use jumpTo for frame-by-frame updates to prevent stuttering
+                // caused by easing conflicts with the rapid React state updates.
+                m.jumpTo(cameraParams); 
             }
-        } 
-        // 2. Handle Single Track Replay (Animation mode)
-        else if (track) {
-            // Find current point based on progress
+
+        } else if (track) {
+            // Single Track Mode
             let currentIndex = track.points.findIndex(p => p.cummulativeDistance >= progress);
             if (currentIndex === -1) currentIndex = track.points.length - 1;
             const currentPoint = track.points[currentIndex];
 
             if (currentPoint) {
-                updateRunner('single-replay', currentPoint.lat, currentPoint.lon, track.color);
+                updateMarker('single-replay', currentPoint.lat, currentPoint.lon, track.color);
 
-                // Bearing
-                let lookAheadIndex = track.points.findIndex((p, i) => i > currentIndex && p.cummulativeDistance >= progress + 0.05);
+                let lookAheadIndex = track.points.findIndex((p, i) => i > currentIndex && p.cummulativeDistance >= progress + 0.08);
                 if (lookAheadIndex === -1) lookAheadIndex = track.points.length - 1;
                 const nextPoint = track.points[lookAheadIndex];
 
+                const cameraParams: any = {
+                    center: [currentPoint.lon, currentPoint.lat],
+                    pitch: 60,
+                    zoom: 16.5
+                };
+
                 if (nextPoint && nextPoint !== currentPoint) {
-                    const bearing = getBearing(currentPoint.lat, currentPoint.lon, nextPoint.lat, nextPoint.lon);
-                    map.current.easeTo({
-                        center: [currentPoint.lon, currentPoint.lat],
-                        bearing: bearing,
-                        pitch: 70,
-                        zoom: 17,
-                        duration: 500
-                    });
+                    cameraParams.bearing = getBearing(currentPoint.lat, currentPoint.lon, nextPoint.lat, nextPoint.lon);
                 }
+
+                // Use jumpTo for smoothness
+                m.jumpTo(cameraParams);
             }
         }
 
-    }, [progress, track, raceRunners, tracks]);
+    }, [progress, raceRunners, activeTracks]);
 
     if (!isTokenValid) {
         return (
