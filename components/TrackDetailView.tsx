@@ -180,7 +180,8 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
     const prevTrackIdRef = useRef<string>(track.id);
 
     // Animation State (Local)
-    const [isAnimating, setIsAnimating] = useState(false);
+    const [isReplayMode, setIsReplayMode] = useState(false); // Controls Layout (Cinema Mode)
+    const [isAnimating, setIsAnimating] = useState(false); // Controls Loop & Map Movement
     const [animationProgress, setAnimationProgress] = useState(0); // in km
     const [animationSpeed, setAnimationSpeed] = useState(20);
     const [animationTime, setAnimationTime] = useState(0); // track time in ms
@@ -196,6 +197,7 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
             setChartSelection(null);
             setSelectedSegment(null);
             setNotes(track.notes || '');
+            setIsReplayMode(false);
             setIsAnimating(false);
             setAnimationProgress(0);
             setAnimationTime(0);
@@ -254,6 +256,24 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
             if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
         };
     }, [isAnimating, animationSpeed, displayTrack]);
+
+    const handleStartReplay = () => {
+        setIsReplayMode(true);
+        setIsAnimating(true);
+        setAnimationProgress(0);
+        setAnimationTime(0);
+    };
+
+    const handleExitReplay = () => {
+        setIsReplayMode(false);
+        setIsAnimating(false);
+        setAnimationProgress(0);
+        setAnimationTime(0);
+    };
+
+    const handleTogglePlayPause = () => {
+        setIsAnimating(!isAnimating);
+    };
 
     // Handle manual scrubbing of animation slider
     const handleAnimationProgressChange = (newProgress: number) => {
@@ -564,7 +584,7 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
                 highlightedRange={highlightedChartRange}
                 smoothingWindow={smoothingWindow}
                 animationProgress={animationProgress}
-                isAnimating={isAnimating}
+                isAnimating={isAnimating || isReplayMode} // Ensure cursor is visible if in replay mode
                 userProfile={userProfile}
             />
         </div>
@@ -595,14 +615,14 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
                 coloredPauseSegments={showPauses ? stats.pauses : undefined}
                 selectionPoints={selectionPoints}
                 mapGradientMetric={mapGradientMetric}
-                animationTrack={isAnimating ? displayTrack : null} // Use local state for animation
+                animationTrack={isReplayMode ? displayTrack : null} // Use replay mode for animation presence
                 animationProgress={animationProgress}
                 isAnimationPlaying={isAnimating}
-                onToggleAnimationPlay={() => setIsAnimating(!isAnimating)}
+                onToggleAnimationPlay={handleTogglePlayPause} // Toggle pause, don't close replay
                 onAnimationProgressChange={handleAnimationProgressChange}
                 animationSpeed={animationSpeed}
                 onAnimationSpeedChange={setAnimationSpeed}
-                onExitAnimation={() => { setIsAnimating(false); setAnimationProgress(0); setAnimationTime(0); }}
+                onExitAnimation={handleExitReplay} // Exit closes the view
                 aiSegmentHighlight={selectedSegment && 'type' in selectedSegment && selectedSegment.type === 'ai' ? selectedSegment : null}
             />
         </div>
@@ -632,7 +652,7 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
                 </div>
                 <div className="flex items-center gap-1.5 sm:gap-3">
                     <button 
-                        onClick={() => { setIsAnimating(true); setAnimationProgress(0); setAnimationTime(0); }}
+                        onClick={handleStartReplay}
                         className="bg-cyan-600 hover:bg-cyan-500 border border-cyan-400 text-white font-black py-1.5 px-3 sm:py-2 sm:px-5 rounded-lg transition-all shadow-md flex items-center gap-1 text-[10px] sm:text-sm whitespace-nowrap active:scale-95"
                     >
                         <ReplayIcon /> REPLAY
@@ -641,58 +661,79 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
             </header>
 
             <main className="flex-grow overflow-hidden relative">
-                {/* DESKTOP VIEW */}
-                <div className="hidden sm:block h-full">
-                    <ResizablePanel direction="vertical" initialSize={480} minSize={300} className="h-full">
-                        <div ref={statsContainerRef} className="h-full overflow-y-auto bg-slate-800 custom-scrollbar">
-                            {statsContent}
-                        </div>
-                        <div className="flex flex-col h-full bg-slate-900">
-                            <div className="flex-grow relative border-b border-slate-800">{mapSection}</div>
-                            <div className="h-[35%] min-h-[280px] flex-shrink-0 relative border-t border-slate-700 overflow-hidden flex flex-col">
-                                <div className="h-10 flex-shrink-0">{chartControls}</div>
-                                <div className="flex-grow">{chartSection}</div>
+                {isReplayMode ? (
+                    // CINEMA MODE LAYOUT (Replay Only)
+                    <div className="h-full w-full flex flex-col">
+                        <ResizablePanel 
+                            direction="vertical" 
+                            initialSizeRatio={0.7} 
+                            minSize={150} 
+                            minSizeSecondary={150}
+                        >
+                            {/* Top: Map */}
+                            <div className="h-full w-full relative border-b border-slate-700">
+                                {mapSection}
                             </div>
+                            
+                            {/* Bottom: Chart */}
+                            <div className="h-full flex flex-col bg-slate-900 relative">
+                                <div className="h-10 flex-shrink-0">{chartControls}</div>
+                                <div className="flex-grow min-h-0">{chartSection}</div>
+                            </div>
+                        </ResizablePanel>
+                    </div>
+                ) : (
+                    // STANDARD LAYOUT
+                    <>
+                        {/* DESKTOP VIEW */}
+                        <div className="hidden sm:block h-full">
+                            <ResizablePanel direction="vertical" initialSize={480} minSize={300} className="h-full">
+                                <div ref={statsContainerRef} className="h-full overflow-y-auto bg-slate-800 custom-scrollbar">
+                                    {statsContent}
+                                </div>
+                                <div className="flex flex-col h-full bg-slate-900">
+                                    <div className="flex-grow relative border-b border-slate-800">{mapSection}</div>
+                                    <div className="h-[35%] min-h-[280px] flex-shrink-0 relative border-t border-slate-700 overflow-hidden flex flex-col">
+                                        <div className="h-10 flex-shrink-0">{chartControls}</div>
+                                        <div className="flex-grow">{chartSection}</div>
+                                    </div>
+                                </div>
+                            </ResizablePanel>
                         </div>
-                    </ResizablePanel>
-                </div>
 
-                {/* MOBILE VIEW */}
-                {/* Add pb-20 to allow space for NavigationDock */}
-                <div className="sm:hidden h-full w-full bg-slate-900 flex flex-col relative pb-20">
-                    <ResizablePanel 
-                        direction="horizontal" 
-                        initialSizeRatio={0.60} // 60% Stats
-                        minSize={150} 
-                        minSizeSecondary={150} // Ensure bottom has space
-                    >
-                        {/* Top: Stats */}
-                        <div ref={statsContainerRef} className="h-full w-full overflow-y-auto bg-slate-800 custom-scrollbar min-h-0 overscroll-y-contain">
-                            {statsContent}
-                        </div>
-
-                        {/* Bottom: Chart + Map */}
-                        <div className="h-full w-full relative">
-                             <ResizablePanel 
+                        {/* MOBILE VIEW */}
+                        <div className="sm:hidden h-full w-full bg-slate-900 flex flex-col relative pb-20">
+                            <ResizablePanel 
                                 direction="horizontal" 
-                                initialSizeRatio={0.375} // 15% / 40% = 0.375. Chart gets 15% of total screen height approx.
-                                minSize={100} 
-                                minSizeSecondary={100}
-                             >
-                                {/* Chart Section */}
-                                <div className="h-full flex flex-col bg-slate-900 border-b border-slate-700">
-                                    <div className="h-8 flex-shrink-0">{chartControls}</div>
-                                    <div className="flex-grow min-h-0">{chartSection}</div>
+                                initialSizeRatio={0.60} 
+                                minSize={150} 
+                                minSizeSecondary={150} 
+                            >
+                                <div ref={statsContainerRef} className="h-full w-full overflow-y-auto bg-slate-800 custom-scrollbar min-h-0 overscroll-y-contain">
+                                    {statsContent}
                                 </div>
 
-                                {/* Map Section */}
-                                <div className="h-full w-full relative z-0">
-                                    {mapSection}
+                                <div className="h-full w-full relative">
+                                     <ResizablePanel 
+                                        direction="horizontal" 
+                                        initialSizeRatio={0.375} 
+                                        minSize={100} 
+                                        minSizeSecondary={100}
+                                     >
+                                        <div className="h-full flex flex-col bg-slate-900 border-b border-slate-700">
+                                            <div className="h-8 flex-shrink-0">{chartControls}</div>
+                                            <div className="flex-grow min-h-0">{chartSection}</div>
+                                        </div>
+
+                                        <div className="h-full w-full relative z-0">
+                                            {mapSection}
+                                        </div>
+                                     </ResizablePanel>
                                 </div>
-                             </ResizablePanel>
+                            </ResizablePanel>
                         </div>
-                    </ResizablePanel>
-                </div>
+                    </>
+                )}
             </main>
         </div>
     );
