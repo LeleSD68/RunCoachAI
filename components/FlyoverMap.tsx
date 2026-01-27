@@ -59,12 +59,12 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
         setToken('');
     };
 
-    // Determine the focus track (camera target)
-    const cameraTargetTrack = track || (tracks.length > 0 ? tracks[0] : null);
+    // Determine the focus track (camera target) - used for initial center only
+    const initialCenterTrack = track || (tracks.length > 0 ? tracks[0] : null);
 
-    // Initialize Map
+    // 1. Initialize Map (Run ONCE when token validates)
     useEffect(() => {
-        if (!mapContainer.current || !isTokenValid || !cameraTargetTrack) return;
+        if (!mapContainer.current || !isTokenValid) return;
 
         if (typeof mapboxgl === 'undefined') {
             console.error("Mapbox GL JS not loaded");
@@ -74,7 +74,7 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
         mapboxgl.accessToken = token;
 
         try {
-            const startPoint = cameraTargetTrack.points[0];
+            const startPoint = initialCenterTrack ? initialCenterTrack.points[0] : { lon: 0, lat: 0 };
             const m = new mapboxgl.Map({
                 container: mapContainer.current,
                 style: 'mapbox://styles/mapbox/satellite-streets-v12',
@@ -110,55 +110,6 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
                         'sky-atmosphere-sun-intensity': 15
                     }
                 });
-
-                // Render ALL tracks lines
-                const tracksToRender = tracks.length > 0 ? tracks : (track ? [track] : []);
-                
-                tracksToRender.forEach((t) => {
-                    const coordinates = t.points.map(p => [p.lon, p.lat]);
-                    const sourceId = `route-${t.id}`;
-                    
-                    if (!m.getSource(sourceId)) {
-                        m.addSource(sourceId, {
-                            'type': 'geojson',
-                            'data': {
-                                'type': 'Feature',
-                                'properties': {},
-                                'geometry': {
-                                    'type': 'LineString',
-                                    'coordinates': coordinates
-                                }
-                            }
-                        });
-
-                        // Glow
-                        m.addLayer({
-                            'id': `${sourceId}-glow`,
-                            'type': 'line',
-                            'source': sourceId,
-                            'layout': { 'line-join': 'round', 'line-cap': 'round' },
-                            'paint': {
-                                'line-color': t.color,
-                                'line-width': 8,
-                                'line-opacity': 0.4,
-                                'line-blur': 4
-                            }
-                        });
-
-                        // Core
-                        m.addLayer({
-                            'id': `${sourceId}-core`,
-                            'type': 'line',
-                            'source': sourceId,
-                            'layout': { 'line-join': 'round', 'line-cap': 'round' },
-                            'paint': {
-                                'line-color': t.color,
-                                'line-width': 3,
-                                'line-opacity': 1
-                            }
-                        });
-                    }
-                });
             });
 
             m.on('error', (e: any) => {
@@ -176,11 +127,81 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
 
         return () => {
             map.current?.remove();
+            map.current = null;
             markersRef.current.clear();
         };
-    }, [isTokenValid, cameraTargetTrack, token, tracks]); // Re-init if primary track or token changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isTokenValid, token]); // Only depend on token validity
 
-    // Animation Loop: Update Markers & Camera
+    // 2. Update Track Layers (Run when tracks change)
+    useEffect(() => {
+        const m = map.current;
+        if (!m) return;
+
+        const updateLayers = () => {
+            // Render ALL tracks lines
+            const tracksToRender = tracks.length > 0 ? tracks : (track ? [track] : []);
+            
+            tracksToRender.forEach((t) => {
+                const coordinates = t.points.map(p => [p.lon, p.lat]);
+                const sourceId = `route-${t.id}`;
+                
+                const geoJsonData = {
+                    'type': 'Feature',
+                    'properties': {},
+                    'geometry': {
+                        'type': 'LineString',
+                        'coordinates': coordinates
+                    }
+                };
+
+                const source = m.getSource(sourceId);
+                if (source) {
+                    source.setData(geoJsonData);
+                } else {
+                    m.addSource(sourceId, {
+                        'type': 'geojson',
+                        'data': geoJsonData
+                    });
+
+                    // Glow
+                    m.addLayer({
+                        'id': `${sourceId}-glow`,
+                        'type': 'line',
+                        'source': sourceId,
+                        'layout': { 'line-join': 'round', 'line-cap': 'round' },
+                        'paint': {
+                            'line-color': t.color,
+                            'line-width': 8,
+                            'line-opacity': 0.4,
+                            'line-blur': 4
+                        }
+                    });
+
+                    // Core
+                    m.addLayer({
+                        'id': `${sourceId}-core`,
+                        'type': 'line',
+                        'source': sourceId,
+                        'layout': { 'line-join': 'round', 'line-cap': 'round' },
+                        'paint': {
+                            'line-color': t.color,
+                            'line-width': 3,
+                            'line-opacity': 1
+                        }
+                    });
+                }
+            });
+        };
+
+        if (m.isStyleLoaded()) {
+            updateLayers();
+        } else {
+            m.on('load', updateLayers);
+        }
+    }, [tracks, track]); // Update lines if tracks change
+
+    // 3. Animation Loop: Update Markers & Camera (Run on every frame update)
     useEffect(() => {
         if (!map.current) return;
 
