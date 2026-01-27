@@ -563,6 +563,9 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
                 showPauses={showPauses}
                 highlightedRange={highlightedChartRange}
                 smoothingWindow={smoothingWindow}
+                animationProgress={animationProgress}
+                isAnimating={isAnimating}
+                userProfile={userProfile}
             />
         </div>
     );

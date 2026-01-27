@@ -57,7 +57,7 @@ const StatsDisplay: React.FC<{ stats: AnimationStats, splits: Split[], currentDi
     const activeMetricsCount = 1 + (showTime ? 1 : 0) + (showPace ? 1 : 0) + (showElevation ? 1 : 0) + (showHr ? 1 : 0);
 
     return (
-        <div className="absolute top-0 left-0 right-0 sm:top-4 sm:left-auto sm:right-4 bg-slate-800/95 sm:bg-slate-800/90 backdrop-blur-md p-3 sm:p-4 rounded-b-xl sm:rounded-xl shadow-2xl text-white z-[1000] border-b sm:border border-slate-600 w-full sm:w-auto sm:max-w-lg transition-all duration-300 animate-fade-in-down">
+        <div className="absolute top-0 left-0 right-0 sm:top-4 sm:left-auto sm:right-4 bg-slate-800/95 sm:bg-slate-800/90 backdrop-blur-md p-3 sm:p-4 rounded-b-xl sm:rounded-xl shadow-2xl text-white z-[100] border-b sm:border border-slate-600 w-full sm:w-auto sm:max-w-lg transition-all duration-300 animate-fade-in-down">
             <div className="grid gap-x-4 gap-y-2" style={{ gridTemplateColumns: `repeat(${activeMetricsCount}, minmax(0, 1fr))` }}>
                 <div>
                     <div className="text-[10px] sm:text-xs text-slate-400 uppercase font-bold">Distanza</div>
@@ -235,8 +235,27 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
       if (bounds && bounds.isValid()) map.fitBounds(bounds, { padding: [40, 40] });
   }, [selectionPoints, tracks, visibleTrackIds, selectedTrackIds, animationTrack, aiSegmentHighlight, raceRunners]);
 
-  // Init Map
+  // Init/Destroy 2D Map Logic based on 2D/3D Mode
   useEffect(() => {
+    if (is3DMode) {
+        // Destroy Leaflet map when entering 3D mode to free DOM and prevents black screen on return
+        if (mapRef.current) {
+            mapRef.current.remove();
+            mapRef.current = null;
+            // Clear refs
+            tileLayerRef.current = null;
+            polylinesRef.current.clear();
+            raceFaintPolylinesRef.current.clear();
+            raceRunnerMarkersRef.current.clear();
+            kmMarkersLayerGroupRef.current = null;
+            hoverMarkerRef.current = null;
+            animationMarkerRef.current = null;
+            selectionPolylineRef.current = null;
+            aiSegmentPolylineRef.current = null;
+        }
+        return;
+    }
+
     if (mapContainerRef.current && !mapRef.current) {
       mapRef.current = L.map(mapContainerRef.current, { 
           preferCanvas: true, 
@@ -261,6 +280,10 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
           fitMapToBounds();
       }
 
+      // Restore theme
+      const saved = localStorage.getItem('gpx-map-theme') || 'light';
+      setMapTheme(saved as any); // Trigger tile load in separate effect
+
       return () => {
           if (mapRef.current) {
               mapRef.current.remove();
@@ -269,12 +292,12 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
           resizeObserver.disconnect();
       };
     }
-  }, []);
+  }, [is3DMode]); // Dependent on is3DMode
 
-  // Tile Layer
+  // Tile Layer (2D Only)
   useEffect(() => {
       const map = mapRef.current;
-      if (!map) return;
+      if (!map || is3DMode) return;
 
       if (tileLayerRef.current) {
           map.removeLayer(tileLayerRef.current);
@@ -306,12 +329,12 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
 
       tileLayerRef.current = L.tileLayer(tileUrl, options).addTo(map);
 
-  }, [mapTheme]);
+  }, [mapTheme, is3DMode]); // Re-apply theme when returning from 3D
 
-  // Main Track Rendering Effect (Create Layers)
+  // Main Track Rendering Effect (Create Layers) - 2D Only
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || is3DMode) return;
 
     polylinesRef.current.forEach(layer => map.removeLayer(layer));
     polylinesRef.current.clear();
@@ -394,12 +417,12 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
             }
         });
     }
-  }, [tracks, visibleTrackIds, mapGradientMetric, raceRunners, animationTrack, animationProgress, showSummaryMode]);
+  }, [tracks, visibleTrackIds, mapGradientMetric, raceRunners, animationTrack, animationProgress, showSummaryMode, is3DMode]);
 
-  // Style Updates
+  // Style Updates - 2D Only
   useEffect(() => {
       const map = mapRef.current;
-      if (!map || animationTrack || (raceRunners && raceRunners.length > 0)) return;
+      if (!map || animationTrack || (raceRunners && raceRunners.length > 0) || is3DMode) return;
 
       const safeSelectedIds = selectedTrackIds instanceof Set ? selectedTrackIds : new Set();
       const isAnyHovered = hoveredTrackId !== null;
@@ -462,13 +485,13 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
           }
       });
 
-  }, [hoveredTrackId, selectedTrackIds, animationTrack, raceRunners, tracks, mapTheme]);
+  }, [hoveredTrackId, selectedTrackIds, animationTrack, raceRunners, tracks, mapTheme, is3DMode]);
 
 
-  // Helper Effects for Markers/Overlays
+  // Helper Effects for Markers/Overlays - 2D Only
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || is3DMode) return;
     raceRunnerMarkersRef.current.forEach(m => map.removeLayer(m));
     raceRunnerMarkersRef.current.clear();
     if (raceRunners && raceRunners.length > 0) {
@@ -484,12 +507,12 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
             raceRunnerMarkersRef.current.set(runner.trackId, marker);
         });
     }
-  }, [raceRunners, tracks]);
+  }, [raceRunners, tracks, is3DMode]);
 
-  // Animation Marker & KM Markers
+  // Animation Marker & KM Markers - 2D Only
   useEffect(() => {
       const map = mapRef.current;
-      if (!map || !animationTrack) {
+      if (!map || !animationTrack || is3DMode) {
           if (animationMarkerRef.current) { map?.removeLayer(animationMarkerRef.current); animationMarkerRef.current = null; }
           return;
       }
@@ -534,12 +557,12 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
       }
       if (animationProgress < 0.1) passedKmsRef.current.clear();
 
-  }, [animationTrack, animationProgress, animationPace, showSummaryMode, animationTrackStats]);
+  }, [animationTrack, animationProgress, animationPace, showSummaryMode, animationTrackStats, is3DMode]);
 
-  // Hover Marker
+  // Hover Marker - 2D Only
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !hoveredPoint) {
+    if (!map || !hoveredPoint || is3DMode) {
         if (hoverMarkerRef.current) { map?.removeLayer(hoverMarkerRef.current); hoverMarkerRef.current = null; }
         return;
     }
@@ -565,12 +588,12 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
     } else {
         hoverMarkerRef.current = L.circleMarker([hoveredPoint.lat, hoveredPoint.lon], { radius: 7, color: '#fff', fillColor: '#0ea5e9', fillOpacity: 1, weight: 3 }).addTo(map);
     }
-  }, [hoveredPoint, hoveredData]);
+  }, [hoveredPoint, hoveredData, is3DMode]);
 
-  // Selections / AI Segments
+  // Selections / AI Segments - 2D Only
   useEffect(() => {
       const map = mapRef.current;
-      if (!map) return;
+      if (!map || is3DMode) return;
       
       if (selectionPolylineRef.current) map.removeLayer(selectionPolylineRef.current);
       if (selectionPoints && selectionPoints.length > 1) {
@@ -584,17 +607,19 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
               aiSegmentPolylineRef.current = L.polyline(pts.map(p => [p.lat, p.lon]), { color: '#22d3ee', weight: 10, opacity: 0.9, lineCap: 'round' }).addTo(map);
           }
       }
-  }, [selectionPoints, aiSegmentHighlight, tracks]);
+  }, [selectionPoints, aiSegmentHighlight, tracks, is3DMode]);
 
-  useEffect(() => { if (isAutoFitEnabled && !raceRunners && !animationTrack) fitMapToBounds(); }, [isAutoFitEnabled, fitMapToBounds, raceRunners, animationTrack, visibleTrackIds, selectedTrackIds]);
-  useEffect(() => { if (fitBoundsCounter > 0) fitMapToBounds(); }, [fitBoundsCounter, fitMapToBounds]);
+  useEffect(() => { if (isAutoFitEnabled && !raceRunners && !animationTrack && !is3DMode) fitMapToBounds(); }, [isAutoFitEnabled, fitMapToBounds, raceRunners, animationTrack, visibleTrackIds, selectedTrackIds, is3DMode]);
+  useEffect(() => { if (fitBoundsCounter > 0 && !is3DMode) fitMapToBounds(); }, [fitBoundsCounter, fitMapToBounds, is3DMode]);
 
   return (
     <div className="relative h-full w-full bg-slate-900 overflow-hidden">
       {/* 3D Map Rendering */}
       {is3DMode && target3DTrack ? (
           <FlyoverMap 
-              track={target3DTrack} 
+              track={animationTrack} // Used for single track animation
+              tracks={tracks.filter(t => visibleTrackIds.has(t.id) || selectedTrackIds?.has(t.id))} // Pass relevant tracks
+              raceRunners={raceRunners} // Pass race positions
               progress={target3DProgress} 
               isPlaying={!!isAnimationPlaying || (!!raceRunners && raceRunners.length > 0)} 
           />
@@ -603,7 +628,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
       )}
 
        {/* Controls Overlay */}
-       <div className="pointer-events-none absolute inset-0 z-[1000] p-4">
+       <div className="pointer-events-none absolute inset-0 z-[100] p-4">
             <div className="absolute top-4 left-4 flex flex-col gap-2 pointer-events-auto">
                 {/* Standard 2D Controls - Hide in 3D Mode */}
                 {!is3DMode && !animationTrack && (
@@ -667,14 +692,14 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
             </div>
        </div>
 
-        {animationTrack && !showSummaryMode && !is3DMode && (
-            <>
-                <StatsDisplay stats={animationStats} splits={animationTrackStats?.splits || []} currentDistance={animationProgress} visibleMetrics={visibleMetrics} />
-            </>
-        )}
-        
+        {/* Stats & Animation Controls - Show in 3D Mode too if it's a replay */}
         {animationTrack && !showSummaryMode && (
-             <AnimationControls isPlaying={isAnimationPlaying!} onTogglePlay={onToggleAnimationPlay!} progress={animationProgress} totalDistance={animationTrack.distance} onProgressChange={onAnimationProgressChange!} speed={animationSpeed!} onSpeedChange={onAnimationSpeedChange!} onExit={onExitAnimation!} visibleMetrics={visibleMetrics} onToggleMetric={handleToggleMetric} />
+            <>
+                {(!is3DMode || (is3DMode && animationTrack)) && (
+                    <StatsDisplay stats={animationStats} splits={animationTrackStats?.splits || []} currentDistance={animationProgress} visibleMetrics={visibleMetrics} />
+                )}
+                <AnimationControls isPlaying={isAnimationPlaying!} onTogglePlay={onToggleAnimationPlay!} progress={animationProgress} totalDistance={animationTrack.distance} onProgressChange={onAnimationProgressChange!} speed={animationSpeed!} onSpeedChange={onAnimationSpeedChange!} onExit={onExitAnimation!} visibleMetrics={visibleMetrics} onToggleMetric={handleToggleMetric} />
+            </>
         )}
 
       <style>{`

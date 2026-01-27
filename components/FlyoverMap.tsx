@@ -1,13 +1,15 @@
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Track } from '../types';
+import { Track, RaceRunner } from '../types';
 
 // Use global variable from script tag to avoid version mismatch
 declare const mapboxgl: any;
 
 interface FlyoverMapProps {
-    track: Track;
-    progress: number; // Current distance in km
+    track?: Track | null; // Primary track for camera following
+    tracks?: Track[]; // All tracks to render lines for
+    raceRunners?: RaceRunner[] | null; // Live positions of all runners
+    progress: number; // Current distance in km of primary track
     isPlaying: boolean;
 }
 
@@ -25,15 +27,14 @@ const getBearing = (startLat: number, startLng: number, destLat: number, destLng
     return ((brng * 180) / Math.PI + 360) % 360;
 };
 
-const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, progress, isPlaying }) => {
+const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners, progress, isPlaying }) => {
     const mapContainer = useRef<HTMLDivElement>(null);
     const map = useRef<any>(null);
-    const marker = useRef<any>(null);
+    const markersRef = useRef<Map<string, any>>(new Map());
     
     // Sanitize token on initial load
     const getStoredToken = () => {
         const t = localStorage.getItem('mapbox_token') || '';
-        // Basic validation: must start with pk. and not contain error strings
         if (t.startsWith('pk.') && !t.includes('Unknown Key') && !t.includes('Error')) {
             return t;
         }
@@ -47,7 +48,6 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, progress, isPlaying }) =
         if (token.trim().startsWith('pk.')) {
             localStorage.setItem('mapbox_token', token.trim());
             setIsTokenValid(true);
-            // Force re-render/re-init is handled by effect on isTokenValid
         } else {
             alert("Il token deve iniziare con 'pk.'");
         }
@@ -59,11 +59,13 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, progress, isPlaying }) =
         setToken('');
     };
 
+    // Determine the focus track (camera target)
+    const cameraTargetTrack = track || (tracks.length > 0 ? tracks[0] : null);
+
     // Initialize Map
     useEffect(() => {
-        if (!mapContainer.current || !isTokenValid) return;
+        if (!mapContainer.current || !isTokenValid || !cameraTargetTrack) return;
 
-        // Ensure mapboxgl is available
         if (typeof mapboxgl === 'undefined') {
             console.error("Mapbox GL JS not loaded");
             return;
@@ -72,22 +74,21 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, progress, isPlaying }) =
         mapboxgl.accessToken = token;
 
         try {
-            const startPoint = track.points[0];
+            const startPoint = cameraTargetTrack.points[0];
             const m = new mapboxgl.Map({
                 container: mapContainer.current,
-                style: 'mapbox://styles/mapbox/satellite-streets-v12', // Satellite for realism
+                style: 'mapbox://styles/mapbox/satellite-streets-v12',
                 center: [startPoint.lon, startPoint.lat],
                 zoom: 17,
-                pitch: 70, // Tilt for 3D effect
+                pitch: 70,
                 bearing: 0,
-                interactive: true, // Allow user to look around even during flyover
+                interactive: true,
                 attributionControl: false
             });
 
             m.addControl(new mapboxgl.AttributionControl({ compact: true }));
 
             m.on('load', () => {
-                // Add 3D Terrain
                 try {
                     m.addSource('mapbox-dem', {
                         'type': 'raster-dem',
@@ -95,12 +96,11 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, progress, isPlaying }) =
                         'tileSize': 512,
                         'maxzoom': 14
                     });
-                    m.setTerrain({ 'source': 'mapbox-dem', 'exaggeration': 1.5 }); // Exaggerate height for dramatic effect
+                    m.setTerrain({ 'source': 'mapbox-dem', 'exaggeration': 1.5 });
                 } catch (e) {
-                    console.warn("Terrain not available or error:", e);
+                    console.warn("Terrain error:", e);
                 }
 
-                // Add Sky Layer
                 m.addLayer({
                     'id': 'sky',
                     'type': 'sky',
@@ -111,73 +111,58 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, progress, isPlaying }) =
                     }
                 });
 
-                // Add Track Line
-                const coordinates = track.points.map(p => [p.lon, p.lat]);
-                m.addSource('route', {
-                    'type': 'geojson',
-                    'data': {
-                        'type': 'Feature',
-                        'properties': {},
-                        'geometry': {
-                            'type': 'LineString',
-                            'coordinates': coordinates
-                        }
-                    }
-                });
-
-                // Neon Line Effect (Inner Core)
-                m.addLayer({
-                    'id': 'route',
-                    'type': 'line',
-                    'source': 'route',
-                    'layout': {
-                        'line-join': 'round',
-                        'line-cap': 'round'
-                    },
-                    'paint': {
-                        'line-color': '#00ffff', // Cyan Neon
-                        'line-width': 4,
-                        'line-opacity': 1
-                    }
-                });
+                // Render ALL tracks lines
+                const tracksToRender = tracks.length > 0 ? tracks : (track ? [track] : []);
                 
-                // Glow Effect Layer (Outer Blur)
-                m.addLayer({
-                    'id': 'route-glow',
-                    'type': 'line',
-                    'source': 'route',
-                    'layout': {
-                        'line-join': 'round',
-                        'line-cap': 'round'
-                    },
-                    'paint': {
-                        'line-color': '#00ffff',
-                        'line-width': 12,
-                        'line-opacity': 0.4,
-                        'line-blur': 8
+                tracksToRender.forEach((t) => {
+                    const coordinates = t.points.map(p => [p.lon, p.lat]);
+                    const sourceId = `route-${t.id}`;
+                    
+                    if (!m.getSource(sourceId)) {
+                        m.addSource(sourceId, {
+                            'type': 'geojson',
+                            'data': {
+                                'type': 'Feature',
+                                'properties': {},
+                                'geometry': {
+                                    'type': 'LineString',
+                                    'coordinates': coordinates
+                                }
+                            }
+                        });
+
+                        // Glow
+                        m.addLayer({
+                            'id': `${sourceId}-glow`,
+                            'type': 'line',
+                            'source': sourceId,
+                            'layout': { 'line-join': 'round', 'line-cap': 'round' },
+                            'paint': {
+                                'line-color': t.color,
+                                'line-width': 8,
+                                'line-opacity': 0.4,
+                                'line-blur': 4
+                            }
+                        });
+
+                        // Core
+                        m.addLayer({
+                            'id': `${sourceId}-core`,
+                            'type': 'line',
+                            'source': sourceId,
+                            'layout': { 'line-join': 'round', 'line-cap': 'round' },
+                            'paint': {
+                                'line-color': t.color,
+                                'line-width': 3,
+                                'line-opacity': 1
+                            }
+                        });
                     }
                 });
-
-                // Add Runner Marker (Glowing Orb)
-                const el = document.createElement('div');
-                el.className = 'flyover-marker';
-                el.style.width = '24px';
-                el.style.height = '24px';
-                el.style.backgroundColor = '#d946ef'; // Fuchsia
-                el.style.borderRadius = '50%';
-                el.style.boxShadow = '0 0 20px 5px #d946ef, inset 0 0 10px white';
-                el.style.border = '2px solid white';
-                el.style.zIndex = '10';
-
-                marker.current = new mapboxgl.Marker(el)
-                    .setLngLat([startPoint.lon, startPoint.lat])
-                    .addTo(m);
             });
 
             m.on('error', (e: any) => {
-                console.error("Mapbox error:", e);
                 if (e.error && (e.error.status === 401 || e.error.message?.includes('Forbidden'))) {
-                    // Invalid token
                     handleResetToken();
                 }
             });
@@ -191,46 +176,94 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, progress, isPlaying }) =
 
         return () => {
             map.current?.remove();
+            markersRef.current.clear();
         };
-    }, [isTokenValid, track, token]); // Re-run if token changes/validates
+    }, [isTokenValid, cameraTargetTrack, token, tracks]); // Re-init if primary track or token changes
 
-    // Animation Loop: Sync Map with Progress
+    // Animation Loop: Update Markers & Camera
     useEffect(() => {
-        if (!map.current || !track.points.length) return;
+        if (!map.current) return;
 
-        // Find current point based on progress (km)
-        let currentIndex = track.points.findIndex(p => p.cummulativeDistance >= progress);
-        if (currentIndex === -1) currentIndex = track.points.length - 1;
-        if (currentIndex < 0) currentIndex = 0;
-        
-        const currentPoint = track.points[currentIndex];
-        
-        // Look ahead for bearing
-        let lookAheadDist = 0.05; // 50m
-        let lookAheadIndex = track.points.findIndex((p, i) => i > currentIndex && p.cummulativeDistance >= progress + lookAheadDist);
-        
-        if (lookAheadIndex === -1) lookAheadIndex = track.points.length - 1;
-        
-        const nextPoint = track.points[lookAheadIndex];
+        const updateRunner = (id: string, lat: number, lon: number, color: string) => {
+            let marker = markersRef.current.get(id);
+            if (!marker) {
+                const el = document.createElement('div');
+                el.className = 'flyover-marker';
+                el.style.width = '20px';
+                el.style.height = '20px';
+                el.style.backgroundColor = color;
+                el.style.borderRadius = '50%';
+                el.style.boxShadow = `0 0 15px 2px ${color}, inset 0 0 5px white`;
+                el.style.border = '2px solid white';
+                el.style.zIndex = '10';
 
-        if (currentPoint && map.current && marker.current) {
-            marker.current.setLngLat([currentPoint.lon, currentPoint.lat]);
+                marker = new mapboxgl.Marker(el)
+                    .setLngLat([lon, lat])
+                    .addTo(map.current);
+                markersRef.current.set(id, marker);
+            } else {
+                marker.setLngLat([lon, lat]);
+            }
+        };
 
-            if (nextPoint && nextPoint !== currentPoint) {
-                const bearing = getBearing(currentPoint.lat, currentPoint.lon, nextPoint.lat, nextPoint.lon);
-                
-                // Only follow camera if playing or moving
-                map.current.easeTo({
-                    center: [currentPoint.lon, currentPoint.lat],
-                    bearing: bearing,
-                    pitch: 75,
-                    zoom: 17.5,
-                    duration: 500 // Smoother transitions
-                });
+        // 1. Handle Race Runners (Multi-runner mode)
+        if (raceRunners && raceRunners.length > 0) {
+            raceRunners.forEach(runner => {
+                updateRunner(runner.trackId, runner.position.lat, runner.position.lon, runner.color);
+            });
+
+            // Camera follows the first runner (Leader usually)
+            const leader = raceRunners[0];
+            const leaderTrack = tracks.find(t => t.id === leader.trackId);
+            
+            if (leader && leaderTrack) {
+                // Find next point for bearing
+                const currentDist = leader.position.cummulativeDistance;
+                const lookAheadDist = currentDist + 0.05; // 50m ahead
+                const nextPoint = leaderTrack.points.find(p => p.cummulativeDistance >= lookAheadDist);
+
+                if (nextPoint) {
+                    const bearing = getBearing(leader.position.lat, leader.position.lon, nextPoint.lat, nextPoint.lon);
+                    map.current.easeTo({
+                        center: [leader.position.lon, leader.position.lat],
+                        bearing: bearing,
+                        pitch: 70,
+                        zoom: 17,
+                        duration: 500,
+                        easing: (t: number) => t 
+                    });
+                }
+            }
+        } 
+        // 2. Handle Single Track Replay (Animation mode)
+        else if (track) {
+            // Find current point based on progress
+            let currentIndex = track.points.findIndex(p => p.cummulativeDistance >= progress);
+            if (currentIndex === -1) currentIndex = track.points.length - 1;
+            const currentPoint = track.points[currentIndex];
+
+            if (currentPoint) {
+                updateRunner('single-replay', currentPoint.lat, currentPoint.lon, track.color);
+
+                // Bearing
+                let lookAheadIndex = track.points.findIndex((p, i) => i > currentIndex && p.cummulativeDistance >= progress + 0.05);
+                if (lookAheadIndex === -1) lookAheadIndex = track.points.length - 1;
+                const nextPoint = track.points[lookAheadIndex];
+
+                if (nextPoint && nextPoint !== currentPoint) {
+                    const bearing = getBearing(currentPoint.lat, currentPoint.lon, nextPoint.lat, nextPoint.lon);
+                    map.current.easeTo({
+                        center: [currentPoint.lon, currentPoint.lat],
+                        bearing: bearing,
+                        pitch: 70,
+                        zoom: 17,
+                        duration: 500
+                    });
+                }
             }
         }
 
-    }, [progress, track]);
+    }, [progress, track, raceRunners, tracks]);
 
     if (!isTokenValid) {
         return (
@@ -254,7 +287,7 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, progress, isPlaying }) =
                         Attiva Mappa 3D
                     </button>
                     <p className="text-[10px] text-slate-500 mt-4">
-                        Ottienilo su <a href="https://mapbox.com" target="_blank" className="underline hover:text-white">mapbox.com</a>. Il token viene salvato solo localmente nel tuo browser.
+                        Ottienilo su <a href="https://mapbox.com" target="_blank" className="underline hover:text-white">mapbox.com</a>.
                     </p>
                 </div>
             </div>
@@ -262,7 +295,7 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, progress, isPlaying }) =
     }
 
     return (
-        <div className="absolute inset-0 z-[1000] w-full h-full bg-slate-900">
+        <div className="absolute inset-0 z-0 w-full h-full bg-slate-900">
             <div ref={mapContainer} className="w-full h-full" />
             
             {/* Overlay Info & Reset */}

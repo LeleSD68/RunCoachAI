@@ -843,7 +843,7 @@ const App: React.FC = () => {
                         />
                         
                         {simulationState !== 'idle' && (
-                            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30">
+                            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50">
                                 <RaceControls 
                                     simulationState={simulationState}
                                     simulationTime={simulationTime}
@@ -857,7 +857,7 @@ const App: React.FC = () => {
                         )}
                         
                         {simulationState !== 'idle' && (
-                            <div className="absolute top-20 right-4 z-20">
+                            <div className="absolute top-20 right-4 z-50">
                                 <RaceLeaderboard 
                                     racers={tracks.filter(t => raceSelectionIds.has(t.id))}
                                     ranks={raceRanks}
