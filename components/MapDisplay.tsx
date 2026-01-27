@@ -49,6 +49,7 @@ interface AnimationStats {
     distance: number;
 }
 
+// StatsDisplay COMPACT VERSION
 const StatsDisplay: React.FC<{ stats: AnimationStats, splits: Split[], currentDistance: number, visibleMetrics: Set<string> }> = ({ stats, splits, currentDistance, visibleMetrics }) => {
     const showHr = visibleMetrics.has('hr') && stats.hr !== null;
     const showTime = visibleMetrics.has('time');
@@ -57,37 +58,35 @@ const StatsDisplay: React.FC<{ stats: AnimationStats, splits: Split[], currentDi
     const activeMetricsCount = 1 + (showTime ? 1 : 0) + (showPace ? 1 : 0) + (showElevation ? 1 : 0) + (showHr ? 1 : 0);
 
     return (
-        <div className="absolute top-0 left-0 right-0 sm:top-4 sm:left-auto sm:right-4 bg-slate-800/95 sm:bg-slate-800/90 backdrop-blur-md p-3 sm:p-4 rounded-b-xl sm:rounded-xl shadow-2xl text-white z-[100] border-b sm:border border-slate-600 w-full sm:w-auto sm:max-w-lg transition-all duration-300 animate-fade-in-down">
-            <div className="grid gap-x-4 gap-y-2" style={{ gridTemplateColumns: `repeat(${activeMetricsCount}, minmax(0, 1fr))` }}>
-                <div>
-                    <div className="text-[10px] sm:text-xs text-slate-400 uppercase font-bold">Distanza</div>
-                    <div className="text-base sm:text-xl font-bold font-mono">{stats.distance.toFixed(2)} <span className="text-[10px] sm:text-sm text-slate-500">km</span></div>
-                </div>
-                {showTime && (
-                    <div>
-                        <div className="text-[10px] sm:text-xs text-slate-400 uppercase font-bold">Tempo</div>
-                        <div className="text-base sm:text-xl font-bold font-mono">{stats.time}</div>
-                    </div>
-                )}
-                {showPace && (
-                    <div>
-                        <div className="text-[10px] sm:text-xs text-slate-400 uppercase font-bold">Ritmo</div>
-                        <div className="text-base sm:text-xl font-bold font-mono">{stats.pace}</div>
-                    </div>
-                )}
-                {showElevation && (
-                    <div>
-                        <div className="text-[10px] sm:text-xs text-slate-400 uppercase font-bold">Elev.</div>
-                        <div className="text-base sm:text-xl font-bold font-mono">{stats.elevation} m</div>
-                    </div>
-                )}
-                {showHr && (
-                     <div>
-                        <div className="text-[10px] sm:text-xs text-slate-400 uppercase font-bold">FC</div>
-                        <div className="text-base sm:text-xl font-bold font-mono text-red-400">{Math.round(stats.hr!)} <span className="text-[10px] sm:text-sm text-slate-500">bpm</span></div>
-                    </div>
-                )}
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-slate-900/80 backdrop-blur-md px-4 py-2 rounded-full shadow-lg text-white z-[100] border border-slate-700/50 transition-all duration-300 animate-fade-in-down flex gap-4 items-center whitespace-nowrap">
+            <div className="flex flex-col items-center min-w-[50px]">
+                <div className="text-[8px] text-slate-400 uppercase font-black tracking-wider">Dist</div>
+                <div className="text-sm font-bold font-mono">{stats.distance.toFixed(2)}<span className="text-[8px] text-slate-500 ml-0.5">km</span></div>
             </div>
+            {showTime && (
+                <div className="flex flex-col items-center min-w-[50px] border-l border-white/10 pl-4">
+                    <div className="text-[8px] text-slate-400 uppercase font-black tracking-wider">Time</div>
+                    <div className="text-sm font-bold font-mono">{stats.time}</div>
+                </div>
+            )}
+            {showPace && (
+                <div className="flex flex-col items-center min-w-[50px] border-l border-white/10 pl-4">
+                    <div className="text-[8px] text-slate-400 uppercase font-black tracking-wider">Pace</div>
+                    <div className="text-sm font-bold font-mono text-cyan-400">{stats.pace}</div>
+                </div>
+            )}
+            {showElevation && (
+                <div className="flex flex-col items-center min-w-[40px] border-l border-white/10 pl-4">
+                    <div className="text-[8px] text-slate-400 uppercase font-black tracking-wider">Ele</div>
+                    <div className="text-sm font-bold font-mono">{stats.elevation}m</div>
+                </div>
+            )}
+            {showHr && (
+                 <div className="flex flex-col items-center min-w-[40px] border-l border-white/10 pl-4">
+                    <div className="text-[8px] text-slate-400 uppercase font-black tracking-wider">HR</div>
+                    <div className="text-sm font-bold font-mono text-red-400">{Math.round(stats.hr!)}</div>
+                </div>
+            )}
         </div>
     );
 };
