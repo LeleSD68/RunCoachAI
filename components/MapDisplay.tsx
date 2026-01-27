@@ -244,10 +244,23 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
   // Init/Destroy 2D Map Logic based on 2D/3D Mode
   useEffect(() => {
     if (is3DMode) {
-        // Destroy Leaflet map when entering 3D mode to free DOM and prevents black screen on return
+        // Safe Cleanup of Leaflet Map to avoid "Canvas is undefined" errors
         if (mapRef.current) {
+            // Remove layers first
+            polylinesRef.current.forEach(layer => mapRef.current?.removeLayer(layer));
+            raceFaintPolylinesRef.current.forEach(layer => mapRef.current?.removeLayer(layer));
+            raceRunnerMarkersRef.current.forEach(m => mapRef.current?.removeLayer(m));
+            if (kmMarkersLayerGroupRef.current) mapRef.current.removeLayer(kmMarkersLayerGroupRef.current);
+            if (hoverMarkerRef.current) mapRef.current.removeLayer(hoverMarkerRef.current);
+            if (animationMarkerRef.current) mapRef.current.removeLayer(animationMarkerRef.current);
+            if (selectionPolylineRef.current) mapRef.current.removeLayer(selectionPolylineRef.current);
+            if (aiSegmentPolylineRef.current) mapRef.current.removeLayer(aiSegmentPolylineRef.current);
+            if (tileLayerRef.current) mapRef.current.removeLayer(tileLayerRef.current);
+
+            // Now remove map
             mapRef.current.remove();
             mapRef.current = null;
+            
             // Clear refs
             tileLayerRef.current = null;
             polylinesRef.current.clear();
@@ -701,9 +714,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
         {/* Stats & Animation Controls - Show in 3D Mode too if it's a replay */}
         {animationTrack && !showSummaryMode && (
             <>
-                {(!is3DMode || (is3DMode && animationTrack)) && (
-                    <StatsDisplay stats={animationStats} splits={animationTrackStats?.splits || []} currentDistance={animationProgress} visibleMetrics={visibleMetrics} />
-                )}
+                {/* Removed StatsDisplay in MapDisplay to let parent component handle "Cinema Mode" layout */}
                 <AnimationControls isPlaying={isAnimationPlaying!} onTogglePlay={onToggleAnimationPlay!} progress={animationProgress} totalDistance={animationTrack.distance} onProgressChange={onAnimationProgressChange!} speed={animationSpeed!} onSpeedChange={onAnimationSpeedChange!} onExit={onExitAnimation!} visibleMetrics={visibleMetrics} onToggleMetric={handleToggleMetric} />
             </>
         )}
