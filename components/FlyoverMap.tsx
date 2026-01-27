@@ -96,8 +96,8 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
                 container: mapContainer.current,
                 style: 'mapbox://styles/mapbox/satellite-streets-v12',
                 center: [startPoint.lon, startPoint.lat],
-                zoom: 17,
-                pitch: 60,
+                zoom: 16, // Start slightly further out
+                pitch: 55,
                 bearing: 0,
                 interactive: true,
                 attributionControl: false
@@ -111,6 +111,8 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
             m.on('mouseup', () => setUserInteracting(false));
             m.on('touchend', () => setUserInteracting(false));
             m.on('dragend', () => setUserInteracting(false));
+            // Also stop interacting on zoom end to allow smooth resume, but keep user zoom
+            m.on('zoomend', () => setUserInteracting(false));
 
             m.on('load', () => {
                 m.addSource('mapbox-dem', {
@@ -275,8 +277,6 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
         const BEARING_SMOOTH = 0.04;
         
         // READ CURRENT STATE to allow manual Zoom/Pitch overrides
-        // Instead of forcing zoom to 16.5, we interpolate towards the target center
-        // but keep the user's current zoom/pitch to allow manual control.
         const currentCenter = m.getCenter();
         const currentBearing = m.getBearing();
         const currentZoom = m.getZoom();
@@ -292,19 +292,29 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
                 const bounds = new mapboxgl.LngLatBounds();
                 raceRunners.forEach(r => bounds.extend([r.position.lon, r.position.lat]));
 
+                // 1. Calculate ideal camera to fit everyone loosely (Higher padding = Further away)
                 const targetCamera = m.cameraForBounds(bounds, {
-                    padding: { top: 80, bottom: 80, left: 80, right: 80 },
+                    padding: { top: 200, bottom: 200, left: 200, right: 200 }, // Increased padding to keep runners centered but not edge-to-edge
                     bearing: currentBearing, // Respect user bearing
                     pitch: currentPitch, // Respect user pitch
-                    maxZoom: 18 // Cap max zoom
+                    maxZoom: 16.5 // Hard limit to prevent "nose to ground" at start
                 });
 
                 if (targetCamera) {
                     const nextLng = lerp(currentCenter.lng, targetCamera.center.lng, POS_SMOOTH);
                     const nextLat = lerp(currentCenter.lat, targetCamera.center.lat, POS_SMOOTH);
-                    // For race mode, we might want some auto-zoom to keep everyone in frame, 
-                    // but let's blend it with current zoom to not fight the user too hard.
-                    const nextZoom = lerp(currentZoom, targetCamera.zoom, 0.05);
+                    
+                    // 2. Smart Zoom Logic (The "Ratchet" Effect)
+                    // If the calculated zoom (needed to fit everyone) is LESS than current zoom (meaning we need to zoom out),
+                    // we must zoom out to keep everyone in frame.
+                    // If calculated zoom is HIGHER than current zoom (meaning we could zoom in closer),
+                    // we IGNORE it and keep the user's current zoom (respecting their "height").
+                    // This allows user to zoom out and stay out, but auto-zooms out if runners spread too much.
+                    let nextZoom = currentZoom;
+                    if (targetCamera.zoom < currentZoom) {
+                        nextZoom = lerp(currentZoom, targetCamera.zoom, 0.05); // Smoothly pull back
+                    } 
+                    // Else: keep currentZoom (don't auto zoom in)
 
                     m.jumpTo({
                         center: [nextLng, nextLat],
@@ -313,12 +323,13 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
                         pitch: currentPitch
                     });
                 } else if (raceRunners.length > 0) {
+                    // Fallback for single/initial point
                     const r = raceRunners[0];
                     const nextLng = lerp(currentCenter.lng, r.position.lon, POS_SMOOTH);
                     const nextLat = lerp(currentCenter.lat, r.position.lat, POS_SMOOTH);
                     m.jumpTo({ 
                         center: [nextLng, nextLat],
-                        zoom: currentZoom,
+                        zoom: currentZoom, // Maintain user zoom
                         bearing: currentBearing,
                         pitch: currentPitch
                     });
@@ -351,8 +362,7 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
                     const nextLat = lerp(currentCenter.lat, currentPoint.lat, POS_SMOOTH);
                     const nextBearing = lerpAngle(currentBearing, targetBearing, BEARING_SMOOTH);
 
-                    // KEY CHANGE: Use currentZoom and currentPitch instead of hardcoded values
-                    // This allows the user to Zoom In/Out during replay
+                    // Replay mode also allows manual zoom override now
                     m.jumpTo({
                         center: [nextLng, nextLat],
                         bearing: nextBearing,
