@@ -1,7 +1,9 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Track } from '../types';
-import mapboxgl from 'mapbox-gl';
+
+// Use global variable from script tag to avoid version mismatch
+declare const mapboxgl: any;
 
 interface FlyoverMapProps {
     track: Track;
@@ -25,22 +27,47 @@ const getBearing = (startLat: number, startLng: number, destLat: number, destLng
 
 const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, progress, isPlaying }) => {
     const mapContainer = useRef<HTMLDivElement>(null);
-    const map = useRef<mapboxgl.Map | null>(null);
-    const marker = useRef<mapboxgl.Marker | null>(null);
-    const [token, setToken] = useState<string>(() => localStorage.getItem('mapbox_token') || '');
-    const [isTokenValid, setIsTokenValid] = useState(!!localStorage.getItem('mapbox_token'));
+    const map = useRef<any>(null);
+    const marker = useRef<any>(null);
+    
+    // Sanitize token on initial load
+    const getStoredToken = () => {
+        const t = localStorage.getItem('mapbox_token') || '';
+        // Basic validation: must start with pk. and not contain error strings
+        if (t.startsWith('pk.') && !t.includes('Unknown Key') && !t.includes('Error')) {
+            return t;
+        }
+        return '';
+    };
+
+    const [token, setToken] = useState<string>(getStoredToken());
+    const [isTokenValid, setIsTokenValid] = useState(!!getStoredToken());
 
     const handleSaveToken = () => {
-        if (token.trim().length > 0) {
-            localStorage.setItem('mapbox_token', token);
+        if (token.trim().startsWith('pk.')) {
+            localStorage.setItem('mapbox_token', token.trim());
             setIsTokenValid(true);
-            window.location.reload(); // Reload to init mapbox cleanly
+            // Force re-render/re-init is handled by effect on isTokenValid
+        } else {
+            alert("Il token deve iniziare con 'pk.'");
         }
+    };
+
+    const handleResetToken = () => {
+        localStorage.removeItem('mapbox_token');
+        setIsTokenValid(false);
+        setToken('');
     };
 
     // Initialize Map
     useEffect(() => {
         if (!mapContainer.current || !isTokenValid) return;
+
+        // Ensure mapboxgl is available
+        if (typeof mapboxgl === 'undefined') {
+            console.error("Mapbox GL JS not loaded");
+            return;
+        }
 
         mapboxgl.accessToken = token;
 
@@ -61,13 +88,17 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, progress, isPlaying }) =
 
             m.on('load', () => {
                 // Add 3D Terrain
-                m.addSource('mapbox-dem', {
-                    'type': 'raster-dem',
-                    'url': 'mapbox://mapbox.mapbox-terrain-dem-v1',
-                    'tileSize': 512,
-                    'maxzoom': 14
-                });
-                m.setTerrain({ 'source': 'mapbox-dem', 'exaggeration': 1.5 }); // Exaggerate height for dramatic effect
+                try {
+                    m.addSource('mapbox-dem', {
+                        'type': 'raster-dem',
+                        'url': 'mapbox://mapbox.mapbox-terrain-dem-v1',
+                        'tileSize': 512,
+                        'maxzoom': 14
+                    });
+                    m.setTerrain({ 'source': 'mapbox-dem', 'exaggeration': 1.5 }); // Exaggerate height for dramatic effect
+                } catch (e) {
+                    console.warn("Terrain not available or error:", e);
+                }
 
                 // Add Sky Layer
                 m.addLayer({
@@ -143,61 +174,58 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, progress, isPlaying }) =
                     .addTo(m);
             });
 
+            m.on('error', (e: any) => {
+                console.error("Mapbox error:", e);
+                if (e.error && (e.error.status === 401 || e.error.message?.includes('Forbidden'))) {
+                    // Invalid token
+                    handleResetToken();
+                }
+            });
+
             map.current = m;
 
         } catch (e) {
             console.error("Mapbox init failed", e);
-            localStorage.removeItem('mapbox_token');
-            setIsTokenValid(false);
+            handleResetToken();
         }
 
         return () => {
             map.current?.remove();
         };
-    }, [isTokenValid, track, token]); 
+    }, [isTokenValid, track, token]); // Re-run if token changes/validates
 
     // Animation Loop: Sync Map with Progress
     useEffect(() => {
         if (!map.current || !track.points.length) return;
 
         // Find current point based on progress (km)
-        // We use a simple search here. For 10k+ points a binary search would be better, but typical GPX is fine.
         let currentIndex = track.points.findIndex(p => p.cummulativeDistance >= progress);
         if (currentIndex === -1) currentIndex = track.points.length - 1;
-        // Ensure we don't pick index 0 if progress > 0 to have a 'prev' point for bearing if needed
         if (currentIndex < 0) currentIndex = 0;
         
         const currentPoint = track.points[currentIndex];
         
-        // Look ahead for bearing calculation (e.g., 50-100 meters ahead) to smooth out camera rotation
-        // Looking ahead prevents jittery camera on sharp turns
+        // Look ahead for bearing
         let lookAheadDist = 0.05; // 50m
         let lookAheadIndex = track.points.findIndex((p, i) => i > currentIndex && p.cummulativeDistance >= progress + lookAheadDist);
         
-        // Fallback if near end
         if (lookAheadIndex === -1) lookAheadIndex = track.points.length - 1;
         
         const nextPoint = track.points[lookAheadIndex];
 
         if (currentPoint && map.current && marker.current) {
-            // Move Marker
             marker.current.setLngLat([currentPoint.lon, currentPoint.lat]);
 
-            // Camera Logic
-            // If we have a next point, look at it. If not (end of race), keep last bearing.
             if (nextPoint && nextPoint !== currentPoint) {
                 const bearing = getBearing(currentPoint.lat, currentPoint.lon, nextPoint.lat, nextPoint.lon);
                 
-                map.current.jumpTo({
+                // Only follow camera if playing or moving
+                map.current.easeTo({
                     center: [currentPoint.lon, currentPoint.lat],
                     bearing: bearing,
-                    pitch: 75, // Aggressive 3D angle
-                    zoom: 17.5 
-                });
-            } else {
-                 map.current.jumpTo({
-                    center: [currentPoint.lon, currentPoint.lat],
-                    zoom: 17.5 
+                    pitch: 75,
+                    zoom: 17.5,
+                    duration: 500 // Smoother transitions
                 });
             }
         }
@@ -234,14 +262,22 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, progress, isPlaying }) =
     }
 
     return (
-        <div className="absolute inset-0 z-[1000] w-full h-full">
+        <div className="absolute inset-0 z-[1000] w-full h-full bg-slate-900">
             <div ref={mapContainer} className="w-full h-full" />
             
-            {/* Overlay Info */}
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-md px-4 py-1.5 rounded-full border border-cyan-500/30 pointer-events-none flex items-center gap-2">
+            {/* Overlay Info & Reset */}
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-md px-4 py-1.5 rounded-full border border-cyan-500/30 pointer-events-none flex items-center gap-2 z-[1010]">
                 <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
                 <span className="text-[10px] font-black text-white uppercase tracking-[0.2em]">Flyover 3D Live</span>
             </div>
+
+            <button 
+                onClick={handleResetToken}
+                className="absolute bottom-4 right-4 bg-slate-800/80 hover:bg-red-900/80 text-slate-400 hover:text-white p-2 rounded-lg text-xs font-bold border border-slate-600 transition-colors z-[1010]"
+                title="Cambia Token Mapbox"
+            >
+                Reset Token
+            </button>
         </div>
     );
 };
