@@ -13,6 +13,19 @@ interface FlyoverMapProps {
     isPlaying: boolean;
 }
 
+// Helpers for smoothing
+const lerp = (start: number, end: number, factor: number) => {
+    return start + (end - start) * factor;
+};
+
+// Handles angle wrapping (e.g. 350 -> 10 degrees)
+const lerpAngle = (start: number, end: number, factor: number) => {
+    let diff = end - start;
+    while (diff < -180) diff += 360;
+    while (diff > 180) diff -= 360;
+    return start + diff * factor;
+};
+
 // Helper to calculate bearing between two coordinates
 const getBearing = (startLat: number, startLng: number, destLat: number, destLng: number) => {
     const startLatRad = (startLat * Math.PI) / 180;
@@ -60,9 +73,6 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
         setToken('');
     };
 
-    // Determine active tracks (Racing or Single Animation)
-    // If raceRunners exist, we only care about those tracks.
-    // If single track, only that one.
     const activeTracks = React.useMemo(() => {
         if (raceRunners && raceRunners.length > 0) {
             const runnerIds = new Set(raceRunners.map(r => r.trackId));
@@ -146,12 +156,11 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
                             'properties': {},
                             'geometry': {
                                 'type': 'LineString',
-                                'coordinates': [] // Start empty, filled by animation loop
+                                'coordinates': [] 
                             }
                         }
                     });
 
-                    // Glow
                     m.addLayer({
                         'id': `${sourceId}-glow`,
                         'type': 'line',
@@ -165,7 +174,6 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
                         }
                     });
 
-                    // Core
                     m.addLayer({
                         'id': `${sourceId}-core`,
                         'type': 'line',
@@ -190,7 +198,7 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
         }
     }, [activeTracks]);
 
-    // 3. Animation Loop: Update Geometry (Progressive), Markers & Camera
+    // 3. Animation Loop: Update Geometry, Markers & Camera with Smoothing
     useEffect(() => {
         if (!map.current || !map.current.isStyleLoaded()) return;
         const m = map.current;
@@ -201,9 +209,7 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
             const source = m.getSource(sourceId);
             if (!source) return;
 
-            // Determine how much of the track to show
             let currentDist = 0;
-            
             if (raceRunners) {
                 const runner = raceRunners.find(r => r.trackId === t.id);
                 currentDist = runner ? runner.position.cummulativeDistance : 0;
@@ -211,15 +217,7 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
                 currentDist = progress;
             }
 
-            // Slice coordinates based on distance
-            // Optimization: Find index roughly. 
-            // Since points are sorted, we can filter or findIndex.
-            // For visualization, simple filter is okay for moderate track sizes.
-            // For large tracks, we might optimize by remembering last index.
             const visiblePoints = t.points.filter(p => p.cummulativeDistance <= currentDist);
-            
-            // Add the current interpolated head position if needed to make it smooth
-            // (Optional, simplified here to just use points for robustness)
             
             if (visiblePoints.length > 0) {
                 source.setData({
@@ -256,50 +254,60 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
             }
         };
 
-        // --- C. Handle Camera & Markers Logic ---
+        // --- C. Cinematic Camera Logic (Smoothed) ---
+        
+        // Smoothing Factors: Lower = Slower/Smoother, Higher = More Reactive
+        const POS_SMOOTH = 0.05; // Position catch-up speed
+        const BEARING_SMOOTH = 0.02; // Rotation speed (very slow to prevent nausea)
+        const ZOOM_SMOOTH = 0.05;
+
+        // Get current camera state as starting point
+        const currentCenter = m.getCenter();
+        const currentBearing = m.getBearing();
+        const currentPitch = m.getPitch();
+        const currentZoom = m.getZoom();
+
         if (raceRunners && raceRunners.length > 0) {
-            // Race Mode: Update all markers
+            // --- RACE MODE (Group) ---
             raceRunners.forEach(runner => {
                 updateMarker(runner.trackId, runner.position.lat, runner.position.lon, runner.color);
             });
 
-            // Camera Logic for Group
-            // 1. Calculate Bounding Box of all runners
+            // Calculate target bounding box
             const bounds = new mapboxgl.LngLatBounds();
             raceRunners.forEach(r => bounds.extend([r.position.lon, r.position.lat]));
 
-            // 2. Get current camera state (to allow user to rotate around the center)
-            const currentBearing = m.getBearing();
-            const currentPitch = m.getPitch();
-
-            // 3. Compute camera target to fit the bounds
-            // We pass the *current* bearing/pitch so Mapbox calculates the center/zoom 
-            // needed to fit the runners while maintaining the user's viewpoint.
-            const camera = m.cameraForBounds(bounds, {
+            // Calculate ideal camera for bounds
+            // We use the CURRENT bearing to avoid forced rotation, allowing user to look around
+            const targetCamera = m.cameraForBounds(bounds, {
                 padding: { top: 100, bottom: 100, left: 100, right: 100 },
-                bearing: currentBearing,
+                bearing: currentBearing, 
                 pitch: currentPitch,
-                maxZoom: 17.5 // Cap zoom so we don't get too close when runners are bunched
+                maxZoom: 17.5 
             });
 
-            if (camera) {
-                // Use jumpTo for smooth per-frame updates
-                // This keeps the center on the group but respects user rotation
+            if (targetCamera) {
+                // Smoothly interpolate towards the target center/zoom
+                const nextLng = lerp(currentCenter.lng, targetCamera.center.lng, POS_SMOOTH);
+                const nextLat = lerp(currentCenter.lat, targetCamera.center.lat, POS_SMOOTH);
+                const nextZoom = lerp(currentZoom, targetCamera.zoom, ZOOM_SMOOTH);
+
                 m.jumpTo({
-                    center: camera.center,
-                    zoom: camera.zoom,
-                    bearing: currentBearing,
+                    center: [nextLng, nextLat],
+                    zoom: nextZoom,
+                    bearing: currentBearing, // Maintain user bearing
                     pitch: currentPitch
                 });
-            } else {
-                // Fallback if bounds are degenerate (e.g. all at start line)
-                if (raceRunners.length > 0) {
-                    m.jumpTo({ center: [raceRunners[0].position.lon, raceRunners[0].position.lat] });
-                }
+            } else if (raceRunners.length > 0) {
+                // Fallback for single runner start
+                const r = raceRunners[0];
+                const nextLng = lerp(currentCenter.lng, r.position.lon, POS_SMOOTH);
+                const nextLat = lerp(currentCenter.lat, r.position.lat, POS_SMOOTH);
+                m.jumpTo({ center: [nextLng, nextLat] });
             }
 
         } else if (track) {
-            // Single Track Mode (Cinematic Replay) - Follows path direction
+            // --- SINGLE REPLAY MODE (Follow Path) ---
             let currentIndex = track.points.findIndex(p => p.cummulativeDistance >= progress);
             if (currentIndex === -1) currentIndex = track.points.length - 1;
             const currentPoint = track.points[currentIndex];
@@ -307,22 +315,29 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
             if (currentPoint) {
                 updateMarker('single-replay', currentPoint.lat, currentPoint.lon, track.color);
 
-                let lookAheadIndex = track.points.findIndex((p, i) => i > currentIndex && p.cummulativeDistance >= progress + 0.08);
+                // Lookahead: Look 150m ahead for smoother bearing (was 80m)
+                // This prevents the camera from jerking on small GPS zig-zags
+                let lookAheadIndex = track.points.findIndex((p, i) => i > currentIndex && p.cummulativeDistance >= progress + 0.15);
                 if (lookAheadIndex === -1) lookAheadIndex = track.points.length - 1;
                 const nextPoint = track.points[lookAheadIndex];
 
-                const cameraParams: any = {
-                    center: [currentPoint.lon, currentPoint.lat],
-                    pitch: 60,
-                    zoom: 16.5
-                };
-
+                // Calculate targets
+                let targetBearing = currentBearing;
                 if (nextPoint && nextPoint !== currentPoint) {
-                    cameraParams.bearing = getBearing(currentPoint.lat, currentPoint.lon, nextPoint.lat, nextPoint.lon);
+                    targetBearing = getBearing(currentPoint.lat, currentPoint.lon, nextPoint.lat, nextPoint.lon);
                 }
 
-                // Use jumpTo for smoothness
-                m.jumpTo(cameraParams);
+                // Smoothly Interpolate values
+                const nextLng = lerp(currentCenter.lng, currentPoint.lon, POS_SMOOTH);
+                const nextLat = lerp(currentCenter.lat, currentPoint.lat, POS_SMOOTH);
+                const nextBearing = lerpAngle(currentBearing, targetBearing, BEARING_SMOOTH);
+
+                m.jumpTo({
+                    center: [nextLng, nextLat],
+                    bearing: nextBearing,
+                    pitch: 60, // Keep consistent pitch for cinematic feel
+                    zoom: 16.5
+                });
             }
         }
 
