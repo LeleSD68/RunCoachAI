@@ -157,6 +157,13 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
       return null;
   }, [animationTrack, raceRunners, tracks]);
 
+  // Stable list of tracks for FlyoverMap to prevent re-initialization loop
+  const flyoverTracks = useMemo(() => {
+      const safeVisibleIds = visibleTrackIds instanceof Set ? visibleTrackIds : new Set();
+      const safeSelectedIds = selectedTrackIds instanceof Set ? selectedTrackIds : new Set();
+      return tracks.filter(t => safeVisibleIds.has(t.id) || safeSelectedIds.has(t.id));
+  }, [tracks, visibleTrackIds, selectedTrackIds]);
+
   const target3DProgress = useMemo(() => {
       if (animationTrack) return animationProgress;
       if (raceRunners && raceRunners.length > 0) {
@@ -618,7 +625,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
       {is3DMode && target3DTrack ? (
           <FlyoverMap 
               track={animationTrack} // Used for single track animation
-              tracks={tracks.filter(t => visibleTrackIds.has(t.id) || selectedTrackIds?.has(t.id))} // Pass relevant tracks
+              tracks={flyoverTracks} // Pass MEMOIZED relevant tracks
               raceRunners={raceRunners} // Pass race positions
               progress={target3DProgress} 
               isPlaying={!!isAnimationPlaying || (!!raceRunners && raceRunners.length > 0)} 
