@@ -86,7 +86,7 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
                 style: 'mapbox://styles/mapbox/satellite-streets-v12',
                 center: [startPoint.lon, startPoint.lat],
                 zoom: 17,
-                pitch: 70,
+                pitch: 60,
                 bearing: 0,
                 interactive: true,
                 attributionControl: false
@@ -258,38 +258,48 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
 
         // --- C. Handle Camera & Markers Logic ---
         if (raceRunners && raceRunners.length > 0) {
-            // Race Mode
+            // Race Mode: Update all markers
             raceRunners.forEach(runner => {
                 updateMarker(runner.trackId, runner.position.lat, runner.position.lon, runner.color);
             });
 
-            // Camera follows Leader (first in array usually sorted by rank, or just first)
-            // We assume raceRunners[0] is the one to follow or the "Leader"
-            const leader = raceRunners[0];
-            const leaderTrack = activeTracks.find(t => t.id === leader.trackId);
-            
-            if (leader && leaderTrack) {
-                const currentDist = leader.position.cummulativeDistance;
-                const lookAheadDist = currentDist + 0.08; // 80m ahead for smoother bearing
-                const nextPoint = leaderTrack.points.find(p => p.cummulativeDistance >= lookAheadDist);
+            // Camera Logic for Group
+            // 1. Calculate Bounding Box of all runners
+            const bounds = new mapboxgl.LngLatBounds();
+            raceRunners.forEach(r => bounds.extend([r.position.lon, r.position.lat]));
 
-                const cameraParams: any = {
-                    center: [leader.position.lon, leader.position.lat],
-                    pitch: 60,
-                    zoom: 17
-                };
+            // 2. Get current camera state (to allow user to rotate around the center)
+            const currentBearing = m.getBearing();
+            const currentPitch = m.getPitch();
 
-                if (nextPoint) {
-                    cameraParams.bearing = getBearing(leader.position.lat, leader.position.lon, nextPoint.lat, nextPoint.lon);
+            // 3. Compute camera target to fit the bounds
+            // We pass the *current* bearing/pitch so Mapbox calculates the center/zoom 
+            // needed to fit the runners while maintaining the user's viewpoint.
+            const camera = m.cameraForBounds(bounds, {
+                padding: { top: 100, bottom: 100, left: 100, right: 100 },
+                bearing: currentBearing,
+                pitch: currentPitch,
+                maxZoom: 17.5 // Cap zoom so we don't get too close when runners are bunched
+            });
+
+            if (camera) {
+                // Use jumpTo for smooth per-frame updates
+                // This keeps the center on the group but respects user rotation
+                m.jumpTo({
+                    center: camera.center,
+                    zoom: camera.zoom,
+                    bearing: currentBearing,
+                    pitch: currentPitch
+                });
+            } else {
+                // Fallback if bounds are degenerate (e.g. all at start line)
+                if (raceRunners.length > 0) {
+                    m.jumpTo({ center: [raceRunners[0].position.lon, raceRunners[0].position.lat] });
                 }
-
-                // CRITICAL: Use jumpTo for frame-by-frame updates to prevent stuttering
-                // caused by easing conflicts with the rapid React state updates.
-                m.jumpTo(cameraParams); 
             }
 
         } else if (track) {
-            // Single Track Mode
+            // Single Track Mode (Cinematic Replay) - Follows path direction
             let currentIndex = track.points.findIndex(p => p.cummulativeDistance >= progress);
             if (currentIndex === -1) currentIndex = track.points.length - 1;
             const currentPoint = track.points[currentIndex];
