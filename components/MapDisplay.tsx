@@ -6,6 +6,7 @@ import { getTrackPointAtDistance, getPointsInDistanceRange } from '../services/t
 import { getTrackSegmentColors, ColoredSegment, GradientMetric } from '../services/colorService';
 import AnimationControls from './AnimationControls';
 import Tooltip from './Tooltip';
+import FlyoverMap from './FlyoverMap';
 
 declare const L: any; 
 
@@ -19,6 +20,12 @@ const LayersIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
         <path fillRule="evenodd" d="M2.24 6.8a.75.75 0 0 0 1.06-.04l1.95-2.1 1.95 2.1a.75.75 0 1 0 1.1-1.02l-2.5-2.7a.75.75 0 0 0-1.1 0l-2.5 2.7a.75.75 0 0 0 .04 1.06Zm6.94 3.7a.75.75 0 0 0 1.06-.04l1.95-2.1 1.95 2.1a.75.75 0 1 0 1.1-1.02l-2.5-2.7a.75.75 0 0 0-1.1 0l-2.5 2.7a.75.75 0 0 0 .04 1.06Zm-6.94 3.7a.75.75 0 0 0 1.06-.04l1.95-2.1 1.95 2.1a.75.75 0 1 0 1.1-1.02l-2.5-2.7a.75.75 0 0 0-1.1 0l-2.5 2.7a.75.75 0 0 0 .04 1.06Z" clipRule="evenodd" />
         <path d="M12.25 5a.75.75 0 0 0 0 1.5h4.5a.75.75 0 0 0 0-1.5h-4.5Zm0 3.75a.75.75 0 0 0 0 1.5h4.5a.75.75 0 0 0 0-1.5h-4.5Zm0 3.75a.75.75 0 0 0 0 1.5h4.5a.75.75 0 0 0 0-1.5h-4.5Z" />
+    </svg>
+);
+
+const CubeIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+        <path fillRule="evenodd" d="M10 2l-6 3.5v7L10 16l6-3.5v-7L10 2zm0 12l-6-3.5 6-3.5 6 3.5-6 3.5z" clipRule="evenodd" />
     </svg>
 );
 
@@ -50,7 +57,7 @@ const StatsDisplay: React.FC<{ stats: AnimationStats, splits: Split[], currentDi
     const activeMetricsCount = 1 + (showTime ? 1 : 0) + (showPace ? 1 : 0) + (showElevation ? 1 : 0) + (showHr ? 1 : 0);
 
     return (
-        <div className="absolute top-0 left-0 right-0 sm:top-4 sm:left-auto sm:right-4 bg-slate-800/95 sm:bg-slate-800/90 backdrop-blur-md p-3 sm:p-4 rounded-b-xl sm:rounded-xl shadow-2xl text-white z-[1000] border-b sm:border border-slate-600 w-full sm:w-auto sm:max-w-lg transition-all duration-300">
+        <div className="absolute top-0 left-0 right-0 sm:top-4 sm:left-auto sm:right-4 bg-slate-800/95 sm:bg-slate-800/90 backdrop-blur-md p-3 sm:p-4 rounded-b-xl sm:rounded-xl shadow-2xl text-white z-[1000] border-b sm:border border-slate-600 w-full sm:w-auto sm:max-w-lg transition-all duration-300 animate-fade-in-down">
             <div className="grid gap-x-4 gap-y-2" style={{ gridTemplateColumns: `repeat(${activeMetricsCount}, minmax(0, 1fr))` }}>
                 <div>
                     <div className="text-[10px] sm:text-xs text-slate-400 uppercase font-bold">Distanza</div>
@@ -116,7 +123,6 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
   const mapRef = useRef<any>(null);
   const tileLayerRef = useRef<any>(null);
   
-  // Storage for Leaflet Layers
   const polylinesRef = useRef<Map<string, any>>(new Map());
   const raceFaintPolylinesRef = useRef<Map<string, any>>(new Map());
   const raceRunnerMarkersRef = useRef<Map<string, any>>(new Map());
@@ -137,8 +143,30 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
   const [showLayerMenu, setShowLayerMenu] = useState(false);
   const [visibleMetrics, setVisibleMetrics] = useState<Set<string>>(new Set(['time', 'pace', 'elevation', 'hr']));
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [is3DMode, setIs3DMode] = useState(false); 
 
   const passedKmsRef = useRef<Set<number>>(new Set());
+
+  // Derive target track for 3D view (Animation OR Race Leader)
+  const target3DTrack = useMemo(() => {
+      if (animationTrack) return animationTrack;
+      if (raceRunners && raceRunners.length > 0) {
+          // Find the track object corresponding to the first runner
+          return tracks.find(t => t.id === raceRunners[0].trackId) || null;
+      }
+      return null;
+  }, [animationTrack, raceRunners, tracks]);
+
+  const target3DProgress = useMemo(() => {
+      if (animationTrack) return animationProgress;
+      if (raceRunners && raceRunners.length > 0) {
+          return raceRunners[0].position.cummulativeDistance;
+      }
+      return 0;
+  }, [animationTrack, raceRunners, animationProgress]);
+
+  // Can we show 3D? Yes if we have a target track.
+  const canShow3D = !!target3DTrack;
 
   useEffect(() => {
       localStorage.setItem('gpx-map-theme', mapTheme);
@@ -281,13 +309,10 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
   }, [mapTheme]);
 
   // Main Track Rendering Effect (Create Layers)
-  // This ONLY runs when the track data structure changes or modes switch.
-  // It does NOT run on hover.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
-    // Clear everything if mode changes or tracks update significantly
     polylinesRef.current.forEach(layer => map.removeLayer(layer));
     polylinesRef.current.clear();
     raceFaintPolylinesRef.current.forEach(layer => map.removeLayer(layer));
@@ -295,9 +320,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
     
     if (!animationTrack) kmMarkersLayerGroupRef.current?.clearLayers();
 
-    // 1. Animation Mode
     if (animationTrack) {
-        // ... (Animation logic remains the same) ...
         const faintLayer = L.polyline(animationTrack.points.map(p => [p.lat, p.lon]), {
             color: animationTrack.color, weight: 3, opacity: 0.2, interactive: false
         }).addTo(map);
@@ -313,16 +336,13 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
             }).addTo(map);
             polylinesRef.current.set('progress', progressLayer);
         }
-        // ... (Animation Marker logic is handled in next effect or below) ...
     } 
-    // 2. Normal / Race Mode Layer Creation
     else {
         const safeVisibleIds = visibleTrackIds instanceof Set ? visibleTrackIds : new Set();
         
         tracks.forEach(track => {
             if (!safeVisibleIds.has(track.id)) return;
 
-            // RACE MODE LOGIC
             if (raceRunners && raceRunners.length > 0) {
                 const runner = raceRunners.find(r => r.trackId === track.id);
                 if (!runner) return;
@@ -341,11 +361,8 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
                     polylinesRef.current.set(track.id, passedLayer);
                 }
             } 
-            // NORMAL MODE LOGIC
             else {
                 let layer;
-                // If gradient metric is active, we create a feature group of segments
-                // Note: Gradient metric updates cause this effect to re-run because mapGradientMetric is in deps.
                 if (mapGradientMetric !== 'none') {
                     const coloredSegments = getTrackSegmentColors(track, mapGradientMetric as GradientMetric, track.color);
                     layer = L.featureGroup(coloredSegments.map(seg => 
@@ -354,21 +371,14 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
                         })
                     ));
                 } else {
-                    // Standard Polyline
                     layer = L.polyline(track.points.map(p => [p.lat, p.lon]), { 
                         color: track.color, weight: 4, opacity: 0.7, lineJoin: 'round',
                         bubblingMouseEvents: false 
                     });
                 }
                 
-                // Add Interactions
-                layer.on('mouseover', () => {
-                    // Important: Don't trigger if already hovered to avoid loops if logic was in render
-                    onTrackHover?.(track.id);
-                });
-                layer.on('mouseout', () => {
-                    onTrackHover?.(null);
-                });
+                layer.on('mouseover', () => onTrackHover?.(track.id));
+                layer.on('mouseout', () => onTrackHover?.(null));
                 
                 layer.on('click', (e: any) => { 
                     L.DomEvent.stopPropagation(e); 
@@ -386,8 +396,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
     }
   }, [tracks, visibleTrackIds, mapGradientMetric, raceRunners, animationTrack, animationProgress, showSummaryMode]);
 
-  // Separate Effect for HIGHLIGHTING (Style Updates)
-  // This runs when hoveredTrackId or selectedTrackIds change, WITHOUT destroying layers.
+  // Style Updates
   useEffect(() => {
       const map = mapRef.current;
       if (!map || animationTrack || (raceRunners && raceRunners.length > 0)) return;
@@ -410,13 +419,12 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
           if (isAnyHovered) {
               if (isHovered) {
                   opacity = 1.0;
-                  weight = 8; // Bold highlight
+                  weight = 8;
                   bringToFront = true;
               } else {
-                  // Decolor non-hovered tracks
                   opacity = 0.15;
                   weight = 2;
-                  color = '#334155'; // Grey/Slate
+                  color = '#334155';
               }
           } else if (isSelectionActive) {
               if (isSelected) {
@@ -429,26 +437,21 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
                   color = '#475569';
               }
           } else {
-              // Default state
               if (mapTheme === 'satellite') {
                   opacity = 0.9;
                   weight = 4;
               }
           }
 
-          // Apply styles
-          // If it's a FeatureGroup (gradient), we iterate layers
           if (layer instanceof L.FeatureGroup) {
               layer.eachLayer((l: any) => {
                   if (l.setStyle) {
-                      // Keep gradient color if highlighted, otherwise force grey
                       const segColor = (isAnyHovered && !isHovered) ? color : (l.options.originalColor || l.options.color);
                       l.setStyle({ opacity, weight, color: segColor });
-                      if (!l.options.originalColor) l.options.originalColor = l.options.color; // Hack to save gradient color
+                      if (!l.options.originalColor) l.options.originalColor = l.options.color;
                   }
               });
           } else {
-              // Standard Polyline
               if (layer.setStyle) {
                   layer.setStyle({ color, opacity, weight });
               }
@@ -462,9 +465,8 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
   }, [hoveredTrackId, selectedTrackIds, animationTrack, raceRunners, tracks, mapTheme]);
 
 
-  // Helper Effects for Markers/Overlays (Same as before)
+  // Helper Effects for Markers/Overlays
   useEffect(() => {
-    // ... (Race markers logic) ...
     const map = mapRef.current;
     if (!map) return;
     raceRunnerMarkersRef.current.forEach(m => map.removeLayer(m));
@@ -486,7 +488,6 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
 
   // Animation Marker & KM Markers
   useEffect(() => {
-      // ... Re-implement animation specific marker logic tied to animationProgress ...
       const map = mapRef.current;
       if (!map || !animationTrack) {
           if (animationMarkerRef.current) { map?.removeLayer(animationMarkerRef.current); animationMarkerRef.current = null; }
@@ -507,7 +508,6 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
           animationMarkerRef.current = L.marker([currentInterp.lat, currentInterp.lon], { icon, zIndexOffset: 2000 }).addTo(map);
       }
 
-      // KM Markers logic for animation
       const currentKm = Math.floor(animationProgress);
       if (currentKm >= 1 && !passedKmsRef.current.has(currentKm)) {
           passedKmsRef.current.add(currentKm);
@@ -589,63 +589,94 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
   useEffect(() => { if (isAutoFitEnabled && !raceRunners && !animationTrack) fitMapToBounds(); }, [isAutoFitEnabled, fitMapToBounds, raceRunners, animationTrack, visibleTrackIds, selectedTrackIds]);
   useEffect(() => { if (fitBoundsCounter > 0) fitMapToBounds(); }, [fitBoundsCounter, fitMapToBounds]);
 
-  // Standard Render (Controls)
   return (
     <div className="relative h-full w-full bg-slate-900 overflow-hidden">
-      <div ref={mapContainerRef} className="h-full w-full" style={{ minHeight: '100%' }} />
-       {!animationTrack && (
-            <div className="pointer-events-none absolute inset-0 z-[1000] p-4">
-                <div className="absolute top-4 left-4 flex flex-col gap-2 pointer-events-auto">
-                    <Tooltip text="Inquadra" subtext="Adatta vista al percorso" position="right">
-                        <button onClick={() => { setIsAutoFitEnabled(true); fitMapToBounds(); }} className={`p-3 rounded-lg shadow-xl transition-all border border-slate-700 active:scale-95 ${isAutoFitEnabled ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-300'}`}><FitBoundsIcon /></button>
-                    </Tooltip>
-                    
-                    <div className="relative group">
-                        <Tooltip text="Stile Mappa" subtext="Cambia sfondo" position="right">
-                            <button onClick={() => setShowLayerMenu(!showLayerMenu)} className="p-3 rounded-lg shadow-xl bg-slate-800 text-slate-300 hover:text-white border border-slate-700 active:scale-95">
-                                <LayersIcon />
-                            </button>
+      {/* 3D Map Rendering */}
+      {is3DMode && target3DTrack ? (
+          <FlyoverMap 
+              track={target3DTrack} 
+              progress={target3DProgress} 
+              isPlaying={!!isAnimationPlaying || (!!raceRunners && raceRunners.length > 0)} 
+          />
+      ) : (
+          <div ref={mapContainerRef} className="h-full w-full" style={{ minHeight: '100%' }} />
+      )}
+
+       {/* Controls Overlay */}
+       <div className="pointer-events-none absolute inset-0 z-[1000] p-4">
+            <div className="absolute top-4 left-4 flex flex-col gap-2 pointer-events-auto">
+                {/* Standard 2D Controls - Hide in 3D Mode */}
+                {!is3DMode && !animationTrack && (
+                    <>
+                        <Tooltip text="Inquadra" subtext="Adatta vista al percorso" position="right">
+                            <button onClick={() => { setIsAutoFitEnabled(true); fitMapToBounds(); }} className={`p-3 rounded-lg shadow-xl transition-all border border-slate-700 active:scale-95 ${isAutoFitEnabled ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-300'}`}><FitBoundsIcon /></button>
                         </Tooltip>
                         
-                        {showLayerMenu && (
-                            <>
-                                <div className="fixed inset-0 z-10" onClick={() => setShowLayerMenu(false)}></div>
-                                <div className="absolute top-0 left-full ml-2 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl p-2 z-20 flex flex-col gap-1 w-32 animate-fade-in-down">
-                                    {[
-                                        { id: 'midnight', label: 'Midnight' },
-                                        { id: 'silver', label: 'Silver' },
-                                        { id: 'dark', label: 'Classic Dark' },
-                                        { id: 'light', label: 'Classic Light' },
-                                        { id: 'satellite', label: 'Satellite' }
-                                    ].map(theme => (
-                                        <button 
-                                            key={theme.id}
-                                            onClick={() => { setMapTheme(theme.id as any); setShowLayerMenu(false); }}
-                                            className={`px-3 py-2 text-left text-xs font-bold rounded-lg transition-colors ${mapTheme === theme.id ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:bg-slate-700 hover:text-white'}`}
-                                        >
-                                            {theme.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            </>
-                        )}
-                    </div>
+                        <div className="relative group">
+                            <Tooltip text="Stile Mappa" subtext="Cambia sfondo" position="right">
+                                <button onClick={() => setShowLayerMenu(!showLayerMenu)} className="p-3 rounded-lg shadow-xl bg-slate-800 text-slate-300 hover:text-white border border-slate-700 active:scale-95">
+                                    <LayersIcon />
+                                </button>
+                            </Tooltip>
+                            
+                            {showLayerMenu && (
+                                <>
+                                    <div className="fixed inset-0 z-10" onClick={() => setShowLayerMenu(false)}></div>
+                                    <div className="absolute top-0 left-full ml-2 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl p-2 z-20 flex flex-col gap-1 w-32 animate-fade-in-down">
+                                        {[
+                                            { id: 'midnight', label: 'Midnight' },
+                                            { id: 'silver', label: 'Silver' },
+                                            { id: 'dark', label: 'Classic Dark' },
+                                            { id: 'light', label: 'Classic Light' },
+                                            { id: 'satellite', label: 'Satellite' }
+                                        ].map(theme => (
+                                            <button 
+                                                key={theme.id}
+                                                onClick={() => { setMapTheme(theme.id as any); setShowLayerMenu(false); }}
+                                                className={`px-3 py-2 text-left text-xs font-bold rounded-lg transition-colors ${mapTheme === theme.id ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:bg-slate-700 hover:text-white'}`}
+                                            >
+                                                {theme.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
+                        </div>
 
-                    <div className="h-2"></div>
+                        <div className="h-2"></div>
 
-                    <div className="flex flex-col bg-slate-800/90 backdrop-blur-md rounded-lg border border-slate-700 shadow-xl overflow-hidden">
-                        <button onClick={() => mapRef.current?.zoomIn()} className="p-3 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors border-b border-slate-700 active:bg-slate-600"><ZoomInIcon /></button>
-                        <button onClick={() => mapRef.current?.zoomOut()} className="p-3 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors active:bg-slate-600"><ZoomOutIcon /></button>
-                    </div>
-                </div>
+                        <div className="flex flex-col bg-slate-800/90 backdrop-blur-md rounded-lg border border-slate-700 shadow-xl overflow-hidden">
+                            <button onClick={() => mapRef.current?.zoomIn()} className="p-3 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors border-b border-slate-700 active:bg-slate-600"><ZoomInIcon /></button>
+                            <button onClick={() => mapRef.current?.zoomOut()} className="p-3 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors active:bg-slate-600"><ZoomOutIcon /></button>
+                        </div>
+                    </>
+                )}
+
+                {/* 3D Toggle Button - Visible if target track available (Animation or Race) */}
+                {canShow3D && (
+                   <Tooltip text={is3DMode ? "Vista 2D" : "Flyover 3D"} subtext="Cambia prospettiva" position="right">
+                       <button 
+                           onClick={() => setIs3DMode(!is3DMode)} 
+                           className={`p-3 rounded-lg shadow-xl transition-all border border-slate-700 active:scale-95 flex items-center justify-center gap-2 ${is3DMode ? 'bg-purple-600 text-white shadow-purple-500/30' : 'bg-slate-800 text-slate-300 hover:text-white'}`}
+                       >
+                           <CubeIcon />
+                           <span className="font-bold text-xs">{is3DMode ? '2D' : '3D'}</span>
+                       </button>
+                   </Tooltip>
+                )}
             </div>
-       )}
-        {animationTrack && !showSummaryMode && (
+       </div>
+
+        {animationTrack && !showSummaryMode && !is3DMode && (
             <>
                 <StatsDisplay stats={animationStats} splits={animationTrackStats?.splits || []} currentDistance={animationProgress} visibleMetrics={visibleMetrics} />
-                <AnimationControls isPlaying={isAnimationPlaying!} onTogglePlay={onToggleAnimationPlay!} progress={animationProgress} totalDistance={animationTrack.distance} onProgressChange={onAnimationProgressChange!} speed={animationSpeed!} onSpeedChange={onAnimationSpeedChange!} onExit={onExitAnimation!} visibleMetrics={visibleMetrics} onToggleMetric={handleToggleMetric} />
             </>
         )}
+        
+        {animationTrack && !showSummaryMode && (
+             <AnimationControls isPlaying={isAnimationPlaying!} onTogglePlay={onToggleAnimationPlay!} progress={animationProgress} totalDistance={animationTrack.distance} onProgressChange={onAnimationProgressChange!} speed={animationSpeed!} onSpeedChange={onAnimationSpeedChange!} onExit={onExitAnimation!} visibleMetrics={visibleMetrics} onToggleMetric={handleToggleMetric} />
+        )}
+
       <style>{`
         .km-marker { background: rgba(30, 41, 59, 0.9); color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; border: 1px solid #475569; pointer-events: none; }
         .race-cursor-icon { display: flex; align-items: center; justify-content: center; }

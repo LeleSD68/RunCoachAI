@@ -12,7 +12,8 @@
     "react-dom": "^19.2.3",
     "react": "^19.2.0",
     "@google/genai": "^1.29.0",
-    "@supabase/supabase-js": "^2.91.1"
+    "@supabase/supabase-js": "^2.91.1",
+    "mapbox-gl": "^3.18.1"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

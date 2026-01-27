@@ -12,7 +12,7 @@ import HeartRateZonePanel from './HeartRateZonePanel';
 import PersonalRecordsPanel from './PersonalRecordsPanel';
 import RatingStars from './RatingStars';
 import { calculateTrackStats, estimateTrackRPE } from '../services/trackStatsService';
-import { getPointsInDistanceRange } from '../services/trackEditorUtils';
+import { getPointsInDistanceRange, getTrackStateAtTime, getTrackPointAtDistance } from '../services/trackEditorUtils';
 import { smoothTrackPoints, calculateSmoothedMetrics, calculateRunningPower } from '../services/dataProcessingService';
 
 interface TrackDetailViewProps {
@@ -179,19 +179,28 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
     const statsContainerRef = useRef<HTMLDivElement>(null);
     const prevTrackIdRef = useRef<string>(track.id);
 
+    // Animation State (Local)
+    const [isAnimating, setIsAnimating] = useState(false);
+    const [animationProgress, setAnimationProgress] = useState(0); // in km
+    const [animationSpeed, setAnimationSpeed] = useState(20);
+    const [animationTime, setAnimationTime] = useState(0); // track time in ms
+    const animationFrameRef = useRef<number | null>(null);
+    const lastFrameTimeRef = useRef<number>(0);
+
     // Track ID tracking to handle scroll reset correctly
     useEffect(() => {
         if (track.id !== prevTrackIdRef.current) {
-            // Only reset these when the TRACK changes, not when metadata (like RPE) updates on the same track
             if (statsContainerRef.current) {
                 statsContainerRef.current.scrollTop = 0;
             }
             setChartSelection(null);
             setSelectedSegment(null);
             setNotes(track.notes || '');
+            setIsAnimating(false);
+            setAnimationProgress(0);
+            setAnimationTime(0);
             prevTrackIdRef.current = track.id;
         }
-        // Ensure RPE is always synced from props, even if track ID didn't change
         setRpe(track.rpe || 5);
     }, [track]);
 
@@ -206,6 +215,56 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
     }, [track, smoothingWindow, userProfile.weight]);
 
     const stats = useMemo(() => calculateTrackStats(displayTrack, 0), [displayTrack]); 
+
+    // Animation Loop
+    useEffect(() => {
+        if (isAnimating) {
+            lastFrameTimeRef.current = performance.now();
+            
+            const animate = (time: number) => {
+                const delta = time - lastFrameTimeRef.current;
+                lastFrameTimeRef.current = time;
+                
+                setAnimationTime(prevTime => {
+                    const nextTime = prevTime + delta * animationSpeed;
+                    
+                    // Convert Time to Distance for MapDisplay
+                    const state = getTrackStateAtTime(displayTrack, nextTime);
+                    
+                    if (!state || nextTime >= displayTrack.duration) {
+                        setIsAnimating(false);
+                        return displayTrack.duration; // Cap at end
+                    }
+                    
+                    setAnimationProgress(state.point.cummulativeDistance);
+                    return nextTime;
+                });
+                
+                animationFrameRef.current = requestAnimationFrame(animate);
+            };
+            
+            animationFrameRef.current = requestAnimationFrame(animate);
+        } else {
+            if (animationFrameRef.current) {
+                cancelAnimationFrame(animationFrameRef.current);
+                animationFrameRef.current = null;
+            }
+        }
+        return () => {
+            if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+        };
+    }, [isAnimating, animationSpeed, displayTrack]);
+
+    // Handle manual scrubbing of animation slider
+    const handleAnimationProgressChange = (newProgress: number) => {
+        setAnimationProgress(newProgress);
+        // Sync time to the dragged distance
+        const point = getTrackPointAtDistance(displayTrack, newProgress);
+        if (point) {
+            const startTime = displayTrack.points[0].time.getTime();
+            setAnimationTime(point.time.getTime() - startTime);
+        }
+    };
 
     const hasHrData = useMemo(() => track.points.some(p => p.hr !== undefined && p.hr > 0), [track]);
     const estimatedRpe = useMemo(() => estimateTrackRPE(stats, userProfile), [stats, userProfile]);
@@ -533,8 +592,14 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
                 coloredPauseSegments={showPauses ? stats.pauses : undefined}
                 selectionPoints={selectionPoints}
                 mapGradientMetric={mapGradientMetric}
-                animationTrack={null}
-                animationProgress={0}
+                animationTrack={isAnimating ? displayTrack : null} // Use local state for animation
+                animationProgress={animationProgress}
+                isAnimationPlaying={isAnimating}
+                onToggleAnimationPlay={() => setIsAnimating(!isAnimating)}
+                onAnimationProgressChange={handleAnimationProgressChange}
+                animationSpeed={animationSpeed}
+                onAnimationSpeedChange={setAnimationSpeed}
+                onExitAnimation={() => { setIsAnimating(false); setAnimationProgress(0); setAnimationTime(0); }}
                 aiSegmentHighlight={selectedSegment && 'type' in selectedSegment && selectedSegment.type === 'ai' ? selectedSegment : null}
             />
         </div>
@@ -563,14 +628,12 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
                     </div>
                 </div>
                 <div className="flex items-center gap-1.5 sm:gap-3">
-                    {onStartAnimation && (
-                        <button 
-                            onClick={() => onStartAnimation(track.id)}
-                            className="bg-cyan-600 hover:bg-cyan-500 border border-cyan-400 text-white font-black py-1.5 px-3 sm:py-2 sm:px-5 rounded-lg transition-all shadow-md flex items-center gap-1 text-[10px] sm:text-sm whitespace-nowrap active:scale-95"
-                        >
-                            <ReplayIcon /> REPLAY
-                        </button>
-                    )}
+                    <button 
+                        onClick={() => { setIsAnimating(true); setAnimationProgress(0); setAnimationTime(0); }}
+                        className="bg-cyan-600 hover:bg-cyan-500 border border-cyan-400 text-white font-black py-1.5 px-3 sm:py-2 sm:px-5 rounded-lg transition-all shadow-md flex items-center gap-1 text-[10px] sm:text-sm whitespace-nowrap active:scale-95"
+                    >
+                        <ReplayIcon /> REPLAY
+                    </button>
                 </div>
             </header>
 

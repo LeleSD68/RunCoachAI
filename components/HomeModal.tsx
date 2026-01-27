@@ -37,11 +37,11 @@ const HomeModal: React.FC<HomeModalProps> = ({
     onUploadTracks, onClose, trackCount, plannedWorkouts = [], onOpenWorkout, 
     onOpenProfile, onOpenChangelog, onUploadOpponent, onEnterRaceMode, onManualCloudSave, onCheckAiAccess
 }) => {
-    // ... (rest of the component remains unchanged)
     const backupInputRef = useRef<HTMLInputElement>(null);
     const trackInputRef = useRef<HTMLInputElement>(null);
     const opponentInputRef = useRef<HTMLInputElement>(null);
     const [menuStep, setMenuStep] = useState<'main' | 'analyze' | 'plan' | 'race'>('main');
+    const [showDataMenu, setShowDataMenu] = useState(false);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -220,13 +220,41 @@ const HomeModal: React.FC<HomeModalProps> = ({
                         {onManualCloudSave && (
                             <button onClick={onManualCloudSave} className="hover:text-green-400 transition-colors flex items-center gap-1" title="Sincronizza Cloud"><CloudUpIcon /> Cloud</button>
                         )}
-                        <div className="relative group">
-                            <button className="hover:text-white transition-colors">Dati</button>
-                            <div className="absolute bottom-full right-0 mb-2 w-32 bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden hidden group-hover:block animate-fade-in">
-                                <button onClick={() => backupInputRef.current?.click()} className="block w-full text-left px-4 py-2 hover:bg-slate-700 text-slate-300">Importa</button>
-                                <button onClick={onExportBackup} className="block w-full text-left px-4 py-2 hover:bg-slate-700 text-slate-300">Backup</button>
-                                <input type="file" ref={backupInputRef} accept="application/json,.json" className="hidden" onChange={handleFileChange} />
-                            </div>
+                        
+                        <div className="relative">
+                            <button 
+                                onClick={() => setShowDataMenu(!showDataMenu)} 
+                                className={`transition-colors flex items-center gap-1 ${showDataMenu ? 'text-white' : 'hover:text-white'}`}
+                            >
+                                Dati
+                            </button>
+                            
+                            {showDataMenu && (
+                                <>
+                                    <div className="fixed inset-0 z-0 cursor-default" onClick={() => setShowDataMenu(false)}></div>
+                                    <div className="absolute bottom-full right-0 mb-2 w-32 bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden z-10 animate-fade-in">
+                                        <button 
+                                            onClick={() => { 
+                                                backupInputRef.current?.click(); 
+                                                setShowDataMenu(false); 
+                                            }} 
+                                            className="block w-full text-left px-4 py-3 hover:bg-slate-700 text-slate-300 transition-colors border-b border-slate-700/50"
+                                        >
+                                            Importa
+                                        </button>
+                                        <button 
+                                            onClick={() => { 
+                                                onExportBackup(); 
+                                                setShowDataMenu(false); 
+                                            }} 
+                                            className="block w-full text-left px-4 py-3 hover:bg-slate-700 text-slate-300 transition-colors"
+                                        >
+                                            Backup
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                            <input type="file" ref={backupInputRef} accept="application/json,.json" className="hidden" onChange={handleFileChange} />
                         </div>
                     </div>
                 </footer>
