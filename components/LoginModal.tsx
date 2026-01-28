@@ -208,15 +208,15 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
                     {limitReached ? (
                         <div className="bg-gradient-to-r from-purple-900/40 to-cyan-900/40 border border-purple-500/50 rounded-xl p-4 my-4 text-left">
                             <p className="text-sm font-bold text-white mb-2 flex items-center gap-2">
-                                <span className="text-xl">🚀</span> Limite AI Ospite Raggiunto
+                                <span className="text-xl">🚀</span> Funzionalità Premium
                             </p>
                             <p className="text-xs text-slate-300 mb-3">
-                                Hai usato i tuoi 3 crediti AI gratuiti. Registrati ora (è gratis!) per sbloccare il potenziale completo:
+                                Hai raggiunto i limiti della modalità Ospite (10s Replay/Gara o Crediti AI esauriti). Registrati gratis per sbloccare tutto:
                             </p>
                             <ul className="text-[11px] text-cyan-100 space-y-1 list-disc list-inside">
                                 <li>✨ <strong>Analisi AI Illimitate</strong></li>
+                                <li>🏁 <strong>Replay & Gare senza limiti</strong></li>
                                 <li>☁️ <strong>Salvataggio Cloud Sicuro</strong></li>
-                                <li>🧠 <strong>Storico Coach AI Permanente</strong></li>
                                 <li>📱 <strong>Accesso Multi-dispositivo</strong></li>
                             </ul>
                         </div>
