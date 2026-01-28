@@ -180,18 +180,20 @@ const SelectionStatsOverlay: React.FC<{ data: ExtendedStats, onClose: () => void
 };
 
 const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, onExit, allHistory = [], plannedWorkouts = [], onUpdateTrackMetadata, onAddPlannedWorkout, onStartAnimation, onOpenReview, autoOpenAi = false, onCheckAiAccess, isGuest = false, onLimitReached }) => {
-    const isMobile = useIsMobile();
-    
-    // Safety check: ensure track exists
+    // CRITICAL FIX: Ensure track is defined before any hooks or logic run to prevent "Cannot read properties of undefined"
     if (!track) return null;
 
+    const isMobile = useIsMobile();
     const [yAxisMetrics, setYAxisMetrics] = useState<YAxisMetric[]>(['pace']);
     const [hoveredPoint, setHoveredPoint] = useState<TrackPoint | null>(null);
     const [showPauses, setShowPauses] = useState(false);
     const [selectedSegment, setSelectedSegment] = useState<Split | PauseSegment | AiSegment | null>(null);
     const [chartSelection, setChartSelection] = useState<{ startDistance: number; endDistance: number } | null>(null);
     const [mapGradientMetric, setMapGradientMetric] = useState<'none' | 'elevation' | 'pace' | 'speed' | 'hr' | 'hr_zones' | 'power'>('none');
+    
+    // Safe access to rpe with fallback (though guard clause above handles null track)
     const [rpe, setRpe] = useState(track.rpe || 5);
+    
     const [smoothingWindow, setSmoothingWindow] = useState(30);
     const prevTrackIdRef = useRef<string>(track.id);
     const [fitBoundsTrigger, setFitBoundsTrigger] = useState(0);
