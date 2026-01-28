@@ -11,20 +11,8 @@ interface FlyoverMapProps {
     raceRunners?: RaceRunner[] | null; // Live positions of all runners
     progress: number; // Current distance in km of primary track
     isPlaying: boolean;
+    pace?: number; // Added pace prop for single track animation
 }
-
-// Helpers for smoothing
-const lerp = (start: number, end: number, factor: number) => {
-    return start + (end - start) * factor;
-};
-
-// Handles angle wrapping (e.g. 350 -> 10 degrees)
-const lerpAngle = (start: number, end: number, factor: number) => {
-    let diff = end - start;
-    while (diff < -180) diff += 360;
-    while (diff > 180) diff -= 360;
-    return start + diff * factor;
-};
 
 // Helper to calculate bearing between two coordinates
 const getBearing = (startLat: number, startLng: number, destLat: number, destLng: number) => {
@@ -40,12 +28,19 @@ const getBearing = (startLat: number, startLng: number, destLat: number, destLng
     return ((brng * 180) / Math.PI + 360) % 360;
 };
 
-const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners, progress, isPlaying }) => {
+const formatPace = (pace: number) => {
+    if (!isFinite(pace) || pace <= 0) return '--:--';
+    const minutes = Math.floor(pace);
+    const seconds = Math.round((pace - minutes) * 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+};
+
+const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners, progress, isPlaying, pace = 0 }) => {
     const mapContainer = useRef<HTMLDivElement>(null);
     const map = useRef<any>(null);
     const markersRef = useRef<Map<string, any>>(new Map());
+    const labelElementsRef = useRef<Map<string, { nameEl: HTMLElement, paceEl: HTMLElement }>>(new Map());
     const sourcesInitializedRef = useRef<Set<string>>(new Set());
-    const [userInteracting, setUserInteracting] = useState(false);
     
     // Sanitize token on initial load
     const getStoredToken = () => {
@@ -74,6 +69,7 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
         setToken('');
     };
 
+    // Determine active tracks (Racing or Single Animation)
     const activeTracks = React.useMemo(() => {
         if (raceRunners && raceRunners.length > 0) {
             const runnerIds = new Set(raceRunners.map(r => r.trackId));
@@ -96,23 +92,14 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
                 container: mapContainer.current,
                 style: 'mapbox://styles/mapbox/satellite-streets-v12',
                 center: [startPoint.lon, startPoint.lat],
-                zoom: 16, // Start slightly further out
-                pitch: 55,
+                zoom: 17,
+                pitch: 70,
                 bearing: 0,
                 interactive: true,
                 attributionControl: false
             });
 
             m.addControl(new mapboxgl.AttributionControl({ compact: true }));
-
-            // Add interaction listeners to detect when user is manually moving the map
-            m.on('mousedown', () => setUserInteracting(true));
-            m.on('touchstart', () => setUserInteracting(true));
-            m.on('mouseup', () => setUserInteracting(false));
-            m.on('touchend', () => setUserInteracting(false));
-            m.on('dragend', () => setUserInteracting(false));
-            // Also stop interacting on zoom end to allow smooth resume, but keep user zoom
-            m.on('zoomend', () => setUserInteracting(false));
 
             m.on('load', () => {
                 m.addSource('mapbox-dem', {
@@ -121,8 +108,7 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
                     'tileSize': 512,
                     'maxzoom': 14
                 });
-                // Slightly reduced exaggeration for performance and realism
-                m.setTerrain({ 'source': 'mapbox-dem', 'exaggeration': 1.2 });
+                m.setTerrain({ 'source': 'mapbox-dem', 'exaggeration': 1.5 });
 
                 m.addLayer({
                     'id': 'sky',
@@ -146,12 +132,13 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
             map.current?.remove();
             map.current = null;
             markersRef.current.clear();
+            labelElementsRef.current.clear();
             sourcesInitializedRef.current.clear();
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isTokenValid]); 
 
-    // 2. Setup Sources & Layers for Active Tracks (Re-runs when tracks change)
+    // 2. Setup Sources & Layers for Active Tracks
     useEffect(() => {
         const m = map.current;
         if (!m) return;
@@ -167,11 +154,12 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
                             'properties': {},
                             'geometry': {
                                 'type': 'LineString',
-                                'coordinates': [] 
+                                'coordinates': [] // Start empty, filled by animation loop
                             }
                         }
                     });
 
+                    // Glow
                     m.addLayer({
                         'id': `${sourceId}-glow`,
                         'type': 'line',
@@ -185,6 +173,7 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
                         }
                     });
 
+                    // Core
                     m.addLayer({
                         'id': `${sourceId}-core`,
                         'type': 'line',
@@ -209,31 +198,26 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
         }
     }, [activeTracks]);
 
-    // 3. Animation Loop: Update Geometry, Markers & Camera
+    // 3. Animation Loop: Update Geometry (Progressive), Markers & Camera
     useEffect(() => {
         if (!map.current || !map.current.isStyleLoaded()) return;
         const m = map.current;
 
         // --- A. Update Geometries (Progressive Trail) ---
-        // This ensures the trail is drawn even if paused
         activeTracks.forEach(t => {
             const sourceId = `route-${t.id}`;
             const source = m.getSource(sourceId);
             if (!source) return;
 
             let currentDist = 0;
-            if (raceRunners && raceRunners.length > 0) {
+            if (raceRunners) {
                 const runner = raceRunners.find(r => r.trackId === t.id);
                 currentDist = runner ? runner.position.cummulativeDistance : 0;
             } else {
                 currentDist = progress;
             }
 
-            // Ensure we always have at least one point to avoid "disappearing"
             const visiblePoints = t.points.filter(p => p.cummulativeDistance <= currentDist);
-            if (visiblePoints.length === 0 && t.points.length > 0) {
-                visiblePoints.push(t.points[0]);
-            }
             
             if (visiblePoints.length > 0) {
                 source.setData({
@@ -247,133 +231,138 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
             }
         });
 
-        // --- B. Update Markers ---
-        const updateMarker = (id: string, lat: number, lon: number, color: string) => {
+        // --- B. Update Markers with Labels ---
+        const updateMarker = (id: string, lat: number, lon: number, color: string, name: string, currentPace: number) => {
             let marker = markersRef.current.get(id);
-            if (!marker) {
-                const el = document.createElement('div');
-                el.className = 'flyover-marker';
-                el.style.width = '24px';
-                el.style.height = '24px';
-                el.style.backgroundColor = color;
-                el.style.borderRadius = '50%';
-                el.style.boxShadow = `0 0 15px 4px ${color}, inset 0 0 8px white`;
-                el.style.border = '3px solid white';
-                el.style.zIndex = '10';
+            const paceStr = formatPace(currentPace);
+            const textColor = color.toLowerCase() === '#ffffff' || color.toLowerCase() === '#fff' ? '#0f172a' : '#ffffff';
 
-                marker = new mapboxgl.Marker(el)
+            if (!marker) {
+                const container = document.createElement('div');
+                container.className = 'flyover-marker-container';
+                container.style.display = 'flex';
+                container.style.flexDirection = 'column';
+                container.style.alignItems = 'center';
+                container.style.zIndex = '50';
+
+                // Label Box
+                const labelBox = document.createElement('div');
+                labelBox.style.backgroundColor = color;
+                labelBox.style.color = textColor;
+                labelBox.style.padding = '4px 8px';
+                labelBox.style.borderRadius = '6px';
+                labelBox.style.boxShadow = '0 4px 10px rgba(0,0,0,0.5)';
+                labelBox.style.border = '1px solid rgba(255,255,255,0.4)';
+                labelBox.style.textAlign = 'center';
+                labelBox.style.whiteSpace = 'nowrap';
+                labelBox.style.marginBottom = '6px';
+                labelBox.style.display = 'flex';
+                labelBox.style.flexDirection = 'column';
+                labelBox.style.alignItems = 'center';
+                labelBox.style.gap = '0px';
+
+                const nameSpan = document.createElement('span');
+                nameSpan.innerText = name;
+                nameSpan.style.fontWeight = '900';
+                nameSpan.style.fontSize = '10px';
+                nameSpan.style.display = 'block';
+                nameSpan.style.lineHeight = '1.1';
+                nameSpan.style.maxWidth = '100px';
+                nameSpan.style.overflow = 'hidden';
+                nameSpan.style.textOverflow = 'ellipsis';
+
+                const paceSpan = document.createElement('span');
+                paceSpan.innerText = paceStr;
+                paceSpan.style.fontFamily = 'monospace';
+                paceSpan.style.fontSize = '11px';
+                paceSpan.style.fontWeight = 'bold';
+                paceSpan.style.lineHeight = '1.1';
+
+                labelBox.appendChild(nameSpan);
+                labelBox.appendChild(paceSpan);
+
+                // Dot
+                const dot = document.createElement('div');
+                dot.style.width = '20px';
+                dot.style.height = '20px';
+                dot.style.backgroundColor = color;
+                dot.style.borderRadius = '50%';
+                dot.style.boxShadow = `0 0 15px 4px ${color}, inset 0 0 8px white`;
+                dot.style.border = '3px solid white';
+
+                container.appendChild(labelBox);
+                container.appendChild(dot);
+
+                marker = new mapboxgl.Marker({ element: container, anchor: 'bottom' })
                     .setLngLat([lon, lat])
                     .addTo(m);
+                
                 markersRef.current.set(id, marker);
+                labelElementsRef.current.set(id, { nameEl: nameSpan, paceEl: paceSpan });
             } else {
                 marker.setLngLat([lon, lat]);
+                const els = labelElementsRef.current.get(id);
+                if (els) {
+                    if (els.paceEl.innerText !== paceStr) els.paceEl.innerText = paceStr;
+                }
             }
         };
 
-        // --- C. Cinematic Camera Logic (Smoothed) ---
-        
-        // Use slower smoothing for better feel, less jerky
-        const POS_SMOOTH = 0.08; 
-        const BEARING_SMOOTH = 0.04;
-        
-        // READ CURRENT STATE to allow manual Zoom/Pitch overrides
-        const currentCenter = m.getCenter();
-        const currentBearing = m.getBearing();
-        const currentZoom = m.getZoom();
-        const currentPitch = m.getPitch();
-
+        // --- C. Handle Camera & Markers Logic ---
         if (raceRunners && raceRunners.length > 0) {
-            // --- RACE MODE (Group) ---
+            // Race Mode
             raceRunners.forEach(runner => {
-                updateMarker(runner.trackId, runner.position.lat, runner.position.lon, runner.color);
+                updateMarker(runner.trackId, runner.position.lat, runner.position.lon, runner.color, runner.name, runner.pace);
             });
 
-            if (!userInteracting) {
-                const bounds = new mapboxgl.LngLatBounds();
-                raceRunners.forEach(r => bounds.extend([r.position.lon, r.position.lat]));
+            // Camera follows Leader
+            const leader = raceRunners[0];
+            const leaderTrack = activeTracks.find(t => t.id === leader.trackId);
+            
+            if (leader && leaderTrack) {
+                const currentDist = leader.position.cummulativeDistance;
+                const lookAheadDist = currentDist + 0.08; 
+                const nextPoint = leaderTrack.points.find(p => p.cummulativeDistance >= lookAheadDist);
 
-                // 1. Calculate ideal camera to fit everyone loosely (Higher padding = Further away)
-                const targetCamera = m.cameraForBounds(bounds, {
-                    padding: { top: 200, bottom: 200, left: 200, right: 200 }, // Increased padding to keep runners centered but not edge-to-edge
-                    bearing: currentBearing, // Respect user bearing
-                    pitch: currentPitch, // Respect user pitch
-                    maxZoom: 16.5 // Hard limit to prevent "nose to ground" at start
-                });
+                const cameraParams: any = {
+                    center: [leader.position.lon, leader.position.lat],
+                    pitch: 60,
+                    zoom: 17
+                };
 
-                if (targetCamera) {
-                    const nextLng = lerp(currentCenter.lng, targetCamera.center.lng, POS_SMOOTH);
-                    const nextLat = lerp(currentCenter.lat, targetCamera.center.lat, POS_SMOOTH);
-                    
-                    // 2. Smart Zoom Logic (The "Ratchet" Effect)
-                    // If the calculated zoom (needed to fit everyone) is LESS than current zoom (meaning we need to zoom out),
-                    // we must zoom out to keep everyone in frame.
-                    // If calculated zoom is HIGHER than current zoom (meaning we could zoom in closer),
-                    // we IGNORE it and keep the user's current zoom (respecting their "height").
-                    // This allows user to zoom out and stay out, but auto-zooms out if runners spread too much.
-                    let nextZoom = currentZoom;
-                    if (targetCamera.zoom < currentZoom) {
-                        nextZoom = lerp(currentZoom, targetCamera.zoom, 0.05); // Smoothly pull back
-                    } 
-                    // Else: keep currentZoom (don't auto zoom in)
-
-                    m.jumpTo({
-                        center: [nextLng, nextLat],
-                        zoom: nextZoom,
-                        bearing: currentBearing,
-                        pitch: currentPitch
-                    });
-                } else if (raceRunners.length > 0) {
-                    // Fallback for single/initial point
-                    const r = raceRunners[0];
-                    const nextLng = lerp(currentCenter.lng, r.position.lon, POS_SMOOTH);
-                    const nextLat = lerp(currentCenter.lat, r.position.lat, POS_SMOOTH);
-                    m.jumpTo({ 
-                        center: [nextLng, nextLat],
-                        zoom: currentZoom, // Maintain user zoom
-                        bearing: currentBearing,
-                        pitch: currentPitch
-                    });
+                if (nextPoint) {
+                    cameraParams.bearing = getBearing(leader.position.lat, leader.position.lon, nextPoint.lat, nextPoint.lon);
                 }
+                m.jumpTo(cameraParams); 
             }
 
         } else if (track) {
-            // --- SINGLE REPLAY MODE (Follow Path) ---
+            // Single Track Mode
             let currentIndex = track.points.findIndex(p => p.cummulativeDistance >= progress);
             if (currentIndex === -1) currentIndex = track.points.length - 1;
             const currentPoint = track.points[currentIndex];
 
             if (currentPoint) {
-                updateMarker('single-replay', currentPoint.lat, currentPoint.lon, track.color);
+                updateMarker('single-replay', currentPoint.lat, currentPoint.lon, track.color, track.name || 'Runner', pace);
 
-                // Skip camera update if user is interacting to allow free look
-                if (!userInteracting) {
-                    // Lookahead logic
-                    let lookAheadIndex = track.points.findIndex((p, i) => i > currentIndex && p.cummulativeDistance >= progress + 0.15);
-                    if (lookAheadIndex === -1) lookAheadIndex = track.points.length - 1;
-                    const nextPoint = track.points[lookAheadIndex];
+                let lookAheadIndex = track.points.findIndex((p, i) => i > currentIndex && p.cummulativeDistance >= progress + 0.08);
+                if (lookAheadIndex === -1) lookAheadIndex = track.points.length - 1;
+                const nextPoint = track.points[lookAheadIndex];
 
-                    let targetBearing = currentBearing;
-                    if (nextPoint && nextPoint !== currentPoint) {
-                        targetBearing = getBearing(currentPoint.lat, currentPoint.lon, nextPoint.lat, nextPoint.lon);
-                    }
+                const cameraParams: any = {
+                    center: [currentPoint.lon, currentPoint.lat],
+                    pitch: 60,
+                    zoom: 16.5
+                };
 
-                    // Smoothly Interpolate
-                    const nextLng = lerp(currentCenter.lng, currentPoint.lon, POS_SMOOTH);
-                    const nextLat = lerp(currentCenter.lat, currentPoint.lat, POS_SMOOTH);
-                    const nextBearing = lerpAngle(currentBearing, targetBearing, BEARING_SMOOTH);
-
-                    // Replay mode also allows manual zoom override now
-                    m.jumpTo({
-                        center: [nextLng, nextLat],
-                        bearing: nextBearing,
-                        pitch: currentPitch, 
-                        zoom: currentZoom 
-                    });
+                if (nextPoint && nextPoint !== currentPoint) {
+                    cameraParams.bearing = getBearing(currentPoint.lat, currentPoint.lon, nextPoint.lat, nextPoint.lon);
                 }
+                m.jumpTo(cameraParams);
             }
         }
 
-    }, [progress, raceRunners, activeTracks, userInteracting]);
+    }, [progress, raceRunners, activeTracks, pace]);
 
     if (!isTokenValid) {
         return (
@@ -408,15 +397,15 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
         <div className="absolute inset-0 z-0 w-full h-full bg-slate-900">
             <div ref={mapContainer} className="w-full h-full" />
             
-            {/* Overlay Info & Reset - Made Smaller */}
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/40 backdrop-blur-sm px-3 py-1 rounded-full border border-cyan-500/20 pointer-events-none flex items-center gap-2 z-[1010]">
-                <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></div>
-                <span className="text-[9px] font-black text-white/80 uppercase tracking-[0.2em]">3D Live</span>
+            {/* Overlay Info & Reset */}
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-md px-4 py-1.5 rounded-full border border-cyan-500/30 pointer-events-none flex items-center gap-2 z-[1010]">
+                <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                <span className="text-[10px] font-black text-white uppercase tracking-[0.2em]">Flyover 3D Live</span>
             </div>
 
             <button 
                 onClick={handleResetToken}
-                className="absolute bottom-4 right-4 text-slate-500 hover:text-white text-[9px] font-bold transition-colors z-[1010] opacity-50 hover:opacity-100"
+                className="absolute bottom-4 right-4 bg-slate-800/80 hover:bg-red-900/80 text-slate-400 hover:text-white p-2 rounded-lg text-xs font-bold border border-slate-600 transition-colors z-[1010]"
                 title="Cambia Token Mapbox"
             >
                 Reset Token
