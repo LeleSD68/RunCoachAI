@@ -322,39 +322,57 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
 
         // --- C. Handle Camera & Markers Logic ---
         if (raceRunners && raceRunners.length > 0) {
-            // Race Mode
+            // Update all markers first
             raceRunners.forEach(runner => {
                 updateMarker(runner.trackId, runner.position.lat, runner.position.lon, runner.color, runner.name, runner.pace);
             });
 
-            // Camera follows Leader
-            const leader = raceRunners[0];
-            const leaderTrack = activeTracks.find(t => t.id === leader.trackId);
-            
-            if (leader && leaderTrack) {
-                const currentDist = leader.position.cummulativeDistance;
-                const lookAheadDist = currentDist + 0.08; 
-                const nextPoint = leaderTrack.points.find(p => p.cummulativeDistance >= lookAheadDist);
+            // CAMERA LOGIC: FIT ALL RUNNERS
+            // Create bounds that encompass all runners
+            const bounds = new mapboxgl.LngLatBounds();
+            raceRunners.forEach(r => {
+                bounds.extend([r.position.lon, r.position.lat]);
+            });
 
-                const cameraParams: any = {
-                    center: [leader.position.lon, leader.position.lat],
-                    zoom: 17
-                };
+            // Calculate the ideal camera to fit these bounds
+            // Adding padding to ensure they aren't on the very edge
+            const camera = m.cameraForBounds(bounds, {
+                padding: { top: 100, bottom: 200, left: 80, right: 80 },
+                maxZoom: 17.5 // Cap zoom so we don't get too close if runners are overlapping
+            });
 
-                // Only update bearing/pitch if user has NOT manually rotated
-                if (!userHasRotatedRef.current) {
-                    cameraParams.pitch = 60;
+            // Determine Rotation (Bearing) & Pitch
+            let targetBearing = m.getBearing();
+            let targetPitch = m.getPitch();
+
+            if (!userHasRotatedRef.current) {
+                targetPitch = 60; 
+                // Auto-rotate based on LEADER's direction
+                const leader = raceRunners[0];
+                const leaderTrack = activeTracks.find(t => t.id === leader.trackId);
+                
+                if (leader && leaderTrack) {
+                    const currentDist = leader.position.cummulativeDistance;
+                    const lookAheadDist = currentDist + 0.08; 
+                    const nextPoint = leaderTrack.points.find(p => p.cummulativeDistance >= lookAheadDist);
+                    
                     if (nextPoint) {
-                        cameraParams.bearing = getBearing(leader.position.lat, leader.position.lon, nextPoint.lat, nextPoint.lon);
+                        targetBearing = getBearing(leader.position.lat, leader.position.lon, nextPoint.lat, nextPoint.lon);
                     }
                 }
-
-                // Use jumpTo for smooth per-frame updates without animation queue buildup
-                m.jumpTo(cameraParams); 
             }
 
+            // Apply calculated center/zoom to keep everyone in view, 
+            // while respecting rotation choice.
+            m.jumpTo({
+                center: camera.center,
+                zoom: camera.zoom, 
+                bearing: targetBearing,
+                pitch: targetPitch
+            });
+
         } else if (track) {
-            // Single Track Mode
+            // Single Track Mode (Standard Follow)
             let currentIndex = track.points.findIndex(p => p.cummulativeDistance >= progress);
             if (currentIndex === -1) currentIndex = track.points.length - 1;
             const currentPoint = track.points[currentIndex];
