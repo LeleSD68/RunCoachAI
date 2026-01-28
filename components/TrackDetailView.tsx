@@ -700,21 +700,30 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
             <main className="flex-grow overflow-hidden relative">
                 {/* DESKTOP VIEW */}
                 <div className="hidden sm:block h-full">
-                    {/* Horizontal split: Left = Stats, Right = Map/Chart */}
-                    <ResizablePanel direction="horizontal" initialSize={400} minSize={300} className="h-full">
-                        <div ref={statsContainerRef} className="h-full overflow-y-auto bg-slate-800 custom-scrollbar">
+                    {/* Left (Stats) vs Right (Map/Chart). Vertical direction = flex-row */}
+                    <ResizablePanel direction="vertical" initialSize={400} minSize={300} className="h-full">
+                        
+                        {/* LEFT: Stats */}
+                        <div ref={statsContainerRef} className="h-full overflow-y-auto bg-slate-800 custom-scrollbar border-r border-slate-700">
                             {statsContent}
                         </div>
-                        {/* Right Column: Stack Map (Top) and Chart (Bottom) */}
+
+                        {/* RIGHT: Map & Chart */}
+                        {/* Horizontal direction = flex-col (Top/Bottom) */}
                         <ResizablePanel direction="horizontal" initialSizeRatio={0.75} minSize={200} minSizeSecondary={150}>
+                             
+                             {/* TOP: Map */}
                              <div className="h-full relative border-b border-slate-800 z-0">
                                 {mapSection}
                              </div>
-                             <div className="h-full flex flex-col bg-slate-900 border-t border-slate-700">
+
+                             {/* BOTTOM: Chart + Controls + Overlay */}
+                             <div className="h-full flex flex-col bg-slate-900 border-t border-slate-700 relative">
                                 {selectionStats && <SelectionStatsOverlay data={selectionStats} onClose={() => setChartSelection(null)} />}
                                 <div className="h-10 flex-shrink-0">{chartControls}</div>
                                 <div className="flex-grow min-h-0">{chartSection}</div>
                              </div>
+
                         </ResizablePanel>
                     </ResizablePanel>
                 </div>
