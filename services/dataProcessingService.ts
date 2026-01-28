@@ -202,8 +202,12 @@ export const calculateRunningPower = (points: TrackPoint[], userWeightKg: number
         // Safety clamp for extreme gradients or GPS errors
         energyCost = Math.max(2, Math.min(energyCost, 20)); 
 
-        const power = energyCost * speedMs * userWeightKg;
+        // Metabolic Power calculation
+        const metabolicPower = energyCost * speedMs * userWeightKg;
+        
+        // Convert to Mechanical Power estimation (approx 31% of metabolic cost)
+        const mechanicalPower = metabolicPower * 0.31;
 
-        return { ...p, power: Math.max(0, Math.round(power)) };
+        return { ...p, power: Math.max(0, Math.round(mechanicalPower)) };
     });
 };
