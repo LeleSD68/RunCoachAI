@@ -494,8 +494,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
       const currentInterp = getTrackPointAtDistance(animationTrack, animationProgress);
       if (currentInterp) {
           if (!showSummaryMode) {
-              // OPTIMIZATION: Always update view when following, but disable animation for instant catch-up
-              // This removes the "jerk" caused by waiting for a threshold or using animate: true
+              // OPTIMIZATION: Use animate: false for frame-by-frame updates without CSS lag
               map.setView([currentInterp.lat, currentInterp.lon], map.getZoom(), { animate: false });
           }
           
