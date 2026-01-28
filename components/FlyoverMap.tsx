@@ -42,6 +42,9 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
     const labelElementsRef = useRef<Map<string, { nameEl: HTMLElement, paceEl: HTMLElement }>>(new Map());
     const sourcesInitializedRef = useRef<Set<string>>(new Set());
     
+    // Track if user has manually rotated/pitched the camera
+    const userHasRotatedRef = useRef(false);
+    
     // Sanitize token on initial load
     const getStoredToken = () => {
         const t = localStorage.getItem('mapbox_token') || '';
@@ -93,13 +96,21 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
                 style: 'mapbox://styles/mapbox/satellite-streets-v12',
                 center: [startPoint.lon, startPoint.lat],
                 zoom: 17,
-                pitch: 70,
+                pitch: 60,
                 bearing: 0,
                 interactive: true,
                 attributionControl: false
             });
 
             m.addControl(new mapboxgl.AttributionControl({ compact: true }));
+
+            // Listen for user rotation interactions
+            m.on('rotatestart', () => {
+                userHasRotatedRef.current = true;
+            });
+            m.on('pitchstart', () => {
+                userHasRotatedRef.current = true;
+            });
 
             m.on('load', () => {
                 m.addSource('mapbox-dem', {
@@ -134,6 +145,7 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
             markersRef.current.clear();
             labelElementsRef.current.clear();
             sourcesInitializedRef.current.clear();
+            userHasRotatedRef.current = false;
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isTokenValid]); 
@@ -326,13 +338,18 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
 
                 const cameraParams: any = {
                     center: [leader.position.lon, leader.position.lat],
-                    pitch: 60,
                     zoom: 17
                 };
 
-                if (nextPoint) {
-                    cameraParams.bearing = getBearing(leader.position.lat, leader.position.lon, nextPoint.lat, nextPoint.lon);
+                // Only update bearing/pitch if user has NOT manually rotated
+                if (!userHasRotatedRef.current) {
+                    cameraParams.pitch = 60;
+                    if (nextPoint) {
+                        cameraParams.bearing = getBearing(leader.position.lat, leader.position.lon, nextPoint.lat, nextPoint.lon);
+                    }
                 }
+
+                // Use jumpTo for smooth per-frame updates without animation queue buildup
                 m.jumpTo(cameraParams); 
             }
 
@@ -351,18 +368,26 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
 
                 const cameraParams: any = {
                     center: [currentPoint.lon, currentPoint.lat],
-                    pitch: 60,
                     zoom: 16.5
                 };
 
-                if (nextPoint && nextPoint !== currentPoint) {
-                    cameraParams.bearing = getBearing(currentPoint.lat, currentPoint.lon, nextPoint.lat, nextPoint.lon);
+                // Only update bearing/pitch if user has NOT manually rotated
+                if (!userHasRotatedRef.current) {
+                    cameraParams.pitch = 60;
+                    if (nextPoint && nextPoint !== currentPoint) {
+                        cameraParams.bearing = getBearing(currentPoint.lat, currentPoint.lon, nextPoint.lat, nextPoint.lon);
+                    }
                 }
+
                 m.jumpTo(cameraParams);
             }
         }
 
     }, [progress, raceRunners, activeTracks, pace]);
+
+    const handleResetCamera = () => {
+        userHasRotatedRef.current = false;
+    };
 
     if (!isTokenValid) {
         return (
@@ -403,13 +428,22 @@ const FlyoverMap: React.FC<FlyoverMapProps> = ({ track, tracks = [], raceRunners
                 <span className="text-[10px] font-black text-white uppercase tracking-[0.2em]">Flyover 3D Live</span>
             </div>
 
-            <button 
-                onClick={handleResetToken}
-                className="absolute bottom-4 right-4 bg-slate-800/80 hover:bg-red-900/80 text-slate-400 hover:text-white p-2 rounded-lg text-xs font-bold border border-slate-600 transition-colors z-[1010]"
-                title="Cambia Token Mapbox"
-            >
-                Reset Token
-            </button>
+            <div className="absolute bottom-4 right-4 flex flex-col gap-2 z-[1010]">
+                <button 
+                    onClick={handleResetCamera}
+                    className="bg-cyan-900/80 hover:bg-cyan-800 text-cyan-200 p-2 rounded-lg text-xs font-bold border border-cyan-700/50 shadow-lg"
+                    title="Blocca Camera su Runner"
+                >
+                    🎥 Lock Cam
+                </button>
+                <button 
+                    onClick={handleResetToken}
+                    className="bg-slate-800/80 hover:bg-red-900/80 text-slate-400 hover:text-white p-2 rounded-lg text-xs font-bold border border-slate-600 transition-colors"
+                    title="Cambia Token Mapbox"
+                >
+                    Reset Token
+                </button>
+            </div>
         </div>
     );
 };
