@@ -181,6 +181,10 @@ const SelectionStatsOverlay: React.FC<{ data: ExtendedStats, onClose: () => void
 
 const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, onExit, allHistory = [], plannedWorkouts = [], onUpdateTrackMetadata, onAddPlannedWorkout, onStartAnimation, onOpenReview, autoOpenAi = false, onCheckAiAccess, isGuest = false, onLimitReached }) => {
     const isMobile = useIsMobile();
+    
+    // Safety check: ensure track exists
+    if (!track) return null;
+
     const [yAxisMetrics, setYAxisMetrics] = useState<YAxisMetric[]>(['pace']);
     const [hoveredPoint, setHoveredPoint] = useState<TrackPoint | null>(null);
     const [showPauses, setShowPauses] = useState(false);
