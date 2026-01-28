@@ -66,7 +66,7 @@ const SimpleLineChart: React.FC<SimpleLineChartProps> = ({ data, color1, color2,
     const hoveredData = hoveredIndex !== null ? data[hoveredIndex] : null;
 
     return (
-        <div className="bg-slate-800 rounded-lg p-3 border border-slate-700 shadow-md mb-4 select-none">
+        <div className="bg-slate-800 rounded-lg p-3 border border-slate-700 shadow-md mb-4 select-none pb-4">
             <div className="flex justify-between items-center mb-2 px-2">
                 <h4 className="text-xs font-bold text-slate-300 uppercase tracking-widest">{title}</h4>
                 {hoveredData && (
