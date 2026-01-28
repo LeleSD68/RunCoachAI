@@ -193,6 +193,13 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
     const animationFrameRef = useRef<number | null>(null);
     const lastFrameTimeRef = useRef<number>(0);
 
+    const dateStr = useMemo(() => {
+        const d = track.points[0].time;
+        return (d instanceof Date ? d : new Date(d)).toLocaleDateString('it-IT', { 
+            weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' 
+        });
+    }, [track]);
+
     // Track ID tracking to handle scroll reset correctly and force map re-center
     useEffect(() => {
         if (track.id !== prevTrackIdRef.current) {
@@ -686,6 +693,9 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
                              <h1 className="text-xs sm:text-xl font-black text-cyan-400 uppercase tracking-tighter truncate">Analisi Attività</h1>
                              {track.isArchived && <span className="text-slate-500 text-[8px] font-bold border border-slate-700 px-1 rounded uppercase tracking-tighter">Archiviata</span>}
                         </div>
+                        {/* ADDED DATE HERE */}
+                        <p className="text-[10px] sm:text-xs text-slate-400 font-mono uppercase tracking-wider mb-1">{dateStr}</p>
+                        
                         <div className="flex items-center gap-2">
                              <RatingStars 
                                 rating={track.rating} 
