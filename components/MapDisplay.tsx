@@ -636,6 +636,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
               raceRunners={raceRunners} // Pass race positions
               progress={target3DProgress} 
               isPlaying={!!isAnimationPlaying || (!!raceRunners && raceRunners.length > 0)} 
+              pace={animationPace}
           />
       ) : (
           <div ref={mapContainerRef} className="h-full w-full" style={{ minHeight: '100%' }} />
