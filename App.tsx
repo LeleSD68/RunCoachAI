@@ -30,12 +30,13 @@ import NavigationDock from './components/NavigationDock';
 import PerformanceAnalysisPanel from './components/PerformanceAnalysisPanel';
 import ComparisonModal from './components/ComparisonModal';
 import LoginModal from './components/LoginModal'; 
+import ResizablePanel from './components/ResizablePanel';
 
 import { Track, TrackPoint, UserProfile, Toast, RaceResult, TrackStats, PlannedWorkout, ApiUsageStats, Commentary } from './types';
 import { loadTracksFromDB, saveTracksToDB, loadProfileFromDB, saveProfileToDB, loadPlannedWorkoutsFromDB, savePlannedWorkoutsToDB, exportAllData, importAllData, syncBackupToCloud, BackupData, syncTrackToCloud, restoreAllChatsFromCloud } from './services/dbService';
 import { findPersonalRecordsForTrack, updateStoredPRs } from './services/prService';
 import { calculateTrackStats } from './services/trackStatsService';
-import { getTrackPointAtDistance, getTrackStateAtTime } from './services/trackEditorUtils';
+import { getTrackPointAtDistance, getTrackStateAtTime, getSmoothedPace } from './services/trackEditorUtils';
 import { parseGpx } from './services/gpxService';
 import { parseTcx } from './services/tcxService';
 import { generateSmartTitle } from './services/titleGenerator';
@@ -627,18 +628,24 @@ const App: React.FC = () => {
 
   const raceRunners = useMemo(() => {
       if (simulationState === 'idle') return null;
+      
+      // Dynamic lookback for smooth pace: 50m for slower speeds, 100m for fast forward
+      const lookbackMeters = simulationSpeed > 20 ? 100 : 50;
+
       return tracks.filter(t => raceSelectionIds.has(t.id)).map(t => {
           const state = getTrackStateAtTime(t, simulationTime);
           const point = state?.point || t.points[t.points.length - 1];
-          const pace = state?.pace || 0;
+          const smoothPace = getSmoothedPace(t, point.cummulativeDistance, lookbackMeters);
+          
           return {
               trackId: t.id,
+              name: t.name,
               position: point,
               color: t.color,
-              pace: pace 
+              pace: smoothPace > 0 ? smoothPace : (state?.pace || 0) 
           };
       });
-  }, [simulationState, simulationTime, tracks, raceSelectionIds]);
+  }, [simulationState, simulationTime, tracks, raceSelectionIds, simulationSpeed]);
 
   const handleMobileSummaryClick = () => {
       if (mobileSelectedTrackId) {
@@ -686,6 +693,8 @@ const App: React.FC = () => {
   const mobileSelectedTrack = useMemo(() => mobileSelectedTrackId ? tracks.find(t => t.id === mobileSelectedTrackId) : null, [tracks, mobileSelectedTrackId]);
   const reviewTrack = useMemo(() => aiReviewTrackId ? tracks.find(t => t.id === aiReviewTrackId) : null, [tracks, aiReviewTrackId]);
 
+  const isRaceMode = simulationState !== 'idle';
+
   return (
     <div className="h-screen w-screen bg-slate-900 text-white overflow-hidden flex flex-col">
         {showSplash && <SplashScreen onFinish={handleSplashFinish} />}
@@ -706,191 +715,276 @@ const App: React.FC = () => {
 
         <div className={`flex-grow flex overflow-hidden relative ${isMobile ? 'flex-col' : 'flex-row'}`}>
             
-            {(!selectedDetailTrackId && !editorTracks) && (
-                <div 
-                    className={`
-                        z-20 transition-all duration-300 bg-slate-900
-                        ${showHome ? 'w-0 opacity-0 overflow-hidden' : ''}
-                        ${isMobile 
-                            ? (isSidebarMobileOpen ? 'h-[70%] w-full order-1 border-b border-slate-700' : 'h-0 w-full opacity-0 overflow-hidden order-1') 
-                            : 'w-80 h-full shrink-0 border-r border-slate-800 order-1'
-                        }
-                    `}
-                >
-                    <Sidebar
-                        tracks={tracks}
-                        onFileUpload={handleFileUpload}
-                        visibleTrackIds={visibleTrackIds}
-                        onToggleVisibility={(id) => setVisibleTrackIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
-                        raceSelectionIds={raceSelectionIds}
-                        onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
-                        onDeselectAll={() => setRaceSelectionIds(new Set())}
-                        onSelectAll={() => setRaceSelectionIds(new Set(tracks.map(t => t.id)))}
-                        onStartRace={handleStartRace}
-                        onGoToEditor={() => {
-                            const selected = tracks.filter(t => raceSelectionIds.has(t.id));
-                            if (selected.length > 0) setEditorTracks(selected);
-                        }}
-                        onPauseRace={() => setSimulationState('paused')}
-                        onResumeRace={() => setSimulationState('running')}
-                        onResetRace={() => { setSimulationState('idle'); setRaceResults([]); }}
-                        simulationState={simulationState}
-                        simulationTime={simulationTime}
-                        onTrackHoverStart={setHoveredTrackId}
-                        onTrackHoverEnd={() => setHoveredTrackId(null)}
-                        hoveredTrackId={hoveredTrackId}
-                        raceProgress={new Map()}
-                        simulationSpeed={simulationSpeed}
-                        onSpeedChange={setSimulationSpeed}
-                        lapTimes={new Map()}
-                        sortOrder={'date_desc'}
-                        onSortChange={() => {}}
-                        onDeleteTrack={handleDeleteTrack}
-                        onDeleteSelected={() => { raceSelectionIds.forEach(id => handleDeleteTrack(id)); setRaceSelectionIds(new Set()); }}
-                        onViewDetails={setSelectedDetailTrackId}
-                        onStartAnimation={(id) => { setAnimationTrackId(id); setIsAnimationPlaying(true); }}
-                        raceRanks={raceRanks}
-                        runnerSpeeds={runnerSpeeds}
-                        runnerDistances={runnerDistances}
-                        runnerGapsToLeader={runnerGaps}
-                        collapsedGroups={new Set()}
-                        onToggleGroup={() => {}}
-                        onOpenChangelog={() => setShowChangelog(true)}
-                        onOpenProfile={() => setShowProfile(true)}
-                        onOpenGuide={() => setShowGuide(true)}
-                        onOpenDiary={() => setShowDiary(true)}
-                        dailyTokenUsage={{ used: apiUsage.daily, limit: apiUsage.limitDaily }}
-                        onExportBackup={handleExportBackup}
-                        onImportBackup={handleImportBackup} 
-                        onCloseMobile={() => setIsSidebarMobileOpen(false)} 
-                        onUpdateTrackMetadata={handleUpdateTrackMetadata}
-                        onRegenerateTitles={() => {}}
-                        onToggleExplorer={() => setShowExplorer(true)}
-                        showExplorer={showExplorer}
-                        listViewMode={'full'}
-                        onListViewModeChange={() => {}}
-                        onAiBulkRate={() => {}}
-                        onOpenReview={(id) => checkAiAccess() && setAiReviewTrackId(id)}
-                        mobileRaceMode={false}
-                        monthlyStats={{ totalDistance: 0, totalDuration: 0, activityCount: 0, avgPace: 0 }}
-                        plannedWorkouts={plannedWorkouts}
-                        onOpenPlannedWorkout={(id) => { setSelectedWorkoutIdForDiary(id); setShowDiary(true); }}
-                        apiUsageStats={apiUsage}
-                        onOpenHub={() => setShowHome(true)}
-                        onOpenPerformanceAnalysis={() => setShowPerformancePanel(true)}
-                        onUserLogin={() => { setLoginModalLimitMessage(false); setShowLoginModal(true); }}
-                        onCompareSelected={handleCompareSelected}
-                        userProfile={userProfile}
-                    />
-                </div>
-            )}
-
-            <div className={`
-                relative transition-all duration-300
-                ${selectedDetailTrackId || editorTracks ? 'h-full w-full' : ''}
-                ${!selectedDetailTrackId && !editorTracks 
-                    ? (isMobile 
-                        ? (isSidebarMobileOpen ? 'h-[30%] order-2' : 'h-full order-2') 
-                        : 'flex-grow h-full order-2')
-                    : ''
-                }
-            `}>
-                {selectedDetailTrack ? (
-                    <TrackDetailView 
-                        track={selectedDetailTrack}
-                        userProfile={userProfile}
-                        onExit={() => setSelectedDetailTrackId(null)}
-                        allHistory={tracks}
-                        onUpdateTrackMetadata={handleUpdateTrackMetadata}
-                        onAddPlannedWorkout={handleAddPlannedWorkout}
-                        onStartAnimation={(id) => { setAnimationTrackId(id); setIsAnimationPlaying(true); }}
-                        onOpenReview={(id) => checkAiAccess() && setAiReviewTrackId(id)}
-                        onCheckAiAccess={checkAiAccess}
-                    />
-                ) : editorTracks ? (
-                    <TrackEditor 
-                        initialTracks={editorTracks}
-                        onExit={(updated) => {
-                            if (updated) {
-                                const newTracks = [...tracks, updated];
-                                setTracks(newTracks);
-                                saveTracksToDB(newTracks);
-                                addToast('Traccia modificata salvata.', 'success');
-                            }
-                            setEditorTracks(null);
-                        }}
-                        addToast={addToast}
-                    />
+            {!selectedDetailTrackId && !editorTracks && (
+                isMobile && isSidebarMobileOpen && !isRaceMode ? (
+                    <ResizablePanel direction="vertical" initialSizeRatio={0.7} minSize={150} minSizeSecondary={150}>
+                        <Sidebar
+                            tracks={tracks}
+                            onFileUpload={handleFileUpload}
+                            visibleTrackIds={visibleTrackIds}
+                            onToggleVisibility={(id) => setVisibleTrackIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
+                            raceSelectionIds={raceSelectionIds}
+                            onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
+                            onDeselectAll={() => setRaceSelectionIds(new Set())}
+                            onSelectAll={() => setRaceSelectionIds(new Set(tracks.map(t => t.id)))}
+                            onStartRace={handleStartRace}
+                            onGoToEditor={() => {
+                                const selected = tracks.filter(t => raceSelectionIds.has(t.id));
+                                if (selected.length > 0) setEditorTracks(selected);
+                            }}
+                            onPauseRace={() => setSimulationState('paused')}
+                            onResumeRace={() => setSimulationState('running')}
+                            onResetRace={() => { setSimulationState('idle'); setRaceResults([]); }}
+                            simulationState={simulationState}
+                            simulationTime={simulationTime}
+                            onTrackHoverStart={setHoveredTrackId}
+                            onTrackHoverEnd={() => setHoveredTrackId(null)}
+                            hoveredTrackId={hoveredTrackId}
+                            raceProgress={new Map()}
+                            simulationSpeed={simulationSpeed}
+                            onSpeedChange={setSimulationSpeed}
+                            lapTimes={new Map()}
+                            sortOrder={'date_desc'}
+                            onSortChange={() => {}}
+                            onDeleteTrack={handleDeleteTrack}
+                            onDeleteSelected={() => { raceSelectionIds.forEach(id => handleDeleteTrack(id)); setRaceSelectionIds(new Set()); }}
+                            onViewDetails={setSelectedDetailTrackId}
+                            onStartAnimation={(id) => { setAnimationTrackId(id); setIsAnimationPlaying(true); }}
+                            raceRanks={raceRanks}
+                            runnerSpeeds={runnerSpeeds}
+                            runnerDistances={runnerDistances}
+                            runnerGapsToLeader={runnerGaps}
+                            collapsedGroups={new Set()}
+                            onToggleGroup={() => {}}
+                            onOpenChangelog={() => setShowChangelog(true)}
+                            onOpenProfile={() => setShowProfile(true)}
+                            onOpenGuide={() => setShowGuide(true)}
+                            onOpenDiary={() => setShowDiary(true)}
+                            dailyTokenUsage={{ used: apiUsage.daily, limit: apiUsage.limitDaily }}
+                            onExportBackup={handleExportBackup}
+                            onImportBackup={handleImportBackup} 
+                            onCloseMobile={() => setIsSidebarMobileOpen(false)} 
+                            onUpdateTrackMetadata={handleUpdateTrackMetadata}
+                            onRegenerateTitles={() => {}}
+                            onToggleExplorer={() => setShowExplorer(true)}
+                            showExplorer={showExplorer}
+                            listViewMode={'full'}
+                            onListViewModeChange={() => {}}
+                            onAiBulkRate={() => {}}
+                            onOpenReview={(id) => checkAiAccess() && setAiReviewTrackId(id)}
+                            mobileRaceMode={false}
+                            monthlyStats={{ totalDistance: 0, totalDuration: 0, activityCount: 0, avgPace: 0 }}
+                            plannedWorkouts={plannedWorkouts}
+                            onOpenPlannedWorkout={(id) => { setSelectedWorkoutIdForDiary(id); setShowDiary(true); }}
+                            apiUsageStats={apiUsage}
+                            onOpenHub={() => setShowHome(true)}
+                            onOpenPerformanceAnalysis={() => setShowPerformancePanel(true)}
+                            onUserLogin={() => { setLoginModalLimitMessage(false); setShowLoginModal(true); }}
+                            onCompareSelected={handleCompareSelected}
+                            userProfile={userProfile}
+                        />
+                        <div className="h-full relative">
+                             <MapDisplay 
+                                tracks={tracks}
+                                visibleTrackIds={visibleTrackIds}
+                                selectedTrackIds={raceSelectionIds}
+                                raceRunners={raceRunners}
+                                hoveredTrackId={hoveredTrackId}
+                                runnerSpeeds={runnerSpeeds}
+                                mapGradientMetric={'none'}
+                                animationTrack={animationTrack}
+                                animationProgress={animationProgress}
+                                isAnimationPlaying={isAnimationPlaying}
+                                onToggleAnimationPlay={() => setIsAnimationPlaying(!isAnimationPlaying)}
+                                onAnimationProgressChange={setAnimationProgress}
+                                animationSpeed={simulationSpeed}
+                                onAnimationSpeedChange={setSimulationSpeed}
+                                onExitAnimation={() => { setAnimationTrackId(null); setIsAnimationPlaying(false); setAnimationProgress(0); }}
+                                onTrackClick={handleMapTrackClick}
+                            />
+                        </div>
+                    </ResizablePanel>
                 ) : (
                     <>
-                        <MapDisplay 
-                            tracks={tracks}
-                            visibleTrackIds={visibleTrackIds}
-                            selectedTrackIds={raceSelectionIds}
-                            raceRunners={raceRunners}
-                            hoveredTrackId={hoveredTrackId}
-                            runnerSpeeds={runnerSpeeds}
-                            mapGradientMetric={'none'}
-                            animationTrack={animationTrack}
-                            animationProgress={animationProgress}
-                            isAnimationPlaying={isAnimationPlaying}
-                            onToggleAnimationPlay={() => setIsAnimationPlaying(!isAnimationPlaying)}
-                            onAnimationProgressChange={setAnimationProgress}
-                            animationSpeed={simulationSpeed}
-                            onAnimationSpeedChange={setSimulationSpeed}
-                            onExitAnimation={() => { setAnimationTrackId(null); setIsAnimationPlaying(false); setAnimationProgress(0); }}
-                            onTrackClick={handleMapTrackClick}
-                        />
-                        
-                        {simulationState !== 'idle' && (
-                            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50">
-                                <RaceControls 
+                        {/* Desktop Sidebar OR Hidden if Race Mode */}
+                        {!isMobile && !isRaceMode && (
+                            <div className={`
+                                z-20 transition-all duration-300 bg-slate-900
+                                ${showHome ? 'w-0 opacity-0 overflow-hidden' : 'w-80 h-full shrink-0 border-r border-slate-800'}
+                            `}>
+                                <Sidebar
+                                    tracks={tracks}
+                                    onFileUpload={handleFileUpload}
+                                    visibleTrackIds={visibleTrackIds}
+                                    onToggleVisibility={(id) => setVisibleTrackIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
+                                    raceSelectionIds={raceSelectionIds}
+                                    onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
+                                    onDeselectAll={() => setRaceSelectionIds(new Set())}
+                                    onSelectAll={() => setRaceSelectionIds(new Set(tracks.map(t => t.id)))}
+                                    onStartRace={handleStartRace}
+                                    onGoToEditor={() => {
+                                        const selected = tracks.filter(t => raceSelectionIds.has(t.id));
+                                        if (selected.length > 0) setEditorTracks(selected);
+                                    }}
+                                    onPauseRace={() => setSimulationState('paused')}
+                                    onResumeRace={() => setSimulationState('running')}
+                                    onResetRace={() => { setSimulationState('idle'); setRaceResults([]); }}
                                     simulationState={simulationState}
                                     simulationTime={simulationTime}
+                                    onTrackHoverStart={setHoveredTrackId}
+                                    onTrackHoverEnd={() => setHoveredTrackId(null)}
+                                    hoveredTrackId={hoveredTrackId}
+                                    raceProgress={new Map()}
                                     simulationSpeed={simulationSpeed}
-                                    onPause={() => setSimulationState('paused')}
-                                    onResume={() => setSimulationState('running')}
-                                    onStop={() => { setSimulationState('idle'); setRaceResults([]); }}
                                     onSpeedChange={setSimulationSpeed}
+                                    lapTimes={new Map()}
+                                    sortOrder={'date_desc'}
+                                    onSortChange={() => {}}
+                                    onDeleteTrack={handleDeleteTrack}
+                                    onDeleteSelected={() => { raceSelectionIds.forEach(id => handleDeleteTrack(id)); setRaceSelectionIds(new Set()); }}
+                                    onViewDetails={setSelectedDetailTrackId}
+                                    onStartAnimation={(id) => { setAnimationTrackId(id); setIsAnimationPlaying(true); }}
+                                    raceRanks={raceRanks}
+                                    runnerSpeeds={runnerSpeeds}
+                                    runnerDistances={runnerDistances}
+                                    runnerGapsToLeader={runnerGaps}
+                                    collapsedGroups={new Set()}
+                                    onToggleGroup={() => {}}
+                                    onOpenChangelog={() => setShowChangelog(true)}
+                                    onOpenProfile={() => setShowProfile(true)}
+                                    onOpenGuide={() => setShowGuide(true)}
+                                    onOpenDiary={() => setShowDiary(true)}
+                                    dailyTokenUsage={{ used: apiUsage.daily, limit: apiUsage.limitDaily }}
+                                    onExportBackup={handleExportBackup}
+                                    onImportBackup={handleImportBackup} 
+                                    onCloseMobile={() => setIsSidebarMobileOpen(false)} 
+                                    onUpdateTrackMetadata={handleUpdateTrackMetadata}
+                                    onRegenerateTitles={() => {}}
+                                    onToggleExplorer={() => setShowExplorer(true)}
+                                    showExplorer={showExplorer}
+                                    listViewMode={'full'}
+                                    onListViewModeChange={() => {}}
+                                    onAiBulkRate={() => {}}
+                                    onOpenReview={(id) => checkAiAccess() && setAiReviewTrackId(id)}
+                                    mobileRaceMode={false}
+                                    monthlyStats={{ totalDistance: 0, totalDuration: 0, activityCount: 0, avgPace: 0 }}
+                                    plannedWorkouts={plannedWorkouts}
+                                    onOpenPlannedWorkout={(id) => { setSelectedWorkoutIdForDiary(id); setShowDiary(true); }}
+                                    apiUsageStats={apiUsage}
+                                    onOpenHub={() => setShowHome(true)}
+                                    onOpenPerformanceAnalysis={() => setShowPerformancePanel(true)}
+                                    onUserLogin={() => { setLoginModalLimitMessage(false); setShowLoginModal(true); }}
+                                    onCompareSelected={handleCompareSelected}
+                                    userProfile={userProfile}
                                 />
-                            </div>
-                        )}
-                        
-                        {simulationState !== 'idle' && (
-                            <div className="absolute top-20 right-4 z-50">
-                                <RaceLeaderboard 
-                                    racers={tracks.filter(t => raceSelectionIds.has(t.id))}
-                                    ranks={raceRanks}
-                                    gaps={runnerGaps}
-                                />
-                            </div>
-                        )}
-                        
-                        {!simulationState.startsWith('run') && (
-                            <div className="absolute bottom-24 right-6 md:bottom-6 md:right-6 z-30">
-                                <button 
-                                    onClick={() => setShowAiChatbot(true)} 
-                                    className="bg-purple-600 hover:bg-purple-500 text-white p-4 rounded-full shadow-2xl transition-transform hover:scale-110 flex items-center justify-center"
-                                    title="Coach AI"
-                                >
-                                    <span className="text-2xl">🤖</span>
-                                </button>
                             </div>
                         )}
 
-                        {mobileSelectedTrack && !selectedDetailTrackId && (
-                            <MobileTrackSummary 
-                                track={mobileSelectedTrack}
-                                onClick={handleMobileSummaryClick}
-                                onClose={handleMobileSummaryClose}
+                        {/* Full Screen Map Container (when no sidebar on mobile OR race mode) */}
+                        <div className={`relative transition-all duration-300 ${!selectedDetailTrackId && !editorTracks ? 'flex-grow h-full' : ''}`}>
+                             <MapDisplay 
+                                tracks={tracks}
+                                visibleTrackIds={visibleTrackIds}
+                                selectedTrackIds={raceSelectionIds}
+                                raceRunners={raceRunners}
+                                hoveredTrackId={hoveredTrackId}
+                                runnerSpeeds={runnerSpeeds}
+                                mapGradientMetric={'none'}
+                                animationTrack={animationTrack}
+                                animationProgress={animationProgress}
+                                isAnimationPlaying={isAnimationPlaying}
+                                onToggleAnimationPlay={() => setIsAnimationPlaying(!isAnimationPlaying)}
+                                onAnimationProgressChange={setAnimationProgress}
+                                animationSpeed={simulationSpeed}
+                                onAnimationSpeedChange={setSimulationSpeed}
+                                onExitAnimation={() => { setAnimationTrackId(null); setIsAnimationPlaying(false); setAnimationProgress(0); }}
+                                onTrackClick={handleMapTrackClick}
                             />
-                        )}
+                            
+                            {/* Race Overlays */}
+                            {simulationState !== 'idle' && (
+                                <>
+                                    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30">
+                                        <RaceControls 
+                                            simulationState={simulationState}
+                                            simulationTime={simulationTime}
+                                            simulationSpeed={simulationSpeed}
+                                            onPause={() => setSimulationState('paused')}
+                                            onResume={() => setSimulationState('running')}
+                                            onStop={() => { setSimulationState('idle'); setRaceResults([]); }}
+                                            onSpeedChange={setSimulationSpeed}
+                                        />
+                                    </div>
+                                    <div className="absolute top-20 right-4 z-20">
+                                        <RaceLeaderboard 
+                                            racers={tracks.filter(t => raceSelectionIds.has(t.id))}
+                                            ranks={raceRanks}
+                                            gaps={runnerGaps}
+                                        />
+                                    </div>
+                                </>
+                            )}
+                            
+                            {!simulationState.startsWith('run') && (
+                                <div className="absolute bottom-24 right-6 md:bottom-6 md:right-6 z-30">
+                                    <button 
+                                        onClick={() => setShowAiChatbot(true)} 
+                                        className="bg-purple-600 hover:bg-purple-500 text-white p-4 rounded-full shadow-2xl transition-transform hover:scale-110 flex items-center justify-center"
+                                        title="Coach AI"
+                                    >
+                                        <span className="text-2xl">🤖</span>
+                                    </button>
+                                </div>
+                            )}
+
+                            {mobileSelectedTrack && !selectedDetailTrackId && (
+                                <MobileTrackSummary 
+                                    track={mobileSelectedTrack}
+                                    onClick={handleMobileSummaryClick}
+                                    onClose={handleMobileSummaryClose}
+                                />
+                            )}
+                        </div>
                     </>
-                )}
-            </div>
+                )
+            )}
+
+            {/* Detail and Editor Views (Overlay everything) */}
+            {(selectedDetailTrackId || editorTracks) && (
+                <div className="absolute inset-0 z-50 bg-slate-900 h-full w-full">
+                    {selectedDetailTrack ? (
+                        <TrackDetailView 
+                            track={selectedDetailTrack}
+                            userProfile={userProfile}
+                            onExit={() => setSelectedDetailTrackId(null)}
+                            allHistory={tracks}
+                            onUpdateTrackMetadata={handleUpdateTrackMetadata}
+                            onAddPlannedWorkout={handleAddPlannedWorkout}
+                            onStartAnimation={(id) => { setAnimationTrackId(id); setIsAnimationPlaying(true); }}
+                            onOpenReview={(id) => checkAiAccess() && setAiReviewTrackId(id)}
+                            onCheckAiAccess={checkAiAccess}
+                        />
+                    ) : editorTracks ? (
+                        <TrackEditor 
+                            initialTracks={editorTracks}
+                            onExit={(updated) => {
+                                if (updated) {
+                                    const newTracks = [...tracks, updated];
+                                    setTracks(newTracks);
+                                    saveTracksToDB(newTracks);
+                                    addToast('Traccia modificata salvata.', 'success');
+                                }
+                                setEditorTracks(null);
+                            }}
+                            addToast={addToast}
+                        />
+                    ) : null}
+                </div>
+            )}
         </div>
 
-        {!editorTracks && !showHome && !showDiary && !showExplorer && !selectedDetailTrackId && !showAiChatbot && !simulationState.startsWith('run') && (
+        {/* Navigation Dock */}
+        {!editorTracks && !showHome && !showDiary && !showExplorer && !selectedDetailTrackId && !showAiChatbot && !isRaceMode && (
             <NavigationDock 
                 onOpenSidebar={() => { closeAllViews(); setIsSidebarMobileOpen(true); }}
                 onCloseSidebar={() => { closeAllViews(); setSelectedDetailTrackId(null); setIsSidebarMobileOpen(false); }}
@@ -904,6 +998,7 @@ const App: React.FC = () => {
             />
         )}
 
+        {/* MODALS */}
         {showInitialChoice && (
             <InitialChoiceModal 
                 onImportBackup={handleImportBackup} 
