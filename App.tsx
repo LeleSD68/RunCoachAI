@@ -147,13 +147,18 @@ const App: React.FC = () => {
   const loadDataAndEnter = useCallback(async () => {
       try {
           const { data: { session } } = await supabase.auth.getSession();
-          setIsGuest(!session);
+          const currentIsGuest = !session;
+          setIsGuest(currentIsGuest);
 
-          const storedTracks = await loadTracksFromDB();
-          const storedProfile = await loadProfileFromDB();
-          const storedWorkouts = await loadPlannedWorkoutsFromDB();
+          // Force local load if guest (true), prevents any cloud sync attempt
+          // If logged in (false), allows sync
+          const storedTracks = await loadTracksFromDB(currentIsGuest);
+          const storedProfile = await loadProfileFromDB(currentIsGuest);
+          const storedWorkouts = await loadPlannedWorkoutsFromDB(currentIsGuest);
           
-          restoreAllChatsFromCloud().catch(e => console.warn("Failed to sync chats", e));
+          if (!currentIsGuest) {
+              restoreAllChatsFromCloud().catch(e => console.warn("Failed to sync chats", e));
+          }
           
           setTracks(storedTracks);
           if (storedProfile) setUserProfile(storedProfile);
@@ -173,16 +178,17 @@ const App: React.FC = () => {
               }
           }
           
-          if (storedProfile && storedProfile.name) {
+          // Only show sync success toasts for logged in users
+          if (!currentIsGuest && storedProfile && storedProfile.name) {
               addToast(`Bentornato ${storedProfile.name}! Profilo e dati sincronizzati.`, 'success');
-          } else if (storedTracks.length > 0) {
+          } else if (!currentIsGuest && storedTracks.length > 0) {
               addToast('Profilo e Dati sincronizzati.', 'success');
           }
 
       } catch (error) {
           console.error("Error loading data:", error);
           setShowInitialChoice(true);
-          addToast("Impossibile caricare alcuni dati dal cloud.", "error");
+          addToast("Impossibile caricare alcuni dati.", "error");
       }
   }, [simulationState, addToast]);
 
@@ -191,7 +197,7 @@ const App: React.FC = () => {
       const { data: { session } } = await supabase.auth.getSession();
       
       if (session) {
-          setIsSyncing(true); // START WAITING SCREEN
+          setIsSyncing(true); // START WAITING SCREEN ONLY FOR LOGGED IN USERS
           await loadDataAndEnter();
           setIsSyncing(false); // STOP WAITING SCREEN
       } else {
