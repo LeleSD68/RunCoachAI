@@ -66,7 +66,7 @@ export const generateAiRating = async (
     track: Track, 
     allTracks: Track[], 
     userProfile: UserProfile, 
-    plannedWorkout?: PlannedWorkout
+    plannedWorkout?: { title: string; description: string; activityType: string }
 ): Promise<{ rating: number; reason: string } | null> => {
     
     // 1. Calculate History Context
