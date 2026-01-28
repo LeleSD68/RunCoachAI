@@ -301,6 +301,13 @@ export const savePlannedWorkoutsToDB = async (workouts: PlannedWorkout[], option
   }
 };
 
+export const deletePlannedWorkoutFromCloud = async (id: string) => {
+    if (!isSupabaseConfigured()) return;
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    await supabase.from('planned_workouts').delete().eq('id', id);
+};
+
 export const loadPlannedWorkoutsFromDB = async (forceLocal: boolean = false): Promise<PlannedWorkout[]> => {
   const { data: { session } } = await supabase.auth.getSession();
   
