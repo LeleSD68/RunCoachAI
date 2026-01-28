@@ -140,6 +140,30 @@ export const getTrackStateAtTime = (track: Track, timeOffsetMs: number): { point
     };
 };
 
+/**
+ * Calculates smoothed pace by looking back a certain distance.
+ * This provides a more stable pace reading during simulations.
+ */
+export const getSmoothedPace = (track: Track, currentDist: number, lookbackMeters: number): number => {
+    if (currentDist < 0.05) return 0;
+    
+    const startDist = Math.max(0, currentDist - (lookbackMeters / 1000));
+    
+    const pEnd = getTrackPointAtDistance(track, currentDist);
+    const pStart = getTrackPointAtDistance(track, startDist);
+    
+    if (!pEnd || !pStart) return 0;
+    
+    const distDiff = pEnd.cummulativeDistance - pStart.cummulativeDistance;
+    if (distDiff < 0.001) return 0;
+    
+    const timeDiffMs = pEnd.time.getTime() - pStart.time.getTime();
+    if (timeDiffMs <= 0) return 0;
+    
+    // min/km
+    return (timeDiffMs / 60000) / distDiff;
+}
+
 export const getPointsInDistanceRange = (track: Track, startDistance: number, endDistance: number): TrackPoint[] => {
     const pointsInRange: TrackPoint[] = [];
 
