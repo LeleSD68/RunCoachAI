@@ -182,6 +182,7 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
     const [newTag, setNewTag] = useState('');
     const statsContainerRef = useRef<HTMLDivElement>(null);
     const prevTrackIdRef = useRef<string>(track.id);
+    const [fitBoundsTrigger, setFitBoundsTrigger] = useState(0);
 
     // Animation State (Local)
     const [isAnimating, setIsAnimating] = useState(false);
@@ -192,7 +193,7 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
     const animationFrameRef = useRef<number | null>(null);
     const lastFrameTimeRef = useRef<number>(0);
 
-    // Track ID tracking to handle scroll reset correctly
+    // Track ID tracking to handle scroll reset correctly and force map re-center
     useEffect(() => {
         if (track.id !== prevTrackIdRef.current) {
             if (statsContainerRef.current) {
@@ -208,6 +209,12 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
             prevTrackIdRef.current = track.id;
         }
         setRpe(track.rpe || 5);
+        
+        // Trigger fit bounds slightly after mount/change to ensure layout is ready
+        const timer = setTimeout(() => {
+            setFitBoundsTrigger(prev => prev + 1);
+        }, 100);
+        return () => clearTimeout(timer);
     }, [track]);
 
     const displayTrack = useMemo(() => {
@@ -662,6 +669,7 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
                     onAnimationSpeedChange={setAnimationSpeed}
                     onExitAnimation={() => { setIsAnimating(false); setIsAnimationMode(false); setAnimationProgress(0); setAnimationTime(0); }}
                     aiSegmentHighlight={selectedSegment && 'type' in selectedSegment && selectedSegment.type === 'ai' ? selectedSegment : null}
+                    fitBoundsCounter={fitBoundsTrigger} // Pass trigger to map
                 />
              </div>
         </div>
