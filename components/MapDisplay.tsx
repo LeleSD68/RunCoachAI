@@ -144,6 +144,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
   const animationMarkerRef = useRef<any>(null);
   const aiSegmentPolylineRef = useRef<any>(null);
   const selectionPolylineRef = useRef<any>(null);
+  const lastAnimationPaceRef = useRef<string>(''); // Optimizes marker updates
   
   const [isAutoFitEnabled, setIsAutoFitEnabled] = useState(true);
   
@@ -221,11 +222,13 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
       if (!map) return;
       let bounds: any = null;
       
+      // If manually animating single track, DON'T auto-fit constantly unless it's initial load
+      if (animationTrack && isAnimationPlaying) return;
+
       const safeVisibleIds = visibleTrackIds instanceof Set ? visibleTrackIds : new Set();
       const safeSelectedIds = selectedTrackIds instanceof Set ? selectedTrackIds : new Set();
 
       // Mobile padding to account for overlays (Top Header, Bottom Dock/Controls)
-      // Top: ~80px, Bottom: ~200px
       const paddingOptions: any = isMobile 
         ? { padding: [20, 20], paddingTopLeft: [20, 80], paddingBottomRight: [20, 220] } 
         : { padding: [40, 40] };
@@ -238,14 +241,10 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
           const points = raceRunners.map(r => r.position).filter(p => isValidLatLng(p.lat, p.lon)).map(p => [p.lat, p.lon]);
           if (points.length > 0) {
                 bounds = L.latLngBounds(points);
-                // Ensure we don't zoom in too much on a single point (start line)
                 if (bounds.getNorth() === bounds.getSouth() && bounds.getEast() === bounds.getWest()) {
-                    // Start line scenario or single runner
                     map.setView(points[0], 16, { animate: true, ...paddingOptions });
                     return;
                 } else {
-                    // Running Scenario: Add generous padding to bounds to keep them well inside
-                    // 2D 'animate: false' is crucial for smooth continuous tracking without lag
                     map.fitBounds(bounds, { animate: false, maxZoom: 17, padding: isMobile ? [50, 50] : [100, 100] });
                     return; 
                 }
@@ -266,16 +265,14 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
           }
       }
       if (bounds && bounds.isValid()) map.fitBounds(bounds, paddingOptions);
-  }, [selectionPoints, tracks, visibleTrackIds, selectedTrackIds, animationTrack, aiSegmentHighlight, raceRunners, isMobile]);
+  }, [selectionPoints, tracks, visibleTrackIds, selectedTrackIds, animationTrack, aiSegmentHighlight, raceRunners, isMobile, isAnimationPlaying]);
 
   // Init/Destroy 2D Map Logic based on 2D/3D Mode
   useEffect(() => {
     if (is3DMode) {
-        // Destroy Leaflet map when entering 3D mode to free DOM and prevents black screen on return
         if (mapRef.current) {
             mapRef.current.remove();
             mapRef.current = null;
-            // Clear refs
             tileLayerRef.current = null;
             polylinesRef.current.clear();
             raceFaintPolylinesRef.current.clear();
@@ -298,7 +295,6 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
 
       L.control.attribution({ prefix: false }).addTo(mapRef.current);
 
-      // Disable auto-fit on user interaction to prevent fighting the user
       mapRef.current.on('dragstart zoomstart movestart', () => setIsAutoFitEnabled(false));
       
       kmMarkersLayerGroupRef.current = L.layerGroup().addTo(mapRef.current);
@@ -315,9 +311,8 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
           fitMapToBounds();
       }
 
-      // Restore theme
       const saved = localStorage.getItem('gpx-map-theme') || 'light';
-      setMapTheme(saved as any); // Trigger tile load in separate effect
+      setMapTheme(saved as any); 
 
       return () => {
           if (mapRef.current) {
@@ -327,16 +322,14 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
           resizeObserver.disconnect();
       };
     }
-  }, [is3DMode]); // Dependent on is3DMode
+  }, [is3DMode]); 
 
-  // Continuous Auto Fit for Race Mode (when user hasn't interfered)
   useEffect(() => {
       if (!is3DMode && isAutoFitEnabled && raceRunners && raceRunners.length > 0) {
           fitMapToBounds();
       }
   }, [raceRunners, isAutoFitEnabled, fitMapToBounds, is3DMode]);
 
-  // Tile Layer (2D Only)
   useEffect(() => {
       const map = mapRef.current;
       if (!map || is3DMode) return;
@@ -371,9 +364,9 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
 
       tileLayerRef.current = L.tileLayer(tileUrl, options).addTo(map);
 
-  }, [mapTheme, is3DMode]); // Re-apply theme when returning from 3D
+  }, [mapTheme, is3DMode]);
 
-  // Main Track Rendering Effect (Create Layers) - 2D Only
+  // Main Track Rendering Effect - 2D Only
   useEffect(() => {
     const map = mapRef.current;
     if (!map || is3DMode) return;
@@ -383,6 +376,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
     raceFaintPolylinesRef.current.forEach(layer => map.removeLayer(layer));
     raceFaintPolylinesRef.current.clear();
     
+    // Only clear KM markers if we are switching contexts, but in animation they are cumulative
     if (!animationTrack) kmMarkersLayerGroupRef.current?.clearLayers();
 
     if (animationTrack) {
@@ -461,75 +455,6 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
     }
   }, [tracks, visibleTrackIds, mapGradientMetric, raceRunners, animationTrack, animationProgress, showSummaryMode, is3DMode]);
 
-  // Style Updates - 2D Only
-  useEffect(() => {
-      const map = mapRef.current;
-      if (!map || animationTrack || (raceRunners && raceRunners.length > 0) || is3DMode) return;
-
-      const safeSelectedIds = selectedTrackIds instanceof Set ? selectedTrackIds : new Set();
-      const isAnyHovered = hoveredTrackId !== null;
-      const isSelectionActive = safeSelectedIds.size > 0;
-
-      polylinesRef.current.forEach((layer, trackId) => {
-          const isHovered = hoveredTrackId === trackId;
-          const isSelected = safeSelectedIds.has(trackId);
-          const track = tracks.find(t => t.id === trackId);
-          if (!track) return;
-
-          let opacity = 0.7;
-          let weight = 4;
-          let color = track.color;
-          let bringToFront = false;
-
-          if (isAnyHovered) {
-              if (isHovered) {
-                  opacity = 1.0;
-                  weight = 8;
-                  bringToFront = true;
-              } else {
-                  opacity = 0.15;
-                  weight = 2;
-                  color = '#334155';
-              }
-          } else if (isSelectionActive) {
-              if (isSelected) {
-                  opacity = 1.0;
-                  weight = 6;
-                  bringToFront = true;
-              } else {
-                  opacity = 0.2;
-                  weight = 2;
-                  color = '#475569';
-              }
-          } else {
-              if (mapTheme === 'satellite') {
-                  opacity = 0.9;
-                  weight = 4;
-              }
-          }
-
-          if (layer instanceof L.FeatureGroup) {
-              layer.eachLayer((l: any) => {
-                  if (l.setStyle) {
-                      const segColor = (isAnyHovered && !isHovered) ? color : (l.options.originalColor || l.options.color);
-                      l.setStyle({ opacity, weight, color: segColor });
-                      if (!l.options.originalColor) l.options.originalColor = l.options.color;
-                  }
-              });
-          } else {
-              if (layer.setStyle) {
-                  layer.setStyle({ color, opacity, weight });
-              }
-          }
-
-          if (bringToFront && layer.bringToFront) {
-              layer.bringToFront();
-          }
-      });
-
-  }, [hoveredTrackId, selectedTrackIds, animationTrack, raceRunners, tracks, mapTheme, is3DMode]);
-
-
   // Helper Effects for Markers/Overlays - 2D Only
   useEffect(() => {
     const map = mapRef.current;
@@ -558,7 +483,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
     }
   }, [raceRunners, tracks, is3DMode]);
 
-  // Animation Marker & KM Markers - 2D Only
+  // Animation Marker & KM Markers - 2D Only - OPTIMIZED FOR JITTER
   useEffect(() => {
       const map = mapRef.current;
       if (!map || !animationTrack || is3DMode) {
@@ -568,21 +493,39 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
 
       const currentInterp = getTrackPointAtDistance(animationTrack, animationProgress);
       if (currentInterp) {
-          if (!showSummaryMode) map.setView([currentInterp.lat, currentInterp.lon], map.getZoom(), { animate: false });
+          if (!showSummaryMode) {
+              // OPTIMIZATION: Only setView if distance > threshold or if forcing it initially
+              // Prevents micro-stuttering on high framerates
+              const currentCenter = map.getCenter();
+              const dist = map.distance(currentCenter, [currentInterp.lat, currentInterp.lon]);
+              if (dist > 5) { // Only recenter if point moved > 5 meters from center
+                  map.setView([currentInterp.lat, currentInterp.lon], map.getZoom(), { animate: false });
+              }
+          }
           
-          const iconHtml = `<div class="relative flex flex-col items-center"><div class="cursor-dot animate-pulse shadow-lg" style="background-color: ${animationTrack.color}; width: 20px; height: 20px; border: 3px solid white;"></div><div class="pace-label font-black" style="background-color: ${animationTrack.color};">${animationPace > 0 ? formatPace(animationPace) : '--:--'}</div></div>`;
-          const icon = L.divIcon({
-              className: 'race-cursor-icon',
-              html: iconHtml,
-              iconSize: [60, 40],
-              iconAnchor: [30, 20]
-          });
+          const paceStr = animationPace > 0 ? formatPace(animationPace) : '--:--';
+          
+          // Only recreate icon if pace string changed to avoid DOM thrashing
+          if (lastAnimationPaceRef.current !== paceStr || !animationMarkerRef.current) {
+              lastAnimationPaceRef.current = paceStr;
+              const iconHtml = `<div class="relative flex flex-col items-center"><div class="cursor-dot animate-pulse shadow-lg" style="background-color: ${animationTrack.color}; width: 20px; height: 20px; border: 3px solid white;"></div><div class="pace-label font-black" style="background-color: ${animationTrack.color};">${paceStr}</div></div>`;
+              const icon = L.divIcon({
+                  className: 'race-cursor-icon',
+                  html: iconHtml,
+                  iconSize: [60, 40],
+                  iconAnchor: [30, 20]
+              });
 
-          if (!animationMarkerRef.current) {
-              animationMarkerRef.current = L.marker([currentInterp.lat, currentInterp.lon], { icon, zIndexOffset: 2000 }).addTo(map);
-          } else {
+              if (!animationMarkerRef.current) {
+                  animationMarkerRef.current = L.marker([currentInterp.lat, currentInterp.lon], { icon, zIndexOffset: 2000 }).addTo(map);
+              } else {
+                  animationMarkerRef.current.setIcon(icon);
+              }
+          }
+          
+          // Always update position
+          if (animationMarkerRef.current) {
               animationMarkerRef.current.setLatLng([currentInterp.lat, currentInterp.lon]);
-              animationMarkerRef.current.setIcon(icon);
           }
       }
 
@@ -610,7 +553,10 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
               }
           }
       }
-      if (animationProgress < 0.1) passedKmsRef.current.clear();
+      if (animationProgress < 0.1) {
+          passedKmsRef.current.clear();
+          kmMarkersLayerGroupRef.current?.clearLayers();
+      }
 
   }, [animationTrack, animationProgress, animationPace, showSummaryMode, animationTrackStats, is3DMode]);
 
