@@ -26,6 +26,8 @@ interface TrackDetailViewProps {
     onOpenReview?: (trackId: string) => void;
     autoOpenAi?: boolean;
     onCheckAiAccess?: () => boolean; // New prop
+    isGuest?: boolean;
+    onLimitReached?: () => void;
 }
 
 const useIsMobile = () => {
@@ -164,7 +166,7 @@ const RPE_SCALE: Record<number, { label: string, desc: string, color: string }> 
     10: { label: "Esaurimento", desc: "Sforzo massimo assoluto, impossibile continuare.", color: "text-red-600" }
 };
 
-const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, onExit, allHistory = [], onUpdateTrackMetadata, onAddPlannedWorkout, onStartAnimation, onOpenReview, autoOpenAi = false, onCheckAiAccess }) => {
+const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, onExit, allHistory = [], onUpdateTrackMetadata, onAddPlannedWorkout, onStartAnimation, onOpenReview, autoOpenAi = false, onCheckAiAccess, isGuest = false, onLimitReached }) => {
     const isMobile = useIsMobile();
     const [yAxisMetrics, setYAxisMetrics] = useState<YAxisMetric[]>(['pace']);
     const [hoveredPoint, setHoveredPoint] = useState<TrackPoint | null>(null);
@@ -228,6 +230,14 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
                 setAnimationTime(prevTime => {
                     const nextTime = prevTime + delta * animationSpeed;
                     
+                    // Guest Check: 10 seconds limit (10000 ms)
+                    // We check if the NEW time exceeds the limit relative to START (0)
+                    if (isGuest && nextTime > 10000) {
+                        setIsAnimating(false);
+                        if (onLimitReached) onLimitReached();
+                        return prevTime; // Freeze time
+                    }
+
                     // Convert Time to Distance for MapDisplay
                     const state = getTrackStateAtTime(displayTrack, nextTime);
                     
@@ -240,7 +250,9 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
                     return nextTime;
                 });
                 
-                animationFrameRef.current = requestAnimationFrame(animate);
+                if (isAnimating) { // Double check inside loop closure isn't fully reliable without ref or clean state, but functional here due to react update
+                    animationFrameRef.current = requestAnimationFrame(animate);
+                }
             };
             
             animationFrameRef.current = requestAnimationFrame(animate);
@@ -253,7 +265,7 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
         return () => {
             if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
         };
-    }, [isAnimating, animationSpeed, displayTrack]);
+    }, [isAnimating, animationSpeed, displayTrack, isGuest, onLimitReached]);
 
     // Handle manual scrubbing of animation slider
     const handleAnimationProgressChange = (newProgress: number) => {
@@ -262,7 +274,17 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
         const point = getTrackPointAtDistance(displayTrack, newProgress);
         if (point) {
             const startTime = displayTrack.points[0].time.getTime();
-            setAnimationTime(point.time.getTime() - startTime);
+            const newTime = point.time.getTime() - startTime;
+            
+            if (isGuest && newTime > 10000) {
+                if (onLimitReached) onLimitReached();
+                // Clamp to limit
+                setAnimationTime(10000);
+                const limitPoint = getTrackStateAtTime(displayTrack, 10000);
+                if (limitPoint) setAnimationProgress(limitPoint.point.cummulativeDistance);
+            } else {
+                setAnimationTime(newTime);
+            }
         }
     };
 
@@ -673,39 +695,63 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
                 </div>
 
                 {/* MOBILE VIEW */}
-                <div className="sm:hidden h-full w-full bg-slate-900 flex flex-col relative pb-20">
-                    <ResizablePanel 
-                        direction="horizontal" 
-                        initialSizeRatio={0.50} // 50% Stats
-                        minSize={150} 
-                        minSizeSecondary={150}
-                    >
-                        {/* Top: Stats */}
-                        <div ref={statsContainerRef} className="h-full w-full overflow-y-auto bg-slate-800 custom-scrollbar min-h-0 overscroll-y-contain">
-                            {statsContent}
-                        </div>
-
-                        {/* Bottom: Map + Chart (Stacked) */}
-                        <div className="h-full w-full relative">
+                <div className="sm:hidden h-full w-full bg-slate-900 flex flex-col relative">
+                    {isMobile && isAnimating ? (
+                        // ANIMATION MODE: FULL MAP + CHART, NO STATS
+                        <div className="h-full w-full flex flex-col">
                              <ResizablePanel 
-                                direction="horizontal" 
-                                initialSizeRatio={0.60} // Map gets 60% of bottom space
-                                minSize={100} 
-                                minSizeSecondary={80}
+                                direction="horizontal" // Vertical split
+                                initialSizeRatio={0.65} // Map gets 65% space for visibility
+                                minSize={150} 
+                                minSizeSecondary={100}
                              >
-                                {/* Map Section (Now Top of Bottom Panel) */}
+                                {/* Map Section */}
                                 <div className="h-full w-full relative z-0 border-b border-slate-700">
                                     {mapSection}
                                 </div>
 
-                                {/* Chart Section (Now Bottom of Bottom Panel) */}
+                                {/* Chart Section */}
                                 <div className="h-full flex flex-col bg-slate-900">
                                     <div className="h-8 flex-shrink-0">{chartControls}</div>
                                     <div className="flex-grow min-h-0">{chartSection}</div>
                                 </div>
                              </ResizablePanel>
                         </div>
-                    </ResizablePanel>
+                    ) : (
+                        // STANDARD MODE: STATS + (MAP/CHART)
+                        <ResizablePanel 
+                            direction="horizontal" 
+                            initialSizeRatio={0.50} // 50% Stats
+                            minSize={150} 
+                            minSizeSecondary={150}
+                        >
+                            {/* Top: Stats */}
+                            <div ref={statsContainerRef} className="h-full w-full overflow-y-auto bg-slate-800 custom-scrollbar min-h-0 overscroll-y-contain">
+                                {statsContent}
+                            </div>
+
+                            {/* Bottom: Map + Chart (Stacked) */}
+                            <div className="h-full w-full relative">
+                                 <ResizablePanel 
+                                    direction="horizontal" 
+                                    initialSizeRatio={0.60} // Map gets 60% of bottom space
+                                    minSize={100} 
+                                    minSizeSecondary={80}
+                                 >
+                                    {/* Map Section (Now Top of Bottom Panel) */}
+                                    <div className="h-full w-full relative z-0 border-b border-slate-700">
+                                        {mapSection}
+                                    </div>
+
+                                    {/* Chart Section (Now Bottom of Bottom Panel) */}
+                                    <div className="h-full flex flex-col bg-slate-900">
+                                        <div className="h-8 flex-shrink-0">{chartControls}</div>
+                                        <div className="flex-grow min-h-0">{chartSection}</div>
+                                    </div>
+                                 </ResizablePanel>
+                            </div>
+                        </ResizablePanel>
+                    )}
                 </div>
             </main>
         </div>
