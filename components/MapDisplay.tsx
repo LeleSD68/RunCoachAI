@@ -49,7 +49,6 @@ interface AnimationStats {
     distance: number;
 }
 
-// StatsDisplay COMPACT VERSION
 const StatsDisplay: React.FC<{ stats: AnimationStats, splits: Split[], currentDistance: number, visibleMetrics: Set<string> }> = ({ stats, splits, currentDistance, visibleMetrics }) => {
     const showHr = visibleMetrics.has('hr') && stats.hr !== null;
     const showTime = visibleMetrics.has('time');
@@ -58,35 +57,37 @@ const StatsDisplay: React.FC<{ stats: AnimationStats, splits: Split[], currentDi
     const activeMetricsCount = 1 + (showTime ? 1 : 0) + (showPace ? 1 : 0) + (showElevation ? 1 : 0) + (showHr ? 1 : 0);
 
     return (
-        <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-slate-900/80 backdrop-blur-md px-4 py-2 rounded-full shadow-lg text-white z-[100] border border-slate-700/50 transition-all duration-300 animate-fade-in-down flex gap-4 items-center whitespace-nowrap">
-            <div className="flex flex-col items-center min-w-[50px]">
-                <div className="text-[8px] text-slate-400 uppercase font-black tracking-wider">Dist</div>
-                <div className="text-sm font-bold font-mono">{stats.distance.toFixed(2)}<span className="text-[8px] text-slate-500 ml-0.5">km</span></div>
+        <div className="absolute top-0 left-0 right-0 sm:top-4 sm:left-auto sm:right-4 bg-slate-800/95 sm:bg-slate-800/90 backdrop-blur-md p-3 sm:p-4 rounded-b-xl sm:rounded-xl shadow-2xl text-white z-[100] border-b sm:border border-slate-600 w-full sm:w-auto sm:max-w-lg transition-all duration-300 animate-fade-in-down">
+            <div className="grid gap-x-4 gap-y-2" style={{ gridTemplateColumns: `repeat(${activeMetricsCount}, minmax(0, 1fr))` }}>
+                <div>
+                    <div className="text-[10px] sm:text-xs text-slate-400 uppercase font-bold">Distanza</div>
+                    <div className="text-base sm:text-xl font-bold font-mono">{stats.distance.toFixed(2)} <span className="text-[10px] sm:text-sm text-slate-500">km</span></div>
+                </div>
+                {showTime && (
+                    <div>
+                        <div className="text-[10px] sm:text-xs text-slate-400 uppercase font-bold">Tempo</div>
+                        <div className="text-base sm:text-xl font-bold font-mono">{stats.time}</div>
+                    </div>
+                )}
+                {showPace && (
+                    <div>
+                        <div className="text-[10px] sm:text-xs text-slate-400 uppercase font-bold">Ritmo</div>
+                        <div className="text-base sm:text-xl font-bold font-mono">{stats.pace}</div>
+                    </div>
+                )}
+                {showElevation && (
+                    <div>
+                        <div className="text-[10px] sm:text-xs text-slate-400 uppercase font-bold">Elev.</div>
+                        <div className="text-base sm:text-xl font-bold font-mono">{stats.elevation} m</div>
+                    </div>
+                )}
+                {showHr && (
+                     <div>
+                        <div className="text-[10px] sm:text-xs text-slate-400 uppercase font-bold">FC</div>
+                        <div className="text-base sm:text-xl font-bold font-mono text-red-400">{Math.round(stats.hr!)} <span className="text-[10px] sm:text-sm text-slate-500">bpm</span></div>
+                    </div>
+                )}
             </div>
-            {showTime && (
-                <div className="flex flex-col items-center min-w-[50px] border-l border-white/10 pl-4">
-                    <div className="text-[8px] text-slate-400 uppercase font-black tracking-wider">Time</div>
-                    <div className="text-sm font-bold font-mono">{stats.time}</div>
-                </div>
-            )}
-            {showPace && (
-                <div className="flex flex-col items-center min-w-[50px] border-l border-white/10 pl-4">
-                    <div className="text-[8px] text-slate-400 uppercase font-black tracking-wider">Pace</div>
-                    <div className="text-sm font-bold font-mono text-cyan-400">{stats.pace}</div>
-                </div>
-            )}
-            {showElevation && (
-                <div className="flex flex-col items-center min-w-[40px] border-l border-white/10 pl-4">
-                    <div className="text-[8px] text-slate-400 uppercase font-black tracking-wider">Ele</div>
-                    <div className="text-sm font-bold font-mono">{stats.elevation}m</div>
-                </div>
-            )}
-            {showHr && (
-                 <div className="flex flex-col items-center min-w-[40px] border-l border-white/10 pl-4">
-                    <div className="text-[8px] text-slate-400 uppercase font-black tracking-wider">HR</div>
-                    <div className="text-sm font-bold font-mono text-red-400">{Math.round(stats.hr!)}</div>
-                </div>
-            )}
         </div>
     );
 };
@@ -244,23 +245,10 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
   // Init/Destroy 2D Map Logic based on 2D/3D Mode
   useEffect(() => {
     if (is3DMode) {
-        // Safe Cleanup of Leaflet Map to avoid "Canvas is undefined" errors
+        // Destroy Leaflet map when entering 3D mode to free DOM and prevents black screen on return
         if (mapRef.current) {
-            // Remove layers first
-            polylinesRef.current.forEach(layer => mapRef.current?.removeLayer(layer));
-            raceFaintPolylinesRef.current.forEach(layer => mapRef.current?.removeLayer(layer));
-            raceRunnerMarkersRef.current.forEach(m => mapRef.current?.removeLayer(m));
-            if (kmMarkersLayerGroupRef.current) mapRef.current.removeLayer(kmMarkersLayerGroupRef.current);
-            if (hoverMarkerRef.current) mapRef.current.removeLayer(hoverMarkerRef.current);
-            if (animationMarkerRef.current) mapRef.current.removeLayer(animationMarkerRef.current);
-            if (selectionPolylineRef.current) mapRef.current.removeLayer(selectionPolylineRef.current);
-            if (aiSegmentPolylineRef.current) mapRef.current.removeLayer(aiSegmentPolylineRef.current);
-            if (tileLayerRef.current) mapRef.current.removeLayer(tileLayerRef.current);
-
-            // Now remove map
             mapRef.current.remove();
             mapRef.current = null;
-            
             // Clear refs
             tileLayerRef.current = null;
             polylinesRef.current.clear();
@@ -518,9 +506,16 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
             const textColor = runner.color.toLowerCase() === '#ffffff' || runner.color.toLowerCase() === '#fff' ? 'text-slate-900' : 'text-white';
             const icon = L.divIcon({ 
                 className: 'race-cursor-icon', 
-                html: `<div class="relative flex flex-col items-center"><div class="cursor-dot" style="background-color: ${runner.color};"></div><div class="pace-label ${textColor}" style="background-color: ${runner.color};">${formatPace(runner.pace)}</div></div>`, 
-                iconSize: [60, 40], 
-                iconAnchor: [30, 20] 
+                html: `
+                    <div class="relative flex flex-col items-center">
+                        <div class="cursor-dot" style="background-color: ${runner.color};"></div>
+                        <div class="pace-label-box" style="background-color: ${runner.color}; color: ${textColor === 'text-white' ? '#fff' : '#000'};">
+                            <span class="font-black text-[9px] truncate max-w-[80px] block leading-tight">${runner.name}</span>
+                            <span class="font-mono text-[10px] font-bold leading-tight">${formatPace(runner.pace)}</span>
+                        </div>
+                    </div>`, 
+                iconSize: [80, 50], 
+                iconAnchor: [40, 25] 
             });
             const marker = L.marker([runner.position.lat, runner.position.lon], { icon, zIndexOffset: 1000 }).addTo(map);
             raceRunnerMarkersRef.current.set(runner.trackId, marker);
@@ -714,16 +709,19 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
         {/* Stats & Animation Controls - Show in 3D Mode too if it's a replay */}
         {animationTrack && !showSummaryMode && (
             <>
-                {/* Removed StatsDisplay in MapDisplay to let parent component handle "Cinema Mode" layout */}
+                {(!is3DMode || (is3DMode && animationTrack)) && (
+                    <StatsDisplay stats={animationStats} splits={animationTrackStats?.splits || []} currentDistance={animationProgress} visibleMetrics={visibleMetrics} />
+                )}
                 <AnimationControls isPlaying={isAnimationPlaying!} onTogglePlay={onToggleAnimationPlay!} progress={animationProgress} totalDistance={animationTrack.distance} onProgressChange={onAnimationProgressChange!} speed={animationSpeed!} onSpeedChange={onAnimationSpeedChange!} onExit={onExitAnimation!} visibleMetrics={visibleMetrics} onToggleMetric={handleToggleMetric} />
             </>
         )}
 
       <style>{`
         .km-marker { background: rgba(30, 41, 59, 0.9); color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; border: 1px solid #475569; pointer-events: none; }
-        .race-cursor-icon { display: flex; align-items: center; justify-content: center; }
-        .cursor-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
+        .race-cursor-icon { display: flex; align-items: center; justify-content: center; overflow: visible !important; }
+        .cursor-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.5); position: absolute; z-index: 2; }
         .pace-label { position: absolute; top: -28px; left: 50%; transform: translateX(-50%); font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 4px; white-space: nowrap; box-shadow: 0 4px 6px rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.4); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+        .pace-label-box { position: absolute; top: -45px; left: 50%; transform: translateX(-50%); padding: 4px 8px; border-radius: 6px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.4); text-align: center; white-space: nowrap; z-index: 10; display: flex; flex-direction: column; align-items: center; gap: 1px; pointer-events: none; }
         .leaflet-popup-content-wrapper { background: rgba(15, 23, 42, 0.95) !important; color: white !important; border: 1px solid #334155; border-radius: 8px !important; }
         .leaflet-popup-tip { background: rgba(15, 23, 42, 0.95) !important; }
         .km-info-popup .leaflet-popup-content { margin: 8px 12px !important; }
