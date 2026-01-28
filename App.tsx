@@ -56,6 +56,7 @@ const App: React.FC = () => {
   const [showAuthSelection, setShowAuthSelection] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginModalLimitMessage, setLoginModalLimitMessage] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false); // New state for sync loading screen
 
   const [isGuest, setIsGuest] = useState(true);
   const [guestAiUsage, setGuestAiUsage] = useState<number>(() => parseInt(localStorage.getItem('guest_ai_usage') || '0'));
@@ -190,7 +191,9 @@ const App: React.FC = () => {
       const { data: { session } } = await supabase.auth.getSession();
       
       if (session) {
+          setIsSyncing(true); // START WAITING SCREEN
           await loadDataAndEnter();
+          setIsSyncing(false); // STOP WAITING SCREEN
       } else {
           setShowAuthSelection(true);
       }
@@ -713,6 +716,14 @@ const App: React.FC = () => {
   return (
     <div className="h-screen w-screen bg-slate-900 text-white overflow-hidden flex flex-col">
         {showSplash && <SplashScreen onFinish={handleSplashFinish} />}
+
+        {isSyncing && (
+            <div className="fixed inset-0 z-[50000] bg-slate-950 flex flex-col items-center justify-center animate-fade-in">
+                <div className="w-16 h-16 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mb-6"></div>
+                <h2 className="text-xl font-black text-white uppercase tracking-widest mb-2 animate-pulse">Sincronizzazione Database</h2>
+                <p className="text-slate-400 text-sm">Recupero i tuoi dati dal cloud...</p>
+            </div>
+        )}
 
         {showAuthSelection && (
             <AuthSelectionModal 
