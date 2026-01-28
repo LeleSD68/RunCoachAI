@@ -48,7 +48,7 @@ const TRACK_COLORS = [
 ];
 
 const GUEST_AI_LIMIT = 4;
-const GUEST_REPLAY_LIMIT_MS = 10000; // 10 seconds
+const GUEST_DISTANCE_LIMIT_KM = 1.0; // Limit for guests: 1st Kilometer
 
 const App: React.FC = () => {
   // --- STATE ---
@@ -108,6 +108,7 @@ const App: React.FC = () => {
   const [runnerGaps, setRunnerGaps] = useState<Map<string, number>>(new Map()); // meters to leader
   const [hoveredTrackId, setHoveredTrackId] = useState<string | null>(null);
   const [showRaceSetup, setShowRaceSetup] = useState(false);
+  const [guestRaceTimeLimit, setGuestRaceTimeLimit] = useState<number>(0);
   
   // Analysis / Interaction
   const [selectedWorkoutIdForDiary, setSelectedWorkoutIdForDiary] = useState<string | null>(null);
@@ -588,6 +589,28 @@ const App: React.FC = () => {
       setRaceResults([]);
       setShowRaceSetup(false);
       lastTimeRef.current = performance.now();
+      
+      // GUEST LIMIT LOGIC:
+      // Find the TIME it takes for the FASTEST runner to reach 1 KM.
+      // This ensures we stop exactly at 1km of the leading runner.
+      if (isGuest) {
+          const selectedTracks = tracks.filter(t => raceSelectionIds.has(t.id));
+          let minTimeAt1km = Infinity;
+          
+          selectedTracks.forEach(t => {
+              const pAt1km = getTrackPointAtDistance(t, GUEST_DISTANCE_LIMIT_KM);
+              if (pAt1km) {
+                  // Duration from start to 1km point
+                  const time = pAt1km.time.getTime() - t.points[0].time.getTime();
+                  if (time < minTimeAt1km) minTimeAt1km = time;
+              } else {
+                  // Track < 1km, use full duration
+                  if (t.duration < minTimeAt1km) minTimeAt1km = t.duration;
+              }
+          });
+          setGuestRaceTimeLimit(minTimeAt1km);
+      }
+
       requestAnimationFrame(gameLoop);
   };
 
@@ -595,7 +618,7 @@ const App: React.FC = () => {
       setSimulationState('paused');
       setLoginModalLimitMessage(true);
       setShowLoginModal(true);
-      addToast("Anteprima ospite terminata. Registrati per continuare.", "info");
+      addToast("Anteprima ospite terminata (1° km). Registrati per continuare.", "info");
   }, [addToast]);
 
   const gameLoop = (time: number) => {
@@ -608,9 +631,10 @@ const App: React.FC = () => {
           const newTime = prev + delta * simulationSpeed;
           
           // GUEST LIMIT CHECK FOR RACE
-          if (isGuest && newTime > GUEST_REPLAY_LIMIT_MS) {
+          // Stop if the simulation time reaches the calculated 1km timestamp
+          if (isGuest && newTime > guestRaceTimeLimit) {
               handleLimitReached();
-              return GUEST_REPLAY_LIMIT_MS;
+              return guestRaceTimeLimit;
           }
 
           const selectedTracks = tracks.filter(t => raceSelectionIds.has(t.id));
