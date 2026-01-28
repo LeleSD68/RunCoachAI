@@ -1,41 +1,42 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import Sidebar from './components/Sidebar';
-import MapDisplay from './components/MapDisplay';
-import TrackEditor from './components/TrackEditor';
-import TrackDetailView from './components/TrackDetailView';
-import DiaryView from './components/DiaryView';
-import ExplorerView from './components/ExplorerView';
-import HomeModal from './components/HomeModal';
-import WelcomeModal from './components/WelcomeModal';
-import InitialChoiceModal from './components/InitialChoiceModal';
-import GuideModal from './components/GuideModal';
-import Changelog from './components/Changelog';
-import UserProfileModal from './components/UserProfileModal';
-import ToastContainer from './components/ToastContainer';
-import Chatbot from './components/Chatbot';
-import RaceControls from './components/RaceControls';
-import RaceLeaderboard from './components/RacePaceBar';
-import RaceSummary from './components/RaceSummary';
-import { PostRaceStatsBar, PostRaceAISidebar } from './components/PostRaceAnalysis';
-import VeoAnimationModal from './components/VeoAnimationModal';
-import LiveCommentary from './components/LiveCommentary';
-import WorkoutConfirmationModal from './components/WorkoutConfirmationModal';
-import AiReviewModal from './components/AiReviewModal';
-import RaceSetupModal from './components/RaceSetupModal';
-import SplashScreen from './components/SplashScreen';
-import MobileTrackSummary from './components/MobileTrackSummary';
-import NavigationDock from './components/NavigationDock';
-import PerformanceAnalysisPanel from './components/PerformanceAnalysisPanel';
-import ComparisonModal from './components/ComparisonModal';
+import Sidebar from '../components/Sidebar';
+import MapDisplay from '../components/MapDisplay';
+import TrackEditor from '../components/TrackEditor';
+import TrackDetailView from '../components/TrackDetailView';
+import DiaryView from '../components/DiaryView';
+import ExplorerView from '../components/ExplorerView';
+import HomeModal from '../components/HomeModal';
+import WelcomeModal from '../components/WelcomeModal';
+import InitialChoiceModal from '../components/InitialChoiceModal';
+import GuideModal from '../components/GuideModal';
+import Changelog from '../components/Changelog';
+import UserProfileModal from '../components/UserProfileModal';
+import ToastContainer from '../components/ToastContainer';
+import Chatbot from '../components/Chatbot';
+import RaceControls from '../components/RaceControls';
+import RaceLeaderboard from '../components/RacePaceBar';
+import RaceSummary from '../components/RaceSummary';
+import { PostRaceStatsBar, PostRaceAISidebar } from '../components/PostRaceAnalysis';
+import VeoAnimationModal from '../components/VeoAnimationModal';
+import LiveCommentary from '../components/LiveCommentary';
+import WorkoutConfirmationModal from '../components/WorkoutConfirmationModal';
+import AiReviewModal from '../components/AiReviewModal';
+import RaceSetupModal from '../components/RaceSetupModal';
+import SplashScreen from '../components/SplashScreen';
+import MobileTrackSummary from '../components/MobileTrackSummary';
+import NavigationDock from '../components/NavigationDock';
+import PerformanceAnalysisPanel from '../components/PerformanceAnalysisPanel';
+import ComparisonModal from '../components/ComparisonModal';
 
-import { Track, TrackPoint, UserProfile, Toast, RaceResult, TrackStats, PlannedWorkout, ApiUsageStats, Commentary } from './types';
-import { loadTracksFromDB, saveTracksToDB, loadProfileFromDB, saveProfileToDB, loadPlannedWorkoutsFromDB, savePlannedWorkoutsToDB, exportAllData, importAllData, BackupData, syncTrackToCloud } from './services/dbService';
-import { findPersonalRecordsForTrack, updateStoredPRs } from './services/prService';
-import { calculateTrackStats } from './services/trackStatsService';
-import { getTrackPointAtDistance, getTrackStateAtTime } from './services/trackEditorUtils';
-import { parseGpx } from './services/gpxService';
-import { parseTcx } from './services/tcxService';
-import { generateSmartTitle } from './services/titleGenerator';
+import { Track, TrackPoint, UserProfile, Toast, RaceResult, TrackStats, PlannedWorkout, ApiUsageStats, Commentary } from '../types';
+import { loadTracksFromDB, saveTracksToDB, loadProfileFromDB, saveProfileToDB, loadPlannedWorkoutsFromDB, savePlannedWorkoutsToDB, exportAllData, importAllData, BackupData, syncTrackToCloud } from '../services/dbService';
+import { findPersonalRecordsForTrack, updateStoredPRs } from '../services/prService';
+import { calculateTrackStats } from '../services/trackStatsService';
+import { getTrackPointAtDistance, getTrackStateAtTime } from '../services/trackEditorUtils';
+import { parseGpx } from '../services/gpxService';
+import { parseTcx } from '../services/tcxService';
+import { generateSmartTitle } from '../services/titleGenerator';
+import { isSupabaseConfigured } from '../services/supabaseClient';
 
 const TRACK_COLORS = [
   '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e'
@@ -50,6 +51,7 @@ const App: React.FC = () => {
   const [userProfile, setUserProfile] = useState<UserProfile>({});
   const [plannedWorkouts, setPlannedWorkouts] = useState<PlannedWorkout[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [isGuest, setIsGuest] = useState(!isSupabaseConfigured());
   
   // Modals & Views
   const [showHome, setShowHome] = useState(false);
@@ -120,6 +122,18 @@ const App: React.FC = () => {
       setShowAiChatbot(false);
       setShowRaceSetup(false);
       setShowComparison(false);
+  }, []);
+
+  const checkAiAccess = useCallback(() => {
+      if (apiUsage.daily > apiUsage.limitDaily) {
+          addToast("Limite giornaliero API raggiunto.", "error");
+          return false;
+      }
+      return true;
+  }, [apiUsage]);
+
+  const handleLimitReached = useCallback(() => {
+      addToast("Funzionalità limitata. Aggiorna il piano.", "info");
   }, []);
 
   // --- INITIALIZATION ---
@@ -618,7 +632,7 @@ const App: React.FC = () => {
                         apiUsageStats={apiUsage}
                         onOpenHub={() => setShowHome(true)}
                         onOpenPerformanceAnalysis={() => setShowPerformancePanel(true)}
-                        onUserLogin={() => { loadTracksFromDB().then(setTracks); addToast('Login effettuato (Locale)', 'success'); }}
+                        onUserLogin={() => { loadTracksFromDB().then(setTracks); addToast('Login effettuato (Locale)', 'success'); setIsGuest(false); }}
                         onCompareSelected={handleCompareSelected}
                         userProfile={userProfile}
                     />
@@ -641,10 +655,14 @@ const App: React.FC = () => {
                         userProfile={userProfile}
                         onExit={() => setSelectedDetailTrackId(null)}
                         allHistory={tracks}
+                        plannedWorkouts={plannedWorkouts}
                         onUpdateTrackMetadata={handleUpdateTrackMetadata}
                         onAddPlannedWorkout={handleAddPlannedWorkout}
                         onStartAnimation={(id) => { setAnimationTrackId(id); setIsAnimationPlaying(true); }}
-                        onOpenReview={setAiReviewTrackId}
+                        onOpenReview={(id) => checkAiAccess() && setAiReviewTrackId(id)}
+                        onCheckAiAccess={checkAiAccess}
+                        isGuest={isGuest}
+                        onLimitReached={handleLimitReached}
                     />
                 ) : editorTracks ? (
                     <TrackEditor 
@@ -792,6 +810,7 @@ const App: React.FC = () => {
                 onOpenTrackChat={(id) => { setShowDiary(false); setSelectedDetailTrackId(id); }}
                 onOpenGlobalChat={() => { setShowDiary(false); setShowAiChatbot(true); }}
                 initialSelectedWorkoutId={selectedWorkoutIdForDiary}
+                onCheckAiAccess={checkAiAccess}
             />
         )}
 
@@ -823,6 +842,7 @@ const App: React.FC = () => {
                     onClose={() => setShowAiChatbot(false)}
                     isStandalone={true}
                     onAddPlannedWorkout={handleAddPlannedWorkout}
+                    plannedWorkouts={plannedWorkouts}
                 />
             </div>
         )}
