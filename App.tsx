@@ -48,6 +48,7 @@ const TRACK_COLORS = [
 ];
 
 const GUEST_AI_LIMIT = 4;
+const GUEST_REPLAY_LIMIT_MS = 10000; // 10 seconds
 
 const App: React.FC = () => {
   // --- STATE ---
@@ -581,6 +582,13 @@ const App: React.FC = () => {
       requestAnimationFrame(gameLoop);
   };
 
+  const handleLimitReached = useCallback(() => {
+      setSimulationState('paused');
+      setLoginModalLimitMessage(true);
+      setShowLoginModal(true);
+      addToast("Anteprima ospite terminata. Registrati per continuare.", "info");
+  }, [addToast]);
+
   const gameLoop = (time: number) => {
       if (simulationState === 'paused' || simulationState === 'finished') return;
       
@@ -589,6 +597,13 @@ const App: React.FC = () => {
       
       setSimulationTime(prev => {
           const newTime = prev + delta * simulationSpeed;
+          
+          // GUEST LIMIT CHECK FOR RACE
+          if (isGuest && newTime > GUEST_REPLAY_LIMIT_MS) {
+              handleLimitReached();
+              return GUEST_REPLAY_LIMIT_MS;
+          }
+
           const selectedTracks = tracks.filter(t => raceSelectionIds.has(t.id));
           const maxDuration = Math.max(...selectedTracks.map(t => t.duration));
           
@@ -624,7 +639,7 @@ const App: React.FC = () => {
           if (simulationRef.current) cancelAnimationFrame(simulationRef.current);
       }
       return () => { if (simulationRef.current) cancelAnimationFrame(simulationRef.current); };
-  }, [simulationState, simulationSpeed]);
+  }, [simulationState, simulationSpeed, isGuest, handleLimitReached]);
 
   const raceRunners = useMemo(() => {
       if (simulationState === 'idle') return null;
@@ -963,6 +978,8 @@ const App: React.FC = () => {
                             onStartAnimation={(id) => { setAnimationTrackId(id); setIsAnimationPlaying(true); }}
                             onOpenReview={(id) => checkAiAccess() && setAiReviewTrackId(id)}
                             onCheckAiAccess={checkAiAccess}
+                            isGuest={isGuest}
+                            onLimitReached={handleLimitReached}
                         />
                     ) : editorTracks ? (
                         <TrackEditor 
