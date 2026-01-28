@@ -570,14 +570,20 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
       if (currentInterp) {
           if (!showSummaryMode) map.setView([currentInterp.lat, currentInterp.lon], map.getZoom(), { animate: false });
           
-          if (animationMarkerRef.current) map.removeLayer(animationMarkerRef.current);
+          const iconHtml = `<div class="relative flex flex-col items-center"><div class="cursor-dot animate-pulse shadow-lg" style="background-color: ${animationTrack.color}; width: 20px; height: 20px; border: 3px solid white;"></div><div class="pace-label font-black" style="background-color: ${animationTrack.color};">${animationPace > 0 ? formatPace(animationPace) : '--:--'}</div></div>`;
           const icon = L.divIcon({
               className: 'race-cursor-icon',
-              html: `<div class="relative flex flex-col items-center"><div class="cursor-dot animate-pulse shadow-lg" style="background-color: ${animationTrack.color}; width: 20px; height: 20px; border: 3px solid white;"></div><div class="pace-label font-black" style="background-color: ${animationTrack.color};">${animationPace > 0 ? formatPace(animationPace) : '--:--'}</div></div>`,
+              html: iconHtml,
               iconSize: [60, 40],
               iconAnchor: [30, 20]
           });
-          animationMarkerRef.current = L.marker([currentInterp.lat, currentInterp.lon], { icon, zIndexOffset: 2000 }).addTo(map);
+
+          if (!animationMarkerRef.current) {
+              animationMarkerRef.current = L.marker([currentInterp.lat, currentInterp.lon], { icon, zIndexOffset: 2000 }).addTo(map);
+          } else {
+              animationMarkerRef.current.setLatLng([currentInterp.lat, currentInterp.lon]);
+              animationMarkerRef.current.setIcon(icon);
+          }
       }
 
       const currentKm = Math.floor(animationProgress);
