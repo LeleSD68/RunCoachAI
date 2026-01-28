@@ -108,6 +108,22 @@ const deduplicateTracks = (tracks: Track[]): Track[] => {
     });
 };
 
+const deduplicateWorkouts = (workouts: PlannedWorkout[]): PlannedWorkout[] => {
+    const seen = new Set<string>();
+    // Prioritize Cloud IDs (UUIDs usually) or newer items
+    // Reverse sort helps keep the "latest" version if duplicates exist in list, but here we just want unique content
+    return workouts.filter(w => {
+        const dateStr = w.date instanceof Date ? w.date.toISOString().split('T')[0] : new Date(w.date).toISOString().split('T')[0];
+        // Fingerprint: Date + Title + Type. 
+        // Note: We ignore Description slight variations to be aggressive on dupes
+        const fingerprint = `${dateStr}|${w.title.trim().toLowerCase()}|${w.activityType}`;
+        
+        if (seen.has(fingerprint)) return false;
+        seen.add(fingerprint);
+        return true;
+    });
+};
+
 // --- TRACKS ---
 export const saveTracksToDB = async (tracks: Track[], options: { skipCloud?: boolean } = {}): Promise<void> => {
   const db = await initDB();
@@ -259,11 +275,14 @@ export const loadTracksFromDB = async (forceLocal: boolean = false): Promise<Tra
 // --- PLANNED WORKOUTS ---
 export const savePlannedWorkoutsToDB = async (workouts: PlannedWorkout[], options: { skipCloud?: boolean } = {}): Promise<void> => {
   const db = await initDB();
+  // Ensure we are saving a clean list
+  const cleanWorkouts = deduplicateWorkouts(workouts);
+
   await new Promise<void>((resolve, reject) => {
     const transaction = db.transaction([PLANNED_STORE], 'readwrite');
     const store = transaction.objectStore(PLANNED_STORE);
     store.clear().onsuccess = () => {
-      workouts.forEach(w => store.put(w));
+      cleanWorkouts.forEach(w => store.put(w));
     };
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error);
@@ -272,7 +291,7 @@ export const savePlannedWorkoutsToDB = async (workouts: PlannedWorkout[], option
   if (!options.skipCloud) {
       const { data: { session } } = await supabase.auth.getSession();
       if (session && isSupabaseConfigured()) {
-          for (const w of workouts) {
+          for (const w of cleanWorkouts) {
               const payload = {
                   // Only send ID if it is a valid UUID, otherwise let DB generate it
                   id: (w.id.length === 36) ? w.id : undefined,
@@ -294,7 +313,6 @@ export const savePlannedWorkoutsToDB = async (workouts: PlannedWorkout[], option
               // If we got a new ID from insert, update local
               if (data && data.id && !payload.id) {
                   w.id = data.id;
-                  // We should ideally update the local DB here too, but simple reload next time handles it
               }
           }
       }
@@ -324,8 +342,10 @@ export const loadPlannedWorkoutsFromDB = async (forceLocal: boolean = false): Pr
               completedTrackId: w.completed_track_id
           }));
           
-          await savePlannedWorkoutsToDB(cloudWorkouts, { skipCloud: true });
-          return cloudWorkouts;
+          const uniqueCloudWorkouts = deduplicateWorkouts(cloudWorkouts);
+          
+          await savePlannedWorkoutsToDB(uniqueCloudWorkouts, { skipCloud: true });
+          return uniqueCloudWorkouts;
       }
   }
 
@@ -340,7 +360,7 @@ export const loadPlannedWorkoutsFromDB = async (forceLocal: boolean = false): Pr
         ...w,
         date: w.date instanceof Date ? w.date : new Date(w.date)
       }));
-      resolve(revived);
+      resolve(deduplicateWorkouts(revived));
     };
     request.onerror = () => reject(request.error);
   });
@@ -360,12 +380,6 @@ export const saveChatToDB = async (id: string, messages: ChatMessage[], options:
   if (!options.skipCloud) {
       const { data: { session } } = await supabase.auth.getSession();
       if (session && isSupabaseConfigured()) {
-          // Chats can store custom string IDs like 'global-coach' because the column is text. 
-          // However, if we migrated to UUID default, 'global-coach' might fail if it wasn't UUID.
-          // Assumption: Chat IDs are either UUIDs or specific keys handled by app.
-          // If the DB schema enforces UUID for chats, 'global-coach' will fail. 
-          // BUT: The SQL provided uses 'text' type for ID with a default of uuid_generate_v4(). 
-          // So 'global-coach' IS valid text and won't trigger the default. Correct.
           await supabase.from('chats').upsert({
               id, 
               user_id: session.user.id,
@@ -615,8 +629,8 @@ export const importAllData = async (data: BackupData): Promise<void> => {
         profileStore.clear();
         plannedStore.clear();
 
-        revivedTracks.forEach(t => tracksStore.put(t));
-        revivedWorkouts.forEach(w => plannedStore.put(w));
+        deduplicateTracks(revivedTracks).forEach(t => tracksStore.put(t));
+        deduplicateWorkouts(revivedWorkouts).forEach(w => plannedStore.put(w));
 
         if (data.chats && Array.isArray(data.chats)) {
             data.chats.forEach(c => { if (c.id) chatsStore.put(c); });
@@ -657,23 +671,8 @@ export const syncBackupToCloud = async () => {
 
         // Workouts
         const workouts = await loadPlannedWorkoutsFromDB(true);
-        for (const w of workouts) {
-            const payload = {
-                id: w.id.length === 36 ? w.id : undefined, 
-                user_id: userId,
-                title: w.title,
-                description: w.description,
-                date: w.date.toISOString(),
-                activity_type: w.activityType,
-                is_ai_suggested: w.isAiSuggested,
-                completed_track_id: w.completedTrackId
-            };
-            const { error } = payload.id 
-                ? await supabase.from('planned_workouts').insert(payload)
-                : await supabase.from('planned_workouts').insert(payload); // Let DB generate ID if missing
-            
-            if (error) console.error("Restore Workout Error:", error);
-        }
+        // Use standard saving logic which now handles sync
+        await savePlannedWorkoutsToDB(workouts);
 
         // Chats
         const tx = db.transaction([CHATS_STORE], 'readonly');
