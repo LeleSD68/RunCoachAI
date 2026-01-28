@@ -12,7 +12,7 @@ import HeartRateZonePanel from './HeartRateZonePanel';
 import PersonalRecordsPanel from './PersonalRecordsPanel';
 import RatingStars from './RatingStars';
 import { calculateTrackStats, estimateTrackRPE } from '../services/trackStatsService';
-import { getPointsInDistanceRange, getTrackStateAtTime, getTrackPointAtDistance } from '../services/trackEditorUtils';
+import { getPointsInDistanceRange, getTrackStateAtTime, getTrackPointAtDistance, getSmoothedPace } from '../services/trackEditorUtils';
 import { smoothTrackPoints, calculateSmoothedMetrics, calculateRunningPower } from '../services/dataProcessingService';
 
 interface TrackDetailViewProps {
@@ -376,15 +376,17 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
         return data;
     }, [hoveredPoint, displayTrack.points, yAxisMetrics, smoothingWindow]);
 
+    // Use DISTANCE based smoothing for the animation pace label
     const animationPace = useMemo(() => {
         if (!isAnimationMode) return 0; // Use animation mode check instead of isAnimating to keep pace display when paused
-        const pointIndex = displayTrack.points.findIndex(p => p.cummulativeDistance >= animationProgress);
-        if (pointIndex !== -1) {
-            const { pace } = calculateSmoothedMetrics(displayTrack.points, pointIndex, smoothingWindow);
-            return pace;
-        }
-        return 0;
-    }, [isAnimationMode, animationProgress, displayTrack.points, smoothingWindow]);
+        
+        // Calculate lookback distance based on animation speed
+        // If playing very fast (> 20x), use 100m window to keep number readable.
+        // Otherwise use 50m for responsiveness.
+        const lookback = animationSpeed > 20 ? 0.1 : 0.05; // 100m or 50m in km
+        
+        return getSmoothedPace(displayTrack, animationProgress, lookback * 1000); // Pass meters
+    }, [isAnimationMode, animationProgress, displayTrack, animationSpeed]);
 
     const handleHoverChange = useCallback((point: TrackPoint | null) => setHoveredPoint(point), []);
     
