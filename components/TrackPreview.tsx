@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect } from 'react';
 import { TrackPoint } from '../types';
 
@@ -12,10 +13,13 @@ const TrackPreview: React.FC<TrackPreviewProps> = ({ points, color, className })
 
     useEffect(() => {
         const canvas = canvasRef.current;
-        if (!canvas || points.length < 2) return;
+        if (!canvas || !points || points.length < 2) return;
 
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
+
+        // Use save/restore to isolate state changes
+        ctx.save();
 
         const PADDING = 5;
         const canvasWidth = canvas.width;
@@ -38,6 +42,7 @@ const TrackPreview: React.FC<TrackPreviewProps> = ({ points, color, className })
 
         // If track is just a single point, we can't draw a path.
         if (trackWidth === 0 && trackHeight === 0) {
+            ctx.restore();
             return;
         }
 
@@ -45,9 +50,7 @@ const TrackPreview: React.FC<TrackPreviewProps> = ({ points, color, className })
         const drawableHeight = canvasHeight - PADDING * 2;
         
         let scale;
-        // To fill the available space while preserving aspect ratio, we find the
-        // smaller of the horizontal or vertical scale factors.
-        // This handles normal tracks and perfectly straight lines.
+        // To fill the available space while preserving aspect ratio
         if (trackHeight > 0 && trackWidth > 0) {
             scale = Math.min(drawableWidth / trackWidth, drawableHeight / trackHeight);
         } else if (trackWidth > 0) { // Horizontal line
@@ -80,6 +83,7 @@ const TrackPreview: React.FC<TrackPreviewProps> = ({ points, color, className })
         });
         
         ctx.stroke();
+        ctx.restore();
 
     }, [points, color]);
     
