@@ -16,6 +16,18 @@ const FitBoundsIcon = () => (
     </svg>
 );
 
+const LockOpenIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+        <path fillRule="evenodd" d="M10 2a4 4 0 0 0-4 4v1H5a3 3 0 0 0-3 3v6a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-6a3 3 0 0 0-3-3h-1V6a4 4 0 0 0-4-4Zm2 5V6a2 2 0 1 0-4 0v1h4Z" clipRule="evenodd" />
+    </svg>
+);
+
+const LockClosedIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+        <path fillRule="evenodd" d="M10 2a4 4 0 0 0-4 4v1H5a3 3 0 0 0-3 3v6a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-6a3 3 0 0 0-3-3h-1V6a4 4 0 0 0-4-4Zm-2 5V6a2 2 0 1 1 4 0v1h-4Z" clipRule="evenodd" />
+    </svg>
+);
+
 const LayersIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
         <path fillRule="evenodd" d="M2.24 6.8a.75.75 0 0 0 1.06-.04l1.95-2.1 1.95 2.1a.75.75 0 1 0 1.1-1.02l-2.5-2.7a.75.75 0 0 0-1.1 0l-2.5 2.7a.75.75 0 0 0 .04 1.06Zm6.94 3.7a.75.75 0 0 0 1.06-.04l1.95-2.1 1.95 2.1a.75.75 0 1 0 1.1-1.02l-2.5-2.7a.75.75 0 0 0-1.1 0l-2.5 2.7a.75.75 0 0 0 .04 1.06Zm-6.94 3.7a.75.75 0 0 0 1.06-.04l1.95-2.1 1.95 2.1a.75.75 0 1 0 1.1-1.02l-2.5-2.7a.75.75 0 0 0-1.1 0l-2.5 2.7a.75.75 0 0 0 .04 1.06Z" clipRule="evenodd" />
@@ -222,13 +234,20 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
         const allPoints = animationTrack.points.filter(p => isValidLatLng(p.lat, p.lon)).map(p => [p.lat, p.lon]);
         if (allPoints.length > 0) bounds = L.latLngBounds(allPoints);
       } else if (raceRunners && raceRunners.length > 0) {
+          // RACE MODE: Fit to all runners
           const points = raceRunners.map(r => r.position).filter(p => isValidLatLng(p.lat, p.lon)).map(p => [p.lat, p.lon]);
           if (points.length > 0) {
                 bounds = L.latLngBounds(points);
-                // Ensure we don't zoom in too much on a single point
+                // Ensure we don't zoom in too much on a single point (start line)
                 if (bounds.getNorth() === bounds.getSouth() && bounds.getEast() === bounds.getWest()) {
+                    // Start line scenario or single runner
                     map.setView(points[0], 16, { animate: true, ...paddingOptions });
                     return;
+                } else {
+                    // Running Scenario: Add generous padding to bounds to keep them well inside
+                    // 2D 'animate: false' is crucial for smooth continuous tracking without lag
+                    map.fitBounds(bounds, { animate: false, maxZoom: 17, padding: isMobile ? [50, 50] : [100, 100] });
+                    return; 
                 }
           }
       } else if (aiSegmentHighlight && tracks[0]) {
@@ -664,9 +683,20 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
                 {/* Standard 2D Controls - Hide in 3D Mode */}
                 {!is3DMode && !animationTrack && (
                     <>
-                        <Tooltip text="Inquadra" subtext="Adatta vista al percorso" position="right">
-                            <button onClick={() => { setIsAutoFitEnabled(true); fitMapToBounds(); }} className={`p-3 rounded-lg shadow-xl transition-all border border-slate-700 active:scale-95 ${isAutoFitEnabled ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-300'}`}><FitBoundsIcon /></button>
-                        </Tooltip>
+                        {raceRunners && raceRunners.length > 0 ? (
+                            <Tooltip text={isAutoFitEnabled ? "Camera Auto" : "Camera Libera"} subtext={isAutoFitEnabled ? "Segue la gara" : "Clicca per seguire"} position="right">
+                                <button 
+                                    onClick={() => { setIsAutoFitEnabled(!isAutoFitEnabled); if(!isAutoFitEnabled) fitMapToBounds(); }} 
+                                    className={`p-3 rounded-lg shadow-xl transition-all border border-slate-700 active:scale-95 ${isAutoFitEnabled ? 'bg-amber-600 text-white shadow-amber-900/30 border-amber-500' : 'bg-slate-800 text-slate-400'}`}
+                                >
+                                    {isAutoFitEnabled ? <LockClosedIcon /> : <LockOpenIcon />}
+                                </button>
+                            </Tooltip>
+                        ) : (
+                            <Tooltip text="Inquadra" subtext="Adatta vista al percorso" position="right">
+                                <button onClick={() => { setIsAutoFitEnabled(true); fitMapToBounds(); }} className={`p-3 rounded-lg shadow-xl transition-all border border-slate-700 active:scale-95 ${isAutoFitEnabled ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-300'}`}><FitBoundsIcon /></button>
+                            </Tooltip>
+                        )}
                         
                         <div className="relative group">
                             <Tooltip text="Stile Mappa" subtext="Cambia sfondo" position="right">
