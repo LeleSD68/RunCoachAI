@@ -483,7 +483,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
     }
   }, [raceRunners, tracks, is3DMode]);
 
-  // Animation Marker & KM Markers - 2D Only - OPTIMIZED FOR JITTER
+  // Animation Marker & KM Markers - 2D Only - OPTIMIZED FOR SMOOTHNESS
   useEffect(() => {
       const map = mapRef.current;
       if (!map || !animationTrack || is3DMode) {
@@ -494,18 +494,14 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
       const currentInterp = getTrackPointAtDistance(animationTrack, animationProgress);
       if (currentInterp) {
           if (!showSummaryMode) {
-              // OPTIMIZATION: Only setView if distance > threshold or if forcing it initially
-              // Prevents micro-stuttering on high framerates
-              const currentCenter = map.getCenter();
-              const dist = map.distance(currentCenter, [currentInterp.lat, currentInterp.lon]);
-              if (dist > 5) { // Only recenter if point moved > 5 meters from center
-                  map.setView([currentInterp.lat, currentInterp.lon], map.getZoom(), { animate: false });
-              }
+              // OPTIMIZATION: Always update view when following, but disable animation for instant catch-up
+              // This removes the "jerk" caused by waiting for a threshold or using animate: true
+              map.setView([currentInterp.lat, currentInterp.lon], map.getZoom(), { animate: false });
           }
           
           const paceStr = animationPace > 0 ? formatPace(animationPace) : '--:--';
           
-          // Only recreate icon if pace string changed to avoid DOM thrashing
+          // Only recreate icon HTML if pace string changed to avoid DOM thrashing
           if (lastAnimationPaceRef.current !== paceStr || !animationMarkerRef.current) {
               lastAnimationPaceRef.current = paceStr;
               const iconHtml = `<div class="relative flex flex-col items-center"><div class="cursor-dot animate-pulse shadow-lg" style="background-color: ${animationTrack.color}; width: 20px; height: 20px; border: 3px solid white;"></div><div class="pace-label font-black" style="background-color: ${animationTrack.color};">${paceStr}</div></div>`;
