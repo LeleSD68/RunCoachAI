@@ -90,7 +90,7 @@ const App: React.FC = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth <768);
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -717,7 +717,7 @@ const App: React.FC = () => {
             
             {!selectedDetailTrackId && !editorTracks && (
                 isMobile && isSidebarMobileOpen && !isRaceMode ? (
-                    <ResizablePanel direction="vertical" initialSizeRatio={0.7} minSize={150} minSizeSecondary={150}>
+                    <ResizablePanel direction="horizontal" initialSizeRatio={0.5} minSize={150} minSizeSecondary={150}>
                         <Sidebar
                             tracks={tracks}
                             onFileUpload={handleFileUpload}
