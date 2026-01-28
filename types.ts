@@ -61,6 +61,7 @@ export interface PlannedWorkout {
 
 export interface RaceRunner {
   trackId: string;
+  name: string; // Added name for display on map
   position: TrackPoint;
   color: string;
   pace: number; // Ritmo attuale in min/km
