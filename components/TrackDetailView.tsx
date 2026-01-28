@@ -225,6 +225,18 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
         if (isAnimating) {
             lastFrameTimeRef.current = performance.now();
             
+            // Calculate time limit for guest (timestamp at 1km mark)
+            let guestTimeLimit = Infinity;
+            if (isGuest) {
+                const pAt1km = getTrackPointAtDistance(displayTrack, 1.0);
+                if (pAt1km) {
+                    guestTimeLimit = pAt1km.time.getTime() - displayTrack.points[0].time.getTime();
+                } else {
+                    // Track is shorter than 1km, limit is track duration
+                    guestTimeLimit = displayTrack.duration;
+                }
+            }
+
             const animate = (time: number) => {
                 const delta = time - lastFrameTimeRef.current;
                 lastFrameTimeRef.current = time;
@@ -232,12 +244,14 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
                 setAnimationTime(prevTime => {
                     const nextTime = prevTime + delta * animationSpeed;
                     
-                    // Guest Check: 10 seconds limit (10000 ms)
-                    // We check if the NEW time exceeds the limit relative to START (0)
-                    if (isGuest && nextTime > 10000) {
+                    // Guest Check: Stop exactly at calculated 1km time
+                    if (isGuest && nextTime > guestTimeLimit) {
                         setIsAnimating(false);
                         if (onLimitReached) onLimitReached();
-                        return prevTime; // Freeze time
+                        // Freeze exactly at limit
+                        const limitPoint = getTrackStateAtTime(displayTrack, guestTimeLimit);
+                        if (limitPoint) setAnimationProgress(limitPoint.point.cummulativeDistance);
+                        return guestTimeLimit;
                     }
 
                     // Convert Time to Distance for MapDisplay
@@ -278,12 +292,19 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
             const startTime = displayTrack.points[0].time.getTime();
             const newTime = point.time.getTime() - startTime;
             
-            if (isGuest && newTime > 10000) {
+            // Check if manual scrub exceeds 1km limit for guest
+            if (isGuest && newProgress > 1.0) {
                 if (onLimitReached) onLimitReached();
-                // Clamp to limit
-                setAnimationTime(10000);
-                const limitPoint = getTrackStateAtTime(displayTrack, 10000);
-                if (limitPoint) setAnimationProgress(limitPoint.point.cummulativeDistance);
+                // Clamp to 1km
+                const pAt1km = getTrackPointAtDistance(displayTrack, 1.0);
+                if (pAt1km) {
+                    setAnimationProgress(1.0);
+                    setAnimationTime(pAt1km.time.getTime() - startTime);
+                } else {
+                    // Track shorter than 1km
+                    setAnimationProgress(displayTrack.distance);
+                    setAnimationTime(displayTrack.duration);
+                }
             } else {
                 setAnimationTime(newTime);
             }
