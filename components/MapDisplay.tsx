@@ -212,6 +212,12 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
       const safeVisibleIds = visibleTrackIds instanceof Set ? visibleTrackIds : new Set();
       const safeSelectedIds = selectedTrackIds instanceof Set ? selectedTrackIds : new Set();
 
+      // Mobile padding to account for overlays (Top Header, Bottom Dock/Controls)
+      // Top: ~80px, Bottom: ~200px
+      const paddingOptions: any = isMobile 
+        ? { padding: [20, 20], paddingTopLeft: [20, 80], paddingBottomRight: [20, 220] } 
+        : { padding: [40, 40] };
+
       if (animationTrack) {
         const allPoints = animationTrack.points.filter(p => isValidLatLng(p.lat, p.lon)).map(p => [p.lat, p.lon]);
         if (allPoints.length > 0) bounds = L.latLngBounds(allPoints);
@@ -219,8 +225,9 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
           const points = raceRunners.map(r => r.position).filter(p => isValidLatLng(p.lat, p.lon)).map(p => [p.lat, p.lon]);
           if (points.length > 0) {
                 bounds = L.latLngBounds(points);
+                // Ensure we don't zoom in too much on a single point
                 if (bounds.getNorth() === bounds.getSouth() && bounds.getEast() === bounds.getWest()) {
-                    map.setView(points[0], 16, { animate: true });
+                    map.setView(points[0], 16, { animate: true, ...paddingOptions });
                     return;
                 }
           }
@@ -239,8 +246,8 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
               if (allPoints.length > 0) bounds = L.latLngBounds(allPoints);
           }
       }
-      if (bounds && bounds.isValid()) map.fitBounds(bounds, { padding: [40, 40] });
-  }, [selectionPoints, tracks, visibleTrackIds, selectedTrackIds, animationTrack, aiSegmentHighlight, raceRunners]);
+      if (bounds && bounds.isValid()) map.fitBounds(bounds, paddingOptions);
+  }, [selectionPoints, tracks, visibleTrackIds, selectedTrackIds, animationTrack, aiSegmentHighlight, raceRunners, isMobile]);
 
   // Init/Destroy 2D Map Logic based on 2D/3D Mode
   useEffect(() => {
@@ -272,7 +279,9 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
 
       L.control.attribution({ prefix: false }).addTo(mapRef.current);
 
-      mapRef.current.on('dragstart zoomstart', () => setIsAutoFitEnabled(false));
+      // Disable auto-fit on user interaction to prevent fighting the user
+      mapRef.current.on('dragstart zoomstart movestart', () => setIsAutoFitEnabled(false));
+      
       kmMarkersLayerGroupRef.current = L.layerGroup().addTo(mapRef.current);
       
       const resizeObserver = new ResizeObserver(() => { 
@@ -300,6 +309,13 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
       };
     }
   }, [is3DMode]); // Dependent on is3DMode
+
+  // Continuous Auto Fit for Race Mode (when user hasn't interfered)
+  useEffect(() => {
+      if (!is3DMode && isAutoFitEnabled && raceRunners && raceRunners.length > 0) {
+          fitMapToBounds();
+      }
+  }, [raceRunners, isAutoFitEnabled, fitMapToBounds, is3DMode]);
 
   // Tile Layer (2D Only)
   useEffect(() => {
