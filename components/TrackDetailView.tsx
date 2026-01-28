@@ -185,6 +185,7 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
 
     // Animation State (Local)
     const [isAnimating, setIsAnimating] = useState(false);
+    const [isAnimationMode, setIsAnimationMode] = useState(false); // Track if we are in animation view mode even if paused
     const [animationProgress, setAnimationProgress] = useState(0); // in km
     const [animationSpeed, setAnimationSpeed] = useState(20);
     const [animationTime, setAnimationTime] = useState(0); // track time in ms
@@ -201,6 +202,7 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
             setSelectedSegment(null);
             setNotes(track.notes || '');
             setIsAnimating(false);
+            setIsAnimationMode(false);
             setAnimationProgress(0);
             setAnimationTime(0);
             prevTrackIdRef.current = track.id;
@@ -361,14 +363,14 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
     }, [hoveredPoint, displayTrack.points, yAxisMetrics, smoothingWindow]);
 
     const animationPace = useMemo(() => {
-        if (!isAnimating) return 0;
+        if (!isAnimationMode) return 0; // Use animation mode check instead of isAnimating to keep pace display when paused
         const pointIndex = displayTrack.points.findIndex(p => p.cummulativeDistance >= animationProgress);
         if (pointIndex !== -1) {
             const { pace } = calculateSmoothedMetrics(displayTrack.points, pointIndex, smoothingWindow);
             return pace;
         }
         return 0;
-    }, [isAnimating, animationProgress, displayTrack.points, smoothingWindow]);
+    }, [isAnimationMode, animationProgress, displayTrack.points, smoothingWindow]);
 
     const handleHoverChange = useCallback((point: TrackPoint | null) => setHoveredPoint(point), []);
     
@@ -650,7 +652,7 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
                     coloredPauseSegments={showPauses ? stats.pauses : undefined}
                     selectionPoints={selectionPoints}
                     mapGradientMetric={mapGradientMetric}
-                    animationTrack={isAnimating ? displayTrack : null} // Use local state for animation
+                    animationTrack={isAnimationMode ? displayTrack : null} // Changed to check isAnimationMode
                     animationProgress={animationProgress}
                     animationPace={animationPace} // Pass the calculated pace to map
                     isAnimationPlaying={isAnimating}
@@ -658,7 +660,7 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
                     onAnimationProgressChange={handleAnimationProgressChange}
                     animationSpeed={animationSpeed}
                     onAnimationSpeedChange={setAnimationSpeed}
-                    onExitAnimation={() => { setIsAnimating(false); setAnimationProgress(0); setAnimationTime(0); }}
+                    onExitAnimation={() => { setIsAnimating(false); setIsAnimationMode(false); setAnimationProgress(0); setAnimationTime(0); }}
                     aiSegmentHighlight={selectedSegment && 'type' in selectedSegment && selectedSegment.type === 'ai' ? selectedSegment : null}
                 />
              </div>
@@ -689,7 +691,7 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
                 </div>
                 <div className="flex items-center gap-1.5 sm:gap-3">
                     <button 
-                        onClick={() => { setIsAnimating(true); setAnimationProgress(0); setAnimationTime(0); }}
+                        onClick={() => { setIsAnimationMode(true); setIsAnimating(true); setAnimationProgress(0); setAnimationTime(0); }}
                         className="bg-cyan-600 hover:bg-cyan-500 border border-cyan-400 text-white font-black py-1.5 px-3 sm:py-2 sm:px-5 rounded-lg transition-all shadow-md flex items-center gap-1 text-[10px] sm:text-sm whitespace-nowrap active:scale-95"
                     >
                         <ReplayIcon /> REPLAY
@@ -730,7 +732,7 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
 
                 {/* MOBILE VIEW */}
                 <div className="sm:hidden h-full w-full bg-slate-900 flex flex-col relative">
-                    {isMobile && isAnimating ? (
+                    {isMobile && isAnimationMode ? (
                         // ANIMATION MODE: FULL MAP + CHART, NO STATS
                         <div className="h-full w-full flex flex-col">
                              <ResizablePanel 
