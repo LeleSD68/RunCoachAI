@@ -27,7 +27,7 @@ interface TrackDetailViewProps {
     onStartAnimation?: (id: string) => void;
     onOpenReview?: (trackId: string) => void;
     autoOpenAi?: boolean;
-    onCheckAiAccess?: () => boolean; // New prop
+    onCheckAiAccess?: () => boolean; 
     isGuest?: boolean;
     onLimitReached?: () => void;
 }
@@ -102,6 +102,53 @@ interface ExtendedStats {
     }
 }
 
+// Memoized Left Panel to avoid re-renders during animation
+const LeftDataPanel = React.memo(({ 
+    stats, 
+    track, 
+    userProfile, 
+    allHistory, 
+    plannedWorkouts, 
+    onUpdateTrackMetadata, 
+    onAddPlannedWorkout, 
+    autoOpenAi, 
+    onCheckAiAccess, 
+    selectedSegment, 
+    handleSegmentSelect, 
+    hasHrData 
+}: any) => {
+    return (
+        <div className="h-full overflow-y-auto bg-slate-900 p-4 custom-scrollbar border-r border-slate-800 flex flex-col space-y-6">
+            <StatsPanel stats={stats} selectedSegment={selectedSegment} onSegmentSelect={handleSegmentSelect} />
+
+            {hasHrData && <HeartRateZonePanel track={track} userProfile={userProfile} />}
+            <PersonalRecordsPanel track={track} />
+
+            <GeminiTrackAnalysisPanel 
+                stats={stats} 
+                userProfile={userProfile} 
+                track={track} 
+                allHistory={allHistory} 
+                plannedWorkouts={plannedWorkouts}
+                onUpdateTrackMetadata={onUpdateTrackMetadata} 
+                onAddPlannedWorkout={onAddPlannedWorkout}
+                startOpen={autoOpenAi} 
+                onCheckAiAccess={onCheckAiAccess}
+            />
+            
+            <GeminiSegmentsPanel 
+                track={track} 
+                stats={stats} 
+                onSegmentSelect={handleSegmentSelect} 
+                selectedSegment={selectedSegment} 
+                onCheckAiAccess={onCheckAiAccess}
+            />
+            
+            <WeatherPanel track={track} />
+        </div>
+    );
+});
+
 const SelectionStatsOverlay: React.FC<{ data: ExtendedStats, onClose: () => void }> = ({ data, onClose }) => {
     const { stats, range } = data;
     return (
@@ -132,20 +179,6 @@ const SelectionStatsOverlay: React.FC<{ data: ExtendedStats, onClose: () => void
     );
 };
 
-// RPE Scale Definitions
-const RPE_SCALE: Record<number, { label: string, desc: string, color: string }> = {
-    1: { label: "Molto Leggero", desc: "Sforzo minimo, recupero attivo o camminata.", color: "text-green-300" },
-    2: { label: "Leggero", desc: "Riscaldamento, respirazione nasale facile.", color: "text-green-400" },
-    3: { label: "Moderato", desc: "Corsa facile, si riesce a conversare (Talk Test).", color: "text-green-500" },
-    4: { label: "Impegnativo", desc: "Ritmo maratona, respiro leggermente affannoso.", color: "text-yellow-300" },
-    5: { label: "Duro", desc: "Ritmo mezza maratona, concentrazione necessaria.", color: "text-yellow-400" },
-    6: { label: "Molto Duro", desc: "Soglia anaerobica, parlare è difficile.", color: "text-orange-400" },
-    7: { label: "Intenso", desc: "Ritmo 10k, respiro pesante.", color: "text-orange-500" },
-    8: { label: "Molto Intenso", desc: "Ritmo 5k, gambe pesanti, vicino al limite.", color: "text-red-400" },
-    9: { label: "Estremo", desc: "Sprint finale o ripetute brevi massimali.", color: "text-red-500" },
-    10: { label: "Esaurimento", desc: "Sforzo massimo assoluto, impossibile continuare.", color: "text-red-600" }
-};
-
 const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, onExit, allHistory = [], plannedWorkouts = [], onUpdateTrackMetadata, onAddPlannedWorkout, onStartAnimation, onOpenReview, autoOpenAi = false, onCheckAiAccess, isGuest = false, onLimitReached }) => {
     const isMobile = useIsMobile();
     const [yAxisMetrics, setYAxisMetrics] = useState<YAxisMetric[]>(['pace']);
@@ -156,7 +189,6 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
     const [mapGradientMetric, setMapGradientMetric] = useState<'none' | 'elevation' | 'pace' | 'speed' | 'hr' | 'hr_zones' | 'power'>('none');
     const [rpe, setRpe] = useState(track.rpe || 5);
     const [smoothingWindow, setSmoothingWindow] = useState(30);
-    const statsContainerRef = useRef<HTMLDivElement>(null);
     const prevTrackIdRef = useRef<string>(track.id);
     const [fitBoundsTrigger, setFitBoundsTrigger] = useState(0);
 
@@ -179,9 +211,6 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
     // Track ID tracking to handle scroll reset correctly and force map re-center
     useEffect(() => {
         if (track.id !== prevTrackIdRef.current) {
-            if (statsContainerRef.current) {
-                statsContainerRef.current.scrollTop = 0;
-            }
             setChartSelection(null);
             setSelectedSegment(null);
             setIsAnimating(false);
@@ -192,7 +221,6 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
         }
         setRpe(track.rpe || 5);
         
-        // Trigger fit bounds slightly after mount/change to ensure layout is ready
         const timer = setTimeout(() => {
             setFitBoundsTrigger(prev => prev + 1);
         }, 100);
@@ -200,11 +228,8 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
     }, [track]);
 
     const displayTrack = useMemo(() => {
-        // Calculate power based on user weight or default 70kg
         const pointsWithPower = calculateRunningPower(track.points, userProfile.weight || 70);
-        
         const trackWithPower = { ...track, points: pointsWithPower };
-
         if (smoothingWindow <= 1) return trackWithPower;
         return { ...trackWithPower, points: smoothTrackPoints(trackWithPower.points, smoothingWindow) };
     }, [track, smoothingWindow, userProfile.weight]);
@@ -216,14 +241,12 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
         if (isAnimating) {
             lastFrameTimeRef.current = performance.now();
             
-            // Calculate time limit for guest (timestamp at 1km mark)
             let guestTimeLimit = Infinity;
             if (isGuest) {
                 const pAt1km = getTrackPointAtDistance(displayTrack, 1.0);
                 if (pAt1km) {
                     guestTimeLimit = pAt1km.time.getTime() - displayTrack.points[0].time.getTime();
                 } else {
-                    // Track is shorter than 1km, limit is track duration
                     guestTimeLimit = displayTrack.duration;
                 }
             }
@@ -235,29 +258,25 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
                 setAnimationTime(prevTime => {
                     const nextTime = prevTime + delta * animationSpeed;
                     
-                    // Guest Check: Stop exactly at calculated 1km time
                     if (isGuest && nextTime > guestTimeLimit) {
                         setIsAnimating(false);
                         if (onLimitReached) onLimitReached();
-                        // Freeze exactly at limit
                         const limitPoint = getTrackStateAtTime(displayTrack, guestTimeLimit);
                         if (limitPoint) setAnimationProgress(limitPoint.point.cummulativeDistance);
                         return guestTimeLimit;
                     }
 
-                    // Convert Time to Distance for MapDisplay
                     const state = getTrackStateAtTime(displayTrack, nextTime);
-                    
                     if (!state || nextTime >= displayTrack.duration) {
                         setIsAnimating(false);
-                        return displayTrack.duration; // Cap at end
+                        return displayTrack.duration;
                     }
                     
                     setAnimationProgress(state.point.cummulativeDistance);
                     return nextTime;
                 });
                 
-                if (isAnimating) { // Double check inside loop closure isn't fully reliable without ref or clean state, but functional here due to react update
+                if (isAnimating) {
                     animationFrameRef.current = requestAnimationFrame(animate);
                 }
             };
@@ -274,28 +293,16 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
         };
     }, [isAnimating, animationSpeed, displayTrack, isGuest, onLimitReached]);
 
-    // Handle manual scrubbing of animation slider
     const handleAnimationProgressChange = (newProgress: number) => {
         setAnimationProgress(newProgress);
-        // Sync time to the dragged distance
         const point = getTrackPointAtDistance(displayTrack, newProgress);
         if (point) {
             const startTime = displayTrack.points[0].time.getTime();
             const newTime = point.time.getTime() - startTime;
-            
-            // Check if manual scrub exceeds 1km limit for guest
             if (isGuest && newProgress > 1.0) {
                 if (onLimitReached) onLimitReached();
-                // Clamp to 1km
-                const pAt1km = getTrackPointAtDistance(displayTrack, 1.0);
-                if (pAt1km) {
-                    setAnimationProgress(1.0);
-                    setAnimationTime(pAt1km.time.getTime() - startTime);
-                } else {
-                    // Track shorter than 1km
-                    setAnimationProgress(displayTrack.distance);
-                    setAnimationTime(displayTrack.duration);
-                }
+                setAnimationProgress(1.0);
+                // Clamp
             } else {
                 setAnimationTime(newTime);
             }
@@ -320,7 +327,6 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
         };
 
         const calculated = calculateTrackStats(tempTrack, 0);
-        
         return {
             stats: calculated,
             range: {
@@ -351,16 +357,10 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
         return data;
     }, [hoveredPoint, displayTrack.points, yAxisMetrics, smoothingWindow]);
 
-    // Use DISTANCE based smoothing for the animation pace label
     const animationPace = useMemo(() => {
-        if (!isAnimationMode) return 0; // Use animation mode check instead of isAnimating to keep pace display when paused
-        
-        // Calculate lookback distance based on animation speed
-        // If playing very fast (> 20x), use 100m window to keep number readable.
-        // Otherwise use 50m for responsiveness.
-        const lookback = animationSpeed > 20 ? 0.1 : 0.05; // 100m or 50m in km
-        
-        return getSmoothedPace(displayTrack, animationProgress, lookback * 1000); // Pass meters
+        if (!isAnimationMode) return 0;
+        const lookback = animationSpeed > 20 ? 0.1 : 0.05;
+        return getSmoothedPace(displayTrack, animationProgress, lookback * 1000);
     }, [isAnimationMode, animationProgress, displayTrack, animationSpeed]);
 
     const handleHoverChange = useCallback((point: TrackPoint | null) => setHoveredPoint(point), []);
@@ -410,48 +410,13 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
 
     const handleGenerateAiRating = async () => {
         if (onCheckAiAccess && !onCheckAiAccess()) return;
-        
         if (onUpdateTrackMetadata) {
             const result = await generateAiRating(track, allHistory, userProfile, track.linkedWorkout);
             if (result) {
                 onUpdateTrackMetadata(track.id, { rating: result.rating, ratingReason: result.reason });
-            } else {
-                // Fallback or error handling
             }
         }
     };
-    
-    const statsContent = (
-        <div className="space-y-4 p-3 sm:p-4 pb-12">
-            <StatsPanel stats={stats} selectedSegment={selectedSegment} onSegmentSelect={handleSegmentSelect} />
-
-            {hasHrData && <HeartRateZonePanel track={displayTrack} userProfile={userProfile} />}
-            <PersonalRecordsPanel track={displayTrack} />
-
-            <GeminiTrackAnalysisPanel 
-                stats={stats} 
-                userProfile={userProfile} 
-                track={displayTrack} 
-                allHistory={allHistory} 
-                plannedWorkouts={plannedWorkouts}
-                onUpdateTrackMetadata={onUpdateTrackMetadata} 
-                onAddPlannedWorkout={onAddPlannedWorkout}
-                startOpen={autoOpenAi} 
-                onCheckAiAccess={onCheckAiAccess}
-            />
-            
-            <div className="grid grid-cols-1 gap-4">
-                <GeminiSegmentsPanel 
-                    track={displayTrack} 
-                    stats={stats} 
-                    onSegmentSelect={handleSegmentSelect} 
-                    selectedSegment={selectedSegment as AiSegment} 
-                    onCheckAiAccess={onCheckAiAccess}
-                />
-            </div>
-            <WeatherPanel track={track} />
-        </div>
-    );
 
     const chartControls = (
         <div className="w-full h-full flex items-center justify-between px-2 bg-slate-800/90 border-b border-slate-700">
@@ -581,13 +546,24 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
             </header>
 
             <main className="flex-grow overflow-hidden relative">
-                {/* RIGID LAYOUT STRUCTURE */}
+                {/* RIGID SPLIT LAYOUT: Left (Data) vs Right (Map/Chart) */}
                 <ResizablePanel direction={isMobile ? 'vertical' : 'horizontal'} initialSizeRatio={isMobile ? 0.5 : 0.35} minSize={250} className="h-full">
                     
-                    {/* LEFT PANEL: DATA & AI (Full Height Scrollable) */}
-                    <div ref={statsContainerRef} className="h-full overflow-y-auto bg-slate-800 p-0 sm:p-0 custom-scrollbar border-r border-slate-700 flex flex-col">
-                        {statsContent}
-                    </div>
+                    {/* LEFT PANEL: DATA & AI (Full Height Scrollable) - Memoized to prevent re-renders on animation frame */}
+                    <LeftDataPanel 
+                        stats={stats} 
+                        track={displayTrack}
+                        userProfile={userProfile}
+                        allHistory={allHistory}
+                        plannedWorkouts={plannedWorkouts}
+                        onUpdateTrackMetadata={onUpdateTrackMetadata}
+                        onAddPlannedWorkout={onAddPlannedWorkout}
+                        autoOpenAi={autoOpenAi}
+                        onCheckAiAccess={onCheckAiAccess}
+                        selectedSegment={selectedSegment}
+                        handleSegmentSelect={handleSegmentSelect}
+                        hasHrData={hasHrData}
+                    />
 
                     {/* RIGHT PANEL: MAP & CHART (Split Vertically) */}
                     <div className="h-full relative bg-slate-900 w-full">
