@@ -127,9 +127,11 @@ interface ExtendedStats {
 const SelectionStatsOverlay: React.FC<{ data: ExtendedStats, onClose: () => void }> = ({ data, onClose }) => {
     const { stats, range } = data;
     return (
-        <div className="absolute top-2 left-2 right-2 z-[2000] bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-full border border-cyan-500/50 shadow-xl animate-fade-in-down flex items-center justify-between gap-2 overflow-x-auto no-scrollbar whitespace-nowrap">
+        <div className="w-full bg-slate-900 border-b border-cyan-500/30 px-3 py-2 flex items-center justify-between gap-3 overflow-x-auto no-scrollbar whitespace-nowrap shrink-0 shadow-lg z-20">
             <div className="flex items-center gap-3 text-[10px] sm:text-xs text-white font-mono">
-                <span className="flex items-center gap-1"><span className="text-cyan-400 font-black">KM:</span> {range.startDist.toFixed(1)}-{range.endDist.toFixed(1)}</span>
+                <span className="flex items-center gap-1 bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">
+                    <span className="text-cyan-400 font-black">KM:</span> {range.startDist.toFixed(1)}-{range.endDist.toFixed(1)}
+                </span>
                 <span className="w-px h-3 bg-slate-600"></span>
                 <span className="flex items-center gap-1"><span className="text-cyan-400 font-black">DIST:</span> {stats.totalDistance.toFixed(2)}</span>
                 <span className="w-px h-3 bg-slate-600"></span>
@@ -145,7 +147,7 @@ const SelectionStatsOverlay: React.FC<{ data: ExtendedStats, onClose: () => void
                     </>
                 )}
             </div>
-            <button onClick={onClose} className="bg-slate-700/50 hover:bg-red-500/20 text-slate-400 hover:text-red-400 p-0.5 rounded-full transition-colors ml-2 flex-shrink-0">
+            <button onClick={onClose} className="bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 p-1 rounded-full transition-colors flex-shrink-0">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" /></svg>
             </button>
         </div>
@@ -603,8 +605,7 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
     );
 
     const mapSection = (
-        <div className="w-full h-full relative bg-slate-900">
-             {selectionStats && <SelectionStatsOverlay data={selectionStats} onClose={() => setChartSelection(null)} />}
+        <div className="w-full h-full relative bg-slate-900 flex flex-col">
              <div className="absolute top-2 right-2 z-10 flex flex-col gap-1">
                  <select value={mapGradientMetric} onChange={(e) => setMapGradientMetric(e.target.value as any)} className="bg-slate-800/95 border border-slate-700 text-white text-[8px] font-black uppercase py-1 px-1.5 rounded focus:border-cyan-500 appearance-none cursor-pointer shadow-lg">
                     <option value="none">Mappa: Standard</option>
@@ -615,29 +616,31 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
                     {hasHrData && <option value="hr">Mappa: FC</option>}
                 </select>
              </div>
-             <MapDisplay
-                tracks={[track]}
-                visibleTrackIds={new Set([track.id])}
-                raceRunners={null}
-                hoveredTrackId={null}
-                runnerSpeeds={new Map()}
-                hoveredPoint={hoveredPoint}
-                hoveredData={hoveredDataForMap}
-                onMapHover={handleHoverChange}
-                coloredPauseSegments={showPauses ? stats.pauses : undefined}
-                selectionPoints={selectionPoints}
-                mapGradientMetric={mapGradientMetric}
-                animationTrack={isAnimating ? displayTrack : null} // Use local state for animation
-                animationProgress={animationProgress}
-                animationPace={animationPace} // Pass the calculated pace to map
-                isAnimationPlaying={isAnimating}
-                onToggleAnimationPlay={() => setIsAnimating(!isAnimating)}
-                onAnimationProgressChange={handleAnimationProgressChange}
-                animationSpeed={animationSpeed}
-                onAnimationSpeedChange={setAnimationSpeed}
-                onExitAnimation={() => { setIsAnimating(false); setAnimationProgress(0); setAnimationTime(0); }}
-                aiSegmentHighlight={selectedSegment && 'type' in selectedSegment && selectedSegment.type === 'ai' ? selectedSegment : null}
-            />
+             <div className="flex-grow relative">
+                <MapDisplay
+                    tracks={[track]}
+                    visibleTrackIds={new Set([track.id])}
+                    raceRunners={null}
+                    hoveredTrackId={null}
+                    runnerSpeeds={new Map()}
+                    hoveredPoint={hoveredPoint}
+                    hoveredData={hoveredDataForMap}
+                    onMapHover={handleHoverChange}
+                    coloredPauseSegments={showPauses ? stats.pauses : undefined}
+                    selectionPoints={selectionPoints}
+                    mapGradientMetric={mapGradientMetric}
+                    animationTrack={isAnimating ? displayTrack : null} // Use local state for animation
+                    animationProgress={animationProgress}
+                    animationPace={animationPace} // Pass the calculated pace to map
+                    isAnimationPlaying={isAnimating}
+                    onToggleAnimationPlay={() => setIsAnimating(!isAnimating)}
+                    onAnimationProgressChange={handleAnimationProgressChange}
+                    animationSpeed={animationSpeed}
+                    onAnimationSpeedChange={setAnimationSpeed}
+                    onExitAnimation={() => { setIsAnimating(false); setAnimationProgress(0); setAnimationTime(0); }}
+                    aiSegmentHighlight={selectedSegment && 'type' in selectedSegment && selectedSegment.type === 'ai' ? selectedSegment : null}
+                />
+             </div>
         </div>
     );
 
@@ -676,17 +679,18 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
             <main className="flex-grow overflow-hidden relative">
                 {/* DESKTOP VIEW */}
                 <div className="hidden sm:block h-full">
-                    {/* Change direction to 'horizontal' which renders as flex-row (Stats | Content) */}
+                    {/* Horizontal split: Left = Stats, Right = Map/Chart */}
                     <ResizablePanel direction="horizontal" initialSize={400} minSize={300} className="h-full">
                         <div ref={statsContainerRef} className="h-full overflow-y-auto bg-slate-800 custom-scrollbar">
                             {statsContent}
                         </div>
-                        {/* Right Column: Stack Map (Top) and Chart (Bottom) using another ResizablePanel */}
-                        <ResizablePanel direction="horizontal" initialSizeRatio={0.65} minSize={200} minSizeSecondary={150}>
+                        {/* Right Column: Stack Map (Top) and Chart (Bottom) */}
+                        <ResizablePanel direction="horizontal" initialSizeRatio={0.75} minSize={200} minSizeSecondary={150}>
                              <div className="h-full relative border-b border-slate-800 z-0">
                                 {mapSection}
                              </div>
                              <div className="h-full flex flex-col bg-slate-900 border-t border-slate-700">
+                                {selectionStats && <SelectionStatsOverlay data={selectionStats} onClose={() => setChartSelection(null)} />}
                                 <div className="h-10 flex-shrink-0">{chartControls}</div>
                                 <div className="flex-grow min-h-0">{chartSection}</div>
                              </div>
@@ -700,8 +704,8 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
                         // ANIMATION MODE: FULL MAP + CHART, NO STATS
                         <div className="h-full w-full flex flex-col">
                              <ResizablePanel 
-                                direction="horizontal" // Vertical split
-                                initialSizeRatio={0.65} // Map gets 65% space for visibility
+                                direction="horizontal" // Vertical split on screen (library uses horizontal/vertical naming sometimes counter-intuitively based on flex direction)
+                                initialSizeRatio={0.65} // Map gets 65% space
                                 minSize={150} 
                                 minSizeSecondary={100}
                              >
@@ -712,6 +716,7 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
 
                                 {/* Chart Section */}
                                 <div className="h-full flex flex-col bg-slate-900">
+                                    {selectionStats && <SelectionStatsOverlay data={selectionStats} onClose={() => setChartSelection(null)} />}
                                     <div className="h-8 flex-shrink-0">{chartControls}</div>
                                     <div className="flex-grow min-h-0">{chartSection}</div>
                                 </div>
@@ -738,13 +743,14 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
                                     minSize={100} 
                                     minSizeSecondary={80}
                                  >
-                                    {/* Map Section (Now Top of Bottom Panel) */}
+                                    {/* Map Section */}
                                     <div className="h-full w-full relative z-0 border-b border-slate-700">
                                         {mapSection}
                                     </div>
 
-                                    {/* Chart Section (Now Bottom of Bottom Panel) */}
+                                    {/* Chart Section */}
                                     <div className="h-full flex flex-col bg-slate-900">
+                                        {selectionStats && <SelectionStatsOverlay data={selectionStats} onClose={() => setChartSelection(null)} />}
                                         <div className="h-8 flex-shrink-0">{chartControls}</div>
                                         <div className="flex-grow min-h-0">{chartSection}</div>
                                     </div>
