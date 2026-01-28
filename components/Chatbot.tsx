@@ -1,136 +1,62 @@
-
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { GoogleGenAI, Chat, GenerateContentResponse } from '@google/genai';
-import { UserProfile, Track, ChatMessage, PlannedWorkout, AiPersonality, ActivityType } from '../types';
-import { loadChatFromDB, saveChatToDB, deleteChatFromDB } from '../services/dbService';
-import AiTrainingCoachPanel from './AiTrainingCoachPanel';
+import React, { useState, useEffect, useRef } from 'react';
+import { GoogleGenAI, Chat, GenerateContentResponse } from "@google/genai";
+import { Track, UserProfile, ChatMessage, PlannedWorkout } from '../types';
+import { calculateTrackStats } from '../services/trackStatsService';
 import FormattedAnalysis from './FormattedAnalysis';
-import { getGenAI, retryWithPolicy, getFriendlyErrorMessage } from '../services/aiHelper';
+import { getGenAI, retryWithPolicy, isAuthError, ensureApiKey } from '../services/aiHelper';
+import { saveChatToDB, loadChatFromDB } from '../services/dbService';
 
 interface ChatbotProps {
     tracksToAnalyze?: Track[];
     userProfile: UserProfile;
-    onClose?: () => void;
+    onClose: () => void;
     isStandalone?: boolean;
     onAddPlannedWorkout?: (workout: PlannedWorkout) => void;
     plannedWorkouts?: PlannedWorkout[];
-    onCheckAiAccess?: () => boolean; // New prop
 }
 
-const SparklesIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 mr-2 text-cyan-400"><path d="M10.89 2.11a.75.75 0 0 0-1.78 0l-1.5 3.22-3.53.51a.75.75 0 0 0-.42 1.28l2.55 2.49-.6 3.52a.75.75 0 0 0 1.09.79l3.16-1.66 3.16 1.66a.75.75 0 0 0 1.09-.79l-.6-3.52 2.55-2.49a.75.75 0 0 0-.42-1.28l-3.53-.51-1.5-3.22Z" /></svg>);
-const TrashIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-slate-400 hover:text-red-400"><path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.1499.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149-.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clipRule="evenodd" /></svg>);
-const CalendarPlusIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 mr-1"><path fillRule="evenodd" d="M5.75 2a.75.75 0 0 1 .75.75V4h7V2.75a.75.75 0 0 1 1.5 0V4h.25A2.75 2.75 0 0 1 18 6.75v8.5A2.75 2.75 0 0 1 15.25 18H4.75A2.75 2.75 0 0 1 2 15.25v-8.5A2.75 2.75 0 0 1 4.75 4H5V2.75A.75.75 0 0 1 5.75 2Zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75ZM10 9.75a.75.75 0 0 1 .75.75v1.5h1.5a.75.75 0 0 1 0 1.5h-1.5v1.5a.75.75 0 0 1-1.5 0v-1.5h-1.5a.75.75 0 0 1 0-1.5h1.5v-1.5a.75.75 0 0 1 .75-.75Z" clipRule="evenodd" /></svg>);
-const CheckIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clipRule="evenodd" /></svg>);
-const DocumentPlusIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 mr-1"><path d="M3 3.5A1.5 1.5 0 0 1 4.5 2h6.879a1.5 1.5 0 0 1 1.06.44l4.122 4.12A1.5 1.5 0 0 1 18 7.622V16.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 16.5v-13Zm10 0v3.5a.5.5 0 0 0 .5.5h3.5l-4-4ZM7.75 10.5a.75.75 0 0 0 0 1.5h4.5a.75.75 0 0 0 0-1.5h-4.5Z" /></svg>);
-const ChevronDownIcon = ({ className = "w-4 h-4" }: { className?: string }) => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={className}><path fillRule="evenodd" d="M5.23 7.21a.75.75 0 0 1 11.06.02L10 11.168l3.71-3.938a.75.75 0 1 11.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" /></svg>);
+const GLOBAL_CHAT_ID = 'global-coach';
 
-const LogoIcon = () => (
-    <div className="w-6 h-6 rounded-md bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-sm border border-slate-700 mr-2 p-0.5">
-        <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
-    </div>
+const SendIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+      <path d="M3.105 2.289a.75.75 0 0 0-.826.95l1.414 4.949a.75.75 0 0 0 .95.95l4.95-1.414a.75.75 0 0 0-.95-.95l-3.539 1.01-1.01-3.54a.75.75 0 0 0-.95-.826ZM12.23 7.77a.75.75 0 0 0-1.06 0l-4.25 4.25a.75.75 0 0 0 0 1.06l4.25 4.25a.75.75 0 0 0 1.06-1.06l-3.72-3.72 3.72-3.72a.75.75 0 0 0 0-1.06ZM15.5 10a.75.75 0 0 1 .75-.75h.01a.75.75 0 0 1 0 1.5H16.25a.75.75 0 0 1-.75-.75Z" />
+    </svg>
 );
 
-const SUGGESTIONS = ["Come sto andando?", "Analizza ultima corsa", "Consigli recupero", "Genera tabella", "Prossima gara?"];
+const TrashIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+        <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.1499.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149-.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clipRule="evenodd" />
+    </svg>
+);
 
-const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, onClose, isStandalone = false, onAddPlannedWorkout, plannedWorkouts = [], onCheckAiAccess }) => {
-    // ... (rest of the component remains unchanged)
+const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, onClose, isStandalone = false, onAddPlannedWorkout, plannedWorkouts = [] }) => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const [isMaximized, setIsMaximized] = useState(false);
-    const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-    const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
-    const [savedNoteIndexes, setSavedNoteIndexes] = useState<Set<string>>(new Set());
-    
-    const scrollAreaRef = useRef<HTMLDivElement>(null);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
     const chatSessionRef = useRef<Chat | null>(null);
-    const hasInitializedRef = useRef(false);
-    const lastUserMessageRef = useRef<HTMLDivElement>(null); 
-    const isSendingRef = useRef(false); 
-    
-    const contextMode = 'global';
-    const isSidebar = !isStandalone;
-    const dims = { w: 400, h: 600 };
 
     useEffect(() => {
-        const handleResize = () => setIsMobile(window.innerWidth < 768);
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, []);
-
-    useEffect(() => {
-        const initChat = async () => {
-            if (hasInitializedRef.current) return;
-
-            const saved = await loadChatFromDB('global-coach');
-            const initialCollapsed: Record<string, boolean> = {};
-            
-            setMessages(prev => {
-                const initialMsg: ChatMessage = {
+        loadChatFromDB(GLOBAL_CHAT_ID).then(saved => {
+            if (saved && saved.length > 0) {
+                setMessages(saved);
+            } else {
+                setMessages([{
                     role: 'model',
-                    text: `Ciao ${userProfile.name || 'Atleta'}! Sono il tuo Running Coach AI. Posso analizzare il tuo storico, darti consigli su allenamenti e recupero o creare una tabella personalizzata. Come posso aiutarti oggi?`,
-                    timestamp: Date.now()
-                };
-
-                let finalMessages: ChatMessage[] = prev;
-                if (saved && saved.length > 0) {
-                    if (prev.length === 0) finalMessages = saved;
-                    else {
-                        const lastSavedTime = saved![saved!.length - 1].timestamp || 0;
-                        const newLocalMessages = prev.filter(m => (m.timestamp || 0) > lastSavedTime);
-                        finalMessages = [...saved!, ...newLocalMessages];
-                    }
-                } else {
-                    finalMessages = prev.length > 0 ? prev : [initialMsg];
-                }
-
-                const dates = new Set(finalMessages.map(m => new Date(m.timestamp || Date.now()).toLocaleDateString()));
-                const sortedDates = Array.from(dates); 
-                const latestDate = sortedDates[sortedDates.length - 1];
-                
-                sortedDates.forEach((d: string) => {
-                    if (d !== latestDate) initialCollapsed[d] = true;
-                });
-                
-                return finalMessages;
-            });
-            
-            setCollapsedSections(prev => ({...prev, ...initialCollapsed}));
-            hasInitializedRef.current = true;
-            
-            setTimeout(() => {
-                if (scrollAreaRef.current) scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
-            }, 200);
-        };
-        initChat();
+                    text: `Ciao ${userProfile.name || 'Atleta'}! Sono il tuo Running Coach AI. Conosco tutto il tuo storico. Come posso aiutarti oggi?`,
+                    timestamp: Date.now(),
+                    suggestedReplies: ["Analizza il mio stato", "Dammi un consiglio", "Prossima gara?"]
+                }]);
+            }
+        });
     }, [userProfile.name]);
 
     useEffect(() => {
         if (messages.length > 0) {
-            saveChatToDB('global-coach', messages);
+            saveChatToDB(GLOBAL_CHAT_ID, messages).catch(console.error);
         }
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
-
-    useEffect(() => {
-        if (isSendingRef.current && lastUserMessageRef.current) {
-            lastUserMessageRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            isSendingRef.current = false;
-        }
-    }, [messages]);
-
-    const handleResetChat = async () => {
-        if (window.confirm("Sei sicuro di voler cancellare tutta la cronologia della chat?")) {
-            await deleteChatFromDB('global-coach');
-            const initialMsg: ChatMessage = {
-                role: 'model',
-                text: `Ciao ${userProfile.name || 'Atleta'}! Chat resettata. Sono pronto per una nuova analisi. Come posso aiutarti?`,
-                timestamp: Date.now()
-            };
-            setMessages([initialMsg]);
-            chatSessionRef.current = null;
-            initChatSession(true);
-        }
-    };
 
     const generateSystemInstruction = () => {
         const personality = userProfile.aiPersonality || 'pro_balanced';
@@ -138,16 +64,14 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
         const today = new Date().toLocaleDateString('it-IT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
         const isoToday = new Date().toISOString().split('T')[0];
         
-        const recentRuns = tracksToAnalyze
-            .sort((a, b) => b.points[0].time.getTime() - a.points[0].time.getTime())
-            .slice(0, 10)
-            .map(t => `- ${t.points[0].time.toLocaleDateString()} (${t.activityType || 'Generica'}): ${t.distance.toFixed(2)}km`)
-            .join('\n');
+        const recentRuns = tracksToAnalyze.slice(0, 5).map(t => {
+            const stats = calculateTrackStats(t);
+            return `- ${t.points[0].time.toLocaleDateString()}: ${t.distance.toFixed(1)}km @ ${stats.avgPace.toFixed(2)} min/km (HR: ${stats.avgHr ? Math.round(stats.avgHr) : 'N/A'})`;
+        }).join('\n');
 
         const upcomingWorkouts = plannedWorkouts
-            .filter(w => !w.completedTrackId && new Date(w.date) >= new Date(new Date().setHours(0,0,0,0)))
+            .filter(w => !w.completedTrackId) 
             .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-            .slice(0, 7)
             .map(w => `- ${new Date(w.date).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })}: ${w.activityType} "${w.title}"`)
             .join('\n');
 
@@ -155,11 +79,15 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
         Data di oggi: ${today} (${isoToday}).
         Nome Atleta: ${userName}.
         
-        CRITICO - GESTIONE DIARIO:
-        Allenamenti pianificati:
+        DIARIO ALLENAMENTI (PIANO):
         ${upcomingWorkouts || "Nessuno."}
 
-        Se l'utente chiede cosa fare, consulta PRIMA il diario. Se c'è un piano, confermalo.
+        PROTOCOLLO DI ANALISI UNIFICATO:
+        1. Se l'utente chiede di analizzare una corsa specifica o passata:
+           - CONTROLLA SEMPRE IL DIARIO per quella data.
+           - Se c'era un allenamento previsto, CHIEDI CONFERMA: "Era l'allenamento [Titolo] previsto?".
+           - Se confermato, confronta i dati con il piano.
+           - Se non confermato o non previsto, deduci il tipo di corsa dai dati (Lento, Ripetute, etc).
         
         STORICO RECENTE:
         ${recentRuns || "Nessuna corsa recente."}
@@ -174,269 +102,165 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
         `;
     };
 
-    const initChatSession = (force = false) => {
-        if (!chatSessionRef.current || force) {
-            const ai = getGenAI();
-            const validHistory = messages.filter(m => m.text && (m.role === 'user' || m.role === 'model')).map(m => ({ role: m.role, parts: [{ text: m.text }] }));
-            
-            chatSessionRef.current = ai.chats.create({
-                model: 'gemini-3-flash-preview',
-                config: { systemInstruction: generateSystemInstruction() },
-                history: validHistory
-            });
+    const initChat = (forceRecreation = false) => {
+        if (!chatSessionRef.current || forceRecreation) {
+            try {
+                const ai = getGenAI();
+                chatSessionRef.current = ai.chats.create({
+                    model: 'gemini-3-flash-preview',
+                    config: { systemInstruction: generateSystemInstruction() },
+                    history: messages.map(m => ({ role: m.role, parts: [{ text: m.text }] }))
+                });
+            } catch (e: any) {
+                if (e.message === 'API_KEY_MISSING') console.warn("API Key missing");
+                else throw e;
+            }
         }
     };
 
-    const handleSaveWorkout = (workoutData: any, messageIndex: number, workoutIndex: number) => {
-        if (!onAddPlannedWorkout) return;
-        const chatMessageText = messages[messageIndex].text.replace(/:::WORKOUT_PROPOSAL=.*?:::/g, '').split(':::SUGGESTIONS')[0].trim();
-        const jsonDescription = workoutData.description || "";
-        const fullDescription = `**Dettagli Tecnici:**\n${jsonDescription}\n\n**Contesto:**\n${chatMessageText}`;
-
-        const workout: PlannedWorkout = {
-            id: `chat-workout-${Date.now()}-${Math.random()}`,
-            title: workoutData.title || "Allenamento Coach",
-            description: fullDescription,
-            date: new Date(workoutData.date),
-            activityType: (workoutData.activityType as ActivityType) || 'Altro',
-            isAiSuggested: true
-        };
-        onAddPlannedWorkout(workout);
-        setSavedNoteIndexes(prev => new Set(prev).add(`${messageIndex}-${workoutIndex}`));
-    };
-
-    const handleSaveAsNote = (msg: ChatMessage, index: number) => {
-        if (!onAddPlannedWorkout) return;
-        const cleanText = msg.text.replace(/:::WORKOUT_PROPOSAL=.*?:::/g, '').split(':::SUGGESTIONS')[0].trim();
-        const noteWorkout: PlannedWorkout = {
-            id: `chat-note-${Date.now()}`,
-            title: "Nota Coach AI",
-            description: cleanText,
-            date: new Date(),
-            activityType: 'Nota',
-            isAiSuggested: true
-        };
-        onAddPlannedWorkout(noteWorkout);
-        setSavedNoteIndexes(prev => new Set(prev).add(`${index}-note`));
-    };
-
-    const performSendMessage = async (text: string) => {
+    const handleSend = async (text: string) => {
         if (!text.trim() || isLoading) return;
         
-        // CHECK LIMIT HERE
-        if (onCheckAiAccess && !onCheckAiAccess()) return;
-
+        window.gpxApp?.trackApiRequest();
+        
         const userMsg = { role: 'user' as const, text, timestamp: Date.now() };
-        isSendingRef.current = true;
         setMessages(prev => [...prev, userMsg]);
         setInput('');
         setIsLoading(true);
-        window.gpxApp?.trackApiRequest();
 
         try {
             await retryWithPolicy(async () => {
-                initChatSession();
+                initChat();
                 if (chatSessionRef.current) {
                     const result = await chatSessionRef.current.sendMessageStream({ message: text });
-                    setMessages(prev => [...prev, { role: 'model', text: '', timestamp: Date.now() }]);
                     
+                    setMessages(prev => [...prev, { role: 'model', text: '', timestamp: Date.now() }]);
                     let fullText = '';
                     let finalTokenCount = 0;
 
                     for await (const chunk of result) {
                         const c = chunk as GenerateContentResponse;
-                        fullText += c.text || '';
+                        const chunkText = c.text || '';
+                        fullText += chunkText;
                         if (c.usageMetadata?.totalTokenCount) finalTokenCount = c.usageMetadata.totalTokenCount;
                         
-                        setMessages(prev => {
-                            if (prev.length === 0) return prev;
-                            const newMsgs = [...prev];
-                            const lastIdx = newMsgs.length - 1;
-                            if (newMsgs[lastIdx].role === 'model') newMsgs[lastIdx].text = fullText;
-                            return newMsgs;
+                        setMessages((prev) => {
+                            const next = [...prev];
+                            if (next.length > 0) next[next.length - 1].text = fullText;
+                            return next;
                         });
                     }
                     if (finalTokenCount > 0) window.gpxApp?.addTokens(finalTokenCount);
-
-                    const workoutRegex = /:::WORKOUT_PROPOSAL=(.*?):::/g;
-                    const workouts: any[] = [];
-                    let cleanText = fullText.replace(workoutRegex, (match, jsonPart) => {
-                        try {
-                            const parsed = JSON.parse(jsonPart);
-                            if (parsed.activityType === 'Running') parsed.activityType = 'Lento';
-                            workouts.push(parsed);
-                        } catch (e) { console.error(e); }
-                        return '';
-                    }).trim();
-
-                    setMessages(prev => {
-                        const newMsgs = [...prev];
-                        const lastMsg = newMsgs[newMsgs.length - 1];
-                        lastMsg.text = cleanText;
-                        lastMsg.suggestedWorkouts = workouts.length > 0 ? workouts : undefined;
-                        return newMsgs;
-                    });
                 }
             });
         } catch (e: any) {
-            const friendlyError = getFriendlyErrorMessage(e);
-            setMessages(prev => {
-                const last = prev[prev.length - 1];
-                if (last.role === 'model' && !last.text) {
-                    const newMsgs = [...prev];
-                    newMsgs[newMsgs.length - 1] = { role: 'model', text: friendlyError, timestamp: Date.now() };
-                    return newMsgs;
-                }
-                return [...prev, { role: 'model', text: friendlyError, timestamp: Date.now() }];
-            });
+            console.error(e);
+            setMessages(prev => [...prev, { role: 'model', text: "⚠️ Errore connessione AI. Riprova più tardi.", timestamp: Date.now() }]);
         } finally {
             setIsLoading(false);
         }
     };
 
-    const handleSend = (e: React.FormEvent) => {
-        e.preventDefault();
-        performSendMessage(input);
+    const handleClearChat = () => {
+        if (confirm("Cancellare tutta la cronologia chat?")) {
+            setMessages([]);
+            chatSessionRef.current = null;
+            saveChatToDB(GLOBAL_CHAT_ID, []);
+        }
     };
 
-    const toggleSection = (key: string) => {
-        setCollapsedSections(prev => ({ ...prev, [key]: !prev[key] }));
+    const handleAddToDiary = (jsonString: string) => {
+        try {
+            const data = JSON.parse(jsonString);
+            if (onAddPlannedWorkout) {
+                onAddPlannedWorkout({
+                    id: `ai-prop-${Date.now()}`,
+                    title: data.title,
+                    description: data.description,
+                    date: new Date(data.date),
+                    activityType: data.activityType,
+                    isAiSuggested: true
+                });
+            }
+        } catch (e) { console.error("Invalid JSON workout", e); }
     };
 
-    const groupedMessages = useMemo(() => {
-        const groups: Record<string, ChatMessage[]> = {};
-        messages.forEach(m => {
-            const dateKey = new Date(m.timestamp || Date.now()).toLocaleDateString();
-            if (!groups[dateKey]) groups[dateKey] = [];
-            groups[dateKey].push(m);
-        });
-        return Object.entries(groups);
-    }, [messages]);
-
-    const renderMessageContent = (msg: ChatMessage, index: number, isLastUserMessage: boolean) => (
-        <div 
-            ref={isLastUserMessage ? lastUserMessageRef : null} 
-            className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} w-full scroll-mt-20`}
-        >
-            <div className={`max-w-[95%] sm:max-w-[85%] p-3 rounded-2xl ${msg.role === 'user' ? 'bg-cyan-700 text-white rounded-tr-none' : 'bg-slate-700 text-slate-100 rounded-tl-none'} shadow-sm text-sm`}>
-                <FormattedAnalysis text={msg.text} />
-                
-                {msg.suggestedWorkouts && msg.suggestedWorkouts.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-white/10 animate-fade-in-up space-y-3">
-                        {msg.suggestedWorkouts.map((workout, wIdx) => {
-                            const isSaved = savedNoteIndexes.has(`${index}-${wIdx}`);
-                            return (
-                                <div key={wIdx} className="bg-slate-800/50 rounded-lg p-3 border border-purple-500/30">
-                                    <div className="flex justify-between items-center mb-1">
-                                        <span className="text-[10px] font-bold text-purple-300 uppercase tracking-widest">Proposta {wIdx + 1}</span>
-                                        <span className="text-[10px] font-mono text-slate-400">{new Date(workout.date).toLocaleDateString()}</span>
-                                    </div>
-                                    <div className="font-bold text-white text-sm">{workout.title}</div>
-                                    <div className="text-xs text-slate-300 mt-1 line-clamp-2 italic">{workout.activityType}</div>
-                                    <div className="mt-2">
-                                        {isSaved ? (
-                                            <button disabled className="w-full bg-green-600/20 text-green-400 border border-green-500/50 font-bold py-1.5 rounded text-xs flex items-center justify-center gap-2 cursor-default"><CheckIcon /> Salvato</button>
-                                        ) : (
-                                            <button onClick={() => handleSaveWorkout(workout, index, wIdx)} className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-1.5 rounded text-xs flex items-center justify-center gap-2 transition-colors shadow-lg active:scale-95"><CalendarPlusIcon /> Aggiungi</button>
+    const renderMessage = (msg: ChatMessage, index: number) => {
+        // Parse for workout proposals
+        const parts = msg.text.split(/:::WORKOUT_PROPOSAL=(.*?):::/g);
+        
+        return (
+            <div key={index} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} mb-4`}>
+                <div className={`max-w-[85%] p-3 rounded-2xl shadow-sm text-sm ${msg.role === 'user' ? 'bg-purple-600 text-white rounded-br-none' : 'bg-slate-700 text-slate-100 rounded-bl-none'}`}>
+                    {parts.map((part, i) => {
+                        if (i % 2 === 1) { // It's a JSON block
+                            try {
+                                const w = JSON.parse(part);
+                                return (
+                                    <div key={i} className="my-2 bg-slate-800 p-2 rounded border border-purple-500/50 text-xs">
+                                        <div className="font-bold text-purple-400 uppercase mb-1">{w.title}</div>
+                                        <div className="text-slate-300 mb-2">{w.date} - {w.activityType}</div>
+                                        {onAddPlannedWorkout && (
+                                            <button 
+                                                onClick={() => handleAddToDiary(part)}
+                                                className="bg-purple-600 hover:bg-purple-500 text-white px-2 py-1 rounded w-full font-bold transition-colors"
+                                            >
+                                                Aggiungi a Calendario
+                                            </button>
                                         )}
                                     </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
-
-                {msg.role === 'model' && !msg.suggestedWorkout && (!msg.suggestedWorkouts || msg.suggestedWorkouts.length === 0) && onAddPlannedWorkout && msg.text.length > 50 && (
-                    <div className="mt-2 pt-2 border-t border-white/10 flex justify-end">
-                        <button 
-                            onClick={() => handleSaveAsNote(msg, index)}
-                            disabled={savedNoteIndexes.has(`${index}-note`)}
-                            className={`flex items-center gap-1 text-[10px] font-bold uppercase transition-colors px-2 py-1 rounded ${savedNoteIndexes.has(`${index}-note`) ? 'text-green-400 bg-green-900/20' : 'text-slate-400 hover:text-white bg-slate-800/30 hover:bg-slate-700'}`}
-                        >
-                            {savedNoteIndexes.has(`${index}-note`) ? <><CheckIcon /> Salvato</> : <><DocumentPlusIcon /> Salva come Nota</>}
-                        </button>
-                    </div>
-                )}
+                                );
+                            } catch { return null; }
+                        }
+                        return <FormattedAnalysis key={i} text={part} />;
+                    })}
+                </div>
             </div>
-            <span className="text-[9px] text-slate-500 mt-1 px-1">
-                {new Date(msg.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </span>
-        </div>
-    );
-
-    const windowStyle: React.CSSProperties = isMaximized 
-        ? { position: 'fixed', top: 0, bottom: 0, left: 0, right: 0, width: '100vw', height: '100vh', zIndex: 12000, borderRadius: 0 }
-        : isSidebar 
-            ? { width: '100%', height: '100%', position: 'relative' }
-            : isMobile 
-                ? { position: 'fixed', bottom: 0, left: 0, right: 0, width: '100%', height: '80vh', zIndex: 12000, borderBottomLeftRadius: 0, borderBottomRightRadius: 0, borderTopLeftRadius: '1.5rem', borderTopRightRadius: '1.5rem', boxShadow: '0 -4px 20px rgba(0,0,0,0.4)' }
-                : { width: `${dims.w}px`, height: `${dims.h}px`, position: 'relative', zIndex: 4000 };
+        );
+    };
 
     return (
-        <div style={windowStyle} className={`flex flex-col bg-slate-800 text-white shadow-2xl overflow-hidden border border-slate-700 transition-all duration-300 ${!isMaximized && !isSidebar && !isMobile ? 'rounded-lg' : ''}`}>
-            <header className="flex items-center justify-between p-3 border-b border-slate-700 bg-slate-900 flex-shrink-0 cursor-default select-none">
-                <div className="flex items-center">
-                    <LogoIcon />
-                    <div className="flex items-center">
-                        <SparklesIcon />
-                        <div>
-                            <h2 className="text-sm font-bold text-cyan-400 uppercase tracking-tighter">{contextMode === 'global' ? 'Coach AI' : 'Analisi'}</h2>
-                            <p className="text-[10px] text-slate-500 leading-none">{userProfile.aiPersonality || 'Pro'}</p>
-                        </div>
+        <div className={`flex flex-col bg-slate-900 border border-slate-700 shadow-2xl overflow-hidden ${isStandalone ? 'w-full md:w-[400px] h-[500px] md:rounded-2xl' : 'h-full'}`}>
+            <header className="p-4 bg-slate-800 border-b border-slate-700 flex justify-between items-center shrink-0">
+                <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center text-xl">🤖</div>
+                    <div>
+                        <h3 className="font-bold text-white text-sm">Coach AI</h3>
+                        <p className="text-[10px] text-purple-400 uppercase font-bold tracking-wider">Online</p>
                     </div>
                 </div>
-                <div className="flex items-center space-x-1">
-                    <button onClick={handleResetChat} className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-700 rounded transition-colors active:scale-90" title="Resetta Chat"><TrashIcon /></button>
-                    {!isSidebar && (
-                        <button onClick={() => setIsMaximized(!isMaximized)} className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors active:scale-90">
-                            {isMaximized ? (
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M4.25 10a.75.75 0 0 0-1.78 0v4.25H7a.75.75 0 0 0 0-1.5H4.25V10ZM13 5.75a.75.75 0 0 0 0 1.5h2.75V10a.75.75 0 0 0 1.5 0V5.75H13Z" /><path d="M15.75 10a.75.75 0 0 1 1.5 0v4.25H13a.75.75 0 0 1 0-1.5h2.75V10ZM7 5.75a.75.75 0 0 1 0 1.5H4.25V10a.75.75 0 0 1-1.5 0V5.75H7Z" /></svg>
-                            ) : (
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M3.25 3A.75.75 0 0 1 4 3.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 3.25 3Zm3.5 0A.75.75 0 0 1 7.5 3.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 6.75 3ZM13.25 3a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5a.75.75 0 0 1 .75-.75Zm3.5 0A.75.75 0 0 1 17.5 3.75v3.5a.75.75 0 0 1-1.5 0v-3.5a.75.75 0 0 1 .75-.75ZM3.25 13a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5a.75.75 0 0 1 .75-.75ZM3.5 13a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5a.75.75 0 0 1 .75-.75ZM6.75 13a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5a.75.75 0 0 1 .75-.75ZM13.25 13a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5a.75.75 0 0 1 .75-.75ZM16.75 13a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5a.75.75 0 0 1 .75-.75Z" clipRule="evenodd" /></svg>
-                            )}
-                        </button>
-                    )}
-                    {onClose && <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-700 rounded transition-colors text-xl leading-none" title="Chiudi">&times;</button>}
+                <div className="flex items-center gap-2">
+                    <button onClick={handleClearChat} className="p-2 text-slate-500 hover:text-red-400 transition-colors" title="Cancella chat"><TrashIcon /></button>
+                    <button onClick={onClose} className="p-2 text-slate-500 hover:text-white transition-colors text-xl">&times;</button>
                 </div>
             </header>
-            <div ref={scrollAreaRef} className="flex-grow p-4 overflow-y-auto space-y-4 custom-scrollbar bg-slate-800/50">
-                {messages.length <= 1 && contextMode === 'global' && (
-                    <div className="mb-6 animate-fade-in-down">
-                        <AiTrainingCoachPanel userProfile={userProfile} allHistory={tracksToAnalyze} onAddPlannedWorkout={onAddPlannedWorkout} plannedWorkouts={plannedWorkouts} isCompact={true} onCheckAiAccess={onCheckAiAccess} />
-                    </div>
-                )}
-                
-                {groupedMessages.map(([dateKey, msgs]) => {
-                    const isCollapsed = collapsedSections[dateKey];
-                    return (
-                        <div key={dateKey} className="mb-4">
-                            <button onClick={() => toggleSection(dateKey)} className="flex items-center w-full text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 hover:text-cyan-400 transition-colors group sticky top-0 bg-slate-800/90 backdrop-blur-sm z-10 py-1">
-                                <ChevronDownIcon className={`w-3 h-3 mr-1 transition-transform duration-200 ${isCollapsed ? '-rotate-90' : ''}`} />
-                                <span className="flex-grow border-b border-slate-700/50 pb-0.5 text-left group-hover:border-cyan-500/50">{dateKey}</span>
-                            </button>
-                            {!isCollapsed && (
-                                <div className="space-y-4">
-                                    {msgs.map((msg) => {
-                                        const globalIndex = messages.indexOf(msg);
-                                        const isLastUserMessage = msg.role === 'user' && globalIndex === messages.length - 2; 
-                                        return <div key={globalIndex}>{renderMessageContent(msg, globalIndex, isLastUserMessage)}</div>;
-                                    })}
-                                </div>
-                            )}
-                        </div>
-                    );
-                })}
-                {isLoading && <div className="flex space-x-1 p-3 bg-slate-700 rounded-xl w-12 animate-pulse"><div className="w-1.5 h-1.5 bg-cyan-400 rounded-full"></div><div className="w-1.5 h-1.5 bg-cyan-400 rounded-full delay-75"></div><div className="w-1.5 h-1.5 bg-cyan-400 rounded-full delay-150"></div></div>}
+            
+            <div className="flex-grow overflow-y-auto p-4 custom-scrollbar bg-slate-900/50">
+                {messages.map((msg, idx) => renderMessage(msg, idx))}
+                {isLoading && <div className="text-slate-500 text-xs italic animate-pulse">Il coach sta scrivendo...</div>}
+                <div ref={messagesEndRef} />
             </div>
-            <div className="p-3 border-t border-slate-700 bg-slate-900/50 flex-shrink-0" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
-                <div className="flex gap-2 overflow-x-auto pb-3 no-scrollbar scroll-smooth">
-                    {SUGGESTIONS.map((suggestion, i) => (<button key={i} onClick={() => performSendMessage(suggestion)} disabled={isLoading} className="whitespace-nowrap px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-full text-[10px] sm:text-xs text-slate-300 hover:bg-slate-700 hover:border-cyan-500 transition-all disabled:opacity-50 active:scale-95">{suggestion}</button>))}
-                </div>
-                <form onSubmit={handleSend} className="flex items-center bg-slate-700 rounded-xl px-2 border border-slate-600 focus-within:border-cyan-500 shadow-inner">
-                    <input type="text" value={input} onChange={e => setInput(e.target.value)} placeholder={contextMode === 'global' ? "Chiedi al coach generale..." : "Chiedi su questa corsa..."} className="w-full bg-transparent p-3 focus:outline-none text-sm placeholder-slate-500" disabled={isLoading} />
-                    <button type="submit" disabled={isLoading || !input.trim()} className="p-2 text-cyan-400 hover:text-cyan-300 transition-transform active:scale-90">🚀</button>
-                </form>
-            </div>
+
+            <form 
+                onSubmit={(e) => { e.preventDefault(); handleSend(input); }}
+                className="p-3 bg-slate-800 border-t border-slate-700 flex gap-2 shrink-0"
+            >
+                <input 
+                    type="text" 
+                    value={input} 
+                    onChange={e => setInput(e.target.value)} 
+                    placeholder="Scrivi un messaggio..."
+                    className="flex-grow bg-slate-900 border border-slate-600 rounded-xl px-4 py-2 text-sm text-white focus:border-purple-500 outline-none transition-colors"
+                    disabled={isLoading}
+                />
+                <button 
+                    type="submit" 
+                    disabled={!input.trim() || isLoading}
+                    className="bg-purple-600 hover:bg-purple-500 text-white p-2.5 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    <SendIcon />
+                </button>
+            </form>
         </div>
     );
 };
