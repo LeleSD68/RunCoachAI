@@ -1,786 +1,799 @@
 
-import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
-import { Track, RaceRunner, MapDisplayProps, TrackPoint, PauseSegment, TrackStats, Split, AiSegment } from '../types';
-import { calculateTrackStats } from '../services/trackStatsService';
-import { getTrackPointAtDistance, getPointsInDistanceRange } from '../services/trackEditorUtils';
-import { getTrackSegmentColors, ColoredSegment, GradientMetric } from '../services/colorService';
-import AnimationControls from './AnimationControls';
-import Tooltip from './Tooltip';
-import FlyoverMap from './FlyoverMap';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { Track, TrackPoint, Split, PauseSegment, AiSegment, UserProfile, TrackStats, PlannedWorkout } from '../types';
+import MapDisplay from './MapDisplay';
+import TimelineChart, { YAxisMetric } from './TimelineChart';
+import StatsPanel from './StatsPanel';
+import WeatherPanel from './WeatherPanel';
+import GeminiTrackAnalysisPanel from './GeminiTrackAnalysisPanel';
+import GeminiSegmentsPanel from './GeminiSegmentsPanel';
+import ResizablePanel from './ResizablePanel';
+import HeartRateZonePanel from './HeartRateZonePanel';
+import PersonalRecordsPanel from './PersonalRecordsPanel';
+import RatingStars from './RatingStars';
+import { calculateTrackStats, estimateTrackRPE } from '../services/trackStatsService';
+import { getPointsInDistanceRange, getTrackStateAtTime, getTrackPointAtDistance } from '../services/trackEditorUtils';
+import { smoothTrackPoints, calculateSmoothedMetrics, calculateRunningPower } from '../services/dataProcessingService';
 
-declare const L: any; 
-
-const FitBoundsIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-        <path d="M2.5 3.5A1 1 0 0 1 3.5 2.5h2.25a.75.75 0 0 0 0-1.5H3.5A2.5 2.5 0 0 0 1 3.5v2.25a.75.75 0 0 0 1.5 0V3.5ZM17.5 3.5V5.75a.75.75 0 0 0 1.5 0V3.5A2.5 2.5 0 0 0 16.5 1h-2.25a.75.75 0 0 0 0 1.5H16.5A1 1 0 0 1 17.5 3.5ZM2.5 16.5A1 1 0 0 1 3.5 17.5h2.25a.75.75 0 0 0 0-1.5H3.5A2.5 2.5 0 0 0 1 16.5v-2.25a.75.75 0 0 0-1.5 0V16.5a1 1 0 0 1-1 1h-2.25a.75.75 0 0 0 0 1.5H16.5Z" />
-    </svg>
-);
-
-const LockOpenIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-        <path fillRule="evenodd" d="M10 2a4 4 0 0 0-4 4v1H5a3 3 0 0 0-3 3v6a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-6a3 3 0 0 0-3-3h-1V6a4 4 0 0 0-4-4Zm2 5V6a2 2 0 1 0-4 0v1h4Z" clipRule="evenodd" />
-    </svg>
-);
-
-const LockClosedIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-        <path fillRule="evenodd" d="M10 2a4 4 0 0 0-4 4v1H5a3 3 0 0 0-3 3v6a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-6a3 3 0 0 0-3-3h-1V6a4 4 0 0 0-4-4Zm-2 5V6a2 2 0 1 1 4 0v1h-4Z" clipRule="evenodd" />
-    </svg>
-);
-
-const LayersIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-        <path fillRule="evenodd" d="M2.24 6.8a.75.75 0 0 0 1.06-.04l1.95-2.1 1.95 2.1a.75.75 0 1 0 1.1-1.02l-2.5-2.7a.75.75 0 0 0-1.1 0l-2.5 2.7a.75.75 0 0 0 .04 1.06Zm6.94 3.7a.75.75 0 0 0 1.06-.04l1.95-2.1 1.95 2.1a.75.75 0 1 0 1.1-1.02l-2.5-2.7a.75.75 0 0 0-1.1 0l-2.5 2.7a.75.75 0 0 0 .04 1.06Zm-6.94 3.7a.75.75 0 0 0 1.06-.04l1.95-2.1 1.95 2.1a.75.75 0 1 0 1.1-1.02l-2.5-2.7a.75.75 0 0 0-1.1 0l-2.5 2.7a.75.75 0 0 0 .04 1.06Z" clipRule="evenodd" />
-        <path d="M12.25 5a.75.75 0 0 0 0 1.5h4.5a.75.75 0 0 0 0-1.5h-4.5Zm0 3.75a.75.75 0 0 0 0 1.5h4.5a.75.75 0 0 0 0-1.5h-4.5Zm0 3.75a.75.75 0 0 0 0 1.5h4.5a.75.75 0 0 0 0-1.5h-4.5Z" />
-    </svg>
-);
-
-const CubeIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-        <path fillRule="evenodd" d="M10 2l-6 3.5v7L10 16l6-3.5v-7L10 2zm0 12l-6-3.5 6-3.5 6 3.5-6 3.5z" clipRule="evenodd" />
-    </svg>
-);
-
-const ZoomInIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-        <path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" />
-    </svg>
-);
-
-const ZoomOutIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-        <path fillRule="evenodd" d="M4.25 10a.75.75 0 0 1 .75-.75h10a.75.75 0 0 1 0 1.5H5a.75.75 0 0 1-.75-.75Z" clipRule="evenodd" />
-    </svg>
-);
-
-interface AnimationStats {
-    time: string;
-    pace: string;
-    elevation: number;
-    hr: number | null;
-    distance: number;
+interface TrackDetailViewProps {
+    track: Track;
+    userProfile: UserProfile;
+    onExit: () => void;
+    allHistory?: Track[];
+    onUpdateTrackMetadata?: (id: string, metadata: Partial<Track>) => void;
+    onAddPlannedWorkout?: (workout: PlannedWorkout) => void;
+    onStartAnimation?: (id: string) => void;
+    onOpenReview?: (trackId: string) => void;
+    autoOpenAi?: boolean;
+    onCheckAiAccess?: () => boolean; // New prop
+    isGuest?: boolean;
+    onLimitReached?: () => void;
 }
 
-const StatsDisplay: React.FC<{ stats: AnimationStats, splits: Split[], currentDistance: number, visibleMetrics: Set<string> }> = ({ stats, splits, currentDistance, visibleMetrics }) => {
-    const showHr = visibleMetrics.has('hr') && stats.hr !== null;
-    const showTime = visibleMetrics.has('time');
-    const showPace = visibleMetrics.has('pace');
-    const showElevation = visibleMetrics.has('elevation');
-    const activeMetricsCount = 1 + (showTime ? 1 : 0) + (showPace ? 1 : 0) + (showElevation ? 1 : 0) + (showHr ? 1 : 0);
-
-    return (
-        <div className="absolute top-0 left-0 right-0 sm:top-4 sm:left-auto sm:right-4 bg-slate-800/95 sm:bg-slate-800/90 backdrop-blur-md p-3 sm:p-4 rounded-b-xl sm:rounded-xl shadow-2xl text-white z-[100] border-b sm:border border-slate-600 w-full sm:w-auto sm:max-w-lg transition-all duration-300 animate-fade-in-down">
-            <div className="grid gap-x-4 gap-y-2" style={{ gridTemplateColumns: `repeat(${activeMetricsCount}, minmax(0, 1fr))` }}>
-                <div>
-                    <div className="text-[10px] sm:text-xs text-slate-400 uppercase font-bold">Distanza</div>
-                    <div className="text-base sm:text-xl font-bold font-mono">{stats.distance.toFixed(2)} <span className="text-[10px] sm:text-sm text-slate-500">km</span></div>
-                </div>
-                {showTime && (
-                    <div>
-                        <div className="text-[10px] sm:text-xs text-slate-400 uppercase font-bold">Tempo</div>
-                        <div className="text-base sm:text-xl font-bold font-mono">{stats.time}</div>
-                    </div>
-                )}
-                {showPace && (
-                    <div>
-                        <div className="text-[10px] sm:text-xs text-slate-400 uppercase font-bold">Ritmo</div>
-                        <div className="text-base sm:text-xl font-bold font-mono">{stats.pace}</div>
-                    </div>
-                )}
-                {showElevation && (
-                    <div>
-                        <div className="text-[10px] sm:text-xs text-slate-400 uppercase font-bold">Elev.</div>
-                        <div className="text-base sm:text-xl font-bold font-mono">{stats.elevation} m</div>
-                    </div>
-                )}
-                {showHr && (
-                     <div>
-                        <div className="text-[10px] sm:text-xs text-slate-400 uppercase font-bold">FC</div>
-                        <div className="text-base sm:text-xl font-bold font-mono text-red-400">{Math.round(stats.hr!)} <span className="text-[10px] sm:text-sm text-slate-500">bpm</span></div>
-                    </div>
-                )}
-            </div>
-        </div>
-    );
+const useIsMobile = () => {
+    const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth < 768);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+    return isMobile;
 };
 
-const formatDuration = (ms: number) => {
-  const totalSeconds = Math.floor(ms / 1000);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+const metricLabels: Record<YAxisMetric, string> = {
+    pace: 'Ritmo',
+    elevation: 'Alt.',
+    speed: 'Vel.',
+    hr: 'FC',
+    power: 'Watt'
+};
+
+const metricFormatters: Record<YAxisMetric, (v: number) => string> = {
+    pace: (p) => {
+        if (!isFinite(p) || p <= 0) return '--:--';
+        const m = Math.floor(p);
+        const s = Math.round((p - m) * 60);
+        return `${m}:${s.toString().padStart(2, '0')}`;
+    },
+    elevation: (v) => `${v.toFixed(0)}m`,
+    speed: (v) => `${v.toFixed(1)}`,
+    hr: (v) => `${Math.round(v)}`,
+    power: (v) => `${Math.round(v)}W`
+};
+
+const ClockIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 mr-1">
+        <path fillRule="evenodd" d="M8 15A7 7 0 1 0 8 1a7 7 0 0 0 0 14Zm.75-10.25a.75.75 0 0 0-1.5 0v4.5c0 .414.336.75.75.75h4.5a.75.75 0 0 0 0-1.5h-3.75v-3.75Z" clipRule="evenodd" />
+    </svg>
+);
+
+const NoteIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 mr-2">
+        <path fillRule="evenodd" d="M4.5 2A1.5 1.5 0 0 0 3 3.5v13A1.5 1.5 0 0 0 4.5 18h11a1.5 1.5 0 0 0 1.5-1.5V7.621a1.5 1.5 0 0 0-.44-1.06l-4.12-4.122A1.5 1.5 0 0 0 11.38 2H4.5Zm10 14.5h-9a.5.5 0 0 1-.5-.5v-13a.5.5 0 0 1 .5-.5H11v3.5A1.5 1.5 0 0 0 12.5 7H16v9a.5.5 0 0 1-.5.5ZM16 5.5l-3.5-3.5V5.5H16Z" clipRule="evenodd" />
+    </svg>
+);
+
+const ShoeIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 mr-2 text-cyan-400">
+        <path d="M2.273 5.625A4.483 4.483 0 0 1 5.25 4.5h13.5c1.141 0 2.183.425 2.977 1.125A3 3 0 0 0 18.75 3H5.25a3 3 0 0 0-2.977 2.625ZM2.273 8.625A4.483 4.483 0 0 1 5.25 7.5h13.5c1.141 0 2.183.425 2.977 1.125A3 3 0 0 0 18.75 6H5.25a3 3 0 0 0-2.977 2.625ZM5.25 9a3 3 0 0 0-3 3v2.25a3 3 0 0 0 3 3h13.5a3 3 0 0 0 3-3V12a3 3 0 0 0-3-3H5.25Z" />
+    </svg>
+);
+
+const TagIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 mr-2 text-cyan-400">
+        <path fillRule="evenodd" d="M4.5 2A1.5 1.5 0 0 0 3 3.5v13A1.5 1.5 0 0 0 4.5 18h11a1.5 1.5 0 0 0 1.5-1.5V7.621a1.5 1.5 0 0 0-.44-1.06l-4.12-4.122A1.5 1.5 0 0 0 11.38 2H4.5Zm10 14.5h-9a.5.5 0 0 1-.5-.5v-13a.5.5 0 0 1 .5-.5H11v3.5A1.5 1.5 0 0 0 12.5 7H16v9a.5.5 0 0 1-.5.5ZM16 5.5l-3.5-3.5V5.5H16Z" clipRule="evenodd" />
+    </svg>
+);
+
+const ReplayIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 mr-1">
+        <path fillRule="evenodd" d="M15.312 11.424a5.5 5.5 0 0 1-9.201 2.466l-.312-.311h2.433a.75.75 0 0 0 0-1.5H3.989a.75.75 0 0 0-.75.75v4.242a.75.75 0 0 0 1.5 0v-2.43l.31.31a7 7 0 0 0 11.712-3.138.75.75 0 0 0-1.449-.39Z" clipRule="evenodd" />
+        <path fillRule="evenodd" d="M13.485 1.431a.75.75 0 0 0-1.449.39 5.5 5.5 0 0 1 9.201 2.466l.312-.311h-2.433a.75.75 0 0 0 .75-.75V.484a.75.75 0 0 0-1.5 0v2.43l-.31-.31a7 7 0 0 0-11.712-3.138Z" clipRule="evenodd" />
+    </svg>
+);
+
+const FireIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 mr-2 text-red-500">
+        <path fillRule="evenodd" d="M13.5 4.938a7 7 0 1 1-9.006 1.737c.202-.257.59-.218.793.039.036.044.11.127.19.238A6.862 6.862 0 0 0 10 13a6.862 6.862 0 0 0 4.519-6.048c.08-.111.154-.194.19-.238.202-.257.591-.296.793-.039.1.128.24.332.397.644.356.711.603 1.554.603 2.68a7 7 0 0 1-3.002 5.922 6.96 6.96 0 0 0 .502-1.928.75.75 0 0 0-1.378-.474 5.46 5.46 0 0 1-2.23 2.82 5.46 5.46 0 0 1-2.228-2.82.75.75 0 0 0-1.38.474c.264.768.656 1.407 1.123 1.916a7 7 0 0 1-4.009-5.83 8.35 8.35 0 0 1 .602-2.68c.158-.312.298-.516.398-.644Z" clipRule="evenodd" />
+    </svg>
+);
+
+const formatDuration = (ms: number, compact = false) => {
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    const hours = Math.floor(totalSeconds / 3600);
+    if (compact) return `${hours > 0 ? hours + ':' : ''}${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    return `${hours > 0 ? hours + ':' : ''}${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 };
 
 const formatPace = (pace: number) => {
-    if (!isFinite(pace) || pace <= 0) return '--:--';
+    if (!isFinite(pace) || pace <= 0) return '-:--';
     const minutes = Math.floor(pace);
     const seconds = Math.round((pace - minutes) * 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 };
 
-const isValidLatLng = (lat: any, lng: any) => typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng);
-
-const MapDisplay: React.FC<MapDisplayProps> = ({ 
-    tracks, visibleTrackIds, selectedTrackIds, raceRunners, hoveredTrackId, runnerSpeeds, 
-    selectionPoints, hoveredPoint, hoveredData, pauseSegments, showPauses, onMapHover, onTrackHover,
-    onPauseClick, mapGradientMetric = 'none', coloredPauseSegments, animationTrack, 
-    animationProgress = 0, animationPace = 0, onExitAnimation, fastestSplitForAnimation, animationHighlight,
-    isAnimationPlaying, onToggleAnimationPlay, onAnimationProgressChange,
-    animationSpeed, onAnimationSpeedChange, fitBoundsCounter = 0,
-    selectedPoint, onPointClick, hoveredLegendValue, aiSegmentHighlight,
-    showSummaryMode, onTrackClick
-}) => {
-  const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<any>(null);
-  const tileLayerRef = useRef<any>(null);
-  
-  const polylinesRef = useRef<Map<string, any>>(new Map());
-  const raceFaintPolylinesRef = useRef<Map<string, any>>(new Map());
-  const raceRunnerMarkersRef = useRef<Map<string, any>>(new Map());
-  
-  const kmMarkersLayerGroupRef = useRef<any>(null);
-  const hoverMarkerRef = useRef<any>(null);
-  const animationMarkerRef = useRef<any>(null);
-  const aiSegmentPolylineRef = useRef<any>(null);
-  const selectionPolylineRef = useRef<any>(null);
-  
-  const [isAutoFitEnabled, setIsAutoFitEnabled] = useState(true);
-  
-  const [mapTheme, setMapTheme] = useState<'dark' | 'light' | 'satellite' | 'silver' | 'midnight'>(() => {
-      const saved = localStorage.getItem('gpx-map-theme');
-      return (saved as any) || 'light';
-  });
-
-  const [showLayerMenu, setShowLayerMenu] = useState(false);
-  const [visibleMetrics, setVisibleMetrics] = useState<Set<string>>(new Set(['time', 'pace', 'elevation', 'hr']));
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  const [is3DMode, setIs3DMode] = useState(false); 
-
-  const passedKmsRef = useRef<Set<number>>(new Set());
-
-  // Derive target track for 3D view (Animation OR Race Leader)
-  const target3DTrack = useMemo(() => {
-      if (animationTrack) return animationTrack;
-      if (raceRunners && raceRunners.length > 0) {
-          // Find the track object corresponding to the first runner
-          return tracks.find(t => t.id === raceRunners[0].trackId) || null;
-      }
-      return null;
-  }, [animationTrack, raceRunners, tracks]);
-
-  // Stable list of tracks for FlyoverMap to prevent re-initialization loop
-  const flyoverTracks = useMemo(() => {
-      const safeVisibleIds = visibleTrackIds instanceof Set ? visibleTrackIds : new Set();
-      const safeSelectedIds = selectedTrackIds instanceof Set ? selectedTrackIds : new Set();
-      return tracks.filter(t => safeVisibleIds.has(t.id) || safeSelectedIds.has(t.id));
-  }, [tracks, visibleTrackIds, selectedTrackIds]);
-
-  const target3DProgress = useMemo(() => {
-      if (animationTrack) return animationProgress;
-      if (raceRunners && raceRunners.length > 0) {
-          return raceRunners[0].position.cummulativeDistance;
-      }
-      return 0;
-  }, [animationTrack, raceRunners, animationProgress]);
-
-  // Can we show 3D? Yes if we have a target track.
-  const canShow3D = !!target3DTrack;
-
-  useEffect(() => {
-      localStorage.setItem('gpx-map-theme', mapTheme);
-  }, [mapTheme]);
-
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  const animationTrackStats = useMemo(() => animationTrack ? calculateTrackStats(animationTrack) : null, [animationTrack]);
-
-  const animationStats = useMemo((): AnimationStats => {
-    if (!animationTrack) return { time: '00:00:00', pace: '--:-- /km', elevation: 0, hr: null, distance: 0 };
-    const point = getTrackPointAtDistance(animationTrack, animationProgress);
-    if (!point) return { time: '00:00:00', pace: '--:-- /km', elevation: 0, hr: null, distance: animationProgress };
-    const elapsedMs = point.time.getTime() - animationTrack.points[0].time.getTime();
-    return { time: formatDuration(elapsedMs), pace: animationPace > 0 ? `${formatPace(animationPace)} /km` : '--:-- /km', elevation: Math.round(point.ele), hr: point.hr || null, distance: animationProgress };
-  }, [animationTrack, animationProgress, animationPace]);
-
-  const handleToggleMetric = useCallback((metric: string) => {
-      setVisibleMetrics(prev => {
-          const next = new Set(prev);
-          if (next.has(metric)) next.delete(metric);
-          else next.add(metric);
-          return next;
-      });
-  }, []);
-
-  const fitMapToBounds = useCallback(() => {
-      const map = mapRef.current;
-      if (!map) return;
-      let bounds: any = null;
-      
-      const safeVisibleIds = visibleTrackIds instanceof Set ? visibleTrackIds : new Set();
-      const safeSelectedIds = selectedTrackIds instanceof Set ? selectedTrackIds : new Set();
-
-      // Mobile padding to account for overlays (Top Header, Bottom Dock/Controls)
-      // Top: ~80px, Bottom: ~200px
-      const paddingOptions: any = isMobile 
-        ? { padding: [20, 20], paddingTopLeft: [20, 80], paddingBottomRight: [20, 220] } 
-        : { padding: [40, 40] };
-
-      if (animationTrack) {
-        const allPoints = animationTrack.points.filter(p => isValidLatLng(p.lat, p.lon)).map(p => [p.lat, p.lon]);
-        if (allPoints.length > 0) bounds = L.latLngBounds(allPoints);
-      } else if (raceRunners && raceRunners.length > 0) {
-          // RACE MODE: Fit to all runners
-          const points = raceRunners.map(r => r.position).filter(p => isValidLatLng(p.lat, p.lon)).map(p => [p.lat, p.lon]);
-          if (points.length > 0) {
-                bounds = L.latLngBounds(points);
-                // Ensure we don't zoom in too much on a single point (start line)
-                if (bounds.getNorth() === bounds.getSouth() && bounds.getEast() === bounds.getWest()) {
-                    // Start line scenario or single runner
-                    map.setView(points[0], 16, { animate: true, ...paddingOptions });
-                    return;
-                } else {
-                    // Running Scenario: Add generous padding to bounds to keep them well inside
-                    // 2D 'animate: false' is crucial for smooth continuous tracking without lag
-                    map.fitBounds(bounds, { animate: false, maxZoom: 17, padding: isMobile ? [50, 50] : [100, 100] });
-                    return; 
-                }
-          }
-      } else if (aiSegmentHighlight && tracks[0]) {
-          const points = getPointsInDistanceRange(tracks[0], aiSegmentHighlight.startDistance, aiSegmentHighlight.endDistance).filter(p => isValidLatLng(p.lat, p.lon));
-          if (points.length > 1) bounds = L.latLngBounds(points.map(p => [p.lat, p.lon]));
-      } else if (selectionPoints && selectionPoints.length > 1) {
-          bounds = L.latLngBounds(selectionPoints.filter(p => isValidLatLng(p.lat, p.lon)).map(p => [p.lat, p.lon]));
-      } else {
-          const hasSelection = safeSelectedIds.size > 0;
-          const targetIds = hasSelection ? safeSelectedIds : safeVisibleIds;
-          
-          const relevantTracks = tracks.filter(t => targetIds.has(t.id));
-          if (relevantTracks.length > 0) {
-              const allPoints = relevantTracks.flatMap(t => t.points.filter(p => isValidLatLng(p.lat, p.lon)).map(p => [p.lat, p.lon]));
-              if (allPoints.length > 0) bounds = L.latLngBounds(allPoints);
-          }
-      }
-      if (bounds && bounds.isValid()) map.fitBounds(bounds, paddingOptions);
-  }, [selectionPoints, tracks, visibleTrackIds, selectedTrackIds, animationTrack, aiSegmentHighlight, raceRunners, isMobile]);
-
-  // Init/Destroy 2D Map Logic based on 2D/3D Mode
-  useEffect(() => {
-    if (is3DMode) {
-        // Destroy Leaflet map when entering 3D mode to free DOM and prevents black screen on return
-        if (mapRef.current) {
-            mapRef.current.remove();
-            mapRef.current = null;
-            // Clear refs
-            tileLayerRef.current = null;
-            polylinesRef.current.clear();
-            raceFaintPolylinesRef.current.clear();
-            raceRunnerMarkersRef.current.clear();
-            kmMarkersLayerGroupRef.current = null;
-            hoverMarkerRef.current = null;
-            animationMarkerRef.current = null;
-            selectionPolylineRef.current = null;
-            aiSegmentPolylineRef.current = null;
-        }
-        return;
+interface ExtendedStats {
+    stats: TrackStats;
+    range: {
+        startDist: number;
+        endDist: number;
+        startTime: number;
+        endTime: number;
     }
+}
 
-    if (mapContainerRef.current && !mapRef.current) {
-      mapRef.current = L.map(mapContainerRef.current, { 
-          preferCanvas: true, 
-          zoomControl: false,
-          attributionControl: false 
-      }).setView([45.60, 12.88], 13);
-
-      L.control.attribution({ prefix: false }).addTo(mapRef.current);
-
-      // Disable auto-fit on user interaction to prevent fighting the user
-      mapRef.current.on('dragstart zoomstart movestart', () => setIsAutoFitEnabled(false));
-      
-      kmMarkersLayerGroupRef.current = L.layerGroup().addTo(mapRef.current);
-      
-      const resizeObserver = new ResizeObserver(() => { 
-          if (mapRef.current) { 
-              mapRef.current.invalidateSize(); 
-              if (isAutoFitEnabled) fitMapToBounds(); 
-          } 
-      });
-      resizeObserver.observe(mapContainerRef.current);
-
-      if (tracks.length > 0) {
-          fitMapToBounds();
-      }
-
-      // Restore theme
-      const saved = localStorage.getItem('gpx-map-theme') || 'light';
-      setMapTheme(saved as any); // Trigger tile load in separate effect
-
-      return () => {
-          if (mapRef.current) {
-              mapRef.current.remove();
-              mapRef.current = null;
-          }
-          resizeObserver.disconnect();
-      };
-    }
-  }, [is3DMode]); // Dependent on is3DMode
-
-  // Continuous Auto Fit for Race Mode (when user hasn't interfered)
-  useEffect(() => {
-      if (!is3DMode && isAutoFitEnabled && raceRunners && raceRunners.length > 0) {
-          fitMapToBounds();
-      }
-  }, [raceRunners, isAutoFitEnabled, fitMapToBounds, is3DMode]);
-
-  // Tile Layer (2D Only)
-  useEffect(() => {
-      const map = mapRef.current;
-      if (!map || is3DMode) return;
-
-      if (tileLayerRef.current) {
-          map.removeLayer(tileLayerRef.current);
-      }
-
-      let tileUrl = '';
-      let attribution = '';
-      let options: any = { maxZoom: 19 };
-
-      if (mapTheme === 'satellite') {
-          tileUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
-          attribution = 'Tiles &copy; Esri';
-      } else if (mapTheme === 'silver') {
-          tileUrl = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
-          attribution = '&copy; OpenStreetMap';
-      } else if (mapTheme === 'midnight') {
-          tileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-          attribution = '&copy; OpenStreetMap';
-      } else {
-          tileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-          attribution = '&copy; OpenStreetMap';
-          
-          if (mapTheme === 'dark') {
-              options.className = 'map-tiles-dark';
-          }
-      }
-      
-      options.attribution = attribution;
-
-      tileLayerRef.current = L.tileLayer(tileUrl, options).addTo(map);
-
-  }, [mapTheme, is3DMode]); // Re-apply theme when returning from 3D
-
-  // Main Track Rendering Effect (Create Layers) - 2D Only
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || is3DMode) return;
-
-    polylinesRef.current.forEach(layer => map.removeLayer(layer));
-    polylinesRef.current.clear();
-    raceFaintPolylinesRef.current.forEach(layer => map.removeLayer(layer));
-    raceFaintPolylinesRef.current.clear();
-    
-    if (!animationTrack) kmMarkersLayerGroupRef.current?.clearLayers();
-
-    if (animationTrack) {
-        const faintLayer = L.polyline(animationTrack.points.map(p => [p.lat, p.lon]), {
-            color: animationTrack.color, weight: 3, opacity: 0.2, interactive: false
-        }).addTo(map);
-        raceFaintPolylinesRef.current.set('base', faintLayer);
-
-        const passedPoints = animationTrack.points.filter(p => p.cummulativeDistance <= animationProgress);
-        const currentInterp = getTrackPointAtDistance(animationTrack, animationProgress);
-        if (currentInterp) passedPoints.push(currentInterp);
-
-        if (passedPoints.length > 1) {
-            const progressLayer = L.polyline(passedPoints.map(p => [p.lat, p.lon]), {
-                color: animationTrack.color, weight: 5, opacity: 0.9, lineJoin: 'round'
-            }).addTo(map);
-            polylinesRef.current.set('progress', progressLayer);
-        }
-    } 
-    else {
-        const safeVisibleIds = visibleTrackIds instanceof Set ? visibleTrackIds : new Set();
-        
-        tracks.forEach(track => {
-            if (!safeVisibleIds.has(track.id)) return;
-
-            if (raceRunners && raceRunners.length > 0) {
-                const runner = raceRunners.find(r => r.trackId === track.id);
-                if (!runner) return;
-                const faintLayer = L.polyline(track.points.map(p => [p.lat, p.lon]), {
-                    color: track.color, weight: 2, opacity: 0.15, interactive: false
-                }).addTo(map);
-                raceFaintPolylinesRef.current.set(track.id, faintLayer);
-                
-                const currentDist = runner.position.cummulativeDistance;
-                const passedPoints = track.points.filter(p => p.cummulativeDistance <= currentDist);
-                if (passedPoints.length > 1) {
-                    passedPoints.push(runner.position);
-                    const passedLayer = L.polyline(passedPoints.map(p => [p.lat, p.lon]), {
-                        color: track.color, weight: 4, opacity: 0.8, lineJoin: 'round'
-                    }).addTo(map);
-                    polylinesRef.current.set(track.id, passedLayer);
-                }
-            } 
-            else {
-                let layer;
-                if (mapGradientMetric !== 'none') {
-                    const coloredSegments = getTrackSegmentColors(track, mapGradientMetric as GradientMetric, track.color);
-                    layer = L.featureGroup(coloredSegments.map(seg => 
-                        L.polyline([[seg.p1.lat, seg.p1.lon], [seg.p2.lat, seg.p2.lon]], { 
-                            color: seg.color, weight: 4, opacity: 0.7, lineJoin: 'round' 
-                        })
-                    ));
-                } else {
-                    layer = L.polyline(track.points.map(p => [p.lat, p.lon]), { 
-                        color: track.color, weight: 4, opacity: 0.7, lineJoin: 'round',
-                        bubblingMouseEvents: false 
-                    });
-                }
-                
-                layer.on('mouseover', () => onTrackHover?.(track.id));
-                layer.on('mouseout', () => onTrackHover?.(null));
-                
-                layer.on('click', (e: any) => { 
-                    L.DomEvent.stopPropagation(e); 
-                    if (onTrackClick) {
-                        const isMultiSelect = e.originalEvent.shiftKey || e.originalEvent.ctrlKey || e.originalEvent.metaKey;
-                        onTrackClick(track.id, isMultiSelect);
-                    }
-                    onPointClick?.({ lat: e.latlng.lat, lon: e.latlng.lng, ele: 0, time: new Date(), cummulativeDistance: 0 });
-                });
-                
-                layer.addTo(map);
-                polylinesRef.current.set(track.id, layer);
-            }
-        });
-    }
-  }, [tracks, visibleTrackIds, mapGradientMetric, raceRunners, animationTrack, animationProgress, showSummaryMode, is3DMode]);
-
-  // Style Updates - 2D Only
-  useEffect(() => {
-      const map = mapRef.current;
-      if (!map || animationTrack || (raceRunners && raceRunners.length > 0) || is3DMode) return;
-
-      const safeSelectedIds = selectedTrackIds instanceof Set ? selectedTrackIds : new Set();
-      const isAnyHovered = hoveredTrackId !== null;
-      const isSelectionActive = safeSelectedIds.size > 0;
-
-      polylinesRef.current.forEach((layer, trackId) => {
-          const isHovered = hoveredTrackId === trackId;
-          const isSelected = safeSelectedIds.has(trackId);
-          const track = tracks.find(t => t.id === trackId);
-          if (!track) return;
-
-          let opacity = 0.7;
-          let weight = 4;
-          let color = track.color;
-          let bringToFront = false;
-
-          if (isAnyHovered) {
-              if (isHovered) {
-                  opacity = 1.0;
-                  weight = 8;
-                  bringToFront = true;
-              } else {
-                  opacity = 0.15;
-                  weight = 2;
-                  color = '#334155';
-              }
-          } else if (isSelectionActive) {
-              if (isSelected) {
-                  opacity = 1.0;
-                  weight = 6;
-                  bringToFront = true;
-              } else {
-                  opacity = 0.2;
-                  weight = 2;
-                  color = '#475569';
-              }
-          } else {
-              if (mapTheme === 'satellite') {
-                  opacity = 0.9;
-                  weight = 4;
-              }
-          }
-
-          if (layer instanceof L.FeatureGroup) {
-              layer.eachLayer((l: any) => {
-                  if (l.setStyle) {
-                      const segColor = (isAnyHovered && !isHovered) ? color : (l.options.originalColor || l.options.color);
-                      l.setStyle({ opacity, weight, color: segColor });
-                      if (!l.options.originalColor) l.options.originalColor = l.options.color;
-                  }
-              });
-          } else {
-              if (layer.setStyle) {
-                  layer.setStyle({ color, opacity, weight });
-              }
-          }
-
-          if (bringToFront && layer.bringToFront) {
-              layer.bringToFront();
-          }
-      });
-
-  }, [hoveredTrackId, selectedTrackIds, animationTrack, raceRunners, tracks, mapTheme, is3DMode]);
-
-
-  // Helper Effects for Markers/Overlays - 2D Only
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || is3DMode) return;
-    raceRunnerMarkersRef.current.forEach(m => map.removeLayer(m));
-    raceRunnerMarkersRef.current.clear();
-    if (raceRunners && raceRunners.length > 0) {
-        raceRunners.forEach(runner => {
-            const textColor = runner.color.toLowerCase() === '#ffffff' || runner.color.toLowerCase() === '#fff' ? 'text-slate-900' : 'text-white';
-            const icon = L.divIcon({ 
-                className: 'race-cursor-icon', 
-                html: `
-                    <div class="relative flex flex-col items-center">
-                        <div class="cursor-dot" style="background-color: ${runner.color};"></div>
-                        <div class="pace-label-box" style="background-color: ${runner.color}; color: ${textColor === 'text-white' ? '#fff' : '#000'};">
-                            <span class="font-black text-[9px] truncate max-w-[80px] block leading-tight">${runner.name}</span>
-                            <span class="font-mono text-[10px] font-bold leading-tight">${formatPace(runner.pace)}</span>
-                        </div>
-                    </div>`, 
-                iconSize: [80, 50], 
-                iconAnchor: [40, 25] 
-            });
-            const marker = L.marker([runner.position.lat, runner.position.lon], { icon, zIndexOffset: 1000 }).addTo(map);
-            raceRunnerMarkersRef.current.set(runner.trackId, marker);
-        });
-    }
-  }, [raceRunners, tracks, is3DMode]);
-
-  // Animation Marker & KM Markers - 2D Only
-  useEffect(() => {
-      const map = mapRef.current;
-      if (!map || !animationTrack || is3DMode) {
-          if (animationMarkerRef.current) { map?.removeLayer(animationMarkerRef.current); animationMarkerRef.current = null; }
-          return;
-      }
-
-      const currentInterp = getTrackPointAtDistance(animationTrack, animationProgress);
-      if (currentInterp) {
-          if (!showSummaryMode) map.setView([currentInterp.lat, currentInterp.lon], map.getZoom(), { animate: false });
-          
-          if (animationMarkerRef.current) map.removeLayer(animationMarkerRef.current);
-          const icon = L.divIcon({
-              className: 'race-cursor-icon',
-              html: `<div class="relative flex flex-col items-center"><div class="cursor-dot animate-pulse shadow-lg" style="background-color: ${animationTrack.color}; width: 20px; height: 20px; border: 3px solid white;"></div><div class="pace-label font-black" style="background-color: ${animationTrack.color};">${animationPace > 0 ? formatPace(animationPace) : '--:--'}</div></div>`,
-              iconSize: [60, 40],
-              iconAnchor: [30, 20]
-          });
-          animationMarkerRef.current = L.marker([currentInterp.lat, currentInterp.lon], { icon, zIndexOffset: 2000 }).addTo(map);
-      }
-
-      const currentKm = Math.floor(animationProgress);
-      if (currentKm >= 1 && !passedKmsRef.current.has(currentKm)) {
-          passedKmsRef.current.add(currentKm);
-          const kmPoint = getTrackPointAtDistance(animationTrack, currentKm);
-          if (kmPoint && animationTrackStats) {
-              const split = animationTrackStats.splits.find(s => s.splitNumber === currentKm);
-              const icon = L.divIcon({
-                  className: 'km-marker border-cyan-400 border-2 shadow-cyan-500/50 shadow-md',
-                  html: `<span>${currentKm}</span>`,
-                  iconSize: [22, 22],
-                  iconAnchor: [11, 11]
-              });
-              const marker = L.marker([kmPoint.lat, kmPoint.lon], { icon }).addTo(kmMarkersLayerGroupRef.current);
-              if (split) {
-                  marker.bindPopup(`
-                      <div class="p-1 font-sans">
-                          <div class="text-[10px] font-black text-cyan-400 uppercase tracking-tighter mb-0.5">Km ${currentKm}</div>
-                          <div class="text-sm font-black text-white leading-tight">${formatPace(split.pace)}/km</div>
-                          <div class="text-[9px] text-slate-400 font-bold mt-1">Tempo: ${formatDuration(split.duration)}</div>
-                      </div>
-                  `, { closeButton: false, offset: [0, -10], className: 'km-info-popup' }).openPopup();
-              }
-          }
-      }
-      if (animationProgress < 0.1) passedKmsRef.current.clear();
-
-  }, [animationTrack, animationProgress, animationPace, showSummaryMode, animationTrackStats, is3DMode]);
-
-  // Hover Marker - 2D Only
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !hoveredPoint || is3DMode) {
-        if (hoverMarkerRef.current) { map?.removeLayer(hoverMarkerRef.current); hoverMarkerRef.current = null; }
-        return;
-    }
-    if (hoverMarkerRef.current) map.removeLayer(hoverMarkerRef.current);
-
-    if (hoveredData) {
-        const items = Object.entries(hoveredData).map(([k, v]) => `<div><span class="text-[8px] uppercase font-black opacity-60">${k}:</span> <span class="font-black text-[10px]">${v}</span></div>`).join('');
-        const icon = L.divIcon({
-            className: 'hover-info-cursor',
-            html: `
-                <div class="relative flex flex-col items-center">
-                    <div class="w-4 h-4 bg-cyan-500 border-2 border-white rounded-full shadow-lg"></div>
-                    <div class="absolute bottom-full mb-2 bg-slate-900/95 text-white p-2 rounded-lg border border-cyan-500/50 shadow-2xl whitespace-nowrap min-w-[100px] flex flex-col gap-0.5 z-[2000] pointer-events-none">
-                        <div class="text-[9px] font-black text-cyan-400 border-b border-slate-700 pb-1 mb-1 uppercase tracking-tighter">KM ${hoveredPoint.cummulativeDistance.toFixed(2)}</div>
-                        ${items}
-                    </div>
-                </div>
-            `,
-            iconSize: [20, 20],
-            iconAnchor: [10, 10]
-        });
-        hoverMarkerRef.current = L.marker([hoveredPoint.lat, hoveredPoint.lon], { icon, zIndexOffset: 3000 }).addTo(map);
-    } else {
-        hoverMarkerRef.current = L.circleMarker([hoveredPoint.lat, hoveredPoint.lon], { radius: 7, color: '#fff', fillColor: '#0ea5e9', fillOpacity: 1, weight: 3 }).addTo(map);
-    }
-  }, [hoveredPoint, hoveredData, is3DMode]);
-
-  // Selections / AI Segments - 2D Only
-  useEffect(() => {
-      const map = mapRef.current;
-      if (!map || is3DMode) return;
-      
-      if (selectionPolylineRef.current) map.removeLayer(selectionPolylineRef.current);
-      if (selectionPoints && selectionPoints.length > 1) {
-          selectionPolylineRef.current = L.polyline(selectionPoints.map(p => [p.lat, p.lon]), { color: '#fde047', weight: 8, opacity: 0.8, lineCap: 'round', dashArray: '1, 10' }).addTo(map);
-      }
-      
-      if (aiSegmentPolylineRef.current) map.removeLayer(aiSegmentPolylineRef.current);
-      if (aiSegmentHighlight && tracks.length > 0) {
-          const pts = getPointsInDistanceRange(tracks[0], aiSegmentHighlight.startDistance, aiSegmentHighlight.endDistance);
-          if (pts.length > 1) {
-              aiSegmentPolylineRef.current = L.polyline(pts.map(p => [p.lat, p.lon]), { color: '#22d3ee', weight: 10, opacity: 0.9, lineCap: 'round' }).addTo(map);
-          }
-      }
-  }, [selectionPoints, aiSegmentHighlight, tracks, is3DMode]);
-
-  useEffect(() => { if (isAutoFitEnabled && !raceRunners && !animationTrack && !is3DMode) fitMapToBounds(); }, [isAutoFitEnabled, fitMapToBounds, raceRunners, animationTrack, visibleTrackIds, selectedTrackIds, is3DMode]);
-  useEffect(() => { if (fitBoundsCounter > 0 && !is3DMode) fitMapToBounds(); }, [fitBoundsCounter, fitMapToBounds, is3DMode]);
-
-  return (
-    <div className="relative h-full w-full bg-slate-900 overflow-hidden">
-      {/* 3D Map Rendering */}
-      {is3DMode && target3DTrack ? (
-          <FlyoverMap 
-              track={animationTrack} // Used for single track animation
-              tracks={flyoverTracks} // Pass MEMOIZED relevant tracks
-              raceRunners={raceRunners} // Pass race positions
-              progress={target3DProgress} 
-              isPlaying={!!isAnimationPlaying || (!!raceRunners && raceRunners.length > 0)} 
-              pace={animationPace}
-          />
-      ) : (
-          <div ref={mapContainerRef} className="h-full w-full" style={{ minHeight: '100%' }} />
-      )}
-
-       {/* Controls Overlay */}
-       <div className="pointer-events-none absolute inset-0 z-[100] p-4">
-            <div className="absolute top-4 left-4 flex flex-col gap-2 pointer-events-auto">
-                {/* Standard 2D Controls - Hide in 3D Mode */}
-                {!is3DMode && !animationTrack && (
+const SelectionStatsOverlay: React.FC<{ data: ExtendedStats, onClose: () => void }> = ({ data, onClose }) => {
+    const { stats, range } = data;
+    return (
+        <div className="w-full bg-slate-900 border-b border-cyan-500/30 px-3 py-2 flex items-center justify-between gap-3 overflow-x-auto no-scrollbar whitespace-nowrap shrink-0 shadow-lg z-20">
+            <div className="flex items-center gap-3 text-[10px] sm:text-xs text-white font-mono">
+                <span className="flex items-center gap-1 bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">
+                    <span className="text-cyan-400 font-black">KM:</span> {range.startDist.toFixed(1)}-{range.endDist.toFixed(1)}
+                </span>
+                <span className="w-px h-3 bg-slate-600"></span>
+                <span className="flex items-center gap-1"><span className="text-cyan-400 font-black">DIST:</span> {stats.totalDistance.toFixed(2)}</span>
+                <span className="w-px h-3 bg-slate-600"></span>
+                <span className="flex items-center gap-1"><span className="text-cyan-400 font-black">TIME:</span> {formatDuration(stats.movingDuration, true)}</span>
+                <span className="w-px h-3 bg-slate-600"></span>
+                <span className="flex items-center gap-1"><span className="text-cyan-400 font-black">PACE:</span> {formatPace(stats.movingAvgPace)}</span>
+                <span className="w-px h-3 bg-slate-600"></span>
+                <span className="flex items-center gap-1"><span className="text-cyan-400 font-black">ELE:</span> +{Math.round(stats.elevationGain)}</span>
+                {stats.avgWatts && (
                     <>
-                        {raceRunners && raceRunners.length > 0 ? (
-                            <Tooltip text={isAutoFitEnabled ? "Camera Auto" : "Camera Libera"} subtext={isAutoFitEnabled ? "Segue la gara" : "Clicca per seguire"} position="right">
-                                <button 
-                                    onClick={() => { setIsAutoFitEnabled(!isAutoFitEnabled); if(!isAutoFitEnabled) fitMapToBounds(); }} 
-                                    className={`p-3 rounded-lg shadow-xl transition-all border border-slate-700 active:scale-95 ${isAutoFitEnabled ? 'bg-amber-600 text-white shadow-amber-900/30 border-amber-500' : 'bg-slate-800 text-slate-400'}`}
-                                >
-                                    {isAutoFitEnabled ? <LockClosedIcon /> : <LockOpenIcon />}
-                                </button>
-                            </Tooltip>
-                        ) : (
-                            <Tooltip text="Inquadra" subtext="Adatta vista al percorso" position="right">
-                                <button onClick={() => { setIsAutoFitEnabled(true); fitMapToBounds(); }} className={`p-3 rounded-lg shadow-xl transition-all border border-slate-700 active:scale-95 ${isAutoFitEnabled ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-300'}`}><FitBoundsIcon /></button>
-                            </Tooltip>
-                        )}
-                        
-                        <div className="relative group">
-                            <Tooltip text="Stile Mappa" subtext="Cambia sfondo" position="right">
-                                <button onClick={() => setShowLayerMenu(!showLayerMenu)} className="p-3 rounded-lg shadow-xl bg-slate-800 text-slate-300 hover:text-white border border-slate-700 active:scale-95">
-                                    <LayersIcon />
-                                </button>
-                            </Tooltip>
-                            
-                            {showLayerMenu && (
-                                <>
-                                    <div className="fixed inset-0 z-10" onClick={() => setShowLayerMenu(false)}></div>
-                                    <div className="absolute top-0 left-full ml-2 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl p-2 z-20 flex flex-col gap-1 w-32 animate-fade-in-down">
-                                        {[
-                                            { id: 'midnight', label: 'Midnight' },
-                                            { id: 'silver', label: 'Silver' },
-                                            { id: 'dark', label: 'Classic Dark' },
-                                            { id: 'light', label: 'Classic Light' },
-                                            { id: 'satellite', label: 'Satellite' }
-                                        ].map(theme => (
-                                            <button 
-                                                key={theme.id}
-                                                onClick={() => { setMapTheme(theme.id as any); setShowLayerMenu(false); }}
-                                                className={`px-3 py-2 text-left text-xs font-bold rounded-lg transition-colors ${mapTheme === theme.id ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:bg-slate-700 hover:text-white'}`}
-                                            >
-                                                {theme.label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </>
-                            )}
-                        </div>
-
-                        <div className="h-2"></div>
-
-                        <div className="flex flex-col bg-slate-800/90 backdrop-blur-md rounded-lg border border-slate-700 shadow-xl overflow-hidden">
-                            <button onClick={() => mapRef.current?.zoomIn()} className="p-3 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors border-b border-slate-700 active:bg-slate-600"><ZoomInIcon /></button>
-                            <button onClick={() => mapRef.current?.zoomOut()} className="p-3 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors active:bg-slate-600"><ZoomOutIcon /></button>
-                        </div>
+                        <span className="w-px h-3 bg-slate-600"></span>
+                        <span className="flex items-center gap-1"><span className="text-purple-400 font-black">PWR:</span> {Math.round(stats.avgWatts)}W</span>
                     </>
                 )}
-
-                {/* 3D Toggle Button - Visible if target track available (Animation or Race) */}
-                {canShow3D && (
-                   <Tooltip text={is3DMode ? "Vista 2D" : "Flyover 3D"} subtext="Cambia prospettiva" position="right">
-                       <button 
-                           onClick={() => setIs3DMode(!is3DMode)} 
-                           className={`p-3 rounded-lg shadow-xl transition-all border border-slate-700 active:scale-95 flex items-center justify-center gap-2 ${is3DMode ? 'bg-purple-600 text-white shadow-purple-500/30' : 'bg-slate-800 text-slate-300 hover:text-white'}`}
-                       >
-                           <CubeIcon />
-                           <span className="font-bold text-xs">{is3DMode ? '2D' : '3D'}</span>
-                       </button>
-                   </Tooltip>
-                )}
             </div>
-       </div>
-
-        {/* Stats & Animation Controls - Show in 3D Mode too if it's a replay */}
-        {animationTrack && !showSummaryMode && (
-            <>
-                {(!is3DMode || (is3DMode && animationTrack)) && (
-                    <StatsDisplay stats={animationStats} splits={animationTrackStats?.splits || []} currentDistance={animationProgress} visibleMetrics={visibleMetrics} />
-                )}
-                <AnimationControls isPlaying={isAnimationPlaying!} onTogglePlay={onToggleAnimationPlay!} progress={animationProgress} totalDistance={animationTrack.distance} onProgressChange={onAnimationProgressChange!} speed={animationSpeed!} onSpeedChange={onAnimationSpeedChange!} onExit={onExitAnimation!} visibleMetrics={visibleMetrics} onToggleMetric={handleToggleMetric} />
-            </>
-        )}
-
-      <style>{`
-        .km-marker { background: rgba(30, 41, 59, 0.9); color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; border: 1px solid #475569; pointer-events: none; }
-        .race-cursor-icon { display: flex; align-items: center; justify-content: center; overflow: visible !important; }
-        .cursor-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.5); position: absolute; z-index: 2; }
-        .pace-label { position: absolute; top: -28px; left: 50%; transform: translateX(-50%); font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 4px; white-space: nowrap; box-shadow: 0 4px 6px rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.4); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-        .pace-label-box { position: absolute; top: -45px; left: 50%; transform: translateX(-50%); padding: 4px 8px; border-radius: 6px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.4); text-align: center; white-space: nowrap; z-index: 10; display: flex; flex-direction: column; align-items: center; gap: 1px; pointer-events: none; }
-        .leaflet-popup-content-wrapper { background: rgba(15, 23, 42, 0.95) !important; color: white !important; border: 1px solid #334155; border-radius: 8px !important; }
-        .leaflet-popup-tip { background: rgba(15, 23, 42, 0.95) !important; }
-        .km-info-popup .leaflet-popup-content { margin: 8px 12px !important; }
-        .hover-info-cursor { display: flex; align-items: center; justify-content: center; overflow: visible !important; }
-        @keyframes fade-in-down { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-fade-in-down { animation: fade-in-down 0.2s ease-out forwards; }
-        .map-tiles-dark {
-            filter: invert(100%) hue-rotate(180deg) brightness(70%) contrast(150%) grayscale(20%);
-        }
-      `}</style>
-    </div>
-  );
+            <button onClick={onClose} className="bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 p-1 rounded-full transition-colors flex-shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" /></svg>
+            </button>
+        </div>
+    );
 };
 
-export default MapDisplay;
+// RPE Scale Definitions
+const RPE_SCALE: Record<number, { label: string, desc: string, color: string }> = {
+    1: { label: "Molto Leggero", desc: "Sforzo minimo, recupero attivo o camminata.", color: "text-green-300" },
+    2: { label: "Leggero", desc: "Riscaldamento, respirazione nasale facile.", color: "text-green-400" },
+    3: { label: "Moderato", desc: "Corsa facile, si riesce a conversare (Talk Test).", color: "text-green-500" },
+    4: { label: "Impegnativo", desc: "Ritmo maratona, respiro leggermente affannoso.", color: "text-yellow-300" },
+    5: { label: "Duro", desc: "Ritmo mezza maratona, concentrazione necessaria.", color: "text-yellow-400" },
+    6: { label: "Molto Duro", desc: "Soglia anaerobica, parlare è difficile.", color: "text-orange-400" },
+    7: { label: "Intenso", desc: "Ritmo 10k, respiro pesante.", color: "text-orange-500" },
+    8: { label: "Molto Intenso", desc: "Ritmo 5k, gambe pesanti, vicino al limite.", color: "text-red-400" },
+    9: { label: "Estremo", desc: "Sprint finale o ripetute brevi massimali.", color: "text-red-500" },
+    10: { label: "Esaurimento", desc: "Sforzo massimo assoluto, impossibile continuare.", color: "text-red-600" }
+};
+
+const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, onExit, allHistory = [], onUpdateTrackMetadata, onAddPlannedWorkout, onStartAnimation, onOpenReview, autoOpenAi = false, onCheckAiAccess, isGuest = false, onLimitReached }) => {
+    const isMobile = useIsMobile();
+    const [yAxisMetrics, setYAxisMetrics] = useState<YAxisMetric[]>(['pace']);
+    const [hoveredPoint, setHoveredPoint] = useState<TrackPoint | null>(null);
+    const [showPauses, setShowPauses] = useState(false);
+    const [selectedSegment, setSelectedSegment] = useState<Split | PauseSegment | AiSegment | null>(null);
+    const [chartSelection, setChartSelection] = useState<{ startDistance: number; endDistance: number } | null>(null);
+    const [mapGradientMetric, setMapGradientMetric] = useState<'none' | 'elevation' | 'pace' | 'speed' | 'hr' | 'hr_zones' | 'power'>('none');
+    const [notes, setNotes] = useState(track.notes || '');
+    const [rpe, setRpe] = useState(track.rpe || 5);
+    const [smoothingWindow, setSmoothingWindow] = useState(30);
+    const [newTag, setNewTag] = useState('');
+    const statsContainerRef = useRef<HTMLDivElement>(null);
+    const prevTrackIdRef = useRef<string>(track.id);
+
+    // Animation State (Local)
+    const [isAnimating, setIsAnimating] = useState(false);
+    const [isAnimationMode, setIsAnimationMode] = useState(false); // Track if we are in animation view mode even if paused
+    const [animationProgress, setAnimationProgress] = useState(0); // in km
+    const [animationSpeed, setAnimationSpeed] = useState(20);
+    const [animationTime, setAnimationTime] = useState(0); // track time in ms
+    const animationFrameRef = useRef<number | null>(null);
+    const lastFrameTimeRef = useRef<number>(0);
+
+    // Track ID tracking to handle scroll reset correctly
+    useEffect(() => {
+        if (track.id !== prevTrackIdRef.current) {
+            if (statsContainerRef.current) {
+                statsContainerRef.current.scrollTop = 0;
+            }
+            setChartSelection(null);
+            setSelectedSegment(null);
+            setNotes(track.notes || '');
+            setIsAnimating(false);
+            setIsAnimationMode(false);
+            setAnimationProgress(0);
+            setAnimationTime(0);
+            prevTrackIdRef.current = track.id;
+        }
+        setRpe(track.rpe || 5);
+    }, [track]);
+
+    const displayTrack = useMemo(() => {
+        // Calculate power based on user weight or default 70kg
+        const pointsWithPower = calculateRunningPower(track.points, userProfile.weight || 70);
+        
+        const trackWithPower = { ...track, points: pointsWithPower };
+
+        if (smoothingWindow <= 1) return trackWithPower;
+        return { ...trackWithPower, points: smoothTrackPoints(trackWithPower.points, smoothingWindow) };
+    }, [track, smoothingWindow, userProfile.weight]);
+
+    const stats = useMemo(() => calculateTrackStats(displayTrack, 0), [displayTrack]); 
+
+    // Animation Loop
+    useEffect(() => {
+        if (isAnimating) {
+            lastFrameTimeRef.current = performance.now();
+            
+            // Calculate time limit for guest (timestamp at 1km mark)
+            let guestTimeLimit = Infinity;
+            if (isGuest) {
+                const pAt1km = getTrackPointAtDistance(displayTrack, 1.0);
+                if (pAt1km) {
+                    guestTimeLimit = pAt1km.time.getTime() - displayTrack.points[0].time.getTime();
+                } else {
+                    // Track is shorter than 1km, limit is track duration
+                    guestTimeLimit = displayTrack.duration;
+                }
+            }
+
+            const animate = (time: number) => {
+                const delta = time - lastFrameTimeRef.current;
+                lastFrameTimeRef.current = time;
+                
+                setAnimationTime(prevTime => {
+                    const nextTime = prevTime + delta * animationSpeed;
+                    
+                    // Guest Check: Stop exactly at calculated 1km time
+                    if (isGuest && nextTime > guestTimeLimit) {
+                        setIsAnimating(false);
+                        if (onLimitReached) onLimitReached();
+                        // Freeze exactly at limit
+                        const limitPoint = getTrackStateAtTime(displayTrack, guestTimeLimit);
+                        if (limitPoint) setAnimationProgress(limitPoint.point.cummulativeDistance);
+                        return guestTimeLimit;
+                    }
+
+                    // Convert Time to Distance for MapDisplay
+                    const state = getTrackStateAtTime(displayTrack, nextTime);
+                    
+                    if (!state || nextTime >= displayTrack.duration) {
+                        setIsAnimating(false);
+                        return displayTrack.duration; // Cap at end
+                    }
+                    
+                    setAnimationProgress(state.point.cummulativeDistance);
+                    return nextTime;
+                });
+                
+                if (isAnimating) { // Double check inside loop closure isn't fully reliable without ref or clean state, but functional here due to react update
+                    animationFrameRef.current = requestAnimationFrame(animate);
+                }
+            };
+            
+            animationFrameRef.current = requestAnimationFrame(animate);
+        } else {
+            if (animationFrameRef.current) {
+                cancelAnimationFrame(animationFrameRef.current);
+                animationFrameRef.current = null;
+            }
+        }
+        return () => {
+            if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+        };
+    }, [isAnimating, animationSpeed, displayTrack, isGuest, onLimitReached]);
+
+    // Handle manual scrubbing of animation slider
+    const handleAnimationProgressChange = (newProgress: number) => {
+        setAnimationProgress(newProgress);
+        // Sync time to the dragged distance
+        const point = getTrackPointAtDistance(displayTrack, newProgress);
+        if (point) {
+            const startTime = displayTrack.points[0].time.getTime();
+            const newTime = point.time.getTime() - startTime;
+            
+            // Check if manual scrub exceeds 1km limit for guest
+            if (isGuest && newProgress > 1.0) {
+                if (onLimitReached) onLimitReached();
+                // Clamp to 1km
+                const pAt1km = getTrackPointAtDistance(displayTrack, 1.0);
+                if (pAt1km) {
+                    setAnimationProgress(1.0);
+                    setAnimationTime(pAt1km.time.getTime() - startTime);
+                } else {
+                    // Track shorter than 1km
+                    setAnimationProgress(displayTrack.distance);
+                    setAnimationTime(displayTrack.duration);
+                }
+            } else {
+                setAnimationTime(newTime);
+            }
+        }
+    };
+
+    const hasHrData = useMemo(() => track.points.some(p => p.hr !== undefined && p.hr > 0), [track]);
+    const estimatedRpe = useMemo(() => estimateTrackRPE(stats, userProfile), [stats, userProfile]);
+    
+    const selectionStats = useMemo((): ExtendedStats | null => {
+        if (!chartSelection) return null;
+        const points = getPointsInDistanceRange(displayTrack, chartSelection.startDistance, chartSelection.endDistance);
+        if (points.length < 2) return null;
+        
+        const tempTrack: Track = { 
+            ...displayTrack, 
+            id: 'temp-selection', 
+            name: 'Selection', 
+            points: points, 
+            distance: chartSelection.endDistance - chartSelection.startDistance, 
+            duration: points[points.length - 1].time.getTime() - points[0].time.getTime() 
+        };
+
+        const calculated = calculateTrackStats(tempTrack, 0);
+        
+        return {
+            stats: calculated,
+            range: {
+                startDist: chartSelection.startDistance,
+                endDist: chartSelection.endDistance,
+                startTime: points[0].time.getTime() - displayTrack.points[0].time.getTime(),
+                endTime: points[points.length - 1].time.getTime() - displayTrack.points[0].time.getTime()
+            }
+        };
+    }, [chartSelection, displayTrack]);
+
+    const hoveredDataForMap = useMemo((): Record<string, string> | null => {
+        if (!hoveredPoint) return null;
+        const data: Record<string, string> = {};
+        const pointIndex = displayTrack.points.findIndex(p => p.time.getTime() === hoveredPoint.time.getTime());
+        if (pointIndex === -1) return null;
+
+        const { speed, pace } = calculateSmoothedMetrics(displayTrack.points, pointIndex, smoothingWindow);
+        const point = displayTrack.points[pointIndex];
+        
+        yAxisMetrics.forEach(m => {
+            if (m === 'pace') data[metricLabels[m]] = metricFormatters[m](pace);
+            else if (m === 'speed') data[metricLabels[m]] = metricFormatters[m](speed);
+            else if (m === 'elevation') data[metricLabels[m]] = metricFormatters[m](point.ele);
+            else if (m === 'hr' && point.hr) data[metricLabels[m]] = metricFormatters[m](point.hr);
+            else if (m === 'power' && point.power) data[metricLabels[m]] = metricFormatters[m](point.power);
+        });
+        return data;
+    }, [hoveredPoint, displayTrack.points, yAxisMetrics, smoothingWindow]);
+
+    const animationPace = useMemo(() => {
+        if (!isAnimationMode) return 0; // Use animation mode check instead of isAnimating to keep pace display when paused
+        const pointIndex = displayTrack.points.findIndex(p => p.cummulativeDistance >= animationProgress);
+        if (pointIndex !== -1) {
+            const { pace } = calculateSmoothedMetrics(displayTrack.points, pointIndex, smoothingWindow);
+            return pace;
+        }
+        return 0;
+    }, [isAnimationMode, animationProgress, displayTrack.points, smoothingWindow]);
+
+    const handleHoverChange = useCallback((point: TrackPoint | null) => setHoveredPoint(point), []);
+    
+    const toggleYAxisMetric = useCallback((metric: YAxisMetric) => {
+        setYAxisMetrics(prev => {
+            const next = new Set(prev);
+            if (next.has(metric)) { if (next.size > 1) next.delete(metric); }
+            else next.add(metric);
+            return Array.from(next);
+        });
+    }, []);
+
+    const handleSegmentSelect = useCallback((segment: Split | PauseSegment | AiSegment | null) => {
+        setSelectedSegment(segment);
+        if (segment) setChartSelection(null);
+    }, []);
+
+    const handleChartSelection = useCallback((selection: { startDistance: number; endDistance: number } | null) => {
+        setChartSelection(selection);
+        if (selection) setSelectedSegment(null);
+    }, []);
+
+    const selectionPoints = useMemo(() => {
+        if (chartSelection) return getPointsInDistanceRange(displayTrack, chartSelection.startDistance, chartSelection.endDistance);
+        if (!selectedSegment) return null;
+        if ('splitNumber' in selectedSegment) {
+            let startDist = (selectedSegment.splitNumber - 1);
+            return getPointsInDistanceRange(displayTrack, startDist, startDist + selectedSegment.distance);
+        }
+        if ('startPoint' in selectedSegment) return getPointsInDistanceRange(displayTrack, selectedSegment.startPoint.cummulativeDistance, selectedSegment.endPoint.cummulativeDistance);
+        if ('type' in selectedSegment && selectedSegment.type === 'ai') return getPointsInDistanceRange(displayTrack, selectedSegment.startDistance, selectedSegment.endDistance);
+        return null;
+    }, [selectedSegment, chartSelection, displayTrack]);
+
+    const highlightedChartRange = useMemo(() => {
+        if (chartSelection) return chartSelection;
+        if (!selectedSegment) return null;
+        if ('splitNumber' in selectedSegment) {
+            let startDist = (selectedSegment.splitNumber - 1);
+            return { startDistance: startDist, endDistance: startDist + selectedSegment.distance };
+        }
+        if ('startPoint' in selectedSegment) return { startDistance: selectedSegment.startPoint.cummulativeDistance, endDistance: selectedSegment.endPoint.cummulativeDistance };
+        if ('type' in selectedSegment && selectedSegment.type === 'ai') return { startDistance: selectedSegment.startDistance, endDistance: selectedSegment.endDistance };
+        return null;
+    }, [selectedSegment, chartSelection]);
+
+    const handleNoteSave = () => onUpdateTrackMetadata?.(track.id, { notes });
+    const handleShoeChange = (e: React.ChangeEvent<HTMLSelectElement>) => onUpdateTrackMetadata?.(track.id, { shoe: e.target.value });
+    
+    const handleRpeSelect = (e: React.MouseEvent, val: number) => {
+        e.preventDefault(); // Prevent scroll/focus jump
+        e.stopPropagation();
+        setRpe(val);
+        onUpdateTrackMetadata?.(track.id, { rpe: val });
+    };
+    
+    const handleToggleFavorite = () => onUpdateTrackMetadata?.(track.id, { isFavorite: !track.isFavorite });
+    const handleToggleArchive = () => {
+        onUpdateTrackMetadata?.(track.id, { isArchived: !track.isArchived });
+        onExit(); // Esci dalla vista se archiviata per dare feedback immediato
+    };
+
+    const handleAddTag = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newTag.trim()) return;
+        const tags = Array.from(new Set([...(track.tags || []), newTag.trim().toLowerCase()]));
+        onUpdateTrackMetadata?.(track.id, { tags });
+        setNewTag('');
+    };
+
+    const handleRemoveTag = (tagToRemove: string) => {
+        const tags = (track.tags || []).filter(t => t !== tagToRemove);
+        onUpdateTrackMetadata?.(track.id, { tags });
+    };
+    
+    const statsContent = (
+        <div className="space-y-4 p-3 sm:p-4 pb-12">
+            <div className="flex items-center gap-2 mb-2">
+                <button 
+                    onClick={handleToggleFavorite} 
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg border font-bold text-xs transition-all ${track.isFavorite ? 'bg-amber-600/20 border-amber-500 text-amber-500' : 'bg-slate-700/50 border-slate-600 text-slate-400 hover:text-slate-200'}`}
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 0 0 .95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 0 0-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 0 0-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 0 0-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 0 0 .951-.69l1.07-3.292z" /></svg>
+                    {track.isFavorite ? 'Preferita' : 'Metti Preferita'}
+                </button>
+                <button 
+                    onClick={handleToggleArchive} 
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg border font-bold text-xs transition-all ${track.isArchived ? 'bg-slate-600 text-white border-slate-500' : 'bg-slate-700/50 border-slate-600 text-slate-400 hover:text-slate-200'}`}
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M2 3a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H2Z" /><path fillRule="evenodd" d="M2 7.5h16l-.811 7.71a2 2 0 0 1-1.99 1.79H4.802a2 2 0 0 1-1.99-1.79L2 7.5ZM7 11a1 1 0 0 1 1-1h4a1 1 0 1 1 0 2H8a1 1 0 0 1-1-1Z" clipRule="evenodd" /></svg>
+                    {track.isArchived ? 'Ripristina' : 'Archivia Corsa'}
+                </button>
+            </div>
+
+            <StatsPanel stats={stats} selectedSegment={selectedSegment} onSegmentSelect={handleSegmentSelect} />
+
+            {hasHrData && <HeartRateZonePanel track={displayTrack} userProfile={userProfile} />}
+            <PersonalRecordsPanel track={displayTrack} />
+
+            {/* TAGS */}
+            <div className="bg-slate-800 p-3 rounded-lg border border-slate-700">
+                <label className="block text-[10px] font-black text-cyan-400 uppercase tracking-widest mb-2 flex items-center">
+                    <TagIcon /> Tags & Categorie
+                </label>
+                <div className="flex flex-wrap gap-1.5 mb-3 min-h-[20px]">
+                    {track.tags?.map(tag => (
+                        <span key={tag} className="inline-flex items-center gap-1 px-2 py-0.5 bg-cyan-900/40 text-cyan-100 rounded text-[10px] font-bold border border-cyan-500/30 group">
+                            #{tag}
+                            <button onClick={() => handleRemoveTag(tag)} className="text-cyan-500 hover:text-red-400 transition-colors">&times;</button>
+                        </span>
+                    ))}
+                    {(!track.tags || track.tags.length === 0) && <span className="text-[10px] text-slate-600 italic">Nessun tag aggiunto (es. #maratona, #gara)</span>}
+                </div>
+                <form onSubmit={handleAddTag} className="flex gap-2">
+                    <input 
+                        type="text" 
+                        value={newTag} 
+                        onChange={e => setNewTag(e.target.value)} 
+                        placeholder="Aggiungi tag..." 
+                        className="flex-grow bg-slate-900 border border-slate-700 rounded p-1.5 text-xs text-white outline-none focus:border-cyan-500"
+                    />
+                    <button type="submit" className="px-3 bg-slate-700 hover:bg-slate-600 rounded text-xs font-bold transition-colors">+</button>
+                </form>
+            </div>
+
+            {/* SHOES & RPE SECTION */}
+            <div className="grid grid-cols-1 gap-4 mt-4">
+                <div>
+                    <label className="block text-[10px] font-black text-cyan-400 uppercase tracking-widest mb-1 flex items-center"><ShoeIcon /> Scarpe Usate</label>
+                    <select value={track.shoe || ''} onChange={handleShoeChange} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white font-bold focus:border-cyan-500 appearance-none cursor-pointer shadow-inner">
+                        <option value="">-- Seleziona Scarpe --</option>
+                        {userProfile.shoes?.map((shoe, idx) => <option key={idx} value={shoe}>{shoe}</option>)}
+                    </select>
+                </div>
+                <div>
+                    <label className="block text-[10px] font-black text-cyan-400 uppercase tracking-widest mb-1 flex items-center"><FireIcon /> Sforzo Percepito (RPE)</label>
+                    <div className="bg-slate-900 border border-slate-700 rounded-lg p-3 shadow-inner">
+                        <div className="flex justify-between items-center mb-3 px-1 sm:px-2">
+                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((val) => {
+                                const isSelected = rpe === val;
+                                const baseColor = RPE_SCALE[val].color.replace('text-', 'bg-');
+                                return (
+                                    <button
+                                        key={val}
+                                        type="button"
+                                        onClick={(e) => handleRpeSelect(e, val)}
+                                        className={`
+                                            flex items-center justify-center
+                                            w-5 h-5 sm:w-6 sm:h-6 
+                                            rounded-full 
+                                            font-black text-[9px] sm:text-[10px]
+                                            transition-all border
+                                            ${isSelected 
+                                                ? `${baseColor} text-slate-900 border-white scale-110 shadow-lg ring-2 ring-white/20` 
+                                                : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-white hover:border-slate-500'}
+                                        `}
+                                    >
+                                        {val}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <div className="bg-slate-800/50 rounded p-2 border border-slate-700/50">
+                            <div className={`text-sm font-bold mb-0.5 ${RPE_SCALE[rpe || 5].color}`}>
+                                {rpe || 5} - {RPE_SCALE[rpe || 5].label}
+                            </div>
+                            <div className="text-[10px] text-slate-400 leading-snug">
+                                {RPE_SCALE[rpe || 5].desc}
+                            </div>
+                        </div>
+                    </div>
+                    {estimatedRpe !== null && (
+                        <div className="flex justify-end mt-1 px-1">
+                            <span className="text-[8px] font-bold text-purple-400 bg-purple-900/20 px-2 py-0.5 rounded border border-purple-500/30">
+                                Stima da Dati: {estimatedRpe}/10 ({RPE_SCALE[estimatedRpe].label})
+                            </span>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* NOTES SECTION - Full Width */}
+            <div className="mt-4">
+                <label className="block text-[10px] font-black text-cyan-400 uppercase tracking-widest mb-1 flex items-center"><NoteIcon /> Note Corsa</label>
+                <textarea value={notes} onChange={e => setNotes(e.target.value)} onBlur={handleNoteSave} placeholder="Sensazioni, meteo, dolori..." className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-xs text-white h-24 focus:border-cyan-500 resize-none shadow-inner leading-relaxed" />
+            </div>
+
+            <GeminiTrackAnalysisPanel 
+                stats={stats} 
+                userProfile={userProfile} 
+                track={displayTrack} 
+                allHistory={allHistory} 
+                onUpdateTrackMetadata={onUpdateTrackMetadata} 
+                onAddPlannedWorkout={onAddPlannedWorkout}
+                startOpen={autoOpenAi} 
+                onCheckAiAccess={onCheckAiAccess}
+            />
+            
+            <div className="grid grid-cols-1 gap-4">
+                <GeminiSegmentsPanel 
+                    track={displayTrack} 
+                    stats={stats} 
+                    onSegmentSelect={handleSegmentSelect} 
+                    selectedSegment={selectedSegment as AiSegment} 
+                    onCheckAiAccess={onCheckAiAccess}
+                />
+            </div>
+            <WeatherPanel track={track} />
+        </div>
+    );
+
+    const chartControls = (
+        <div className="w-full h-full flex items-center justify-between px-2 bg-slate-800/90 border-b border-slate-700">
+            <div className="flex items-center space-x-1 sm:space-x-2">
+                <div className="flex space-x-0.5">
+                    {(['pace', 'elevation', 'speed', 'hr', 'power'] as const).map(metric => {
+                        const isDisabled = metric === 'hr' && !hasHrData;
+                        const isActive = yAxisMetrics.includes(metric);
+                        return (
+                            <button key={metric} onClick={() => toggleYAxisMetric(metric)} disabled={isDisabled} className={`px-1.5 py-0.5 text-[7px] sm:text-[10px] uppercase tracking-widest rounded transition-all font-black border ${isActive ? 'bg-cyan-600 border-cyan-400 text-white shadow-md' : 'bg-slate-700 border-slate-600 text-slate-300'} ${isDisabled ? 'opacity-20 cursor-not-allowed' : ''}`}>
+                                {metricLabels[metric]}
+                            </button>
+                        );
+                    })}
+                </div>
+                <div className="h-4 w-px bg-slate-700 mx-1"></div>
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                    <span className="text-[7px] sm:text-[9px] text-slate-400 uppercase font-black whitespace-nowrap">Smooth: {smoothingWindow}s</span>
+                    <input type="range" min="1" max="120" value={smoothingWindow} onChange={(e) => setSmoothingWindow(parseInt(e.target.value))} className="w-12 sm:w-24 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-400" />
+                </div>
+            </div>
+            <button onClick={() => setShowPauses(p => !p)} className={`flex items-center px-1.5 py-0.5 text-[8px] sm:text-[10px] uppercase tracking-widest rounded transition-all font-black border ${showPauses ? 'bg-amber-600 border-amber-400 text-white' : 'bg-slate-700 border-slate-600 text-slate-300'}`}>
+                <ClockIcon /> Pause
+            </button>
+        </div>
+    );
+
+    const chartSection = (
+        <div className="w-full h-full relative group bg-slate-900 overflow-hidden">
+            <TimelineChart 
+                track={displayTrack} 
+                onSelectionChange={handleChartSelection}
+                yAxisMetrics={yAxisMetrics}
+                onChartHover={handleHoverChange}
+                hoveredPoint={hoveredPoint}
+                pauseSegments={stats.pauses}
+                showPauses={showPauses}
+                highlightedRange={highlightedChartRange}
+                smoothingWindow={smoothingWindow}
+                animationProgress={animationProgress}
+                isAnimating={isAnimating}
+                userProfile={userProfile}
+            />
+        </div>
+    );
+
+    const mapSection = (
+        <div className="w-full h-full relative bg-slate-900 flex flex-col">
+             <div className="absolute top-2 right-2 z-10 flex flex-col gap-1">
+                 <select value={mapGradientMetric} onChange={(e) => setMapGradientMetric(e.target.value as any)} className="bg-slate-800/95 border border-slate-700 text-white text-[8px] font-black uppercase py-1 px-1.5 rounded focus:border-cyan-500 appearance-none cursor-pointer shadow-lg">
+                    <option value="none">Mappa: Standard</option>
+                    <option value="elevation">Mappa: Altitudine</option>
+                    <option value="pace">Mappa: Ritmo</option>
+                    <option value="speed">Mappa: Velocità</option>
+                    <option value="power">Mappa: Watt</option>
+                    {hasHrData && <option value="hr">Mappa: FC</option>}
+                </select>
+             </div>
+             <div className="flex-grow relative">
+                <MapDisplay
+                    tracks={[track]}
+                    visibleTrackIds={new Set([track.id])}
+                    raceRunners={null}
+                    hoveredTrackId={null}
+                    runnerSpeeds={new Map()}
+                    hoveredPoint={hoveredPoint}
+                    hoveredData={hoveredDataForMap}
+                    onMapHover={handleHoverChange}
+                    coloredPauseSegments={showPauses ? stats.pauses : undefined}
+                    selectionPoints={selectionPoints}
+                    mapGradientMetric={mapGradientMetric}
+                    animationTrack={isAnimationMode ? displayTrack : null} // Changed to check isAnimationMode
+                    animationProgress={animationProgress}
+                    animationPace={animationPace} // Pass the calculated pace to map
+                    isAnimationPlaying={isAnimating}
+                    onToggleAnimationPlay={() => setIsAnimating(!isAnimating)}
+                    onAnimationProgressChange={handleAnimationProgressChange}
+                    animationSpeed={animationSpeed}
+                    onAnimationSpeedChange={setAnimationSpeed}
+                    onExitAnimation={() => { setIsAnimating(false); setIsAnimationMode(false); setAnimationProgress(0); setAnimationTime(0); }}
+                    aiSegmentHighlight={selectedSegment && 'type' in selectedSegment && selectedSegment.type === 'ai' ? selectedSegment : null}
+                />
+             </div>
+        </div>
+    );
+
+    return (
+        <div className="flex flex-col h-full w-full font-sans text-white overflow-hidden bg-slate-900">
+             <header className="flex items-center justify-between p-2 sm:p-3 bg-slate-800 border-b border-slate-700 flex-shrink-0 z-30 shadow-lg">
+                <button onClick={onExit} className="bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white font-black py-1.5 px-3 sm:py-2 sm:px-5 rounded-lg transition-all shadow-sm text-[10px] sm:text-sm">&larr; {isMobile ? 'INDIETRO' : 'CHIUDI'}</button>
+                <div className="text-center px-2 flex-grow min-w-0">
+                    <div className="flex flex-col items-center">
+                        <div className="flex items-center gap-2">
+                             {track.isFavorite && <span className="text-amber-400 text-xs">★</span>}
+                             <h1 className="text-xs sm:text-xl font-black text-cyan-400 uppercase tracking-tighter truncate">Analisi Attività</h1>
+                             {track.isArchived && <span className="text-slate-500 text-[8px] font-bold border border-slate-700 px-1 rounded uppercase tracking-tighter">Archiviata</span>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                             <RatingStars 
+                                rating={track.rating} 
+                                size="md" 
+                                onDetailClick={(e) => { e.stopPropagation(); if(onCheckAiAccess?.() !== false) onOpenReview?.(track.id); }}
+                                onRate={(newRating) => onUpdateTrackMetadata?.(track.id, { rating: newRating })}
+                             />
+                             {!isMobile && <p className="text-xs text-slate-100 font-bold truncate max-w-md">{track.name}</p>}
+                        </div>
+                    </div>
+                </div>
+                <div className="flex items-center gap-1.5 sm:gap-3">
+                    <button 
+                        onClick={() => { setIsAnimationMode(true); setIsAnimating(true); setAnimationProgress(0); setAnimationTime(0); }}
+                        className="bg-cyan-600 hover:bg-cyan-500 border border-cyan-400 text-white font-black py-1.5 px-3 sm:py-2 sm:px-5 rounded-lg transition-all shadow-md flex items-center gap-1 text-[10px] sm:text-sm whitespace-nowrap active:scale-95"
+                    >
+                        <ReplayIcon /> REPLAY
+                    </button>
+                </div>
+            </header>
+
+            <main className="flex-grow overflow-hidden relative">
+                {/* DESKTOP VIEW */}
+                <div className="hidden sm:block h-full">
+                    {/* Left (Stats) vs Right (Map/Chart). Vertical direction = flex-row */}
+                    <ResizablePanel direction="vertical" initialSize={400} minSize={300} className="h-full">
+                        
+                        {/* LEFT: Stats */}
+                        <div ref={statsContainerRef} className="h-full overflow-y-auto bg-slate-800 custom-scrollbar border-r border-slate-700">
+                            {statsContent}
+                        </div>
+
+                        {/* RIGHT: Map & Chart */}
+                        {/* Horizontal direction = flex-col (Top/Bottom) */}
+                        <ResizablePanel direction="horizontal" initialSizeRatio={0.75} minSize={200} minSizeSecondary={150}>
+                             
+                             {/* TOP: Map */}
+                             <div className="h-full relative border-b border-slate-800 z-0">
+                                {mapSection}
+                             </div>
+
+                             {/* BOTTOM: Chart + Controls + Overlay */}
+                             <div className="h-full flex flex-col bg-slate-900 border-t border-slate-700 relative">
+                                {selectionStats && <SelectionStatsOverlay data={selectionStats} onClose={() => setChartSelection(null)} />}
+                                <div className="h-10 flex-shrink-0">{chartControls}</div>
+                                <div className="flex-grow min-h-0">{chartSection}</div>
+                             </div>
+
+                        </ResizablePanel>
+                    </ResizablePanel>
+                </div>
+
+                {/* MOBILE VIEW */}
+                <div className="sm:hidden h-full w-full bg-slate-900 flex flex-col relative">
+                    {isMobile && isAnimationMode ? (
+                        // ANIMATION MODE: FULL MAP + CHART, NO STATS
+                        <div className="h-full w-full flex flex-col">
+                             <ResizablePanel 
+                                direction="horizontal" // Vertical split on screen (library uses horizontal/vertical naming sometimes counter-intuitively based on flex direction)
+                                initialSizeRatio={0.65} // Map gets 65% space
+                                minSize={150} 
+                                minSizeSecondary={100}
+                             >
+                                {/* Map Section */}
+                                <div className="h-full w-full relative z-0 border-b border-slate-700">
+                                    {mapSection}
+                                </div>
+
+                                {/* Chart Section */}
+                                <div className="h-full flex flex-col bg-slate-900">
+                                    {selectionStats && <SelectionStatsOverlay data={selectionStats} onClose={() => setChartSelection(null)} />}
+                                    <div className="h-8 flex-shrink-0">{chartControls}</div>
+                                    <div className="flex-grow min-h-0">{chartSection}</div>
+                                </div>
+                             </ResizablePanel>
+                        </div>
+                    ) : (
+                        // STANDARD MODE: STATS + (MAP/CHART)
+                        <ResizablePanel 
+                            direction="horizontal" 
+                            initialSizeRatio={0.50} // 50% Stats
+                            minSize={150} 
+                            minSizeSecondary={150}
+                        >
+                            {/* Top: Stats */}
+                            <div ref={statsContainerRef} className="h-full w-full overflow-y-auto bg-slate-800 custom-scrollbar min-h-0 overscroll-y-contain">
+                                {statsContent}
+                            </div>
+
+                            {/* Bottom: Map + Chart (Stacked) */}
+                            <div className="h-full w-full relative">
+                                 <ResizablePanel 
+                                    direction="horizontal" 
+                                    initialSizeRatio={0.60} // Map gets 60% of bottom space
+                                    minSize={100} 
+                                    minSizeSecondary={80}
+                                 >
+                                    {/* Map Section */}
+                                    <div className="h-full w-full relative z-0 border-b border-slate-700">
+                                        {mapSection}
+                                    </div>
+
+                                    {/* Chart Section */}
+                                    <div className="h-full flex flex-col bg-slate-900">
+                                        {selectionStats && <SelectionStatsOverlay data={selectionStats} onClose={() => setChartSelection(null)} />}
+                                        <div className="h-8 flex-shrink-0">{chartControls}</div>
+                                        <div className="flex-grow min-h-0">{chartSection}</div>
+                                    </div>
+                                 </ResizablePanel>
+                            </div>
+                        </ResizablePanel>
+                    )}
+                </div>
+            </main>
+        </div>
+    );
+};
+
+export default TrackDetailView;
