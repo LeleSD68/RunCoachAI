@@ -501,6 +501,7 @@ const App: React.FC = () => {
           const pace = state?.pace || 0;
           return {
               trackId: t.id,
+              name: t.name,
               position: point,
               color: t.color,
               pace: pace 
