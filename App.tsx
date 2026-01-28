@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Sidebar from './components/Sidebar';
 import MapDisplay from './components/MapDisplay';
@@ -33,7 +32,7 @@ import LoginModal from './components/LoginModal';
 import ResizablePanel from './components/ResizablePanel';
 
 import { Track, TrackPoint, UserProfile, Toast, RaceResult, TrackStats, PlannedWorkout, ApiUsageStats, Commentary } from './types';
-import { loadTracksFromDB, saveTracksToDB, loadProfileFromDB, saveProfileToDB, loadPlannedWorkoutsFromDB, savePlannedWorkoutsToDB, exportAllData, importAllData, syncBackupToCloud, BackupData, syncTrackToCloud, restoreAllChatsFromCloud } from './services/dbService';
+import { loadTracksFromDB, saveTracksToDB, loadProfileFromDB, saveProfileToDB, loadPlannedWorkoutsFromDB, savePlannedWorkoutsToDB, exportAllData, importAllData, syncBackupToCloud, BackupData, syncTrackToCloud, restoreAllChatsFromCloud, deleteTrackFromCloud, deletePlannedWorkoutFromCloud } from './services/dbService';
 import { findPersonalRecordsForTrack, updateStoredPRs } from './services/prService';
 import { calculateTrackStats } from './services/trackStatsService';
 import { getTrackPointAtDistance, getTrackStateAtTime, getSmoothedPace } from './services/trackEditorUtils';
@@ -527,6 +526,7 @@ const App: React.FC = () => {
     const updated = plannedWorkouts.filter(w => w.id !== id);
     setPlannedWorkouts(updated);
     savePlannedWorkoutsToDB(updated);
+    deletePlannedWorkoutFromCloud(id);
     addToast('Allenamento rimosso.', 'info');
   };
 
@@ -560,19 +560,24 @@ const App: React.FC = () => {
     const updatedTracks = tracks.map(t => {
         if (t.id === id) {
             const updated = { ...t, ...meta };
-            syncTrackToCloud(updated);
+            // Trigger cloud sync directly for this specific item to ensure metadata updates persist
+            // This bypasses the full list iteration in saveTracksToDB, preventing race conditions
+            syncTrackToCloud(updated).catch(err => console.error("Single Track Cloud Sync Failed", err));
             return updated;
         }
         return t;
     });
     setTracks(updatedTracks);
-    saveTracksToDB(updatedTracks);
+    // Save to local IndexedDB, skipping the bulk cloud loop since we handled it specifically above
+    saveTracksToDB(updatedTracks, { skipCloud: true });
   };
 
   const handleDeleteTrack = (id: string) => {
     const updatedTracks = tracks.filter(t => t.id !== id);
     setTracks(updatedTracks);
-    saveTracksToDB(updatedTracks);
+    saveTracksToDB(updatedTracks, { skipCloud: true });
+    // Explicitly delete from cloud
+    deleteTrackFromCloud(id);
     setVisibleTrackIds(prev => { const n = new Set(prev); n.delete(id); return n; });
     addToast('Traccia eliminata.', 'info');
   };
