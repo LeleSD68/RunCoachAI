@@ -59,3 +59,23 @@ drop policy if exists "Users can view own profile" on public.profiles;
 -- Tutti possono vedere i profili base (nome, avatar) per cercarsi
 create policy "Users can view all profiles" on public.profiles
   for select using (true);
+
+-- 5. TABELLA MESSAGGI DIRETTI (CHAT PRIVATA)
+create table public.direct_messages (
+  id uuid default uuid_generate_v4() primary key,
+  sender_id uuid references auth.users not null,
+  receiver_id uuid references auth.users not null,
+  content text not null,
+  created_at timestamp with time zone default timezone('utc'::text, now()),
+  read_at timestamp with time zone
+);
+
+alter table public.direct_messages enable row level security;
+
+-- Policy: Vidi messaggi inviati o ricevuti da te
+create policy "Users can view own messages" on public.direct_messages
+  for select using (auth.uid() = sender_id or auth.uid() = receiver_id);
+
+-- Policy: Inserisci messaggi solo come mittente
+create policy "Users can send messages" on public.direct_messages
+  for insert with check (auth.uid() = sender_id);

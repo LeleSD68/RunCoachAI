@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Sidebar from '../components/Sidebar';
 import MapDisplay from '../components/MapDisplay';
@@ -590,6 +589,16 @@ const App: React.FC = () => {
       setShowComparison(true);
   };
 
+  const handleLogout = async () => {
+      await supabase.auth.signOut();
+      setUserId(null);
+      setIsGuest(true);
+      setUserProfile({});
+      // Optional: clear local tracks if desired, or keep them as local cache
+      addToast("Logout effettuato.", "info");
+      setShowProfile(false); // Close profile if open
+  };
+
   const selectedDetailTrack = useMemo(() => tracks.find(t => t.id === selectedDetailTrackId), [tracks, selectedDetailTrackId]);
   const animationTrack = useMemo(() => animationTrackId ? tracks.find(t => t.id === animationTrackId) : null, [tracks, animationTrackId]);
   const mobileSelectedTrack = useMemo(() => mobileSelectedTrackId ? tracks.find(t => t.id === mobileSelectedTrackId) : null, [tracks, mobileSelectedTrackId]);
@@ -901,6 +910,7 @@ const App: React.FC = () => {
                 onSave={(p) => { setUserProfile(p); saveProfileToDB(p); }}
                 currentProfile={userProfile}
                 tracks={tracks}
+                onLogout={handleLogout}
             />
         )}
 

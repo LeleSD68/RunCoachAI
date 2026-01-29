@@ -12,6 +12,7 @@ interface UserProfileModalProps {
     currentProfile: UserProfile;
     isWelcomeMode?: boolean; 
     tracks?: Track[];
+    onLogout?: () => void; // New prop for Logout
 }
 
 const goalLabels: Record<RunningGoal, string> = {
@@ -58,7 +59,7 @@ const ChartIcon = () => (
     </svg>
 );
 
-const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, currentProfile, isWelcomeMode = false, tracks = [] }) => {
+const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, currentProfile, isWelcomeMode = false, tracks = [], onLogout }) => {
     const [profile, setProfile] = useState<UserProfile>({ ...currentProfile });
     const [personalRecords, setPersonalRecords] = useState<Record<string, PersonalRecord>>({});
     const [calculatingPRs, setCalculatingPRs] = useState(false);
@@ -339,13 +340,24 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
                             </div>
                         )}
                         
-                        <footer className="p-4 border-t border-slate-700 flex justify-end space-x-3 flex-shrink-0 mt-auto bg-slate-800">
-                            {!isWelcomeMode && (
-                                <button type="button" onClick={onClose} className="bg-slate-600 hover:bg-slate-500 text-white font-bold py-2 px-4 rounded-md text-sm">Annulla</button>
+                        <footer className="p-4 border-t border-slate-700 flex justify-between space-x-3 flex-shrink-0 mt-auto bg-slate-800">
+                            {onLogout && !isWelcomeMode && (
+                                <button 
+                                    type="button" 
+                                    onClick={onLogout} 
+                                    className="bg-red-900/30 text-red-400 hover:bg-red-900/50 hover:text-red-300 font-bold py-2 px-4 rounded-md text-sm transition-colors border border-red-900/50"
+                                >
+                                    Logout
+                                </button>
                             )}
-                            <button type="submit" className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-6 rounded-md text-sm shadow-lg shadow-cyan-900/20">
-                                {isWelcomeMode ? 'Continua' : 'Salva Impostazioni'}
-                            </button>
+                            <div className="flex gap-3 ml-auto">
+                                {!isWelcomeMode && (
+                                    <button type="button" onClick={onClose} className="bg-slate-600 hover:bg-slate-500 text-white font-bold py-2 px-4 rounded-md text-sm">Annulla</button>
+                                )}
+                                <button type="submit" className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-6 rounded-md text-sm shadow-lg shadow-cyan-900/20">
+                                    {isWelcomeMode ? 'Continua' : 'Salva Impostazioni'}
+                                </button>
+                            </div>
                         </footer>
                     </form>
                 </div>
