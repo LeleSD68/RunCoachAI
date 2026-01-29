@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, DirectMessage } from '../types';
 import { sendDirectMessage, getDirectMessages } from '../services/socialService';
+import { supabase } from '../services/supabaseClient';
 
 interface MiniChatProps {
     currentUser: UserProfile; // Full profile needed for ID
@@ -25,14 +26,50 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose }) => 
         setMessages(msgs);
     };
 
+    // Load initial messages
     useEffect(() => {
         loadMessages();
-        // Poll for new messages every 3 seconds while chat is open
+        
+        // Polling fallback
         intervalRef.current = window.setInterval(loadMessages, 3000);
+        
+        // REALTIME SUBSCRIPTION
+        const channel = supabase.channel(`chat:${currentUser.id}:${friend.id}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'direct_messages',
+                    filter: `receiver_id=eq.${currentUser.id}` 
+                },
+                (payload) => {
+                    const newMsg = payload.new;
+                    // Check if message belongs to this specific chat session
+                    if (newMsg.sender_id === friend.id) {
+                        setMessages(prev => {
+                            // Avoid duplicates just in case
+                            if (prev.some(m => m.id === newMsg.id)) return prev;
+                            
+                            const msgFormatted: DirectMessage = {
+                                id: newMsg.id,
+                                senderId: newMsg.sender_id,
+                                receiverId: newMsg.receiver_id,
+                                content: newMsg.content,
+                                createdAt: newMsg.created_at
+                            };
+                            return [...prev, msgFormatted];
+                        });
+                    }
+                }
+            )
+            .subscribe();
+
         return () => {
             if (intervalRef.current) clearInterval(intervalRef.current);
+            supabase.removeChannel(channel);
         };
-    }, [friend.id]);
+    }, [friend.id, currentUser.id]);
 
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -55,7 +92,7 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose }) => 
             
             await sendDirectMessage(currentUser.id, friend.id, newMessage);
             setNewMessage('');
-            loadMessages(); // Refresh to confirm
+            // Optional: loadMessages() to confirm ID from server, but optimistic is fine for UI flow
         } catch (e) {
             console.error("Failed to send", e);
         }
