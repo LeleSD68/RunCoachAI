@@ -1,1184 +1,458 @@
 
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import Sidebar from '../components/Sidebar';
-import MapDisplay from '../components/MapDisplay';
-import TrackEditor from '../components/TrackEditor';
-import TrackDetailView from '../components/TrackDetailView';
-import DiaryView from '../components/DiaryView';
-import ExplorerView from '../components/ExplorerView';
-import HomeModal from '../components/HomeModal';
-import WelcomeModal from '../components/WelcomeModal';
-import InitialChoiceModal from '../components/InitialChoiceModal';
-import GuideModal from '../components/GuideModal';
-import Changelog from '../components/Changelog';
-import UserProfileModal from '../components/UserProfileModal';
-import ToastContainer from '../components/ToastContainer';
-import Chatbot from '../components/Chatbot';
-import RaceControls from '../components/RaceControls';
-import RaceLeaderboard from '../components/RacePaceBar';
-import RaceSummary from '../components/RaceSummary';
-import { PostRaceStatsBar, PostRaceAISidebar } from '../components/PostRaceAnalysis';
-import VeoAnimationModal from '../components/VeoAnimationModal';
-import LiveCommentary from '../components/LiveCommentary';
-import WorkoutConfirmationModal from '../components/WorkoutConfirmationModal';
-import AiReviewModal from '../components/AiReviewModal';
-import RaceSetupModal from '../components/RaceSetupModal';
-import SplashScreen from '../components/SplashScreen';
-import MobileTrackSummary from '../components/MobileTrackSummary';
-import NavigationDock from '../components/NavigationDock';
-import PerformanceAnalysisPanel from '../components/PerformanceAnalysisPanel';
-import ComparisonModal from '../components/ComparisonModal';
-import SocialHub from '../components/SocialHub';
-import AuthSelectionModal from '../components/AuthSelectionModal';
-import LoginModal from '../components/LoginModal';
-import MiniChat from '../components/MiniChat';
+import React, { useState, useEffect, useRef } from 'react';
+import { UserProfile, FriendRequest, Track, DirectMessage } from '../types';
+import { searchUsers, sendFriendRequest, getFriendRequests, acceptFriendRequest, rejectFriendRequest, getFriends, getFriendsActivityFeed, sendDirectMessage, getDirectMessages } from '../services/socialService';
+import { supabase } from '../services/supabaseClient';
 
-import { Track, TrackPoint, UserProfile, Toast, RaceResult, TrackStats, PlannedWorkout, ApiUsageStats, Commentary } from '../types';
-import { loadTracksFromDB, saveTracksToDB, loadProfileFromDB, saveProfileToDB, loadPlannedWorkoutsFromDB, savePlannedWorkoutsToDB, exportAllData, importAllData, BackupData, syncTrackToCloud, deleteTrackFromCloud } from '../services/dbService';
-import { findPersonalRecordsForTrack, updateStoredPRs } from '../services/prService';
-import { calculateTrackStats } from '../services/trackStatsService';
-import { getTrackPointAtDistance, getTrackStateAtTime } from '../services/trackEditorUtils';
-import { parseGpx } from '../services/gpxService';
-import { parseTcx } from '../services/tcxService';
-import { generateSmartTitle } from '../services/titleGenerator';
-import { isSupabaseConfigured, supabase } from '../services/supabaseClient';
-import { updatePresence, getFriends } from '../services/socialService';
+interface SocialHubProps {
+    onClose: () => void;
+    currentUserId: string;
+}
 
-const TRACK_COLORS = [
-  '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e'
-];
+const UserIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M10 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM3.465 14.493a1.23 1.23 0 0 0 .41 1.412A9.957 9.957 0 0 0 10 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 0 0-13.074.003Z" /></svg>);
+const AddUserIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M11 5a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM2.615 16.428a1.224 1.224 0 0 1-.569-1.175 6.002 6.002 0 0 1 11.908 0c.058.467-.172.92-.57 1.174A9.953 9.953 0 0 1 7 18a9.953 9.953 0 0 1-4.385-1.572ZM16.25 5.75a.75.75 0 0 0-1.5 0v2h-2a.75.75 0 0 0 0 1.5h2v2a.75.75 0 0 0 1.5 0v-2h2a.75.75 0 0 0 0-1.5h-2v-2Z" /></svg>);
+const ActivityIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM6.75 9.25a.75.75 0 0 0 0 1.5h4.59l-2.1 2.1a.75.75 0 1 0 1.06 1.06l3.38-3.38a.75.75 0 0 0 0-1.06l-3.38-3.38a.75.75 0 1 0-1.06 1.06l2.1 2.1H6.75Z" clipRule="evenodd" /></svg>);
+const SearchIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clipRule="evenodd" /></svg>);
+const ChatBubbleIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M10 2c-2.236 0-4.43.18-6.57.524C1.993 2.755 1 4.014 1 5.426v5.148c0 1.413.993 2.67 2.43 2.902.848.137 1.705.248 2.57.331v3.443a.75.75 0 0 0 1.28.53l3.58-3.579a.78.78 0 0 1 .527-.224 41.202 41.202 0 0 0 5.183-.5c1.437-.232 2.43-1.49 2.43-2.903V5.426c0-1.413-.993-2.67-2.43-2.902A41.289 41.289 0 0 0 10 2Zm0 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM8 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm5 1a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd" /></svg>);
+const SendIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M3.105 2.289a.75.75 0 0 0-.826.95l1.414 4.949a.75.75 0 0 0 .95.95l4.95-1.414a.75.75 0 0 0-.95-.95l-3.539 1.01-1.01-3.54a.75.75 0 0 0-.95-.826ZM12.23 7.77a.75.75 0 0 0-1.06 0l-4.25 4.25a.75.75 0 0 0 0 1.06l4.25 4.25a.75.75 0 0 0 1.06-1.06l-3.72-3.72 3.72-3.72a.75.75 0 0 0 0-1.06ZM15.5 10a.75.75 0 0 1 .75-.75h.01a.75.75 0 0 1 0 1.5H16.25a.75.75 0 0 1-.75-.75Z" /></svg>);
 
-const AiCoachButtonIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
-        <path d="M11.25 4.533A9.707 9.707 0 0 0 6 3a9.735 9.735 0 0 0-3.25.555.75.75 0 0 0-.5.707v14.25a.75.75 0 0 0 1 .707A8.237 8.237 0 0 1 6 18.75c1.995 0 3.823.707 5.25 1.886V4.533ZM12.75 20.636A8.214 8.214 0 0 1 18 18.75c.966 0 1.89.166 2.75.47a.75.75 0 0 0 1-.708V4.262a.75.75 0 0 0-.5-.707A9.735 9.735 0 0 0 18 3a9.707 9.707 0 0 0-5.25 1.533v16.103Z" />
-    </svg>
-);
+const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
+    const [activeTab, setActiveTab] = useState<'feed' | 'friends' | 'add'>('feed');
+    const [friends, setFriends] = useState<UserProfile[]>([]);
+    const [requests, setRequests] = useState<FriendRequest[]>([]);
+    const [feed, setFeed] = useState<Track[]>([]);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [message, setMessage] = useState('');
+    const [sentRequests, setSentRequests] = useState<Set<string>>(new Set());
+    
+    // Chat State
+    const [activeChatFriend, setActiveChatFriend] = useState<UserProfile | null>(null);
+    const [chatMessages, setChatMessages] = useState<DirectMessage[]>([]);
+    const [newMessage, setNewMessage] = useState('');
+    const chatEndRef = useRef<HTMLDivElement>(null);
+    const pollIntervalRef = useRef<number | null>(null);
 
-const App: React.FC = () => {
-  // --- STATE ---
-  const [showSplash, setShowSplash] = useState(true);
-  const [tracks, setTracks] = useState<Track[]>([]);
-  const [visibleTrackIds, setVisibleTrackIds] = useState<Set<string>>(new Set());
-  const [raceSelectionIds, setRaceSelectionIds] = useState<Set<string>>(new Set());
-  const [userProfile, setUserProfile] = useState<UserProfile>({});
-  const [plannedWorkouts, setPlannedWorkouts] = useState<PlannedWorkout[]>([]);
-  const [toasts, setToasts] = useState<Toast[]>([]);
-  const [isGuest, setIsGuest] = useState(true);
-  const [userId, setUserId] = useState<string | null>(null);
-  
-  // Modals & Views
-  const [showHome, setShowHome] = useState(false);
-  const [showDiary, setShowDiary] = useState(false);
-  const [showExplorer, setShowExplorer] = useState(false);
-  const [showGuide, setShowGuide] = useState(false);
-  const [showProfile, setShowProfile] = useState(false);
-  const [showChangelog, setShowChangelog] = useState(false);
-  const [showWelcome, setShowWelcome] = useState(false);
-  const [showInitialChoice, setShowInitialChoice] = useState(false);
-  const [selectedDetailTrackId, setSelectedDetailTrackId] = useState<string | null>(null);
-  const [editorTracks, setEditorTracks] = useState<Track[] | null>(null);
-  const [showAiChatbot, setShowAiChatbot] = useState(false);
-  const [showVeoModal, setShowVeoModal] = useState(false);
-  const [veoTrack, setVeoTrack] = useState<Track | null>(null);
-  const [aiReviewTrackId, setAiReviewTrackId] = useState<string | null>(null);
-  const [showComparison, setShowComparison] = useState(false);
-  const [showSocialHub, setShowSocialHub] = useState(false);
-  const [showAuthSelection, setShowAuthSelection] = useState(false);
-  const [showLoginModal, setShowLoginModal] = useState(false);
-  
-  // Realtime Chat & Presence
-  const [activeChatFriend, setActiveChatFriend] = useState<UserProfile | null>(null);
-  
-  const [isSidebarMobileOpen, setIsSidebarMobileOpen] = useState(false);
-  const [showPerformancePanel, setShowPerformancePanel] = useState(false);
-  const [mobileSelectedTrackId, setMobileSelectedTrackId] = useState<string | null>(null);
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+    useEffect(() => {
+        loadData();
+    }, [activeTab]);
 
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth <768);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-  
-  // ... (Race / Simulation State remains same) ...
-  const [simulationState, setSimulationState] = useState<'idle' | 'running' | 'paused' | 'finished'>('idle');
-  const [simulationTime, setSimulationTime] = useState(0); // ms
-  const [simulationSpeed, setSimulationSpeed] = useState(10);
-  const [raceResults, setRaceResults] = useState<RaceResult[]>([]);
-  const [raceRanks, setRaceRanks] = useState<Map<string, number>>(new Map());
-  const [runnerSpeeds, setRunnerSpeeds] = useState<Map<string, number>>(new Map()); // km/h
-  const [runnerDistances, setRunnerDistances] = useState<Map<string, number>>(new Map());
-  const [runnerGaps, setRunnerGaps] = useState<Map<string, number>>(new Map()); // meters to leader
-  const [hoveredTrackId, setHoveredTrackId] = useState<string | null>(null);
-  const [showRaceSetup, setShowRaceSetup] = useState(false);
-  
-  // ... (Analysis / Interaction remains same) ...
-  const [selectedWorkoutIdForDiary, setSelectedWorkoutIdForDiary] = useState<string | null>(null);
-  const [workoutConfirmation, setWorkoutConfirmation] = useState<PlannedWorkout | null>(null);
-  const [liveCommentary, setLiveCommentary] = useState<Commentary[]>([]);
-  const [isCommentaryLoading, setIsCommentaryLoading] = useState(false);
-  
-  // ... (API Usage Tracking remains same) ...
-  const [apiUsage, setApiUsage] = useState<ApiUsageStats>({ rpm: 0, daily: 0, limitRpm: 15, limitDaily: 1500, totalTokens: 0 });
-  
-  // ... (Animation Replay remains same) ...
-  const [animationTrackId, setAnimationTrackId] = useState<string | null>(null);
-  const [animationProgress, setAnimationProgress] = useState(0);
-  const [isAnimationPlaying, setIsAnimationPlaying] = useState(false);
-  
-  const simulationRef = useRef<number | null>(null);
-  const lastTimeRef = useRef<number>(0);
+    // Auto-search debounce
+    useEffect(() => {
+        if (activeTab !== 'add') return;
+        const timer = setTimeout(() => {
+            if (searchQuery.length >= 3) {
+                handleSearch();
+            } else if (searchQuery.length === 0) {
+                setSearchResults([]);
+            }
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [searchQuery, activeTab]);
 
-  const closeAllViews = useCallback(() => {
-      setShowHome(false);
-      setShowDiary(false);
-      setShowExplorer(false);
-      setShowGuide(false);
-      setShowProfile(false);
-      setShowChangelog(false);
-      setShowPerformancePanel(false);
-      setShowAiChatbot(false);
-      setShowRaceSetup(false);
-      setShowComparison(false);
-      setShowSocialHub(false);
-  }, []);
+    // Chat Polling & Realtime
+    useEffect(() => {
+        if (activeChatFriend) {
+            fetchChatMessages(); // Initial fetch
+            pollIntervalRef.current = window.setInterval(fetchChatMessages, 5000); // Poll every 5s as backup
 
-  const handleOpenDetailView = useCallback((trackId: string) => {
-      setShowExplorer(false);
-      setShowDiary(false);
-      setShowHome(false);
-      setIsSidebarMobileOpen(false);
-      setMobileSelectedTrackId(null);
-      setSelectedDetailTrackId(trackId);
-  }, []);
+            // REALTIME SUBSCRIPTION FOR SOCIAL HUB CHAT
+            const channel = supabase.channel(`hub-chat:${currentUserId}:${activeChatFriend.id}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'direct_messages',
+                    filter: `receiver_id=eq.${currentUserId}` 
+                },
+                (payload) => {
+                    const newMsg = payload.new;
+                    // Check if message belongs to this specific chat session
+                    if (newMsg.sender_id === activeChatFriend.id) {
+                        setChatMessages(prev => {
+                            if (prev.some(m => m.id === newMsg.id)) return prev;
+                            const msgFormatted: DirectMessage = {
+                                id: newMsg.id,
+                                senderId: newMsg.sender_id,
+                                receiverId: newMsg.receiver_id,
+                                content: newMsg.content,
+                                createdAt: newMsg.created_at
+                            };
+                            return [...prev, msgFormatted];
+                        });
+                    }
+                }
+            )
+            .subscribe();
 
-  const checkAiAccess = useCallback(() => {
-      if (apiUsage.daily > apiUsage.limitDaily) {
-          addToast("Limite giornaliero API raggiunto.", "error");
-          return false;
-      }
-      return true;
-  }, [apiUsage]);
-
-  const handleLimitReached = useCallback(() => {
-      addToast("Funzionalità limitata. Aggiorna il piano.", "info");
-  }, []);
-
-  // --- PRESENCE PING LOOP ---
-  useEffect(() => {
-      if (!userId || isGuest) return;
-      
-      const ping = () => updatePresence(userId);
-      ping(); // Initial ping
-      
-      const interval = setInterval(ping, 60000); // Ping every minute
-      return () => clearInterval(interval);
-  }, [userId, isGuest]);
-
-  // --- REALTIME NOTIFICATIONS & PRESENCE ---
-  useEffect(() => {
-      if (!userId || isGuest || !isSupabaseConfigured()) return;
-
-      const channel = supabase.channel('realtime-social')
-          // Listen for new messages
-          .on(
-              'postgres_changes',
-              {
-                  event: 'INSERT',
-                  schema: 'public',
-                  table: 'direct_messages',
-                  filter: `receiver_id=eq.${userId}`
-              },
-              async (payload: any) => {
-                  if (activeChatFriend && activeChatFriend.id === payload.new.sender_id) return; // Already open
-                  
-                  // Play sound notification
-                  try {
-                      const audio = new Audio('/notification.mp3'); // Assuming file exists or fails silently
-                      audio.play().catch(() => {});
-                  } catch(e) {}
-
-                  // Fetch sender details
-                  const { data: sender } = await supabase.from('profiles').select('id, name').eq('id', payload.new.sender_id).single();
-                  const senderName = sender?.name || 'Un amico';
-
-                  addToast(`Nuovo messaggio da ${senderName}`, 'info');
-                  
-                  // Optional: We could trigger a state update here to show a badge on the Social Icon
-              }
-          )
-          // Listen for online status updates (Profile updates)
-          .on(
-              'postgres_changes',
-              {
-                  event: 'UPDATE',
-                  schema: 'public',
-                  table: 'profiles',
-              },
-              (payload: any) => {
-                  // If social hub is open, it might auto-refresh via its own logic, 
-                  // but we can trigger global toasts here if a friend comes online? 
-                  // Maybe too noisy. Let's stick to updatePresence logic.
-              }
-          )
-          .subscribe();
-
-      return () => {
-          supabase.removeChannel(channel);
-      };
-  }, [userId, isGuest, activeChatFriend]);
-
-  const handleToastClick = async (toast: Toast) => {
-      // Basic heuristic: if toast message contains "Nuovo messaggio da", try to open chat
-      if (toast.message.includes("Nuovo messaggio da")) {
-          // This is a bit hacky without passing payload to toast, but works for UI demo
-          //Ideally we should pass metadata to toast
-          if (!userId) return;
-          // Just open social hub for now, or find friend
-          const friends = await getFriends(userId);
-          // Find friend name in toast msg
-          const friend = friends.find(f => toast.message.includes(f.name || '###'));
-          if (friend) {
-              setActiveChatFriend(friend);
-          } else {
-              setShowSocialHub(true);
-          }
-      }
-  };
-
-  const loadData = async (forceLocal = false) => {
-      const storedTracks = await loadTracksFromDB(forceLocal);
-      const storedProfile = await loadProfileFromDB(forceLocal);
-      const storedWorkouts = await loadPlannedWorkoutsFromDB(forceLocal);
-      
-      if (storedTracks.length > 0) {
-        setTracks(storedTracks);
-        if (simulationState === 'idle') {
-             setVisibleTrackIds(new Set(storedTracks.map(t => t.id)));
+            return () => { 
+                if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+                supabase.removeChannel(channel);
+            };
         }
-        setShowHome(true);
-      } else {
-        const hasVisited = localStorage.getItem('gpx-app-visited');
-        if (!hasVisited) {
-          setShowInitialChoice(true);
-        } else {
-          setShowHome(true);
+    }, [activeChatFriend, currentUserId]);
+
+    // Scroll to bottom on new messages
+    useEffect(() => {
+        if (activeChatFriend) {
+            chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
         }
-      }
+    }, [chatMessages, activeChatFriend]);
 
-      if (storedProfile) setUserProfile(storedProfile);
-      if (storedWorkouts) setPlannedWorkouts(storedWorkouts);
-  };
-
-  // --- INITIALIZATION ---
-  useEffect(() => {
-    const init = async () => {
-      // Check session
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session) {
-          setUserId(session.user.id);
-          setIsGuest(false);
-          await loadData(false);
-      } else {
-          // If no session, show Auth Selection Screen first
-          setShowAuthSelection(true);
-      }
-    };
-    init();
-  }, []);
-
-  // ... (Global API Usage Setup and addToast remain same) ...
-  useEffect(() => {
-    window.gpxApp = {
-      addTokens: (count) => { setApiUsage(prev => ({ ...prev, totalTokens: prev.totalTokens + count })); },
-      getDailyTokenCount: () => apiUsage.daily,
-      trackApiRequest: () => {
-        setApiUsage(prev => {
-          const newDaily = prev.daily + 1;
-          const newRpm = prev.rpm + 1;
-          setTimeout(() => setApiUsage(p => ({ ...p, rpm: Math.max(0, p.rpm - 1) })), 60000);
-          return { ...prev, daily: newDaily, rpm: newRpm };
-        });
-      }
-    };
-  }, []);
-
-  const addToast = (message: string, type: Toast['type']) => {
-    const id = Date.now();
-    setToasts(prev => [...prev, { id, message, type }]);
-  };
-
-  const processFilesOnMainThread = async (files: File[]) => {
-      // ... (Implementation unchanged) ...
-      const existingFingerprints = new Set(tracks.map(t => `${t.points.length}-${t.duration}-${t.distance.toFixed(5)}`));
-      const newTracks: Track[] = [];
-      let skippedCount = 0;
-      let failedCount = 0;
-      let newTracksCount = 0;
-
-      for (const file of files) {
+    const loadData = async () => {
+        setLoading(true);
         try {
-            const fileContent = await file.text();
-            const fileExtension = file.name.split('.').pop()?.toLowerCase();
-            let parsedData = null;
-
-            if (fileExtension === 'gpx') {
-                parsedData = parseGpx(fileContent, file.name);
-            } else if (fileExtension === 'tcx') {
-                parsedData = parseTcx(fileContent, file.name);
+            if (activeTab === 'friends') {
+                const f = await getFriends(currentUserId);
+                setFriends(f);
+                const r = await getFriendRequests(currentUserId);
+                setRequests(r);
+            } else if (activeTab === 'feed') {
+                const activity = await getFriendsActivityFeed(currentUserId);
+                setFeed(activity);
             }
-
-            if (parsedData) {
-                const newTrackFingerprint = `${parsedData.points.length}-${parsedData.duration}-${parsedData.distance.toFixed(5)}`;
-                if (existingFingerprints.has(newTrackFingerprint)) {
-                    skippedCount++;
-                } else {
-                    const smartData = generateSmartTitle(parsedData.points, parsedData.distance, parsedData.name);
-                    const newTrack: Track = {
-                        id: `${file.name}-${new Date().getTime()}`,
-                        name: smartData.title,
-                        points: parsedData.points,
-                        color: TRACK_COLORS[(tracks.length + newTracksCount) % TRACK_COLORS.length],
-                        distance: parsedData.distance,
-                        duration: parsedData.duration,
-                        folder: smartData.folder,
-                        activityType: smartData.activityType
-                    };
-                    newTracks.push(newTrack);
-                    existingFingerprints.add(newTrackFingerprint);
-                    newTracksCount++;
-                }
-            } else {
-                failedCount++;
-            }
-        } catch (error) {
-            console.error(`Error processing file ${file.name}:`, error);
-            failedCount++;
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setLoading(false);
         }
-      }
+    };
 
-      if (newTracks.length > 0) {
-        setTracks(prevTracks => {
-            const updatedTracks = [...prevTracks, ...newTracks];
-            saveTracksToDB(updatedTracks);
-            return updatedTracks;
-        });
-        
-        const newIds = newTracks.map((t: Track) => t.id);
-        setVisibleTrackIds(prev => new Set([...prev, ...newIds]));
-        addToast(`${newTracks.length} tracciati importati con successo.`, 'success');
-        
-        newTracks.forEach((t: Track) => {
-            syncTrackToCloud(t);
-            const tDate = t.points[0].time.toDateString();
-            const match = plannedWorkouts.find(w => new Date(w.date).toDateString() === tDate && !w.completedTrackId);
-            if (match) {
-                setWorkoutConfirmation(match);
-            }
-            const { newRecordsCount } = updateStoredPRs(t, findPersonalRecordsForTrack(t));
-            if (newRecordsCount > 0) {
-               addToast(`${newTracks.length === 1 ? 'Nuovo' : newRecordsCount + ' Nuovi'} Record Personali rilevati!`, 'success');
-            }
-        });
-      }
+    const fetchChatMessages = async () => {
+        if (!activeChatFriend || !activeChatFriend.id) return;
+        const msgs = await getDirectMessages(currentUserId, activeChatFriend.id);
+        setChatMessages(msgs);
+    };
 
-      if (skippedCount > 0) addToast(`${skippedCount} file ignorati (duplicati).`, 'info');
-      if (failedCount > 0) addToast(`Impossibile importare ${failedCount} file.`, 'error');
-  };
+    const handleSearch = async () => {
+        if (searchQuery.length < 3) return;
+        setLoading(true);
+        try {
+            const results = await searchUsers(searchQuery);
+            // Filter out self and already friends (basic check, ideally backend handles this)
+            const friendIds = new Set(friends.map(f => f.id));
+            setSearchResults(results.filter(u => u.id !== currentUserId && u.id && !friendIds.has(u.id)));
+        } catch (e) { console.error(e); }
+        setLoading(false);
+    };
 
-  // ... (Other handlers like handleAddOpponent, handleRemoveRaceTrack etc. kept same) ...
-  const handleAddOpponent = async (files: File[]) => {
-      const newTracks: Track[] = [];
-      let count = 0;
-      for (const file of files) {
-          try {
-              const fileContent = await file.text();
-              const fileExtension = file.name.split('.').pop()?.toLowerCase();
-              let parsedData = null;
-              if (fileExtension === 'gpx') parsedData = parseGpx(fileContent, file.name);
-              else if (fileExtension === 'tcx') parsedData = parseTcx(fileContent, file.name);
-
-              if (parsedData) {
-                  const newTrack: Track = {
-                      id: `ghost-${Date.now()}-${count}`,
-                      name: `GHOST: ${parsedData.name}`,
-                      points: parsedData.points,
-                      color: '#94a3b8', 
-                      distance: parsedData.distance,
-                      duration: parsedData.duration,
-                      isExternal: true
-                  };
-                  newTracks.push(newTrack);
-                  count++;
-              }
-          } catch(e) { console.error(e); }
-      }
-
-      if (newTracks.length > 0) {
-          setTracks(prev => [...prev, ...newTracks]);
-          setRaceSelectionIds(prev => {
-              const next = new Set(prev);
-              newTracks.forEach(t => next.add(t.id));
-              return next;
-          });
-          addToast(`${newTracks.length} avversari caricati.`, 'success');
-      }
-  };
-
-  const handleRemoveRaceTrack = (id: string) => {
-      setRaceSelectionIds(prev => {
-          const next = new Set(prev);
-          next.delete(id);
-          return next;
-      });
-      setTracks(prev => prev.filter(t => t.id !== id || !t.isExternal));
-  };
-
-  const handleFileUpload = (files: File[] | null) => {
-    if (!files || files.length === 0) return;
-    addToast("Elaborazione file in corso...", "info");
-    processFilesOnMainThread(files);
-  };
-
-  const handleImportBackup = async (file: File) => {
-    try {
-      addToast('Lettura backup...', 'info');
-      const text = await file.text();
-      let data: BackupData;
-      try {
-          data = JSON.parse(text);
-      } catch (e) {
-          throw new Error("Il file non è un JSON valido.");
-      }
-      
-      await importAllData(data);
-      
-      const [t, p, w] = await Promise.all([loadTracksFromDB(), loadProfileFromDB(), loadPlannedWorkoutsFromDB()]);
-      setTracks(t);
-      if (p) setUserProfile(p);
-      setPlannedWorkouts(w);
-      
-      setVisibleTrackIds(new Set(t.map(tr => tr.id)));
-      setShowInitialChoice(false);
-      setShowHome(true);
-      addToast('Backup ripristinato correttamente.', 'success');
-    } catch (e: any) {
-      console.error(e);
-      addToast(`Errore ripristino: ${e.message}`, 'error');
-    }
-  };
-
-  const handleExportBackup = async () => {
-    try {
-      const data = await exportAllData();
-      const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `runcoach_backup_${new Date().toISOString().slice(0,10)}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      addToast('Backup esportato.', 'success');
-    } catch (e) {
-      addToast('Errore esportazione.', 'error');
-    }
-  };
-
-  const handleAddPlannedWorkout = (workout: PlannedWorkout) => {
-    const updated = [...plannedWorkouts, workout];
-    setPlannedWorkouts(updated);
-    savePlannedWorkoutsToDB(updated);
-    addToast('Allenamento aggiunto al diario.', 'success');
-  };
-
-  const handleUpdatePlannedWorkout = (workout: PlannedWorkout) => {
-    const updated = plannedWorkouts.map(w => w.id === workout.id ? workout : w);
-    setPlannedWorkouts(updated);
-    savePlannedWorkoutsToDB(updated);
-    addToast('Allenamento aggiornato.', 'success');
-  };
-
-  const handleDeletePlannedWorkout = (id: string) => {
-    const updated = plannedWorkouts.filter(w => w.id !== id);
-    setPlannedWorkouts(updated);
-    savePlannedWorkoutsToDB(updated);
-    addToast('Allenamento rimosso.', 'info');
-  };
-
-  const handleMassUpdatePlannedWorkouts = (workoutsToUpdate: PlannedWorkout[]) => {
-      let updated = [...plannedWorkouts];
-      workoutsToUpdate.forEach(w => {
-          const index = updated.findIndex(existing => existing.id === w.id);
-          if (index >= 0) updated[index] = w;
-          else updated.push(w);
-      });
-      setPlannedWorkouts(updated);
-      savePlannedWorkoutsToDB(updated);
-      addToast(`${workoutsToUpdate.length} allenamenti aggiornati.`, 'success');
-  };
-
-  const confirmWorkoutLink = (workoutId: string) => {
-      const lastTrack = tracks[tracks.length - 1]; 
-      if (lastTrack) {
-          const updatedTrack = { ...lastTrack, linkedWorkout: plannedWorkouts.find(w => w.id === workoutId) };
-          handleUpdateTrackMetadata(lastTrack.id, { linkedWorkout: updatedTrack.linkedWorkout });
-          
-          const updatedWorkouts = plannedWorkouts.map(w => w.id === workoutId ? { ...w, completedTrackId: lastTrack.id } : w);
-          setPlannedWorkouts(updatedWorkouts);
-          savePlannedWorkoutsToDB(updatedWorkouts);
-      }
-      setWorkoutConfirmation(null);
-  };
-
-  const handleUpdateTrackMetadata = (id: string, meta: Partial<Track>) => {
-    const updatedTracks = tracks.map(t => {
-        if (t.id === id) {
-            const updated = { ...t, ...meta };
-            syncTrackToCloud(updated);
-            return updated;
+    const handleSendRequest = async (userId: string) => {
+        try {
+            await sendFriendRequest(userId, currentUserId);
+            setSentRequests(prev => new Set(prev).add(userId));
+            setMessage('Richiesta inviata!');
+            setTimeout(() => setMessage(''), 3000);
+        } catch (e: any) {
+            setMessage(e.message);
+            setTimeout(() => setMessage(''), 3000);
         }
-        return t;
-    });
-    setTracks(updatedTracks);
-    saveTracksToDB(updatedTracks);
-  };
+    };
 
-  const handleDeleteTrack = (id: string) => {
-    const updatedTracks = tracks.filter(t => t.id !== id);
-    setTracks(updatedTracks);
-    saveTracksToDB(updatedTracks);
-    deleteTrackFromCloud(id);
-    setVisibleTrackIds(prev => { const n = new Set(prev); n.delete(id); return n; });
-    addToast('Traccia eliminata.', 'info');
-  };
+    const handleAccept = async (reqId: string) => {
+        await acceptFriendRequest(reqId);
+        loadData();
+    };
 
-  const handleDeleteSelected = () => {
-        const selectedIds = Array.from(raceSelectionIds);
-        if (selectedIds.length === 0) return;
-
-        const updatedTracks = tracks.filter(t => !raceSelectionIds.has(t.id));
-        setTracks(updatedTracks);
-        saveTracksToDB(updatedTracks);
-        
-        selectedIds.forEach(id => deleteTrackFromCloud(id)); // Sync cloud
-
-        setVisibleTrackIds(prev => {
-            const next = new Set(prev);
-            selectedIds.forEach(id => next.delete(id));
-            return next;
-        });
-        
-        setRaceSelectionIds(new Set());
-        addToast(`${selectedIds.length} tracce eliminate.`, 'info');
-  };
-
-  const handleToggleArchived = (id: string) => {
-      const track = tracks.find(t => t.id === id);
-      if (track) {
-          const newArchivedStatus = !track.isArchived;
-          handleUpdateTrackMetadata(id, { isArchived: newArchivedStatus });
-          if (newArchivedStatus) {
-              setVisibleTrackIds(prev => { const n = new Set(prev); n.delete(id); return n; });
-          }
-          addToast(newArchivedStatus ? 'Traccia archiviata.' : 'Traccia ripristinata.', 'info');
-      }
-  };
-
-  const handleStartRace = () => {
-      if (raceSelectionIds.size < 2) return;
-      setShowRaceSetup(true);
-  };
-
-  // Game Loop Effect
-  useEffect(() => {
-      if (simulationState !== 'running') return;
-
-      let animationFrameId: number;
-
-      const loop = (time: number) => {
-          const delta = time - lastTimeRef.current;
-          lastTimeRef.current = time;
-
-          setSimulationTime(prevTime => {
-              const nextTime = prevTime + delta * simulationSpeed;
-              
-              const raceTracks = tracks.filter(t => raceSelectionIds.has(t.id));
-              if (raceTracks.length === 0) return nextTime;
-
-              const allFinished = raceTracks.every(t => nextTime >= t.duration);
-
-              if (allFinished) {
-                  setSimulationState('finished');
-                  const results: RaceResult[] = raceTracks.map(t => ({
-                      rank: 0,
-                      trackId: t.id,
-                      name: t.name,
-                      color: t.color,
-                      finishTime: t.duration,
-                      avgSpeed: t.distance / (t.duration / 3600000),
-                      distance: t.distance
-                  })).sort((a, b) => a.finishTime - b.finishTime)
-                    .map((r, i) => ({ ...r, rank: i + 1 }));
-                  
-                  setRaceResults(results);
-                  return nextTime;
-              }
-              animationFrameId = requestAnimationFrame(loop);
-              return nextTime;
-          });
-      };
-
-      lastTimeRef.current = performance.now();
-      animationFrameId = requestAnimationFrame(loop);
-
-      return () => cancelAnimationFrame(animationFrameId);
-  }, [simulationState, simulationSpeed, tracks, raceSelectionIds]);
-
-  const confirmRaceStart = (renamedMap: Record<string, string>) => {
-      if (renamedMap) {
-          setTracks(prev => prev.map(t => renamedMap[t.id] ? { ...t, name: renamedMap[t.id] } : t));
-      }
-      setSimulationState('running');
-      setSimulationTime(0);
-      setRaceResults([]);
-      setShowRaceSetup(false);
-  };
-
-  const raceRunners = useMemo(() => {
-      if (simulationState === 'idle') return null;
-      return tracks.filter(t => raceSelectionIds.has(t.id)).map(t => {
-          const state = getTrackStateAtTime(t, simulationTime);
-          const point = state?.point || t.points[t.points.length - 1];
-          const pace = state?.pace || 0;
-          return {
-              trackId: t.id,
-              name: t.name,
-              position: point,
-              color: t.color,
-              pace: pace 
-          };
-      });
-  }, [simulationState, simulationTime, tracks, raceSelectionIds]);
-
-  // Update race stats effect
-  useEffect(() => {
-      if (simulationState === 'idle' || !raceRunners) return;
-      
-      const newSpeeds = new Map<string, number>();
-      const newDistances = new Map<string, number>();
-      const newRanks = new Map<string, number>();
-      const newGaps = new Map<string, number>();
-
-      const sortedRunners = [...raceRunners].sort((a, b) => b.position.cummulativeDistance - a.position.cummulativeDistance);
-      const leaderDist = sortedRunners.length > 0 ? sortedRunners[0].position.cummulativeDistance : 0;
-
-      sortedRunners.forEach((r, i) => {
-          newRanks.set(r.trackId, i + 1);
-          newDistances.set(r.trackId, r.position.cummulativeDistance);
-          
-          // Pace is min/km. Speed km/h = 60 / pace.
-          const speed = r.pace > 0 ? 60 / r.pace : 0;
-          newSpeeds.set(r.trackId, speed);
-          
-          // Gap in meters
-          const gapKm = leaderDist - r.position.cummulativeDistance;
-          newGaps.set(r.trackId, gapKm * 1000);
-      });
-
-      setRaceRanks(newRanks);
-      setRunnerSpeeds(newSpeeds);
-      setRunnerDistances(newDistances);
-      setRunnerGaps(newGaps);
-
-  }, [simulationTime, raceRunners, simulationState]);
-
-  const handleMobileSummaryClick = () => {
-      if (mobileSelectedTrackId) {
-          handleOpenDetailView(mobileSelectedTrackId);
-      }
-  };
-
-  const handleMobileSummaryClose = () => {
-      setMobileSelectedTrackId(null);
-  };
-
-  const handleMapTrackClick = (trackId: string, isMultiSelect?: boolean) => {
-        if (simulationState !== 'idle' && simulationState !== 'finished' && !isAnimationPlaying) return;
-
-        if (isMultiSelect) {
-            setRaceSelectionIds(prev => {
-                const next = new Set(prev);
-                if (next.has(trackId)) next.delete(trackId);
-                else next.add(trackId);
-                return next;
-            });
-            return;
+    const handleReject = async (reqId: string) => {
+        if(confirm("Vuoi rifiutare questa richiesta di amicizia?")) {
+            await rejectFriendRequest(reqId);
+            loadData();
         }
+    };
 
-        if (isMobile) {
-            setMobileSelectedTrackId(trackId);
-            setHoveredTrackId(trackId);
-        } else {
-            handleOpenDetailView(trackId);
-            setHoveredTrackId(trackId);
-        }
-  };
+    const openChat = (friend: UserProfile) => {
+        setActiveChatFriend(friend);
+        setChatMessages([]);
+    };
 
-  const handleCompareSelected = () => {
-      if (raceSelectionIds.size < 2) {
-          addToast('Seleziona almeno 2 tracce per il confronto.', 'info');
-          return;
-      }
-      setShowComparison(true);
-  };
-
-  const handleLogout = async () => {
-      await supabase.auth.signOut();
-      setUserId(null);
-      setIsGuest(true);
-      setUserProfile({});
-      addToast("Logout effettuato.", "info");
-      setShowProfile(false); 
-      // Reset view to Auth Selection
-      setShowAuthSelection(true);
-      setShowHome(false);
-  };
-
-  const handleGuestContinue = () => {
-      setIsGuest(true);
-      setShowAuthSelection(false);
-      loadData(true); // Load local data
-  };
-
-  const handleUserLoginSuccess = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if(session) {
-          setUserId(session.user.id);
-          setIsGuest(false);
-          addToast('Accesso effettuato.', 'success');
-          await loadData(false); // Load cloud data
-      }
-  };
-
-  const selectedDetailTrack = useMemo(() => tracks.find(t => t.id === selectedDetailTrackId), [tracks, selectedDetailTrackId]);
-  const animationTrack = useMemo(() => animationTrackId ? tracks.find(t => t.id === animationTrackId) : null, [tracks, animationTrackId]);
-  const mobileSelectedTrack = useMemo(() => mobileSelectedTrackId ? tracks.find(t => t.id === mobileSelectedTrackId) : null, [tracks, mobileSelectedTrackId]);
-  const reviewTrack = useMemo(() => aiReviewTrackId ? tracks.find(t => t.id === aiReviewTrackId) : null, [tracks, aiReviewTrackId]);
-
-  return (
-    <div className="h-screen w-screen bg-slate-900 text-white overflow-hidden flex flex-col">
-        {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} />}
-
-        {/* AUTH GATES */}
-        {showAuthSelection && !showSplash && (
-            <AuthSelectionModal 
-                onGuest={handleGuestContinue}
-                onLogin={() => { setShowAuthSelection(false); setShowLoginModal(true); }}
-            />
-        )}
-
-        {showLoginModal && (
-            <LoginModal 
-                onClose={() => setShowLoginModal(false)}
-                onLoginSuccess={handleUserLoginSuccess}
-                tracks={tracks}
-                userProfile={userProfile}
-                plannedWorkouts={plannedWorkouts}
-            />
-        )}
-
-        {/* Mini Chat Overlay - Always visible if a chat is active */}
-        {activeChatFriend && !isGuest && (
-            <MiniChat 
-                currentUser={{id: userId!, name: userProfile.name}}
-                friend={activeChatFriend}
-                onClose={() => setActiveChatFriend(null)}
-            />
-        )}
-
-        <div className={`flex-grow flex overflow-hidden relative ${isMobile ? 'flex-col' : 'flex-row'}`}>
+    const sendMessage = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newMessage.trim() || !activeChatFriend || !activeChatFriend.id) return;
+        
+        try {
+            // Optimistic update
+            const tempMsg: DirectMessage = {
+                id: 'temp-' + Date.now(),
+                senderId: currentUserId,
+                receiverId: activeChatFriend.id,
+                content: newMessage,
+                createdAt: new Date().toISOString()
+            };
+            setChatMessages(prev => [...prev, tempMsg]);
             
-            {(!selectedDetailTrackId && !editorTracks) && (
-                <div 
-                    className={`
-                        z-20 transition-all duration-300 bg-slate-900
-                        ${showHome ? 'w-0 opacity-0 overflow-hidden' : ''}
-                        ${isMobile 
-                            ? (isSidebarMobileOpen ? 'h-[70%] w-full order-1 border-b border-slate-700' : 'h-0 w-full opacity-0 overflow-hidden order-1') 
-                            : 'w-80 h-full shrink-0 border-r border-slate-800 order-1'
-                        }
-                    `}
-                >
-                    <Sidebar
-                        tracks={tracks}
-                        onFileUpload={handleFileUpload}
-                        visibleTrackIds={visibleTrackIds}
-                        onToggleVisibility={(id) => {
-                            if (visibleTrackIds.has(id)) {
-                                setVisibleTrackIds(prev => { const n = new Set(prev); n.delete(id); return n; });
-                            } else {
-                                setVisibleTrackIds(prev => { const n = new Set(prev); n.add(id); return n; });
-                            }
-                        }}
-                        raceSelectionIds={raceSelectionIds}
-                        onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
-                        onDeselectAll={() => setRaceSelectionIds(new Set())}
-                        onSelectAll={() => setRaceSelectionIds(new Set(tracks.map(t => t.id)))}
-                        onStartRace={handleStartRace}
-                        onGoToEditor={() => {
-                            const selected = tracks.filter(t => raceSelectionIds.has(t.id));
-                            if (selected.length > 0) setEditorTracks(selected);
-                        }}
-                        onPauseRace={() => setSimulationState('paused')}
-                        onResumeRace={() => setSimulationState('running')}
-                        onResetRace={() => { setSimulationState('idle'); setRaceResults([]); }}
-                        simulationState={simulationState}
-                        simulationTime={simulationTime}
-                        onTrackHoverStart={setHoveredTrackId}
-                        onTrackHoverEnd={() => setHoveredTrackId(null)}
-                        hoveredTrackId={hoveredTrackId}
-                        raceProgress={new Map()}
-                        simulationSpeed={simulationSpeed}
-                        onSpeedChange={setSimulationSpeed}
-                        lapTimes={new Map()}
-                        sortOrder={'date_desc'}
-                        onSortChange={() => {}}
-                        onDeleteTrack={handleDeleteTrack}
-                        onDeleteSelected={handleDeleteSelected}
-                        onViewDetails={handleOpenDetailView}
-                        onStartAnimation={(id) => { setAnimationTrackId(id); setIsAnimationPlaying(true); }}
-                        raceRanks={raceRanks}
-                        runnerSpeeds={runnerSpeeds}
-                        runnerDistances={runnerDistances}
-                        runnerGapsToLeader={runnerGaps}
-                        collapsedGroups={new Set()}
-                        onToggleGroup={() => {}}
-                        onOpenChangelog={() => setShowChangelog(true)}
-                        onOpenProfile={() => setShowProfile(true)}
-                        onOpenGuide={() => setShowGuide(true)}
-                        onOpenDiary={() => setShowDiary(true)}
-                        dailyTokenUsage={{ used: apiUsage.daily, limit: apiUsage.limitDaily }}
-                        onExportBackup={handleExportBackup}
-                        onImportBackup={handleImportBackup} 
-                        onCloseMobile={() => setIsSidebarMobileOpen(false)} 
-                        onUpdateTrackMetadata={handleUpdateTrackMetadata}
-                        onRegenerateTitles={() => {}}
-                        onToggleExplorer={() => setShowExplorer(true)}
-                        showExplorer={showExplorer}
-                        listViewMode={'full'}
-                        onListViewModeChange={() => {}}
-                        onAiBulkRate={() => {}}
-                        onOpenReview={(id) => setAiReviewTrackId(id)}
-                        mobileRaceMode={false}
-                        monthlyStats={{ totalDistance: 0, totalDuration: 0, activityCount: 0, avgPace: 0 }}
-                        plannedWorkouts={plannedWorkouts}
-                        onOpenPlannedWorkout={(id) => { setSelectedWorkoutIdForDiary(id); setShowDiary(true); }}
-                        apiUsageStats={apiUsage}
-                        onOpenHub={() => setShowHome(true)}
-                        onOpenPerformanceAnalysis={() => setShowPerformancePanel(true)}
-                        onUserLogin={() => setShowLoginModal(true)} // Sidebar login link
-                        onUserLogout={handleLogout}
-                        isGuest={isGuest}
-                        onCompareSelected={handleCompareSelected}
-                        userProfile={userProfile}
-                        onOpenSocial={() => {
-                            if(isGuest) {
-                                addToast("Accesso Social riservato agli utenti registrati.", "info");
-                            } else {
-                                setShowSocialHub(true);
-                            }
-                        }}
-                        onToggleArchived={handleToggleArchived}
-                    />
-                </div>
-            )}
+            await sendDirectMessage(currentUserId, activeChatFriend.id, newMessage);
+            setNewMessage('');
+            // fetchChatMessages(); // No need to fetch immediately, Realtime/Optimistic handles it
+        } catch (e) {
+            console.error("Failed to send", e);
+            setMessage("Errore invio messaggio.");
+        }
+    };
 
-            <div className={`
-                relative transition-all duration-300
-                ${selectedDetailTrackId || editorTracks ? 'h-full w-full' : ''}
-                ${!selectedDetailTrackId && !editorTracks 
-                    ? (isMobile 
-                        ? (isSidebarMobileOpen ? 'h-[30%] order-2' : 'h-full order-2') 
-                        : 'flex-grow h-full order-2')
-                    : ''
-                }
-            `}>
-                {selectedDetailTrack ? (
-                    <TrackDetailView 
-                        track={selectedDetailTrack}
-                        userProfile={userProfile}
-                        onExit={() => setSelectedDetailTrackId(null)}
-                        allHistory={tracks}
-                        plannedWorkouts={plannedWorkouts}
-                        onUpdateTrackMetadata={handleUpdateTrackMetadata}
-                        onAddPlannedWorkout={handleAddPlannedWorkout}
-                        onStartAnimation={(id) => { setAnimationTrackId(id); setIsAnimationPlaying(true); }}
-                        onOpenReview={(id) => checkAiAccess() && setAiReviewTrackId(id)}
-                        onCheckAiAccess={checkAiAccess}
-                        isGuest={isGuest}
-                        onLimitReached={handleLimitReached}
-                    />
-                ) : editorTracks ? (
-                    <TrackEditor 
-                        initialTracks={editorTracks}
-                        onExit={(updated) => {
-                            if (updated) {
-                                const newTracks = tracks.map(t => t.id === updated.id ? updated : t);
-                                if (!tracks.find(t => t.id === updated.id)) {
-                                    newTracks.push(updated);
-                                }
-                                setTracks(newTracks);
-                                saveTracksToDB(newTracks);
-                                addToast('Traccia modificata salvata.', 'success');
-                            }
-                            setEditorTracks(null);
-                        }}
-                        addToast={addToast}
-                    />
-                ) : (
-                    <>
-                        <MapDisplay 
-                            tracks={tracks}
-                            visibleTrackIds={visibleTrackIds}
-                            selectedTrackIds={raceSelectionIds}
-                            raceRunners={raceRunners}
-                            hoveredTrackId={hoveredTrackId}
-                            runnerSpeeds={runnerSpeeds}
-                            mapGradientMetric={'none'}
-                            animationTrack={animationTrack}
-                            animationProgress={animationProgress}
-                            isAnimationPlaying={isAnimationPlaying}
-                            onToggleAnimationPlay={() => setIsAnimationPlaying(!isAnimationPlaying)}
-                            onAnimationProgressChange={setAnimationProgress}
-                            animationSpeed={simulationSpeed}
-                            onAnimationSpeedChange={setSimulationSpeed}
-                            onExitAnimation={() => { setAnimationTrackId(null); setIsAnimationPlaying(false); setAnimationProgress(0); }}
-                            onTrackClick={handleMapTrackClick}
+    if (activeChatFriend) {
+        return (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[9000] flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
+                <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-lg h-[80vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+                    <header className="bg-slate-800 p-4 border-b border-slate-700 flex justify-between items-center shrink-0">
+                        <div className="flex items-center gap-3">
+                            <button onClick={() => setActiveChatFriend(null)} className="text-slate-400 hover:text-white mr-2">&larr;</button>
+                            <div className="w-8 h-8 bg-slate-700 rounded-full flex items-center justify-center text-white font-bold text-xs border border-slate-600">
+                                {activeChatFriend.name?.substring(0,1)}
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-white text-sm">{activeChatFriend.name}</h3>
+                                {activeChatFriend.isOnline && <p className="text-[10px] text-green-400">Online</p>}
+                            </div>
+                        </div>
+                        <button onClick={onClose} className="text-slate-400 hover:text-white text-xl">&times;</button>
+                    </header>
+                    
+                    <div className="flex-grow overflow-y-auto p-4 custom-scrollbar bg-slate-900/50 space-y-3">
+                        {chatMessages.length === 0 && <div className="text-center text-slate-500 text-xs mt-10">Inizia la conversazione con {activeChatFriend.name}</div>}
+                        {chatMessages.map(msg => {
+                            const isMe = msg.senderId === currentUserId;
+                            return (
+                                <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                                    <div className={`max-w-[75%] p-3 rounded-2xl text-sm ${isMe ? 'bg-cyan-700 text-white rounded-br-none' : 'bg-slate-700 text-slate-200 rounded-bl-none'}`}>
+                                        <p>{msg.content}</p>
+                                        <p className={`text-[9px] mt-1 text-right ${isMe ? 'text-cyan-300' : 'text-slate-400'}`}>
+                                            {new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                        </p>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                        <div ref={chatEndRef} />
+                    </div>
+
+                    <form onSubmit={sendMessage} className="p-3 bg-slate-800 border-t border-slate-700 flex gap-2 shrink-0">
+                        <input 
+                            type="text" 
+                            value={newMessage} 
+                            onChange={e => setNewMessage(e.target.value)} 
+                            placeholder="Scrivi un messaggio..."
+                            className="flex-grow bg-slate-900 border border-slate-600 rounded-xl px-4 py-2 text-sm text-white focus:border-cyan-500 outline-none transition-colors"
+                            autoFocus
                         />
-                        
-                        {simulationState !== 'idle' && (
-                            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30">
-                                <RaceControls 
-                                    simulationState={simulationState}
-                                    simulationTime={simulationTime}
-                                    simulationSpeed={simulationSpeed}
-                                    onPause={() => setSimulationState('paused')}
-                                    onResume={() => setSimulationState('running')}
-                                    onStop={() => { setSimulationState('idle'); setRaceResults([]); }}
-                                    onSpeedChange={setSimulationSpeed}
-                                />
-                            </div>
-                        )}
-                        
-                        {simulationState !== 'idle' && (
-                            <div className="absolute top-20 right-4 z-20">
-                                <RaceLeaderboard 
-                                    racers={tracks.filter(t => raceSelectionIds.has(t.id))}
-                                    ranks={raceRanks}
-                                    gaps={runnerGaps}
-                                />
-                            </div>
-                        )}
-                        
-                        {!simulationState.startsWith('run') && (
-                            <div className="absolute bottom-24 right-6 md:bottom-6 md:right-6 z-30">
-                                <button 
-                                    onClick={() => setShowAiChatbot(true)} 
-                                    className="bg-purple-600 hover:bg-purple-500 text-white p-4 rounded-full shadow-2xl transition-transform hover:scale-110 flex items-center justify-center"
-                                    title="Coach AI"
-                                >
-                                    <AiCoachButtonIcon />
-                                </button>
-                            </div>
-                        )}
+                        <button 
+                            type="submit" 
+                            disabled={!newMessage.trim()}
+                            className="bg-cyan-600 hover:bg-cyan-500 text-white p-2.5 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <SendIcon />
+                        </button>
+                    </form>
+                </div>
+            </div>
+        );
+    }
 
-                        {mobileSelectedTrack && !selectedDetailTrackId && (
-                            <MobileTrackSummary 
-                                track={mobileSelectedTrack}
-                                onClick={handleMobileSummaryClick}
-                                onClose={handleMobileSummaryClose}
-                            />
-                        )}
-                    </>
-                )}
+    return (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[9000] flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
+            <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-2xl h-[80vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+                
+                {/* Header */}
+                <div className="bg-slate-800 p-4 border-b border-slate-700 flex justify-between items-center shrink-0">
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                        <span className="text-cyan-400">⚡</span> Social Hub
+                    </h2>
+                    <button onClick={onClose} className="text-slate-400 hover:text-white text-2xl">&times;</button>
+                </div>
+
+                {/* Tabs */}
+                <div className="flex border-b border-slate-700 bg-slate-900/50 shrink-0">
+                    <button 
+                        onClick={() => setActiveTab('feed')}
+                        className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${activeTab === 'feed' ? 'text-cyan-400 border-b-2 border-cyan-400 bg-slate-800' : 'text-slate-500 hover:text-slate-300'}`}
+                    >
+                        <ActivityIcon /> Feed
+                    </button>
+                    <button 
+                        onClick={() => setActiveTab('friends')}
+                        className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${activeTab === 'friends' ? 'text-cyan-400 border-b-2 border-cyan-400 bg-slate-800' : 'text-slate-500 hover:text-slate-300'}`}
+                    >
+                        <UserIcon /> Amici {friends.length > 0 && `(${friends.length})`}
+                    </button>
+                    <button 
+                        onClick={() => setActiveTab('add')}
+                        className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${activeTab === 'add' ? 'text-cyan-400 border-b-2 border-cyan-400 bg-slate-800' : 'text-slate-500 hover:text-slate-300'}`}
+                    >
+                        <AddUserIcon /> Aggiungi
+                    </button>
+                </div>
+
+                {/* Content */}
+                <div className="flex-grow overflow-y-auto p-4 custom-scrollbar">
+                    {/* Feedback Message Overlay */}
+                    {message && (
+                        <div className="sticky top-0 z-10 bg-cyan-900/90 border border-cyan-500/50 text-cyan-200 p-3 rounded-lg mb-4 text-center text-sm font-bold animate-fade-in-down shadow-lg backdrop-blur-sm">
+                            {message}
+                        </div>
+                    )}
+
+                    {activeTab === 'feed' && (
+                        <div className="space-y-3">
+                            {feed.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center h-64 text-slate-500">
+                                    <div className="text-4xl mb-3 opacity-30">📭</div>
+                                    <p>Il feed è vuoto.</p>
+                                    <p className="text-xs mt-1">Aggiungi amici per vedere le loro corse qui.</p>
+                                    <button onClick={() => setActiveTab('add')} className="mt-4 text-cyan-400 text-xs font-bold uppercase hover:underline">Trova Amici</button>
+                                </div>
+                            ) : (
+                                feed.map(track => (
+                                    <div key={track.id} className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 flex justify-between items-center hover:bg-slate-800 transition-colors">
+                                        <div>
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-cyan-500 flex items-center justify-center text-[10px] font-bold text-white uppercase shadow-sm">
+                                                    {track.userDisplayName?.substring(0,2)}
+                                                </div>
+                                                <span className="text-xs text-slate-300 font-bold uppercase">{track.userDisplayName}</span>
+                                                <span className="text-xs text-slate-500">• {new Date(track.points[0].time).toLocaleDateString()}</span>
+                                            </div>
+                                            <h3 className="font-bold text-white text-base">{track.name}</h3>
+                                            <div className="flex gap-3 mt-1 text-xs text-slate-400 font-mono">
+                                                <span className="flex items-center gap-1">📏 {track.distance.toFixed(2)} km</span>
+                                                <span className="flex items-center gap-1">⏱️ {(track.duration / 60000).toFixed(0)} min</span>
+                                            </div>
+                                        </div>
+                                        <div className="text-2xl opacity-20 grayscale">👟</div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    )}
+
+                    {activeTab === 'friends' && (
+                        <div className="space-y-6">
+                            {requests.length > 0 && (
+                                <div className="mb-6">
+                                    <h3 className="text-xs font-bold text-purple-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                        <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></span>
+                                        Richieste in attesa
+                                    </h3>
+                                    {requests.map(req => (
+                                        <div key={req.id} className="bg-slate-800 border border-purple-500/30 p-3 rounded-lg flex justify-between items-center mb-2 shadow-sm">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 bg-purple-900/50 rounded-full flex items-center justify-center text-purple-300 font-bold text-xs border border-purple-500/20">
+                                                    {req.requester.name?.substring(0,2)}
+                                                </div>
+                                                <span className="text-white font-bold text-sm">{req.requester.name}</span>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => handleAccept(req.id)} className="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-lg shadow-purple-900/20">Accetta</button>
+                                                <button onClick={() => handleReject(req.id)} className="bg-slate-700 hover:bg-red-500 text-slate-300 hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">Rifiuta</button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div>
+                                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">La tua Crew</h3>
+                                {friends.length === 0 ? (
+                                    <p className="text-slate-500 text-sm italic">Non hai ancora amici. Cerca qualcuno nella tab "Aggiungi"!</p>
+                                ) : (
+                                    friends.map(friend => (
+                                        <div key={friend.id} className="flex items-center justify-between p-3 bg-slate-800/30 rounded-lg border border-slate-700/50 mb-2">
+                                            <div className="flex items-center gap-3">
+                                                <div className="relative">
+                                                    <div className="w-9 h-9 bg-slate-700 rounded-full flex items-center justify-center text-slate-300 font-bold border border-slate-600">
+                                                        {friend.name?.substring(0,1)}
+                                                    </div>
+                                                    {friend.isOnline && (
+                                                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-slate-900 rounded-full shadow-lg shadow-green-500/50" title="Online adesso"></div>
+                                                    )}
+                                                </div>
+                                                <span className="text-slate-200 font-medium text-sm">{friend.name}</span>
+                                            </div>
+                                            
+                                            <div className="flex items-center gap-2">
+                                                {friend.isOnline ? (
+                                                    <span className="text-[10px] text-green-400 font-bold uppercase tracking-wider bg-green-900/20 px-2 py-0.5 rounded border border-green-500/20">Online</span>
+                                                ) : (
+                                                    <span className="text-[10px] text-slate-600 font-bold uppercase tracking-wider">Offline</span>
+                                                )}
+                                                <button 
+                                                    onClick={() => openChat(friend)}
+                                                    className="bg-slate-700 hover:bg-cyan-600 text-slate-300 hover:text-white p-2 rounded-lg transition-colors border border-slate-600"
+                                                    title="Messaggio Privato"
+                                                >
+                                                    <ChatBubbleIcon />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'add' && (
+                        <div className="h-full flex flex-col">
+                            <div className="relative mb-6 shrink-0">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                                    <SearchIcon />
+                                </div>
+                                <input 
+                                    type="text" 
+                                    placeholder="Cerca nome utente..." 
+                                    className="w-full bg-slate-800 border border-slate-600 rounded-xl pl-10 pr-4 py-3 text-white outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all"
+                                    value={searchQuery}
+                                    onChange={e => setSearchQuery(e.target.value)}
+                                    autoFocus
+                                />
+                                {loading && (
+                                    <div className="absolute inset-y-0 right-3 flex items-center">
+                                        <div className="w-4 h-4 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+                                    </div>
+                                )}
+                            </div>
+                            
+                            <div className="flex-grow space-y-2">
+                                {searchResults.length === 0 && searchQuery.length > 0 && !loading && (
+                                    <p className="text-center text-slate-500 text-sm mt-4">Nessun utente trovato con questo nome.</p>
+                                )}
+                                
+                                {searchResults.length === 0 && searchQuery.length === 0 && (
+                                    <div className="text-center text-slate-600 text-sm mt-8">
+                                        <p>Inizia a scrivere per cercare runner nella community.</p>
+                                    </div>
+                                )}
+
+                                {searchResults.map(user => {
+                                    const isSent = user.id && sentRequests.has(user.id);
+                                    return (
+                                        <div key={user.id} className="flex justify-between items-center p-3 bg-slate-800 rounded-xl border border-slate-700 hover:border-slate-600 transition-all">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 bg-gradient-to-br from-slate-700 to-slate-600 rounded-full flex items-center justify-center text-white font-bold text-xs">
+                                                    {user.name?.substring(0,1)}
+                                                </div>
+                                                <span className="text-white font-bold text-sm">{user.name}</span>
+                                            </div>
+                                            <button 
+                                                onClick={() => user.id && handleSendRequest(user.id)}
+                                                disabled={isSent}
+                                                className={`text-xs px-4 py-2 rounded-lg font-bold transition-all ${
+                                                    isSent 
+                                                    ? 'bg-green-900/30 text-green-400 border border-green-500/30 cursor-default'
+                                                    : 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg active:scale-95'
+                                                }`}
+                                            >
+                                                {isSent ? 'Inviata ✓' : 'Invia Richiesta'}
+                                            </button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
-
-        {!editorTracks && !showHome && !showDiary && !showExplorer && !selectedDetailTrackId && !showAiChatbot && !simulationState.startsWith('run') && (
-            <NavigationDock 
-                onOpenSidebar={() => { closeAllViews(); setIsSidebarMobileOpen(true); }}
-                onCloseSidebar={() => { closeAllViews(); setSelectedDetailTrackId(null); setIsSidebarMobileOpen(false); }}
-                isSidebarOpen={isSidebarMobileOpen}
-                onOpenExplorer={() => { closeAllViews(); setShowExplorer(true); }}
-                onOpenDiary={() => { closeAllViews(); setShowDiary(true); }}
-                onOpenPerformance={() => { closeAllViews(); setShowPerformancePanel(true); }}
-                onOpenGuide={() => setShowGuide(true)}
-                onExportBackup={handleExportBackup}
-                onOpenHub={() => { closeAllViews(); setShowHome(true); }}
-                onOpenSocial={() => {
-                    if(isGuest) {
-                        addToast("Accesso Social riservato agli utenti registrati.", "info");
-                    } else {
-                        setShowSocialHub(true);
-                    }
-                }}
-            />
-        )}
-
-        {showInitialChoice && (
-            <InitialChoiceModal 
-                onImportBackup={handleImportBackup} 
-                onStartNew={() => { setShowInitialChoice(false); setShowWelcome(true); }}
-                onClose={() => setShowInitialChoice(false)}
-            />
-        )}
-
-        {showWelcome && (
-            <WelcomeModal onClose={() => { setShowWelcome(false); setShowProfile(true); }} />
-        )}
-
-        {showHome && (
-            <HomeModal 
-                trackCount={tracks.length}
-                plannedWorkouts={plannedWorkouts}
-                onOpenDiary={() => { setShowHome(false); setShowDiary(true); }}
-                onOpenExplorer={() => { setShowHome(false); setShowExplorer(true); }}
-                onOpenHelp={() => { setShowHome(false); setShowGuide(true); }}
-                onImportBackup={handleImportBackup}
-                onExportBackup={handleExportBackup}
-                onUploadTracks={handleFileUpload}
-                onClose={() => setShowHome(false)}
-                onOpenWorkout={(workoutId) => {
-                    setSelectedWorkoutIdForDiary(workoutId);
-                    setShowHome(false);
-                    setShowDiary(true);
-                }}
-                onOpenProfile={() => setShowProfile(true)}
-                onOpenChangelog={() => setShowChangelog(true)}
-                onUploadOpponent={handleAddOpponent}
-                onEnterRaceMode={handleStartRace}
-                onLogout={handleLogout}
-                onLogin={() => { setShowHome(false); setShowLoginModal(true); }} // New handler
-                isGuest={isGuest}
-            />
-        )}
-
-        {showDiary && (
-            <DiaryView 
-                tracks={tracks}
-                plannedWorkouts={plannedWorkouts}
-                userProfile={userProfile}
-                onClose={() => setShowDiary(false)}
-                onSelectTrack={handleOpenDetailView}
-                onDeletePlannedWorkout={handleDeletePlannedWorkout}
-                onAddPlannedWorkout={handleAddPlannedWorkout}
-                onUpdatePlannedWorkout={handleUpdatePlannedWorkout}
-                onMassUpdatePlannedWorkouts={handleMassUpdatePlannedWorkouts}
-                onOpenTrackChat={handleOpenDetailView}
-                onOpenGlobalChat={() => { setShowDiary(false); setShowAiChatbot(true); }}
-                initialSelectedWorkoutId={selectedWorkoutIdForDiary}
-                onCheckAiAccess={checkAiAccess}
-            />
-        )}
-
-        {showExplorer && (
-            <ExplorerView 
-                tracks={tracks}
-                onClose={() => setShowExplorer(false)}
-                onSelectTrack={handleOpenDetailView}
-            />
-        )}
-
-        {showProfile && (
-            <UserProfileModal 
-                onClose={() => setShowProfile(false)}
-                onSave={(p) => { setUserProfile(p); saveProfileToDB(p); }}
-                currentProfile={userProfile}
-                tracks={tracks}
-                onLogout={handleLogout}
-            />
-        )}
-
-        {showGuide && <GuideModal onClose={() => setShowGuide(false)} />}
-        {showChangelog && <Changelog onClose={() => setShowChangelog(false)} />}
-        
-        {showAiChatbot && (
-            <div className={`z-[12000] ${isMobile ? '' : 'fixed bottom-20 right-6'}`}>
-                <Chatbot 
-                    tracksToAnalyze={tracks}
-                    userProfile={userProfile}
-                    onClose={() => setShowAiChatbot(false)}
-                    isStandalone={true}
-                    onAddPlannedWorkout={handleAddPlannedWorkout}
-                    plannedWorkouts={plannedWorkouts}
-                />
-            </div>
-        )}
-
-        {showRaceSetup && (
-            <RaceSetupModal 
-                tracks={tracks.filter(t => raceSelectionIds.has(t.id))}
-                onConfirm={confirmRaceStart}
-                onCancel={() => setShowRaceSetup(false)}
-                onAddOpponent={handleAddOpponent}
-                onRemoveTrack={handleRemoveRaceTrack}
-            />
-        )}
-
-        {raceResults.length > 0 && simulationState === 'finished' && (
-            <RaceSummary 
-                results={raceResults}
-                racerStats={new Map(raceResults.map(r => [r.trackId, calculateTrackStats(tracks.find(t => t.id === r.trackId)!)]))}
-                onClose={() => { setRaceResults([]); setSimulationState('idle'); }}
-                userProfile={userProfile}
-                tracks={tracks}
-            />
-        )}
-
-        {workoutConfirmation && (
-            <WorkoutConfirmationModal 
-                workout={workoutConfirmation}
-                onConfirm={() => confirmWorkoutLink(workoutConfirmation.id)}
-                onCancel={() => setWorkoutConfirmation(null)}
-            />
-        )}
-
-        {aiReviewTrackId && (
-            <AiReviewModal 
-                track={tracks.find(t => t.id === aiReviewTrackId)!}
-                userProfile={userProfile}
-                onClose={() => setAiReviewTrackId(null)}
-            />
-        )}
-
-        {showPerformancePanel && (
-            <PerformanceAnalysisPanel 
-                tracks={tracks}
-                userProfile={userProfile}
-                onClose={() => setShowPerformancePanel(false)}
-            />
-        )}
-
-        {showComparison && (
-            <ComparisonModal
-                tracks={tracks.filter(t => raceSelectionIds.has(t.id))}
-                onClose={() => setShowComparison(false)}
-            />
-        )}
-
-        {showSocialHub && userId && (
-            <SocialHub 
-                currentUserId={userId} 
-                onClose={() => setShowSocialHub(false)} 
-            />
-        )}
-
-        <ToastContainer toasts={toasts} setToasts={setToasts} />
-        {isCommentaryLoading && <LiveCommentary messages={liveCommentary} isLoading={true} />}
-    </div>
-  );
+    );
 };
 
-export default App;
+export default SocialHub;
