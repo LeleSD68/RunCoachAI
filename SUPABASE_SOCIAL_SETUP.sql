@@ -63,10 +63,10 @@ $$ language plpgsql security definer;
 drop policy if exists "Users can view own tracks" on public.tracks;
 drop policy if exists "Users can view own and friends tracks" on public.tracks;
 
--- Nuova policy: Owner + Friends
+-- Nuova policy: Owner + Friends (SOLO SE PUBBLICHE)
 create policy "Users can view own and friends tracks" on public.tracks
   for select using (
-    auth.uid() = user_id or public.is_friend(user_id)
+    auth.uid() = user_id or (public.is_friend(user_id) and is_public = true)
   );
 
 -- 4. AGGIORNA POLICY PROFILI (Per ricerca)

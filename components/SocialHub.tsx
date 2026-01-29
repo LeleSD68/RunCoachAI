@@ -16,6 +16,23 @@ const SearchIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2
 const ChatBubbleIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M10 2c-2.236 0-4.43.18-6.57.524C1.993 2.755 1 4.014 1 5.426v5.148c0 1.413.993 2.67 2.43 2.902.848.137 1.705.248 2.57.331v3.443a.75.75 0 0 0 1.28.53l3.58-3.579a.78.78 0 0 1 .527-.224 41.202 41.202 0 0 0 5.183-.5c1.437-.232 2.43-1.49 2.43-2.903V5.426c0-1.413-.993-2.67-2.43-2.902A41.289 41.289 0 0 0 10 2Zm0 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM8 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm5 1a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd" /></svg>);
 const SendIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M3.105 2.289a.75.75 0 0 0-.826.95l1.414 4.949a.75.75 0 0 0 .95.95l4.95-1.414a.75.75 0 0 0-.95-.95l-3.539 1.01-1.01-3.54a.75.75 0 0 0-.95-.826ZM12.23 7.77a.75.75 0 0 0-1.06 0l-4.25 4.25a.75.75 0 0 0 0 1.06l4.25 4.25a.75.75 0 0 0 1.06-1.06l-3.72-3.72 3.72-3.72a.75.75 0 0 0 0-1.06ZM15.5 10a.75.75 0 0 1 .75-.75h.01a.75.75 0 0 1 0 1.5H16.25a.75.75 0 0 1-.75-.75Z" /></svg>);
 
+// Helper per formattare la data nei messaggi
+const getMessageDateLabel = (dateString: string) => {
+    const date = new Date(dateString);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    // Normalize times to midnight
+    date.setHours(0,0,0,0);
+    today.setHours(0,0,0,0);
+    yesterday.setHours(0,0,0,0);
+
+    if (date.getTime() === today.getTime()) return 'Oggi';
+    if (date.getTime() === yesterday.getTime()) return 'Ieri';
+    return date.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' });
+};
+
 const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
     const [activeTab, setActiveTab] = useState<'feed' | 'friends' | 'add'>('feed');
     const [friends, setFriends] = useState<UserProfile[]>([]);
@@ -191,6 +208,17 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
         }
     };
 
+    // Group Messages Logic
+    const groupedMessages = React.useMemo(() => {
+        const groups: Record<string, DirectMessage[]> = {};
+        chatMessages.forEach(msg => {
+            const dateLabel = getMessageDateLabel(msg.createdAt);
+            if (!groups[dateLabel]) groups[dateLabel] = [];
+            groups[dateLabel].push(msg);
+        });
+        return groups;
+    }, [chatMessages]);
+
     if (activeChatFriend) {
         return (
             <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[9000] flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
@@ -211,19 +239,29 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
                     
                     <div className="flex-grow overflow-y-auto p-4 custom-scrollbar bg-slate-900/50 space-y-3">
                         {chatMessages.length === 0 && <div className="text-center text-slate-500 text-xs mt-10">Inizia la conversazione con {activeChatFriend.name}</div>}
-                        {chatMessages.map(msg => {
-                            const isMe = msg.senderId === currentUserId;
-                            return (
-                                <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                                    <div className={`max-w-[75%] p-3 rounded-2xl text-sm ${isMe ? 'bg-cyan-700 text-white rounded-br-none' : 'bg-slate-700 text-slate-200 rounded-bl-none'}`}>
-                                        <p>{msg.content}</p>
-                                        <p className={`text-[9px] mt-1 text-right ${isMe ? 'text-cyan-300' : 'text-slate-400'}`}>
-                                            {new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                        </p>
-                                    </div>
+                        
+                        {Object.entries(groupedMessages).map(([dateLabel, messages]) => (
+                            <div key={dateLabel} className="space-y-3">
+                                <div className="flex justify-center sticky top-0 z-10 py-2 pointer-events-none">
+                                    <span className="bg-slate-800/80 backdrop-blur-sm text-[10px] text-slate-400 px-3 py-1 rounded-full font-bold uppercase tracking-wider shadow-sm border border-slate-700/50">
+                                        {dateLabel}
+                                    </span>
                                 </div>
-                            );
-                        })}
+                                {messages.map(msg => {
+                                    const isMe = msg.senderId === currentUserId;
+                                    return (
+                                        <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                                            <div className={`max-w-[75%] p-3 rounded-2xl text-sm ${isMe ? 'bg-cyan-700 text-white rounded-br-none' : 'bg-slate-700 text-slate-200 rounded-bl-none'}`}>
+                                                <p>{msg.content}</p>
+                                                <p className={`text-[9px] mt-1 text-right ${isMe ? 'text-cyan-300' : 'text-slate-400'}`}>
+                                                    {new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ))}
                         <div ref={chatEndRef} />
                     </div>
 

@@ -301,9 +301,9 @@ const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTr
                         {sortedTracks.length === 0 && <div className="p-8 text-center text-slate-500">Nessuna attività trovata.</div>}
                     </div>
                 ) : (
-                    // GRID MODE (Existing Logic)
+                    // GRID MODE
                     <div className="h-full overflow-y-auto p-4 custom-scrollbar">
-                        {Object.entries(groupedTracks).map(([groupName, tracksInGroup]) => (
+                        {(Object.entries(groupedTracks) as [string, any[]][]).map(([groupName, tracksInGroup]) => (
                             <div key={groupName} className="mb-8">
                                 {groupingMode !== 'none' && (
                                     <h3 className="text-sm font-black text-cyan-500 uppercase tracking-widest border-b border-slate-700 pb-2 mb-4 sticky top-0 bg-slate-900/95 backdrop-blur-sm z-10 py-2">

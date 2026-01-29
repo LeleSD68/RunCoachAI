@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { UserProfile, DirectMessage } from '../types';
 import { sendDirectMessage, getDirectMessages } from '../services/socialService';
 import { supabase } from '../services/supabaseClient';
@@ -13,6 +13,23 @@ interface MiniChatProps {
 
 const SendIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M3.105 2.289a.75.75 0 0 0-.826.95l1.414 4.949a.75.75 0 0 0 .95.95l4.95-1.414a.75.75 0 0 0-.95-.95l-3.539 1.01-1.01-3.54a.75.75 0 0 0-.95-.826ZM12.23 7.77a.75.75 0 0 0-1.06 0l-4.25 4.25a.75.75 0 0 0 0 1.06l4.25 4.25a.75.75 0 0 0 1.06-1.06l-3.72-3.72 3.72-3.72a.75.75 0 0 0 0-1.06ZM15.5 10a.75.75 0 0 1 .75-.75h.01a.75.75 0 0 1 0 1.5H16.25a.75.75 0 0 1-.75-.75Z" /></svg>);
 const CloseIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" /></svg>);
+
+// Helper per formattare la data nei messaggi
+const getMessageDateLabel = (dateString: string) => {
+    const date = new Date(dateString);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    // Normalize times to midnight
+    date.setHours(0,0,0,0);
+    today.setHours(0,0,0,0);
+    yesterday.setHours(0,0,0,0);
+
+    if (date.getTime() === today.getTime()) return 'Oggi';
+    if (date.getTime() === yesterday.getTime()) return 'Ieri';
+    return date.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' }); // Compact format for mini chat
+};
 
 const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose }) => {
     const [messages, setMessages] = useState<DirectMessage[]>([]);
@@ -98,6 +115,17 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose }) => 
         }
     };
 
+    // Group Messages Logic
+    const groupedMessages = useMemo(() => {
+        const groups: Record<string, DirectMessage[]> = {};
+        messages.forEach(msg => {
+            const dateLabel = getMessageDateLabel(msg.createdAt);
+            if (!groups[dateLabel]) groups[dateLabel] = [];
+            groups[dateLabel].push(msg);
+        });
+        return groups;
+    }, [messages]);
+
     return (
         <div className="fixed bottom-0 right-4 w-72 sm:w-80 bg-slate-900 border border-slate-700 rounded-t-xl shadow-2xl z-[10000] flex flex-col animate-slide-up h-96">
             {/* Header */}
@@ -122,18 +150,31 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose }) => 
             </div>
 
             {/* Messages Area */}
-            <div className="flex-grow overflow-y-auto p-3 bg-slate-900/95 space-y-2 custom-scrollbar">
+            <div className="flex-grow overflow-y-auto p-3 bg-slate-900/95 space-y-3 custom-scrollbar">
                 {messages.length === 0 && <div className="text-center text-slate-500 text-xs mt-4">Inizia a chattare...</div>}
-                {messages.map(msg => {
-                    const isMe = msg.senderId === currentUser.id;
-                    return (
-                        <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-[80%] px-3 py-2 rounded-2xl text-xs ${isMe ? 'bg-cyan-700 text-white rounded-br-none' : 'bg-slate-700 text-slate-200 rounded-bl-none'}`}>
-                                <p>{msg.content}</p>
-                            </div>
+                
+                {Object.entries(groupedMessages).map(([dateLabel, groupMsgs]) => (
+                     <div key={dateLabel} className="space-y-2">
+                        <div className="flex justify-center py-1">
+                            <span className="bg-slate-800 text-[9px] text-slate-400 px-2 py-0.5 rounded-full font-bold uppercase border border-slate-700/50">
+                                {dateLabel}
+                            </span>
                         </div>
-                    );
-                })}
+                        {groupMsgs.map(msg => {
+                            const isMe = msg.senderId === currentUser.id;
+                            return (
+                                <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                                    <div className={`max-w-[85%] px-3 py-2 rounded-2xl text-xs ${isMe ? 'bg-cyan-700 text-white rounded-br-none' : 'bg-slate-700 text-slate-200 rounded-bl-none'}`}>
+                                        <p>{msg.content}</p>
+                                        <p className={`text-[8px] mt-0.5 text-right font-mono opacity-70`}>
+                                            {new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                        </p>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                ))}
                 <div ref={chatEndRef} />
             </div>
 

@@ -23,6 +23,13 @@ const ArchiveBoxIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0
 const CheckIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-green-400"><path fillRule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clipRule="evenodd" /></svg>);
 const XMarkIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-red-400"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" /></svg>);
 const LogoutIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M3 4.25A2.25 2.25 0 0 1 5.25 2h5.5A2.25 2.25 0 0 1 13 4.25v2a.75.75 0 0 1-1.5 0v-2a.75.75 0 0 0-.75-.75h-5.5a.75.75 0 0 0-.75.75v11.5c0 .414.336.75.75.75h5.5a.75.75 0 0 0 .75-.75v-2a.75.75 0 0 1 1.5 0v2A2.25 2.25 0 0 1 10.75 18h-5.5A2.25 2.25 0 0 1 3 15.75V4.25Z" clipRule="evenodd" /><path fillRule="evenodd" d="M19 10a.75.75 0 0 0-.75-.75H8.704l1.048-.943a.75.75 0 1 0-1.004-1.114l-2.5 2.25a.75.75 0 0 0 0 1.114l2.5 2.25a.75.75 0 1 0 1.004-1.114l-1.048-.943h9.546A.75.75 0 0 0 19 10Z" clipRule="evenodd" /></svg>);
+const GlobeIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-1.5 0a6.5 6.5 0 1 1-11-4.69v.447a3.5 3.5 0 0 0 1.025 2.475L8.293 10 8 10.293a1 1 0 0 0 0 1.414l1.06 1.06a1.5 1.5 0 0 1 .44 1.061v.363a6.5 6.5 0 0 1-5.5-2.259V10a6.5 6.5 0 0 1 12.5 0Z" clipRule="evenodd" /><path fillRule="evenodd" d="M9 2.5a.5.5 0 0 1 .5-.5 1 1 0 0 1 1 1 .5.5 0 0 1-.5.5h-1ZM5.5 5a.5.5 0 0 1 .5-.5 1 1 0 0 1 1 1 .5.5 0 0 1-.5.5h-1ZM14.5 13a.5.5 0 0 1 .5-.5 1 1 0 0 1 1 1 .5.5 0 0 1-.5.5h-1ZM12.5 16a.5.5 0 0 1 .5-.5 1 1 0 0 1 1 1 .5.5 0 0 1-.5.5h-1Z" clipRule="evenodd" /></svg>);
+const LockClosedIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M10 1a4.5 4.5 0 0 0-4.5 4.5V9H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-.5V5.5A4.5 4.5 0 0 0 10 1Zm3 8V5.5a3 3 0 1 0-6 0V9h6Z" clipRule="evenodd" /></svg>);
+const ChevronRightIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" clipRule="evenodd" /></svg>);
+const ChevronDownIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z" clipRule="evenodd" /></svg>);
+const ExpandAllIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M5.22 14.78a.75.75 0 0 0 1.06 0l7.22-7.22v5.69a.75.75 0 0 0 1.5 0v-7.5a.75.75 0 0 0-.75-.75h-7.5a.75.75 0 0 0 0 1.5h5.69l-7.22 7.22a.75.75 0 0 0 0 1.06Z" clipRule="evenodd" /></svg>);
+const CollapseAllIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M13.28 5.22a.75.75 0 0 0-1.06 0l-7.22 7.22v-5.69a.75.75 0 0 0-1.5 0v7.5a.75.75 0 0 0 .75.75h7.5a.75.75 0 0 0 0-1.5h-5.69l7.22-7.22a.75.75 0 0 0 0-1.06Z" clipRule="evenodd" /></svg>);
+
 
 interface SidebarProps {
     tracks: Track[];
@@ -83,14 +90,15 @@ interface SidebarProps {
     onOpenHub: () => void;
     onOpenPerformanceAnalysis: () => void;
     onUserLogin: () => void;
-    onUserLogout?: () => void; // Added Prop
+    onUserLogout?: () => void; 
     onCompareSelected: () => void;
     userProfile: UserProfile;
     onOpenSocial: () => void;
     onToggleArchived: (id: string) => void; 
-    isGuest?: boolean; // Added Prop
+    isGuest?: boolean;
     onlineCount?: number;
     unreadCount?: number;
+    onTogglePrivacySelected?: (makePublic: boolean) => void; // NEW PROP
 }
 
 type SortOption = 'date_desc' | 'date_asc' | 'distance_desc' | 'distance_asc' | 'time_desc' | 'time_asc';
@@ -103,7 +111,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
         hoveredTrackId, onTrackHoverStart, onTrackHoverEnd, simulationState, 
         onOpenDiary, showExplorer, onToggleExplorer,
         onOpenHub, onOpenPerformanceAnalysis, onOpenSocial, onCompareSelected,
-        onUpdateTrackMetadata, onToggleArchived,
+        onUpdateTrackMetadata, onToggleArchived, onTogglePrivacySelected,
         userProfile, onUserLogin, onUserLogout, isGuest, onlineCount = 0, unreadCount = 0
     } = props;
 
@@ -114,6 +122,9 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
     const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
     const [showArchived, setShowArchived] = useState(false);
     
+    // Grouping collapse state
+    const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+
     // Inline Renaming State
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editName, setEditName] = useState('');
@@ -208,6 +219,23 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
         setTimeout(() => onGoToEditor(), 50);
     };
 
+    const handleToggleGroup = (groupName: string) => {
+        setCollapsedGroups(prev => {
+            const next = new Set(prev);
+            if (next.has(groupName)) next.delete(groupName);
+            else next.add(groupName);
+            return next;
+        });
+    };
+
+    const handleExpandAll = () => {
+        setCollapsedGroups(new Set());
+    };
+
+    const handleCollapseAll = () => {
+        setCollapsedGroups(new Set(Object.keys(groupedTracks)));
+    };
+
     return (
         <div className="flex flex-col h-full bg-slate-900 border-r border-slate-800 text-white">
             {/* Header */}
@@ -235,31 +263,51 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                     className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm text-white focus:border-cyan-500 outline-none"
                 />
                 
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                    <select 
-                        value={grouping} 
-                        onChange={(e) => setGrouping(e.target.value as any)}
-                        className="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-300 outline-none w-full"
-                    >
-                        <option value="month">Raggruppa: Mese</option>
-                        <option value="type">Raggruppa: Tipo</option>
-                        <option value="folder">Raggruppa: Cartella</option>
-                        <option value="tag">Raggruppa: Tag</option>
-                        <option value="distance">Raggruppa: Distanza</option>
-                    </select>
-                    
-                    <select 
-                        value={sortOption} 
-                        onChange={(e) => setSortOption(e.target.value as SortOption)}
-                        className="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-300 outline-none w-full"
-                    >
-                        <option value="date_desc">Data ↓</option>
-                        <option value="date_asc">Data ↑</option>
-                        <option value="distance_desc">Dist. ↓</option>
-                        <option value="distance_asc">Dist. ↑</option>
-                        <option value="time_desc">Tempo ↓</option>
-                        <option value="time_asc">Tempo ↑</option>
-                    </select>
+                <div className="flex items-center gap-2">
+                    <div className="grid grid-cols-2 gap-2 text-xs flex-grow">
+                        <select 
+                            value={grouping} 
+                            onChange={(e) => setGrouping(e.target.value as any)}
+                            className="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-300 outline-none w-full"
+                        >
+                            <option value="month">Raggruppa: Mese</option>
+                            <option value="type">Raggruppa: Tipo</option>
+                            <option value="folder">Raggruppa: Cartella</option>
+                            <option value="tag">Raggruppa: Tag</option>
+                            <option value="distance">Raggruppa: Distanza</option>
+                        </select>
+                        
+                        <select 
+                            value={sortOption} 
+                            onChange={(e) => setSortOption(e.target.value as SortOption)}
+                            className="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-300 outline-none w-full"
+                        >
+                            <option value="date_desc">Data ↓</option>
+                            <option value="date_asc">Data ↑</option>
+                            <option value="distance_desc">Dist. ↓</option>
+                            <option value="distance_asc">Dist. ↑</option>
+                            <option value="time_desc">Tempo ↓</option>
+                            <option value="time_asc">Tempo ↑</option>
+                        </select>
+                    </div>
+
+                    {/* Grouping Toggle Buttons */}
+                    <div className="flex gap-1 bg-slate-800 p-0.5 rounded border border-slate-700">
+                         <button 
+                            onClick={handleCollapseAll} 
+                            className="p-1 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors"
+                            title="Comprimi Tutto"
+                        >
+                            <CollapseAllIcon />
+                        </button>
+                        <button 
+                            onClick={handleExpandAll} 
+                            className="p-1 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors"
+                            title="Espandi Tutto"
+                        >
+                            <ExpandAllIcon />
+                        </button>
+                    </div>
                 </div>
 
                 <div className="flex justify-between items-center text-xs">
@@ -288,114 +336,156 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                 </div>
 
                 {raceSelectionIds.size > 0 && (
-                    <div className="flex gap-1 animate-fade-in">
-                        <button onClick={onStartRace} className="flex-1 bg-green-600 hover:bg-green-500 text-white text-xs font-bold py-2 rounded">
-                            Gara ({raceSelectionIds.size})
-                        </button>
-                        <button onClick={onCompareSelected} className="bg-slate-700 hover:bg-slate-600 text-slate-200 px-2 rounded" title="Confronta">
-                            <CompareIcon />
-                        </button>
-                        <button onClick={onDeleteSelected} className="bg-red-900/50 hover:bg-red-900 text-red-200 px-2 rounded" title="Elimina selezionati">
-                            <TrashIcon />
-                        </button>
+                    <div className="flex flex-col gap-1 animate-fade-in">
+                        <div className="flex gap-1">
+                            <button onClick={onStartRace} className="flex-1 bg-green-600 hover:bg-green-500 text-white text-xs font-bold py-2 rounded">
+                                Gara ({raceSelectionIds.size})
+                            </button>
+                            <button onClick={onCompareSelected} className="bg-slate-700 hover:bg-slate-600 text-slate-200 px-2 rounded" title="Confronta">
+                                <CompareIcon />
+                            </button>
+                            <button onClick={onDeleteSelected} className="bg-red-900/50 hover:bg-red-900 text-red-200 px-2 rounded" title="Elimina selezionati">
+                                <TrashIcon />
+                            </button>
+                        </div>
+                        {/* Privacy Controls */}
+                        {onTogglePrivacySelected && !isGuest && (
+                            <div className="flex gap-1 mt-1">
+                                <button 
+                                    onClick={() => onTogglePrivacySelected(false)} 
+                                    className="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-300 text-[10px] font-bold py-1.5 rounded flex items-center justify-center gap-1"
+                                    title="Nascondi agli amici"
+                                >
+                                    <LockClosedIcon /> Rendi Privato
+                                </button>
+                                <button 
+                                    onClick={() => onTogglePrivacySelected(true)} 
+                                    className="flex-1 bg-slate-700 hover:bg-green-700 text-slate-300 hover:text-white text-[10px] font-bold py-1.5 rounded flex items-center justify-center gap-1"
+                                    title="Condividi nel feed"
+                                >
+                                    <GlobeIcon /> Rendi Pubblico
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
 
             {/* List */}
             <div className="flex-grow overflow-y-auto custom-scrollbar p-2 space-y-4">
-                {Object.entries(groupedTracks).map(([group, groupTracks]) => (
-                    <div key={group}>
-                        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 px-2 sticky top-0 bg-slate-900 z-10 py-1">{group}</h3>
-                        <div className={`space-y-1 ${viewMode === 'list' ? 'space-y-0' : ''}`}>
-                            {groupTracks.map(track => (
-                                <div 
-                                    key={track.id} 
-                                    className={`
-                                        flex flex-col p-2 rounded hover:bg-slate-800 transition-colors group relative 
-                                        ${hoveredTrackId === track.id ? 'bg-slate-800' : ''} 
-                                        ${viewMode === 'list' ? 'border-b border-slate-800/50 py-2' : 'bg-slate-800/20 mb-2 border border-slate-700/30'}
-                                    `}
-                                    onMouseEnter={() => onTrackHoverStart(track.id)}
-                                    onMouseLeave={onTrackHoverEnd}
-                                >
-                                    <div className="flex items-center w-full">
-                                        <div className="flex items-center h-full mr-2">
-                                            <input 
-                                                type="checkbox" 
-                                                checked={raceSelectionIds.has(track.id)} 
-                                                onChange={() => onToggleRaceSelection(track.id)}
-                                                className="accent-cyan-500 cursor-pointer"
-                                            />
-                                        </div>
-                                        
-                                        {viewMode === 'cards' && (
-                                            <div 
-                                                className="mr-3 w-16 h-12 bg-slate-900 rounded overflow-hidden relative cursor-pointer group-inner flex-shrink-0 border border-slate-700"
-                                                onClick={() => onViewDetails(track.id)}
-                                            >
-                                                <TrackPreview points={track.points} color={track.color} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
-                                            </div>
-                                        )}
-
-                                        <div className="flex-grow min-w-0">
-                                            {editingId === track.id ? (
-                                                <div className="flex items-center gap-1 mb-1">
-                                                    <input 
-                                                        type="text" 
-                                                        value={editName}
-                                                        onChange={(e) => setEditName(e.target.value)}
-                                                        onKeyDown={handleRenameKeyDown}
-                                                        className="w-full bg-slate-950 text-white text-xs border border-cyan-500 rounded px-1 py-0.5 outline-none"
-                                                        autoFocus
-                                                        onBlur={saveRename}
-                                                    />
-                                                    <button onClick={saveRename} className="text-green-400 hover:text-green-300"><CheckIcon /></button>
-                                                    <button onClick={cancelRename} className="text-red-400 hover:text-red-300"><XMarkIcon /></button>
-                                                </div>
-                                            ) : (
-                                                <div 
-                                                    className="cursor-pointer"
-                                                    onClick={() => onViewDetails(track.id)}
-                                                    onDoubleClick={(e) => { e.stopPropagation(); startRenaming(track); }}
-                                                    title="Doppio clic per rinominare"
-                                                >
-                                                    <div className="flex justify-between items-center mb-0.5">
-                                                        <span className={`text-sm font-medium text-white truncate ${viewMode === 'list' ? 'text-xs' : ''}`}>
-                                                            {track.name}
-                                                        </span>
-                                                        {track.rating && <RatingStars rating={track.rating} size="xs" />}
-                                                    </div>
-                                                    <div className="flex items-center justify-between text-[10px] text-slate-400">
-                                                        <span>{new Date(track.points[0].time).toLocaleDateString()}</span>
-                                                        <span className="font-mono">{track.distance.toFixed(2)}km</span>
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <div className="flex items-center gap-1 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button 
-                                                onClick={() => onToggleArchived(track.id)} 
-                                                className={`p-1 rounded ${visibleTrackIds.has(track.id) ? 'text-cyan-400' : 'text-slate-600 hover:text-slate-400'}`}
-                                                title={track.isArchived ? "Ripristina" : "Nascondi e Archivia"}
-                                            >
-                                                {track.isArchived ? <UploadIcon /> : (visibleTrackIds.has(track.id) ? <EyeIcon /> : <EyeSlashIcon />)}
-                                            </button>
-                                            <button 
-                                                onClick={() => handleEditClick(track.id)}
-                                                className="p-1 text-slate-500 hover:text-white"
-                                                title="Modifica"
-                                            >
-                                                <PencilIcon />
-                                            </button>
-                                        </div>
-                                    </div>
+                {(Object.entries(groupedTracks) as [string, Track[]][]).map(([group, groupTracks]) => {
+                     const isCollapsed = collapsedGroups.has(group);
+                     
+                     return (
+                        <div key={group} className="transition-all duration-300">
+                            <div 
+                                className="sticky top-0 bg-slate-900 z-10 py-1.5 px-2 flex items-center justify-between cursor-pointer hover:bg-slate-800/80 rounded transition-colors group"
+                                onClick={() => handleToggleGroup(group)}
+                            >
+                                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest group-hover:text-slate-300">{group}</h3>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px] text-slate-600 font-mono bg-slate-800 px-1.5 rounded border border-slate-700">{groupTracks.length}</span>
+                                    <span className={`text-slate-500 transition-transform duration-200 ${isCollapsed ? '' : 'rotate-90'}`}>
+                                        <ChevronRightIcon />
+                                    </span>
                                 </div>
-                            ))}
+                            </div>
+                            
+                            {!isCollapsed && (
+                                <div className={`space-y-1 mt-1 ${viewMode === 'list' ? 'space-y-0' : ''} animate-fade-in`}>
+                                    {groupTracks.map(track => (
+                                        <div 
+                                            key={track.id} 
+                                            className={`
+                                                flex flex-col p-2 rounded hover:bg-slate-800 transition-colors group relative 
+                                                ${hoveredTrackId === track.id ? 'bg-slate-800' : ''} 
+                                                ${viewMode === 'list' ? 'border-b border-slate-800/50 py-2' : 'bg-slate-800/20 mb-2 border border-slate-700/30'}
+                                            `}
+                                            onMouseEnter={() => onTrackHoverStart(track.id)}
+                                            onMouseLeave={onTrackHoverEnd}
+                                        >
+                                            <div className="flex items-center w-full">
+                                                <div className="flex items-center h-full mr-2">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={raceSelectionIds.has(track.id)} 
+                                                        onChange={() => onToggleRaceSelection(track.id)}
+                                                        className="accent-cyan-500 cursor-pointer"
+                                                    />
+                                                </div>
+                                                
+                                                {viewMode === 'cards' && (
+                                                    <div 
+                                                        className="mr-3 w-16 h-12 bg-slate-900 rounded overflow-hidden relative cursor-pointer group-inner flex-shrink-0 border border-slate-700"
+                                                        onClick={() => onViewDetails(track.id)}
+                                                    >
+                                                        <TrackPreview points={track.points} color={track.color} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                                                    </div>
+                                                )}
+
+                                                <div className="flex-grow min-w-0">
+                                                    {editingId === track.id ? (
+                                                        <div className="flex items-center gap-1 mb-1">
+                                                            <input 
+                                                                type="text" 
+                                                                value={editName}
+                                                                onChange={(e) => setEditName(e.target.value)}
+                                                                onKeyDown={handleRenameKeyDown}
+                                                                className="w-full bg-slate-950 text-white text-xs border border-cyan-500 rounded px-1 py-0.5 outline-none"
+                                                                autoFocus
+                                                                onBlur={saveRename}
+                                                            />
+                                                            <button onClick={saveRename} className="text-green-400 hover:text-green-300"><CheckIcon /></button>
+                                                            <button onClick={cancelRename} className="text-red-400 hover:text-red-300"><XMarkIcon /></button>
+                                                        </div>
+                                                    ) : (
+                                                        <div 
+                                                            className="cursor-pointer"
+                                                            onClick={() => onViewDetails(track.id)}
+                                                            onDoubleClick={(e) => { e.stopPropagation(); startRenaming(track); }}
+                                                            title="Doppio clic per rinominare"
+                                                        >
+                                                            <div className="flex justify-between items-center mb-0.5">
+                                                                <span className={`text-sm font-medium text-white truncate ${viewMode === 'list' ? 'text-xs' : ''}`}>
+                                                                    {track.name}
+                                                                </span>
+                                                                <div className="flex items-center gap-1">
+                                                                    {track.isPublic && <GlobeIcon />} 
+                                                                    {track.rating && <RatingStars rating={track.rating} size="xs" />}
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center justify-between text-[10px] text-slate-400">
+                                                                <span>{new Date(track.points[0].time).toLocaleDateString()}</span>
+                                                                <span className="font-mono">{track.distance.toFixed(2)}km</span>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <div className="flex items-center gap-1 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button 
+                                                        onClick={() => onToggleArchived(track.id)} 
+                                                        className={`p-1 rounded ${visibleTrackIds.has(track.id) ? 'text-cyan-400' : 'text-slate-600 hover:text-slate-400'}`}
+                                                        title={track.isArchived ? "Ripristina" : "Nascondi e Archivia"}
+                                                    >
+                                                        {track.isArchived ? <UploadIcon /> : (visibleTrackIds.has(track.id) ? <EyeIcon /> : <EyeSlashIcon />)}
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleEditClick(track.id)}
+                                                        className="p-1 text-slate-500 hover:text-white"
+                                                        title="Modifica"
+                                                    >
+                                                        <PencilIcon />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
                 {filteredTracks.length === 0 && (
                     <div className="text-center text-slate-500 text-sm py-8">
                         {showArchived ? 'Nessuna attività in archivio.' : 'Nessuna attività trovata.'}

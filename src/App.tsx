@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Sidebar from '../components/Sidebar';
 import MapDisplay from '../components/MapDisplay';
@@ -330,7 +331,7 @@ const App: React.FC = () => {
         try {
             const fileContent = await file.text();
             const fileExtension = file.name.split('.').pop()?.toLowerCase();
-            let parsedData = null;
+            let parsedData: { name: string; points: TrackPoint[]; distance: number; duration: number; } | null = null;
 
             if (fileExtension === 'gpx') {
                 parsedData = parseGpx(fileContent, file.name);
@@ -352,7 +353,8 @@ const App: React.FC = () => {
                         distance: parsedData.distance,
                         duration: parsedData.duration,
                         folder: smartData.folder,
-                        activityType: smartData.activityType
+                        activityType: smartData.activityType,
+                        isPublic: false // DEFAULT TO PRIVATE ON IMPORT
                     };
                     newTracks.push(newTrack);
                     existingFingerprints.add(newTrackFingerprint);
@@ -376,7 +378,7 @@ const App: React.FC = () => {
         
         const newIds = newTracks.map((t: Track) => t.id);
         setVisibleTrackIds(prev => new Set([...prev, ...newIds]));
-        addToast(`${newTracks.length} tracciati importati con successo.`, 'success');
+        addToast(`${newTracks.length} tracciati importati con successo (Privati).`, 'success');
         
         newTracks.forEach((t: Track) => {
             syncTrackToCloud(t);
@@ -551,6 +553,27 @@ const App: React.FC = () => {
     });
     setTracks(updatedTracks);
     saveTracksToDB(updatedTracks);
+  };
+
+  // --- BULK PRIVACY CHANGE ---
+  const handleTogglePrivacySelected = (makePublic: boolean) => {
+      const selectedIds = Array.from(raceSelectionIds);
+      if (selectedIds.length === 0) return;
+
+      const updatedTracks = tracks.map(t => {
+          if (selectedIds.includes(t.id)) {
+              const updated = { ...t, isPublic: makePublic };
+              syncTrackToCloud(updated); // Force sync
+              return updated;
+          }
+          return t;
+      });
+
+      setTracks(updatedTracks);
+      saveTracksToDB(updatedTracks);
+      setRaceSelectionIds(new Set()); // Deselect
+      
+      addToast(`${selectedIds.length} attività rese ${makePublic ? 'PUBBLICHE' : 'PRIVATE'}.`, 'info');
   };
 
   const handleDeleteTrack = (id: string) => {
@@ -902,6 +925,7 @@ const App: React.FC = () => {
                         onToggleArchived={handleToggleArchived}
                         onlineCount={onlineFriendsCount}
                         unreadCount={unreadMessagesCount}
+                        onTogglePrivacySelected={handleTogglePrivacySelected} // NEW PROP
                     />
                 </div>
             )}
