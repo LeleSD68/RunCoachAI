@@ -230,6 +230,14 @@ export interface FriendRequest {
     createdAt: string;
 }
 
+export interface DirectMessage {
+    id: string;
+    senderId: string;
+    receiverId: string;
+    content: string;
+    createdAt: string;
+}
+
 export interface PersonalRecord {
   distance: number; // in meters
   time: number; // in milliseconds
