@@ -129,6 +129,7 @@ export const getFriendsActivityFeed = async (currentUserId: string): Promise<Tra
         .from('tracks')
         .select('id, name, distance_km, duration_ms, start_time, activity_type, color, user_id')
         .neq('user_id', currentUserId) // Don't show my own tracks in "Friends Feed"
+        .eq('is_public', true) // NEW: Only fetch tracks marked as public
         .order('start_time', { ascending: false })
         .limit(20);
 
