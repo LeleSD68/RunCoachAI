@@ -101,7 +101,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [grouping, setGrouping] = useState<'date' | 'month' | 'folder' | 'type' | 'tag'>('month');
+    const [grouping, setGrouping] = useState<'date' | 'month' | 'folder' | 'type' | 'tag' | 'distance'>('month');
     const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
     const [showArchived, setShowArchived] = useState(false);
     
@@ -139,6 +139,13 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
             } else if (grouping === 'tag') {
                 // Group by first tag if available, else 'No Tags'
                 key = (t.tags && t.tags.length > 0) ? `#${t.tags[0].toUpperCase()}` : 'Nessun Tag';
+            } else if (grouping === 'distance') {
+                const d = t.distance;
+                if (d < 5) key = '< 5 km';
+                else if (d < 10) key = '5 - 10 km';
+                else if (d < 21.1) key = '10 - 21 km';
+                else if (d < 42.2) key = '21 - 42 km';
+                else key = '> 42 km (Ultra)';
             } else {
                 key = 'All';
             }
@@ -214,6 +221,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                         <option value="type">Tipo</option>
                         <option value="folder">Cartella</option>
                         <option value="tag">Tag</option>
+                        <option value="distance">Distanza</option>
                     </select>
                     
                     <button 
