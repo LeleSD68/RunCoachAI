@@ -399,6 +399,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
     } 
     else {
         const safeVisibleIds = visibleTrackIds instanceof Set ? visibleTrackIds : new Set();
+        const safeSelectedIds = selectedTrackIds instanceof Set ? selectedTrackIds : new Set();
         
         tracks.forEach(track => {
             if (!safeVisibleIds.has(track.id)) return;
@@ -424,29 +425,30 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
             else {
                 let layer;
                 const isHovered = track.id === hoveredTrackId;
+                const isSelected = safeSelectedIds.has(track.id);
                 
                 if (mapGradientMetric !== 'none') {
                     const coloredSegments = getTrackSegmentColors(track, mapGradientMetric as GradientMetric, track.color);
                     layer = L.featureGroup(coloredSegments.map(seg => 
                         L.polyline([[seg.p1.lat, seg.p1.lon], [seg.p2.lat, seg.p2.lon]], { 
                             color: seg.color, 
-                            weight: isHovered ? 8 : 4, 
-                            opacity: isHovered ? 1 : 0.7, 
+                            weight: isHovered ? 8 : (isSelected ? 6 : 4), 
+                            opacity: isHovered ? 1 : (isSelected ? 1 : 0.7), 
                             lineJoin: 'round' 
                         })
                     ));
                 } else {
                     layer = L.polyline(track.points.map(p => [p.lat, p.lon]), { 
                         color: isHovered ? '#fde047' : track.color, 
-                        weight: isHovered ? 8 : 4, 
-                        opacity: isHovered ? 1 : 0.7, 
+                        weight: isHovered ? 8 : (isSelected ? 6 : 4), 
+                        opacity: isHovered ? 1 : (isSelected ? 1 : 0.7), 
                         lineJoin: 'round',
                         bubblingMouseEvents: false 
                     });
                 }
                 
-                // Important: Bring hovered track to front to ensure visibility
-                if (isHovered) {
+                // Important: Bring hovered or selected track to front to ensure visibility
+                if (isHovered || isSelected) {
                     layer.bringToFront();
                 }
                 
@@ -467,7 +469,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
             }
         });
     }
-  }, [tracks, visibleTrackIds, mapGradientMetric, raceRunners, animationTrack, animationProgress, showSummaryMode, is3DMode, hoveredTrackId]);
+  }, [tracks, visibleTrackIds, selectedTrackIds, mapGradientMetric, raceRunners, animationTrack, animationProgress, showSummaryMode, is3DMode, hoveredTrackId]);
 
   // Helper Effects for Markers/Overlays - 2D Only
   useEffect(() => {
