@@ -243,15 +243,43 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
     const [mapGradientMetric, setMapGradientMetric] = useState<'none' | 'elevation' | 'pace' | 'speed' | 'hr' | 'hr_zones' | 'power'>('none');
     const [showShareModal, setShowShareModal] = useState(false);
     
-    // Layout State
-    const [currentLayout, setCurrentLayout] = useState<LayoutType>(isMobile ? 'vertical' : 'classic');
+    // Layout State Persistence Logic
+    const [currentLayout, setCurrentLayout] = useState<LayoutType>(() => {
+        const savedLayout = localStorage.getItem('runcoach-detail-layout');
+        if (savedLayout && ['classic', 'map-top', 'data-right', 'vertical', 'focus-bottom', 'columns'].includes(savedLayout)) {
+            return savedLayout as LayoutType;
+        }
+        return isMobile ? 'vertical' : 'classic';
+    });
+
     const [showLayoutMenu, setShowLayoutMenu] = useState(false);
     
-    // Slot Contents (default mapping depends on layout logic)
-    const [slotContent, setSlotContent] = useState<Record<SlotId, ContentType>>({
-        1: 'data',
-        2: 'map',
-        3: 'chart'
+    // Helper to get default slots for a given layout
+    const getDefaultSlots = useCallback((layout: LayoutType): Record<SlotId, ContentType> => {
+        switch(layout) {
+            case 'classic': return { 1: 'data', 2: 'map', 3: 'chart' };
+            case 'map-top': return { 1: 'map', 2: 'data', 3: 'chart' };
+            case 'data-right': return { 1: 'map', 2: 'chart', 3: 'data' };
+            case 'vertical': return { 1: 'data', 2: 'chart', 3: 'map' };
+            case 'focus-bottom': return { 1: 'data', 2: 'map', 3: 'chart' };
+            case 'columns': return { 1: 'data', 2: 'map', 3: 'chart' };
+            default: return { 1: 'data', 2: 'map', 3: 'chart' };
+        }
+    }, []);
+
+    // Slot Contents (initialized based on loaded layout and persistent storage)
+    const [slotContent, setSlotContent] = useState<Record<SlotId, ContentType>>(() => {
+        const savedSlots = localStorage.getItem('runcoach-detail-slots');
+        if (savedSlots) {
+            try {
+                const parsed = JSON.parse(savedSlots);
+                // Simple validation
+                if (parsed && typeof parsed === 'object' && parsed[1] && parsed[2] && parsed[3]) {
+                    return parsed;
+                }
+            } catch (e) { console.error("Error loading slots config", e); }
+        }
+        return getDefaultSlots(currentLayout);
     });
 
     const handleContentChange = (slotId: SlotId, newContent: ContentType) => {
@@ -263,6 +291,9 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
                 next[existingSlot] = next[slotId]; // Swap contents
             }
             next[slotId] = newContent;
+            
+            // Save to localStorage
+            localStorage.setItem('runcoach-detail-slots', JSON.stringify(next));
             return next;
         });
     };
@@ -270,15 +301,14 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
     const applyLayoutPreset = (type: LayoutType) => {
         setCurrentLayout(type);
         setShowLayoutMenu(false);
-        // Apply sensible defaults for the selected layout
-        switch(type) {
-            case 'classic': setSlotContent({ 1: 'data', 2: 'map', 3: 'chart' }); break;
-            case 'map-top': setSlotContent({ 1: 'map', 2: 'data', 3: 'chart' }); break;
-            case 'data-right': setSlotContent({ 1: 'map', 2: 'chart', 3: 'data' }); break;
-            case 'vertical': setSlotContent({ 1: 'data', 2: 'chart', 3: 'map' }); break;
-            case 'focus-bottom': setSlotContent({ 1: 'data', 2: 'map', 3: 'chart' }); break;
-            case 'columns': setSlotContent({ 1: 'data', 2: 'map', 3: 'chart' }); break;
-        }
+        
+        // Reset slots to default for this new layout type
+        const defaults = getDefaultSlots(type);
+        setSlotContent(defaults);
+        
+        // Persist both
+        localStorage.setItem('runcoach-detail-layout', type);
+        localStorage.setItem('runcoach-detail-slots', JSON.stringify(defaults));
     };
     
     // Safe access to rpe with fallback
