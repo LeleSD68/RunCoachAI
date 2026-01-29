@@ -5,6 +5,7 @@ import { getStoredPRs, findBestTimeForDistance, PR_DISTANCES } from '../services
 import Tooltip from './Tooltip';
 import SimpleLineChart from './SimpleLineChart';
 import GearManager from './GearManager'; // Import new component
+import { supabase } from '../services/supabaseClient';
 
 interface UserProfileModalProps {
     onClose: () => void;
@@ -64,6 +65,10 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
     const [personalRecords, setPersonalRecords] = useState<Record<string, PersonalRecord>>({});
     const [calculatingPRs, setCalculatingPRs] = useState(false);
     const [showWeightHistory, setShowWeightHistory] = useState(false);
+    
+    // Password Reset Fields
+    const [newPassword, setNewPassword] = useState('');
+    const [passwordStatus, setPasswordStatus] = useState('');
 
     useEffect(() => {
         setProfile({ ...currentProfile });
@@ -161,6 +166,22 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
         onSave(updatedProfile);
         onClose();
     };
+
+    const handleUpdatePassword = async () => {
+        if (!newPassword || newPassword.length < 6) {
+            setPasswordStatus('La password deve essere di almeno 6 caratteri.');
+            return;
+        }
+        setPasswordStatus('Aggiornamento in corso...');
+        try {
+            const { error } = await supabase.auth.updateUser({ password: newPassword });
+            if (error) throw error;
+            setPasswordStatus('Password aggiornata con successo!');
+            setNewPassword('');
+        } catch (e: any) {
+            setPasswordStatus(`Errore: ${e.message}`);
+        }
+    };
     
     const sortedPRs = Object.values(personalRecords).sort((a: PersonalRecord, b: PersonalRecord) => a.distance - b.distance);
 
@@ -190,6 +211,12 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
                             {/* Personal Info Group */}
                             <div className="space-y-4">
                                 <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest border-b border-slate-700 pb-1">Dati Anagrafici</h3>
+                                {profile.email && (
+                                    <div className="bg-slate-900/50 p-2 rounded border border-slate-700/50 mb-2">
+                                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Email Registrata</label>
+                                        <span className="text-sm font-mono text-cyan-400 break-all">{profile.email}</span>
+                                    </div>
+                                )}
                                 <div>
                                     <label htmlFor="name" className="block text-sm font-medium text-slate-300">Nome Atleta</label>
                                     <input type="text" name="name" id="name" value={profile.name || ''} onChange={handleChange} className="mt-1 block w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white focus:ring-cyan-500 focus:border-cyan-500 placeholder-slate-500" placeholder="Il tuo nome" />
@@ -308,6 +335,38 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
                                 <label htmlFor="personalNotes" className="block text-sm font-bold text-cyan-500 uppercase tracking-widest mb-2">Note Personali</label>
                                 <textarea name="personalNotes" id="personalNotes" value={profile.personalNotes || ''} onChange={handleChange} placeholder="Es: Recupero da infortunio, obiettivo 10km in 50 minuti..." className="block w-full bg-slate-700 border border-slate-600 rounded-md p-3 text-sm text-white focus:ring-cyan-500 focus:border-cyan-500 h-24 resize-none" />
                             </div>
+
+                            {/* Password Reset Section */}
+                            {!isWelcomeMode && profile.email && (
+                                <div className="border-t border-slate-700 pt-6">
+                                    <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3">Sicurezza Account</h3>
+                                    <div className="bg-slate-700/30 p-3 rounded-lg border border-slate-600/50">
+                                        <label className="block text-sm font-medium text-slate-300 mb-1">Nuova Password</label>
+                                        <div className="flex gap-2">
+                                            <input 
+                                                type="password" 
+                                                value={newPassword} 
+                                                onChange={(e) => setNewPassword(e.target.value)}
+                                                placeholder="Minimo 6 caratteri"
+                                                className="flex-grow bg-slate-800 border border-slate-600 rounded-md p-2 text-white text-sm focus:border-cyan-500 outline-none"
+                                            />
+                                            <button 
+                                                type="button" 
+                                                onClick={handleUpdatePassword}
+                                                disabled={!newPassword || newPassword.length < 6}
+                                                className="bg-slate-600 hover:bg-slate-500 text-white font-bold px-3 rounded-md text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                Aggiorna
+                                            </button>
+                                        </div>
+                                        {passwordStatus && (
+                                            <p className={`text-xs mt-2 font-bold ${passwordStatus.includes('Errore') ? 'text-red-400' : 'text-green-400'}`}>
+                                                {passwordStatus}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {!isWelcomeMode && (
