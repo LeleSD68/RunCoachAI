@@ -1,7 +1,8 @@
 
-import React, { useRef, useMemo, useState } from 'react';
+import React, { useRef, useMemo, useState, useEffect } from 'react';
 import { PlannedWorkout } from '../types';
 import { isSupabaseConfigured } from '../services/supabaseClient';
+import { isStravaConnected } from '../services/stravaService';
 
 interface HomeModalProps {
     onOpenDiary: () => void;
@@ -59,6 +60,11 @@ const HomeModal: React.FC<HomeModalProps> = ({
     const opponentInputRef = useRef<HTMLInputElement>(null);
     const [menuStep, setMenuStep] = useState<'main' | 'analyze' | 'plan' | 'race'>('main');
     const [showDataMenu, setShowDataMenu] = useState(false);
+    const [isStravaLinked, setIsStravaLinked] = useState(false);
+
+    useEffect(() => {
+        setIsStravaLinked(isStravaConnected());
+    }, []);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -150,9 +156,21 @@ const HomeModal: React.FC<HomeModalProps> = ({
                 <input type="file" ref={trackInputRef} multiple accept=".gpx,.tcx" className="hidden" onChange={handleTrackUploadChange} />
             </button>
             {onOpenStravaConfig && (
-                <button onClick={onOpenStravaConfig} className="p-4 bg-[#fc4c02]/10 hover:bg-[#fc4c02]/20 border border-[#fc4c02]/30 rounded-xl text-left transition-all hover:border-[#fc4c02] group">
-                    <span className="block text-sm font-bold text-white group-hover:text-[#fc4c02] mb-1 flex items-center gap-2"><StravaIcon /> Sincronizza Strava</span>
-                    <span className="text-xs text-slate-400">Scarica automaticamente le ultime attività.</span>
+                <button 
+                    onClick={onOpenStravaConfig} 
+                    className={`p-4 border rounded-xl text-left transition-all group ${
+                        isStravaLinked 
+                        ? 'bg-green-900/10 border-green-500/30 hover:bg-green-900/20' 
+                        : 'bg-[#fc4c02]/10 border-[#fc4c02]/30 hover:bg-[#fc4c02]/20 hover:border-[#fc4c02]'
+                    }`}
+                >
+                    <span className={`block text-sm font-bold mb-1 flex items-center gap-2 ${isStravaLinked ? 'text-green-400' : 'text-white group-hover:text-[#fc4c02]'}`}>
+                        <StravaIcon /> {isStravaLinked ? 'Strava (Connesso)' : 'Sincronizza Strava'}
+                        {isStravaLinked && <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>}
+                    </span>
+                    <span className="text-xs text-slate-400">
+                        {isStravaLinked ? 'Scarica nuove attività.' : 'Scarica automaticamente le ultime attività.'}
+                    </span>
                 </button>
             )}
             <button onClick={() => setMenuStep('main')} className="text-xs text-slate-500 hover:text-white underline mt-2 text-center">Torna Indietro</button>
