@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, FriendRequest, Track, DirectMessage } from '../types';
 import { searchUsers, sendFriendRequest, getFriendRequests, acceptFriendRequest, rejectFriendRequest, getFriends, getFriendsActivityFeed, sendDirectMessage, getDirectMessages } from '../services/socialService';
+import { supabase } from '../services/supabaseClient';
 
 interface SocialHubProps {
     onClose: () => void;
@@ -50,16 +51,48 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
         return () => clearTimeout(timer);
     }, [searchQuery, activeTab]);
 
-    // Chat Polling
+    // Chat Polling & Realtime
     useEffect(() => {
         if (activeChatFriend) {
             fetchChatMessages(); // Initial fetch
-            pollIntervalRef.current = window.setInterval(fetchChatMessages, 3000); // Poll every 3s
-        } else {
-            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = window.setInterval(fetchChatMessages, 5000); // Poll every 5s as backup
+
+            // REALTIME SUBSCRIPTION FOR SOCIAL HUB CHAT
+            const channel = supabase.channel(`hub-chat:${currentUserId}:${activeChatFriend.id}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'direct_messages',
+                    filter: `receiver_id=eq.${currentUserId}` 
+                },
+                (payload) => {
+                    const newMsg = payload.new;
+                    // Check if message belongs to this specific chat session
+                    if (newMsg.sender_id === activeChatFriend.id) {
+                        setChatMessages(prev => {
+                            if (prev.some(m => m.id === newMsg.id)) return prev;
+                            const msgFormatted: DirectMessage = {
+                                id: newMsg.id,
+                                senderId: newMsg.sender_id,
+                                receiverId: newMsg.receiver_id,
+                                content: newMsg.content,
+                                createdAt: newMsg.created_at
+                            };
+                            return [...prev, msgFormatted];
+                        });
+                    }
+                }
+            )
+            .subscribe();
+
+            return () => { 
+                if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+                supabase.removeChannel(channel);
+            };
         }
-        return () => { if (pollIntervalRef.current) clearInterval(pollIntervalRef.current); };
-    }, [activeChatFriend]);
+    }, [activeChatFriend, currentUserId]);
 
     // Scroll to bottom on new messages
     useEffect(() => {
@@ -151,7 +184,7 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
             
             await sendDirectMessage(currentUserId, activeChatFriend.id, newMessage);
             setNewMessage('');
-            fetchChatMessages(); // Refresh real data
+            // fetchChatMessages(); // No need to fetch immediately, Realtime/Optimistic handles it
         } catch (e) {
             console.error("Failed to send", e);
             setMessage("Errore invio messaggio.");
@@ -201,6 +234,7 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
                             onChange={e => setNewMessage(e.target.value)} 
                             placeholder="Scrivi un messaggio..."
                             className="flex-grow bg-slate-900 border border-slate-600 rounded-xl px-4 py-2 text-sm text-white focus:border-cyan-500 outline-none transition-colors"
+                            autoFocus
                         />
                         <button 
                             type="submit" 
