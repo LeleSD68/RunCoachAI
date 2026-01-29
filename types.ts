@@ -26,6 +26,7 @@ export interface Track {
   activityType?: ActivityType;
   isFavorite?: boolean;
   isArchived?: boolean; // New field
+  isPublic?: boolean; // NEW: Controls visibility in friends feed
   isExternal?: boolean; // Indicates if the track is a temporary external opponent (Ghost)
   tags?: string[]; // New field
   folder?: string;
