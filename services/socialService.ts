@@ -145,19 +145,21 @@ export const sendDirectMessage = async (senderId: string, receiverId: string, co
 };
 
 export const getDirectMessages = async (currentUserId: string, friendId: string): Promise<DirectMessage[]> => {
+    // Fetch latest 50 messages by ordering desc, then reverse for display
     const { data, error } = await supabase
         .from('direct_messages')
         .select('id, sender_id, receiver_id, content, created_at')
         .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${currentUserId})`)
-        .order('created_at', { ascending: true })
-        .limit(50); // Limit last 50 for performance
+        .order('created_at', { ascending: false })
+        .limit(50);
 
     if (error) {
         console.error("Chat fetch error", error);
         return [];
     }
 
-    return data.map((msg: any) => ({
+    // Reverse to show oldest first in the chat UI (chronological)
+    return data.reverse().map((msg: any) => ({
         id: msg.id,
         senderId: msg.sender_id,
         receiverId: msg.receiver_id,
