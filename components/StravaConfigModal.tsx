@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { getStravaConfig, saveStravaConfig, initiateStravaAuth } from '../services/stravaService';
+import { getStravaConfig, saveStravaConfig, initiateStravaAuth, isStravaConnected, disconnectStrava } from '../services/stravaService';
 
 interface StravaConfigModalProps {
     onClose: () => void;
@@ -16,12 +16,14 @@ const StravaConfigModal: React.FC<StravaConfigModalProps> = ({ onClose }) => {
     const [clientId, setClientId] = useState('');
     const [clientSecret, setClientSecret] = useState('');
     const [isSaved, setIsSaved] = useState(false);
+    const [isConnected, setIsConnected] = useState(false);
 
     useEffect(() => {
         const config = getStravaConfig();
         if (config.clientId) setClientId(config.clientId);
         if (config.clientSecret) setClientSecret(config.clientSecret);
         if (config.clientId && config.clientSecret) setIsSaved(true);
+        setIsConnected(isStravaConnected());
     }, []);
 
     const handleSave = () => {
@@ -35,6 +37,11 @@ const StravaConfigModal: React.FC<StravaConfigModalProps> = ({ onClose }) => {
         initiateStravaAuth();
     };
 
+    const handleDisconnect = () => {
+        disconnectStrava();
+        setIsConnected(false);
+    };
+
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[11000] flex items-center justify-center p-4 animate-fade-in">
             <div className="bg-slate-900 border border-[#fc4c02]/50 rounded-2xl shadow-2xl w-full max-w-md p-6 relative">
@@ -43,7 +50,14 @@ const StravaConfigModal: React.FC<StravaConfigModalProps> = ({ onClose }) => {
                 <div className="flex flex-col items-center mb-6">
                     <StravaLogo />
                     <h2 className="text-xl font-black text-white mt-2">Connetti Strava</h2>
-                    <p className="text-xs text-slate-400 mt-1">Sincronizza automaticamente le tue corse.</p>
+                    {isConnected ? (
+                        <div className="flex items-center gap-2 mt-2 px-3 py-1 bg-green-900/30 border border-green-500/30 rounded-full">
+                            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                            <span className="text-xs font-bold text-green-400 uppercase tracking-wide">Attivo</span>
+                        </div>
+                    ) : (
+                        <p className="text-xs text-slate-400 mt-1">Sincronizza automaticamente le tue corse.</p>
+                    )}
                 </div>
 
                 <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 mb-6 text-xs text-slate-300 space-y-2">
@@ -86,13 +100,23 @@ const StravaConfigModal: React.FC<StravaConfigModalProps> = ({ onClose }) => {
                     >
                         Annulla
                     </button>
-                    <button 
-                        onClick={handleConnect}
-                        disabled={!clientId || !clientSecret}
-                        className="flex-1 py-3 bg-[#fc4c02] hover:bg-[#e34402] text-white font-bold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-                    >
-                        {isSaved ? 'Sincronizza Ora' : 'Salva & Connetti'}
-                    </button>
+                    
+                    {isConnected ? (
+                        <button 
+                            onClick={handleDisconnect}
+                            className="flex-1 py-3 bg-red-900/30 hover:bg-red-900/50 text-red-400 border border-red-900/50 font-bold rounded-xl transition-colors"
+                        >
+                            Disconnetti
+                        </button>
+                    ) : (
+                        <button 
+                            onClick={handleConnect}
+                            disabled={!clientId || !clientSecret}
+                            className="flex-1 py-3 bg-[#fc4c02] hover:bg-[#e34402] text-white font-bold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+                        >
+                            {isSaved ? 'Sincronizza Ora' : 'Salva & Connetti'}
+                        </button>
+                    )}
                 </div>
                 
                 <p className="text-[10px] text-center text-slate-500 mt-4">
