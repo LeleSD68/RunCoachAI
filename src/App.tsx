@@ -824,6 +824,13 @@ const App: React.FC = () => {
                 onOpenGuide={() => setShowGuide(true)}
                 onExportBackup={handleExportBackup}
                 onOpenHub={() => { closeAllViews(); setShowHome(true); }}
+                onOpenSocial={() => {
+                    if(isGuest) {
+                        addToast("Accesso Social riservato agli utenti registrati.", "info");
+                    } else {
+                        setShowSocialHub(true);
+                    }
+                }}
             />
         )}
 
