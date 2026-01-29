@@ -226,14 +226,13 @@ const SelectionStatsOverlay: React.FC<{ data: ExtendedStats, onClose: () => void
                 )}
             </div>
             <button onClick={onClose} className="bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 p-1 rounded-full transition-colors flex-shrink-0">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 0 0-1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" /></svg>
             </button>
         </div>
     );
 };
 
 const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, onExit, allHistory = [], plannedWorkouts = [], onUpdateTrackMetadata, onAddPlannedWorkout, onStartAnimation, onOpenReview, autoOpenAi = false, onCheckAiAccess, isGuest = false, onLimitReached }) => {
-    // CRITICAL FIX: Ensure track is defined
     if (!track) return null;
 
     const isMobile = useIsMobile();
@@ -245,7 +244,7 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
     const [mapGradientMetric, setMapGradientMetric] = useState<'none' | 'elevation' | 'pace' | 'speed' | 'hr' | 'hr_zones' | 'power'>('none');
     const [showShareModal, setShowShareModal] = useState(false);
     
-    // Layout State Persistence Logic
+    // Layout State Persistence
     const [currentLayout, setCurrentLayout] = useState<LayoutType>(() => {
         const savedLayout = localStorage.getItem('runcoach-detail-layout');
         if (savedLayout && ['classic', 'map-top', 'data-right', 'vertical', 'focus-bottom', 'columns'].includes(savedLayout)) {
@@ -255,6 +254,27 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
     });
 
     const [showLayoutMenu, setShowLayoutMenu] = useState(false);
+    
+    // Panel Resize Persistence
+    const [layoutSizes, setLayoutSizes] = useState<Record<string, Record<string, number>>>(() => {
+        try {
+            return JSON.parse(localStorage.getItem('runcoach-layout-sizes') || '{}');
+        } catch (e) { return {}; }
+    });
+
+    const handlePanelResize = (layout: string, panelId: string, ratio: number) => {
+        setLayoutSizes(prev => {
+            const next = {
+                ...prev,
+                [layout]: {
+                    ...prev[layout],
+                    [panelId]: ratio
+                }
+            };
+            localStorage.setItem('runcoach-layout-sizes', JSON.stringify(next));
+            return next;
+        });
+    };
     
     // Helper to get default slots for a given layout
     const getDefaultSlots = useCallback((layout: LayoutType): Record<SlotId, ContentType> => {
@@ -695,13 +715,34 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
     // --- Render Logic based on Layout ---
 
     const renderLayout = () => {
+        const getRatio = (panelId: string, defaultR: number) => {
+            return layoutSizes[currentLayout]?.[panelId] || defaultR;
+        };
+
+        // Use keys to force ResizablePanel re-mount on layout change, allowing new initialSizeRatio
+        const keyPrefix = currentLayout;
+
         switch (currentLayout) {
             case 'classic': // Classic: Left (Slot 1) | Right-Top (Slot 2) / Right-Bottom (Slot 3)
                 return (
-                    <ResizablePanel direction="horizontal" initialSizeRatio={0.35} minSize={250} className="h-full">
+                    <ResizablePanel 
+                        key={`${keyPrefix}-main`}
+                        direction="horizontal" 
+                        initialSizeRatio={getRatio('main', 0.35)} 
+                        minSize={250} 
+                        className="h-full"
+                        onResizeEnd={(_, r) => handlePanelResize('classic', 'main', r)}
+                    >
                         {renderPane(1)}
                         <div className="h-full relative bg-slate-900 w-full border-l border-slate-700">
-                            <ResizablePanel direction="vertical" initialSizeRatio={0.75} minSize={150} minSizeSecondary={100}>
+                            <ResizablePanel 
+                                key={`${keyPrefix}-sub`}
+                                direction="vertical" 
+                                initialSizeRatio={getRatio('sub', 0.75)} 
+                                minSize={150} 
+                                minSizeSecondary={100}
+                                onResizeEnd={(_, r) => handlePanelResize('classic', 'sub', r)}
+                            >
                                 {renderPane(2)}
                                 {renderPane(3)}
                             </ResizablePanel>
@@ -711,10 +752,23 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
             
             case 'map-top': // Map Top: Top (Slot 1) | Bottom-Left (Slot 2) / Bottom-Right (Slot 3)
                 return (
-                    <ResizablePanel direction="vertical" initialSizeRatio={0.5} minSize={150} className="h-full">
+                    <ResizablePanel 
+                        key={`${keyPrefix}-main`}
+                        direction="vertical" 
+                        initialSizeRatio={getRatio('main', 0.5)} 
+                        minSize={150} 
+                        className="h-full"
+                        onResizeEnd={(_, r) => handlePanelResize('map-top', 'main', r)}
+                    >
                         {renderPane(1)}
                         <div className="h-full relative bg-slate-900 w-full border-t border-slate-700">
-                            <ResizablePanel direction="horizontal" initialSizeRatio={0.4} minSize={250}>
+                            <ResizablePanel 
+                                key={`${keyPrefix}-sub`}
+                                direction="horizontal" 
+                                initialSizeRatio={getRatio('sub', 0.4)} 
+                                minSize={250}
+                                onResizeEnd={(_, r) => handlePanelResize('map-top', 'sub', r)}
+                            >
                                 {renderPane(2)}
                                 {renderPane(3)}
                             </ResizablePanel>
@@ -724,9 +778,22 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
 
             case 'data-right': // Data Right: Left-Top (Slot 1) / Left-Bottom (Slot 2) | Right (Slot 3)
                 return (
-                    <ResizablePanel direction="horizontal" initialSizeRatio={0.7} minSize={300} className="h-full">
+                    <ResizablePanel 
+                        key={`${keyPrefix}-main`}
+                        direction="horizontal" 
+                        initialSizeRatio={getRatio('main', 0.7)} 
+                        minSize={300} 
+                        className="h-full"
+                        onResizeEnd={(_, r) => handlePanelResize('data-right', 'main', r)}
+                    >
                         <div className="h-full relative bg-slate-900 w-full border-r border-slate-700">
-                            <ResizablePanel direction="vertical" initialSizeRatio={0.70} minSize={150}>
+                            <ResizablePanel 
+                                key={`${keyPrefix}-sub`}
+                                direction="vertical" 
+                                initialSizeRatio={getRatio('sub', 0.70)} 
+                                minSize={150}
+                                onResizeEnd={(_, r) => handlePanelResize('data-right', 'sub', r)}
+                            >
                                 {renderPane(1)}
                                 {renderPane(2)}
                             </ResizablePanel>
@@ -736,25 +803,55 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
                 );
 
             case 'vertical': // Vertical: Stacked 1, 2, 3
+                // No ResizablePanel needed for simpler stacking, or we could add resizing here too if desired.
+                // For simplicity, sticking to CSS flex/grid or fixed percentages here unless user requested full resizability everywhere.
+                // Let's assume standard behavior as requested: "manuale resizing fatto come default".
+                // Since 'vertical' layout in previous code was hardcoded percentages, let's keep it simple or implement resizing if needed.
+                // Given the request, user wants to persist resizing. Let's make it resizable.
                 return (
                     <div className="flex flex-col h-full w-full">
-                        <div className="h-[40%] border-b border-slate-700 relative overflow-hidden">
+                         <ResizablePanel 
+                            key={`${keyPrefix}-top`}
+                            direction="vertical"
+                            initialSizeRatio={getRatio('top', 0.4)}
+                            minSize={100}
+                            className="h-full"
+                            onResizeEnd={(_, r) => handlePanelResize('vertical', 'top', r)}
+                         >
                             {renderPane(1)}
-                        </div>
-                        <div className="h-[30%] border-b border-slate-700 relative flex flex-col bg-slate-900">
-                            {renderPane(2)}
-                        </div>
-                        <div className="flex-grow relative w-full">
-                            {renderPane(3)}
-                        </div>
+                            <ResizablePanel 
+                                key={`${keyPrefix}-bottom`}
+                                direction="vertical"
+                                initialSizeRatio={getRatio('bottom', 0.5)} // Relative to remaining space? No, ResizablePanel logic splits available space.
+                                minSize={100}
+                                className="h-full"
+                                onResizeEnd={(_, r) => handlePanelResize('vertical', 'bottom', r)}
+                            >
+                                {renderPane(2)}
+                                {renderPane(3)}
+                            </ResizablePanel>
+                         </ResizablePanel>
                     </div>
                 );
 
             case 'focus-bottom': // Focus Bottom: Top-Left (Slot 1) / Top-Right (Slot 2) | Bottom Wide (Slot 3)
                 return (
-                    <ResizablePanel direction="vertical" initialSizeRatio={0.6} minSize={150} className="h-full">
+                    <ResizablePanel 
+                        key={`${keyPrefix}-main`}
+                        direction="vertical" 
+                        initialSizeRatio={getRatio('main', 0.6)} 
+                        minSize={150} 
+                        className="h-full"
+                        onResizeEnd={(_, r) => handlePanelResize('focus-bottom', 'main', r)}
+                    >
                         <div className="h-full relative bg-slate-900 w-full border-b border-slate-700">
-                            <ResizablePanel direction="horizontal" initialSizeRatio={0.5} minSize={200}>
+                            <ResizablePanel 
+                                key={`${keyPrefix}-sub`}
+                                direction="horizontal" 
+                                initialSizeRatio={getRatio('sub', 0.5)} 
+                                minSize={200}
+                                onResizeEnd={(_, r) => handlePanelResize('focus-bottom', 'sub', r)}
+                            >
                                 {renderPane(1)}
                                 {renderPane(2)}
                             </ResizablePanel>
@@ -765,10 +862,23 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
 
             case 'columns': // 3 Columns: Slot 1 | Slot 2 | Slot 3
                 return (
-                    <ResizablePanel direction="horizontal" initialSizeRatio={0.33} minSize={200} className="h-full">
+                    <ResizablePanel 
+                        key={`${keyPrefix}-main`}
+                        direction="horizontal" 
+                        initialSizeRatio={getRatio('main', 0.33)} 
+                        minSize={200} 
+                        className="h-full"
+                        onResizeEnd={(_, r) => handlePanelResize('columns', 'main', r)}
+                    >
                         {renderPane(1)}
                         <div className="h-full relative bg-slate-900 w-full border-l border-slate-700">
-                            <ResizablePanel direction="horizontal" initialSizeRatio={0.5} minSize={200}>
+                            <ResizablePanel 
+                                key={`${keyPrefix}-sub`}
+                                direction="horizontal" 
+                                initialSizeRatio={getRatio('sub', 0.5)} 
+                                minSize={200}
+                                onResizeEnd={(_, r) => handlePanelResize('columns', 'sub', r)}
+                            >
                                 {renderPane(2)}
                                 <div className="h-full w-full border-l border-slate-700">
                                     {renderPane(3)}

@@ -23,6 +23,7 @@ interface HomeModalProps {
     onLogout?: () => void;
     onLogin?: () => void; // New Prop
     isGuest?: boolean;
+    onOpenStravaConfig?: () => void; // NEW PROP
 }
 
 const SettingsIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M7.84 1.804A1 1 0 0 1 8.82 1h2.36a1 1 0 0 1 .98.804l.331 1.652a6.993 6.993 0 0 1 1.929 1.115l1.598-.54a1 1 0 0 1 1.186.447l1.18 2.044a1 1 0 0 1-.205 1.251l-1.267 1.113a7.047 7.047 0 0 1 0 2.228l1.267 1.113a1 1 0 0 1 .206 1.25l-1.18 2.045a1 1 0 0 1 1.187-.447l1.598.54a6.993 6.993 0 0 1 7.51 3.456l.33-1.652ZM10 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" clipRule="evenodd" /></svg>);
@@ -35,6 +36,11 @@ const LogoutIcon = () => (
     </svg>
 );
 const UserIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-5.5-2.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0ZM10 12a5.99 5.99 0 0 0-4.793 2.39A9.916 9.916 0 0 0 10 18c2.695 0 5.145-1.075 6.99-2.825A5.99 5.99 0 0 0 10 12Z" clipRule="evenodd" /></svg>);
+const StravaIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+        <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.477 0 4.177 12.173h4.172" />
+    </svg>
+);
 
 const LargeLogoIcon = () => (
     <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-2xl border-2 border-cyan-500/20 relative z-10 p-2">
@@ -46,7 +52,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
     onOpenDiary, onOpenExplorer, onOpenHelp, onImportBackup, onExportBackup, 
     onUploadTracks, onClose, trackCount, plannedWorkouts = [], onOpenWorkout, 
     onOpenProfile, onOpenChangelog, onUploadOpponent, onEnterRaceMode, onManualCloudSave, onCheckAiAccess,
-    onLogout, onLogin, isGuest
+    onLogout, onLogin, isGuest, onOpenStravaConfig
 }) => {
     const backupInputRef = useRef<HTMLInputElement>(null);
     const trackInputRef = useRef<HTMLInputElement>(null);
@@ -143,6 +149,12 @@ const HomeModal: React.FC<HomeModalProps> = ({
                 <span className="text-xs text-slate-400">Carica un file GPX o TCX per una nuova analisi.</span>
                 <input type="file" ref={trackInputRef} multiple accept=".gpx,.tcx" className="hidden" onChange={handleTrackUploadChange} />
             </button>
+            {onOpenStravaConfig && (
+                <button onClick={onOpenStravaConfig} className="p-4 bg-[#fc4c02]/10 hover:bg-[#fc4c02]/20 border border-[#fc4c02]/30 rounded-xl text-left transition-all hover:border-[#fc4c02] group">
+                    <span className="block text-sm font-bold text-white group-hover:text-[#fc4c02] mb-1 flex items-center gap-2"><StravaIcon /> Sincronizza Strava</span>
+                    <span className="text-xs text-slate-400">Scarica automaticamente le ultime attività.</span>
+                </button>
+            )}
             <button onClick={() => setMenuStep('main')} className="text-xs text-slate-500 hover:text-white underline mt-2 text-center">Torna Indietro</button>
         </div>
     );
