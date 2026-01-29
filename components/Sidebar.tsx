@@ -172,25 +172,8 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
     };
 
     const handleEditClick = (trackId: string) => {
-        // Toggle selection for this track to ensure it's "selected" for the editor
-        // We clear others just to be safe and focus on this one
-        const n = new Set<string>();
-        n.add(trackId);
-        // This is a bit of a hack since Sidebar handles selection state locally mostly via props,
-        // but typically Editor uses `raceSelectionIds` to know what to edit if multiple are selected.
-        // Or if we modify onGoToEditor to accept an ID.
-        // Let's assume onGoToEditor processes selection.
-        // We forcefully select it first.
-        // NOTE: Sidebar component cannot "force" parent state change easily without a direct prop, 
-        // but onToggleRaceSelection calls setRaceSelectionIds in App.
-        
-        // Better approach: Trigger edit with specific ID context if onGoToEditor supported it, 
-        // but based on App.tsx it uses `editorTracks` state derived from selection.
-        // So we must select it.
-        onDeselectAll(); // Clear previous selection
-        onToggleRaceSelection(trackId); // Select target
-        
-        // Small timeout to allow state propagation before switching view
+        onDeselectAll(); 
+        onToggleRaceSelection(trackId); 
         setTimeout(() => onGoToEditor(), 50);
     };
 
@@ -299,6 +282,15 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                                             />
                                         </div>
                                         
+                                        {viewMode === 'cards' && (
+                                            <div 
+                                                className="mr-3 w-16 h-12 bg-slate-900 rounded overflow-hidden relative cursor-pointer group-inner flex-shrink-0 border border-slate-700"
+                                                onClick={() => onViewDetails(track.id)}
+                                            >
+                                                <TrackPreview points={track.points} color={track.color} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                                            </div>
+                                        )}
+
                                         <div className="flex-grow min-w-0">
                                             {editingId === track.id ? (
                                                 <div className="flex items-center gap-1 mb-1">
@@ -352,21 +344,6 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                                             </button>
                                         </div>
                                     </div>
-
-                                    {/* Preview Map for Cards View */}
-                                    {viewMode === 'cards' && (
-                                        <div 
-                                            className="mt-2 w-full h-24 bg-slate-900 rounded overflow-hidden relative cursor-pointer group-inner"
-                                            onClick={() => onViewDetails(track.id)}
-                                        >
-                                            <TrackPreview points={track.points} color={track.color} className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity" />
-                                            {track.activityType && (
-                                                <span className="absolute bottom-1 right-1 bg-black/60 text-white text-[8px] px-1 rounded uppercase font-bold">
-                                                    {track.activityType}
-                                                </span>
-                                            )}
-                                        </div>
-                                    )}
                                 </div>
                             ))}
                         </div>
