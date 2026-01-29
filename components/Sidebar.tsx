@@ -3,6 +3,7 @@ import React, { useState, useRef, useMemo } from 'react';
 import { Track, UserProfile, PlannedWorkout, ApiUsageStats } from '../types';
 import Tooltip from './Tooltip';
 import RatingStars from './RatingStars';
+import TrackPreview from './TrackPreview';
 
 // Icons
 const HomeIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M9.293 2.293a1 1 0 0 1 1.414 0l7 7A1 1 0 0 1 17 11h-1v6a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-3a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-6H3a1 1 0 0 1-.707-1.707l7-7Z" clipRule="evenodd" /></svg>);
@@ -17,7 +18,7 @@ const EyeSlashIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0
 const PencilIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="m2.695 14.762-1.262 3.155a.5.5 0 0 0 .65.65l3.155-1.262a4 4 0 0 0 1.343-.886L17.5 5.501a2.121 2.121 0 0 0-3-3L3.58 13.419a4 4 0 0 0-.885 1.343Z" /></svg>);
 const CompareIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M10 17a.75.75 0 0 1-.75-.75V5.612L5.29 9.77a.75.75 0 0 1-1.08-1.04l5.25-5.5a.75.75 0 0 1 1.08 0l5.25 5.5a.75.75 0 1 1-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0 1 10 17Z" /></svg>);
 const ListBulletIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M2 3.75A.75.75 0 0 1 2.75 3h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 3.75Zm0 4.167a.75.75 0 0 1 .75-.75h14.5a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1-.75-.75Zm0 4.166a.75.75 0 0 1 .75-.75h14.5a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1-.75-.75Zm0 4.167a.75.75 0 0 1 .75-.75h14.5a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1-.75-.75Z" clipRule="evenodd" /></svg>);
-const RectangleStackIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M5.127 3.502c.2.019.4.038.598.058l.175.018a47.092 47.092 0 0 0 3.237.24c.718.036 1.439.057 2.163.064l.95.006c.65 0 1.302-.005 1.954-.015.65-.01 1.304-.025 1.957-.045.312-.01.625-.02.937-.033a1.5 1.5 0 0 1 1.55 1.433l.034.338c.026.26.046.52.062.782.03.52.046 1.04.046 1.562 0 .56-.018 1.119-.054 1.677l-.027.424a1.5 1.5 0 0 1-1.536 1.402l-1.356.027a47.457 47.457 0 0 1-3.264.025 47.472 47.472 0 0 1-3.265-.025l-1.356-.027a1.5 1.5 0 0 1-1.536-1.402l-.027-.424a47.382 47.382 0 0 1-.054-1.677c0-.522.016-1.042.046-1.562l.062-.782a1.5 1.5 0 0 1 1.535-1.393ZM2.872 7.72l.061.782a48.887 48.887 0 0 0 .047 1.562c.036.558.054 1.117.054 1.677 0 .522-.016 1.042-.046 1.562l-.062.782a1.5 1.5 0 0 1-1.535 1.393L1.216 15.46a47.094 47.094 0 0 1-3.237-.24 47.462 47.462 0 0 1-3.265-.417l-.175-.027a1.5 1.5 0 0 1-1.324-1.63l.027-.424c.036-.558.054-1.117.054-1.677 0-.522-.016-1.042-.046-1.562l-.062-.782a1.5 1.5 0 0 1 1.324-1.63l.175-.027a47.383 47.383 0 0 1 3.265-.417 47.09 47.09 0 0 1 3.237-.24l.175-.018a1.5 1.5 0 0 1 1.55 1.433Z" /></svg>);
+const RectangleStackIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M5.127 3.502c.2.019.4.038.598.058l.175.018a47.092 47.092 0 0 0 3.237.24c.718.036 1.439.057 2.163.064l.95.006c.65 0 1.302-.005 1.954-.015.65-.01 1.304-.025 1.957-.045.312-.01.625-.02.937-.033a1.5 1.5 0 0 1 1.55 1.433l.034.338c.026.26.046.52.062.782.03.52.046 1.04.046 1.562 0 .56-.018 1.119-.054 1.677l-.027.424a1.5 1.5 0 0 1-1.536 1.402l-1.356.027a47.457 47.457 0 0 1-3.264.025 47.472 47.472 0 0 1-3.265-.025l-1.356-.027a1.5 1.5 0 0 1-1.536-1.402l-.027-.424a47.382 47.382 0 0 1-.054-1.677c0-.522.016-1.042.046-1.562l.062-.782a1.5 1.5 0 0 1 1.535-1.393ZM2.872 7.72l.061.782a48.887 48.887 0 0 0 .047 1.562c.036.558.054 1.117.054 1.677 0 .522-.016 1.042-.046 1.562l-.062.782a1.5 1.5 0 0 1-1.535 1.393L1.216 15.46a47.094 47.094 0 0 1-3.237-.24 47.462 47.462 0 0 1-3.265-.417l-.175-.027a1.5 1.5 0 0 1-1.324-1.63l.027-.424c.036-.558.054-1.117.054-1.677 0-.522-.016 1.042-.046-1.562l-.062-.782a1.5 1.5 0 0 1 1.324-1.63l.175-.027a47.383 47.383 0 0 1 3.265-.417 47.09 47.09 0 0 1 3.237-.24l.175-.018a1.5 1.5 0 0 1 1.55 1.433Z" /></svg>);
 const ArchiveBoxIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M2 3a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3Z" /><path fillRule="evenodd" d="M13 9a1 1 0 1 0 0 2h-6a1 1 0 1 0 0-2h6ZM2.75 7A.75.75 0 0 0 2 7.75v8.5c0 .69.56 1.25 1.25 1.25h13.5c.69 0 1.25-.56 1.25-1.25v-8.5A.75.75 0 0 0 17.25 7H2.75Z" clipRule="evenodd" /></svg>);
 const CheckIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-green-400"><path fillRule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clipRule="evenodd" /></svg>);
 const XMarkIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-red-400"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" /></svg>);
@@ -84,6 +85,7 @@ interface SidebarProps {
     onCompareSelected: () => void;
     userProfile: UserProfile;
     onOpenSocial: () => void;
+    onToggleArchived: (id: string) => void; // New prop for eye toggle behavior
 }
 
 const Sidebar: React.FC<SidebarProps> = (props) => {
@@ -94,12 +96,12 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
         hoveredTrackId, onTrackHoverStart, onTrackHoverEnd, simulationState, 
         onOpenDiary, showExplorer, onToggleExplorer,
         onOpenHub, onOpenPerformanceAnalysis, onOpenSocial, onCompareSelected,
-        onUpdateTrackMetadata
+        onUpdateTrackMetadata, onToggleArchived
     } = props;
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [grouping, setGrouping] = useState<'date' | 'month' | 'folder' | 'type'>('month');
+    const [grouping, setGrouping] = useState<'date' | 'month' | 'folder' | 'type' | 'tag'>('month');
     const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
     const [showArchived, setShowArchived] = useState(false);
     
@@ -118,7 +120,8 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
     const filteredTracks = useMemo(() => {
         return tracks.filter(t => {
             const matchesSearch = t.name.toLowerCase().includes(searchTerm.toLowerCase());
-            const matchesArchive = showArchived ? true : !t.isArchived;
+            // Strict logic: Show ONLY archived if showArchived is true, otherwise show ONLY non-archived
+            const matchesArchive = showArchived ? t.isArchived : !t.isArchived;
             return matchesSearch && matchesArchive;
         });
     }, [tracks, searchTerm, showArchived]);
@@ -133,6 +136,9 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                 key = t.activityType || 'Run';
             } else if (grouping === 'folder') {
                 key = t.folder || 'Uncategorized';
+            } else if (grouping === 'tag') {
+                // Group by first tag if available, else 'No Tags'
+                key = (t.tags && t.tags.length > 0) ? `#${t.tags[0].toUpperCase()}` : 'Nessun Tag';
             } else {
                 key = 'All';
             }
@@ -163,6 +169,29 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
     const handleRenameKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter') saveRename();
         if (e.key === 'Escape') cancelRename();
+    };
+
+    const handleEditClick = (trackId: string) => {
+        // Toggle selection for this track to ensure it's "selected" for the editor
+        // We clear others just to be safe and focus on this one
+        const n = new Set<string>();
+        n.add(trackId);
+        // This is a bit of a hack since Sidebar handles selection state locally mostly via props,
+        // but typically Editor uses `raceSelectionIds` to know what to edit if multiple are selected.
+        // Or if we modify onGoToEditor to accept an ID.
+        // Let's assume onGoToEditor processes selection.
+        // We forcefully select it first.
+        // NOTE: Sidebar component cannot "force" parent state change easily without a direct prop, 
+        // but onToggleRaceSelection calls setRaceSelectionIds in App.
+        
+        // Better approach: Trigger edit with specific ID context if onGoToEditor supported it, 
+        // but based on App.tsx it uses `editorTracks` state derived from selection.
+        // So we must select it.
+        onDeselectAll(); // Clear previous selection
+        onToggleRaceSelection(trackId); // Select target
+        
+        // Small timeout to allow state propagation before switching view
+        setTimeout(() => onGoToEditor(), 50);
     };
 
     return (
@@ -201,6 +230,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                         <option value="month">Mese</option>
                         <option value="type">Tipo</option>
                         <option value="folder">Cartella</option>
+                        <option value="tag">Tag</option>
                     </select>
                     
                     <button 
@@ -251,74 +281,92 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                             {groupTracks.map(track => (
                                 <div 
                                     key={track.id} 
-                                    className={`flex items-center p-2 rounded hover:bg-slate-800 transition-colors group relative ${hoveredTrackId === track.id ? 'bg-slate-800' : ''} ${viewMode === 'list' ? 'border-b border-slate-800/50 py-1' : 'mb-1'}`}
+                                    className={`
+                                        flex flex-col p-2 rounded hover:bg-slate-800 transition-colors group relative 
+                                        ${hoveredTrackId === track.id ? 'bg-slate-800' : ''} 
+                                        ${viewMode === 'list' ? 'border-b border-slate-800/50 py-2' : 'bg-slate-800/20 mb-2 border border-slate-700/30'}
+                                    `}
                                     onMouseEnter={() => onTrackHoverStart(track.id)}
                                     onMouseLeave={onTrackHoverEnd}
                                 >
-                                    <div className="flex items-center h-full mr-2">
-                                        <input 
-                                            type="checkbox" 
-                                            checked={raceSelectionIds.has(track.id)} 
-                                            onChange={() => onToggleRaceSelection(track.id)}
-                                            className="accent-cyan-500 cursor-pointer"
-                                        />
-                                    </div>
-                                    
-                                    <div className="flex-grow min-w-0">
-                                        {editingId === track.id ? (
-                                            <div className="flex items-center gap-1">
-                                                <input 
-                                                    type="text" 
-                                                    value={editName}
-                                                    onChange={(e) => setEditName(e.target.value)}
-                                                    onKeyDown={handleRenameKeyDown}
-                                                    className="w-full bg-slate-950 text-white text-xs border border-cyan-500 rounded px-1 py-0.5 outline-none"
-                                                    autoFocus
-                                                    onBlur={saveRename}
-                                                />
-                                                <button onClick={saveRename} className="text-green-400 hover:text-green-300"><CheckIcon /></button>
-                                                <button onClick={cancelRename} className="text-red-400 hover:text-red-300"><XMarkIcon /></button>
-                                            </div>
-                                        ) : (
-                                            <div 
-                                                className="cursor-pointer"
-                                                onClick={() => onViewDetails(track.id)}
-                                                onDoubleClick={(e) => { e.stopPropagation(); startRenaming(track); }}
-                                                title="Doppio clic per rinominare"
+                                    <div className="flex items-center w-full">
+                                        <div className="flex items-center h-full mr-2">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={raceSelectionIds.has(track.id)} 
+                                                onChange={() => onToggleRaceSelection(track.id)}
+                                                className="accent-cyan-500 cursor-pointer"
+                                            />
+                                        </div>
+                                        
+                                        <div className="flex-grow min-w-0">
+                                            {editingId === track.id ? (
+                                                <div className="flex items-center gap-1 mb-1">
+                                                    <input 
+                                                        type="text" 
+                                                        value={editName}
+                                                        onChange={(e) => setEditName(e.target.value)}
+                                                        onKeyDown={handleRenameKeyDown}
+                                                        className="w-full bg-slate-950 text-white text-xs border border-cyan-500 rounded px-1 py-0.5 outline-none"
+                                                        autoFocus
+                                                        onBlur={saveRename}
+                                                    />
+                                                    <button onClick={saveRename} className="text-green-400 hover:text-green-300"><CheckIcon /></button>
+                                                    <button onClick={cancelRename} className="text-red-400 hover:text-red-300"><XMarkIcon /></button>
+                                                </div>
+                                            ) : (
+                                                <div 
+                                                    className="cursor-pointer"
+                                                    onClick={() => onViewDetails(track.id)}
+                                                    onDoubleClick={(e) => { e.stopPropagation(); startRenaming(track); }}
+                                                    title="Doppio clic per rinominare"
+                                                >
+                                                    <div className="flex justify-between items-center mb-0.5">
+                                                        <span className={`text-sm font-medium text-white truncate ${viewMode === 'list' ? 'text-xs' : ''}`}>
+                                                            {track.name}
+                                                        </span>
+                                                        {track.rating && <RatingStars rating={track.rating} size="xs" />}
+                                                    </div>
+                                                    <div className="flex items-center justify-between text-[10px] text-slate-400">
+                                                        <span>{new Date(track.points[0].time).toLocaleDateString()}</span>
+                                                        <span className="font-mono">{track.distance.toFixed(2)}km</span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="flex items-center gap-1 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button 
+                                                onClick={() => onToggleArchived(track.id)} 
+                                                className={`p-1 rounded ${visibleTrackIds.has(track.id) ? 'text-cyan-400' : 'text-slate-600 hover:text-slate-400'}`}
+                                                title={track.isArchived ? "Ripristina" : "Nascondi e Archivia"}
                                             >
-                                                <div className="flex justify-between items-center mb-0.5">
-                                                    <span className={`text-sm font-medium text-white truncate ${viewMode === 'list' ? 'text-xs' : ''}`}>
-                                                        {track.name}
-                                                    </span>
-                                                    {viewMode === 'cards' && track.rating && <RatingStars rating={track.rating} size="xs" />}
-                                                </div>
-                                                <div className="flex items-center justify-between text-[10px] text-slate-400">
-                                                    <span>{new Date(track.points[0].time).toLocaleDateString()}</span>
-                                                    <span className="font-mono">{track.distance.toFixed(2)}km</span>
-                                                </div>
-                                            </div>
-                                        )}
+                                                {track.isArchived ? <UploadIcon /> : (visibleTrackIds.has(track.id) ? <EyeIcon /> : <EyeSlashIcon />)}
+                                            </button>
+                                            <button 
+                                                onClick={() => handleEditClick(track.id)}
+                                                className="p-1 text-slate-500 hover:text-white"
+                                                title="Modifica"
+                                            >
+                                                <PencilIcon />
+                                            </button>
+                                        </div>
                                     </div>
 
-                                    <div className="flex items-center gap-1 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button 
-                                            onClick={() => onToggleVisibility(track.id)} 
-                                            className={`p-1 rounded ${visibleTrackIds.has(track.id) ? 'text-cyan-400' : 'text-slate-600 hover:text-slate-400'}`}
-                                            title={visibleTrackIds.has(track.id) ? "Nascondi da mappa" : "Mostra su mappa"}
+                                    {/* Preview Map for Cards View */}
+                                    {viewMode === 'cards' && (
+                                        <div 
+                                            className="mt-2 w-full h-24 bg-slate-900 rounded overflow-hidden relative cursor-pointer group-inner"
+                                            onClick={() => onViewDetails(track.id)}
                                         >
-                                            {visibleTrackIds.has(track.id) ? <EyeIcon /> : <EyeSlashIcon />}
-                                        </button>
-                                        <button 
-                                            onClick={() => {
-                                                onToggleRaceSelection(track.id);
-                                                onGoToEditor(); 
-                                            }}
-                                            className="p-1 text-slate-500 hover:text-white"
-                                            title="Modifica"
-                                        >
-                                            <PencilIcon />
-                                        </button>
-                                    </div>
+                                            <TrackPreview points={track.points} color={track.color} className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity" />
+                                            {track.activityType && (
+                                                <span className="absolute bottom-1 right-1 bg-black/60 text-white text-[8px] px-1 rounded uppercase font-bold">
+                                                    {track.activityType}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -326,7 +374,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                 ))}
                 {filteredTracks.length === 0 && (
                     <div className="text-center text-slate-500 text-sm py-8">
-                        Nessuna attività trovata.
+                        {showArchived ? 'Nessuna attività in archivio.' : 'Nessuna attività trovata.'}
                     </div>
                 )}
             </div>
