@@ -1,4 +1,3 @@
-
 import { Track, ChatMessage, UserProfile, PlannedWorkout } from '../types';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 
@@ -417,7 +416,7 @@ export const loadChatFromDB = async (id: string, forceLocal: boolean = false): P
   const { data: { session } } = await supabase.auth.getSession();
   
   if (!forceLocal && session && isSupabaseConfigured()) {
-      const { data } = await supabase.from('chats').select('*').eq('id', id).single();
+      const { data } = await supabase.from('chats').select('*').eq('id', id).maybeSingle();
       if (data) {
           const db = await initDB();
           const tx = db.transaction([CHATS_STORE], 'readwrite');
@@ -517,7 +516,7 @@ export const loadProfileFromDB = async (forceLocal: boolean = false): Promise<Us
   const { data: { session } } = await supabase.auth.getSession();
   
   if (!forceLocal && session && isSupabaseConfigured()) {
-      const { data, error } = await supabase.from('profiles').select('*').single();
+      const { data, error } = await supabase.from('profiles').select('*').maybeSingle();
       if (data && !error) {
           const cloudProfile: UserProfile = {
               id: session.user.id,

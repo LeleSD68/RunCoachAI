@@ -171,6 +171,9 @@ const App: React.FC = () => {
             const loadedTracks = await loadTracksFromDB(forceLocal);
             setTracks(loadedTracks);
             setFilteredTracks(loadedTracks);
+            
+            // Set all loaded tracks to visible by default
+            setVisibleTrackIds(new Set(loadedTracks.map(t => t.id)));
 
             const loadedWorkouts = await loadPlannedWorkoutsFromDB(forceLocal);
             setPlannedWorkouts(loadedWorkouts);
@@ -239,6 +242,14 @@ const App: React.FC = () => {
             const updatedTracks = [...tracks, ...newTracks].sort((a, b) => b.points[0].time.getTime() - a.points[0].time.getTime());
             setTracks(updatedTracks);
             setFilteredTracks(updatedTracks);
+            
+            // Automatically make new tracks visible
+            setVisibleTrackIds(prev => {
+                const next = new Set(prev);
+                newTracks.forEach(t => next.add(t.id));
+                return next;
+            });
+
             await saveTracksToDB(updatedTracks);
             
             // Sync to cloud if logged in

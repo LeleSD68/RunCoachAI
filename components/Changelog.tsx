@@ -7,6 +7,16 @@ interface ChangelogProps {
 
 const changelogData = [
     {
+        version: 'v1.34',
+        date: '2026-01-28',
+        changes: [
+            '🟠 Integrazione Strava 2.0: Nuovo indicatore di stato nel menu principale. Ora vedi subito se sei connesso o se è necessario riconnettersi.',
+            '📖 Guida Dedicata: Aggiunta una sezione passo-passo nel manuale per aiutarti a configurare le API di Strava in pochi minuti.',
+            '⚡ Fix Mappa Istantanea: Risolto un problema per cui le tracce appena caricate (o importate da backup) non venivano selezionate automaticamente sulla mappa.',
+            '🛠️ Stabilità Database: Corretto un errore (406) che poteva verificarsi al primo caricamento del profilo utente.'
+        ]
+    },
+    {
         version: 'v1.33',
         date: '2026-01-27',
         changes: [
