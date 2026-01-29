@@ -85,8 +85,10 @@ interface SidebarProps {
     onCompareSelected: () => void;
     userProfile: UserProfile;
     onOpenSocial: () => void;
-    onToggleArchived: (id: string) => void; // New prop for eye toggle behavior
+    onToggleArchived: (id: string) => void; 
 }
+
+type SortOption = 'date_desc' | 'date_asc' | 'distance_desc' | 'distance_asc' | 'time_desc' | 'time_asc';
 
 const Sidebar: React.FC<SidebarProps> = (props) => {
     const { 
@@ -102,6 +104,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [grouping, setGrouping] = useState<'date' | 'month' | 'folder' | 'type' | 'tag' | 'distance'>('month');
+    const [sortOption, setSortOption] = useState<SortOption>('date_desc');
     const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
     const [showArchived, setShowArchived] = useState(false);
     
@@ -126,9 +129,24 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
         });
     }, [tracks, searchTerm, showArchived]);
 
+    const sortedTracks = useMemo(() => {
+        return [...filteredTracks].sort((a, b) => {
+            switch (sortOption) {
+                case 'date_desc': return b.points[0].time.getTime() - a.points[0].time.getTime();
+                case 'date_asc': return a.points[0].time.getTime() - b.points[0].time.getTime();
+                case 'distance_desc': return b.distance - a.distance;
+                case 'distance_asc': return a.distance - b.distance;
+                case 'time_desc': return b.duration - a.duration;
+                case 'time_asc': return a.duration - b.duration;
+                default: return 0;
+            }
+        });
+    }, [filteredTracks, sortOption]);
+
     const groupedTracks = useMemo(() => {
         const groups: Record<string, Track[]> = {};
-        filteredTracks.forEach(t => {
+        // Use sortedTracks instead of filteredTracks to maintain order within groups
+        sortedTracks.forEach(t => {
             let key = 'Other';
             if (grouping === 'month') {
                 key = new Date(t.points[0].time).toLocaleDateString(undefined, { year: 'numeric', month: 'long' });
@@ -153,7 +171,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
             groups[key].push(t);
         });
         return groups;
-    }, [filteredTracks, grouping]);
+    }, [sortedTracks, grouping]);
 
     // Renaming handlers
     const startRenaming = (track: Track) => {
@@ -211,38 +229,53 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                     className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm text-white focus:border-cyan-500 outline-none"
                 />
                 
-                <div className="flex items-center gap-2 text-xs">
+                <div className="grid grid-cols-2 gap-2 text-xs">
                     <select 
                         value={grouping} 
                         onChange={(e) => setGrouping(e.target.value as any)}
-                        className="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-300 outline-none flex-grow"
+                        className="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-300 outline-none w-full"
                     >
-                        <option value="month">Mese</option>
-                        <option value="type">Tipo</option>
-                        <option value="folder">Cartella</option>
-                        <option value="tag">Tag</option>
-                        <option value="distance">Distanza</option>
+                        <option value="month">Raggruppa: Mese</option>
+                        <option value="type">Raggruppa: Tipo</option>
+                        <option value="folder">Raggruppa: Cartella</option>
+                        <option value="tag">Raggruppa: Tag</option>
+                        <option value="distance">Raggruppa: Distanza</option>
                     </select>
                     
-                    <button 
-                        onClick={() => setViewMode(viewMode === 'cards' ? 'list' : 'cards')}
-                        className={`p-1.5 rounded border ${viewMode === 'list' ? 'bg-cyan-600 text-white border-cyan-500' : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'}`}
-                        title="Cambia Vista (Elenco/Schede)"
+                    <select 
+                        value={sortOption} 
+                        onChange={(e) => setSortOption(e.target.value as SortOption)}
+                        className="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-300 outline-none w-full"
                     >
-                        {viewMode === 'cards' ? <RectangleStackIcon /> : <ListBulletIcon />}
-                    </button>
-
-                    <button 
-                        onClick={() => setShowArchived(!showArchived)}
-                        className={`p-1.5 rounded border ${showArchived ? 'bg-amber-600 text-white border-amber-500' : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'}`}
-                        title={showArchived ? "Nascondi Archivio" : "Mostra Archivio"}
-                    >
-                        <ArchiveBoxIcon />
-                    </button>
+                        <option value="date_desc">Data ↓</option>
+                        <option value="date_asc">Data ↑</option>
+                        <option value="distance_desc">Dist. ↓</option>
+                        <option value="distance_asc">Dist. ↑</option>
+                        <option value="time_desc">Tempo ↓</option>
+                        <option value="time_asc">Tempo ↑</option>
+                    </select>
                 </div>
 
-                <div className="flex justify-between items-center text-[10px]">
-                    <div className="flex gap-2">
+                <div className="flex justify-between items-center text-xs">
+                    <div className="flex gap-1">
+                        <button 
+                            onClick={() => setViewMode(viewMode === 'cards' ? 'list' : 'cards')}
+                            className={`p-1.5 rounded border ${viewMode === 'list' ? 'bg-cyan-600 text-white border-cyan-500' : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'}`}
+                            title="Cambia Vista (Elenco/Schede)"
+                        >
+                            {viewMode === 'cards' ? <RectangleStackIcon /> : <ListBulletIcon />}
+                        </button>
+
+                        <button 
+                            onClick={() => setShowArchived(!showArchived)}
+                            className={`p-1.5 rounded border ${showArchived ? 'bg-amber-600 text-white border-amber-500' : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'}`}
+                            title={showArchived ? "Nascondi Archivio" : "Mostra Archivio"}
+                        >
+                            <ArchiveBoxIcon />
+                        </button>
+                    </div>
+                    
+                    <div className="flex gap-2 text-[10px]">
                         <button onClick={onSelectAll} className="text-cyan-400 hover:text-cyan-300">Tutti</button>
                         <button onClick={onDeselectAll} className="text-slate-400 hover:text-slate-200">Nessuno</button>
                     </div>
