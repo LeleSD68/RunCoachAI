@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Sidebar from '../components/Sidebar';
 import MapDisplay from '../components/MapDisplay';
@@ -28,6 +29,8 @@ import NavigationDock from '../components/NavigationDock';
 import PerformanceAnalysisPanel from '../components/PerformanceAnalysisPanel';
 import ComparisonModal from '../components/ComparisonModal';
 import SocialHub from '../components/SocialHub';
+import AuthSelectionModal from '../components/AuthSelectionModal';
+import LoginModal from '../components/LoginModal';
 
 import { Track, TrackPoint, UserProfile, Toast, RaceResult, TrackStats, PlannedWorkout, ApiUsageStats, Commentary } from '../types';
 import { loadTracksFromDB, saveTracksToDB, loadProfileFromDB, saveProfileToDB, loadPlannedWorkoutsFromDB, savePlannedWorkoutsToDB, exportAllData, importAllData, BackupData, syncTrackToCloud } from '../services/dbService';
@@ -59,7 +62,7 @@ const App: React.FC = () => {
   const [userProfile, setUserProfile] = useState<UserProfile>({});
   const [plannedWorkouts, setPlannedWorkouts] = useState<PlannedWorkout[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const [isGuest, setIsGuest] = useState(!isSupabaseConfigured());
+  const [isGuest, setIsGuest] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   
   // Modals & Views
@@ -79,6 +82,8 @@ const App: React.FC = () => {
   const [aiReviewTrackId, setAiReviewTrackId] = useState<string | null>(null);
   const [showComparison, setShowComparison] = useState(false);
   const [showSocialHub, setShowSocialHub] = useState(false);
+  const [showAuthSelection, setShowAuthSelection] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
   
   const [isSidebarMobileOpen, setIsSidebarMobileOpen] = useState(false);
   const [showPerformancePanel, setShowPerformancePanel] = useState(false);
@@ -166,16 +171,10 @@ const App: React.FC = () => {
       return () => clearInterval(interval);
   }, [userId, isGuest]);
 
-  // --- INITIALIZATION ---
-  useEffect(() => {
-    const init = async () => {
-      // Check session
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) setUserId(session.user.id);
-
-      const storedTracks = await loadTracksFromDB();
-      const storedProfile = await loadProfileFromDB();
-      const storedWorkouts = await loadPlannedWorkoutsFromDB();
+  const loadData = async (forceLocal = false) => {
+      const storedTracks = await loadTracksFromDB(forceLocal);
+      const storedProfile = await loadProfileFromDB(forceLocal);
+      const storedWorkouts = await loadPlannedWorkoutsFromDB(forceLocal);
       
       if (storedTracks.length > 0) {
         setTracks(storedTracks);
@@ -194,6 +193,22 @@ const App: React.FC = () => {
 
       if (storedProfile) setUserProfile(storedProfile);
       if (storedWorkouts) setPlannedWorkouts(storedWorkouts);
+  };
+
+  // --- INITIALIZATION ---
+  useEffect(() => {
+    const init = async () => {
+      // Check session
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session) {
+          setUserId(session.user.id);
+          setIsGuest(false);
+          await loadData(false);
+      } else {
+          // If no session, show Auth Selection Screen first
+          setShowAuthSelection(true);
+      }
     };
     init();
   }, []);
@@ -220,6 +235,7 @@ const App: React.FC = () => {
   };
 
   const processFilesOnMainThread = async (files: File[]) => {
+      // ... (Implementation unchanged) ...
       const existingFingerprints = new Set(tracks.map(t => `${t.points.length}-${t.duration}-${t.distance.toFixed(5)}`));
       const newTracks: Track[] = [];
       let skippedCount = 0;
@@ -296,6 +312,7 @@ const App: React.FC = () => {
       if (failedCount > 0) addToast(`Impossibile importare ${failedCount} file.`, 'error');
   };
 
+  // ... (Other handlers like handleAddOpponent, handleRemoveRaceTrack etc. kept same) ...
   const handleAddOpponent = async (files: File[]) => {
       const newTracks: Track[] = [];
       let count = 0;
@@ -466,7 +483,6 @@ const App: React.FC = () => {
       if (track) {
           const newArchivedStatus = !track.isArchived;
           handleUpdateTrackMetadata(id, { isArchived: newArchivedStatus });
-          // If archiving, ensure it's hidden from map
           if (newArchivedStatus) {
               setVisibleTrackIds(prev => { const n = new Set(prev); n.delete(id); return n; });
           }
@@ -479,59 +495,60 @@ const App: React.FC = () => {
       setShowRaceSetup(true);
   };
 
+  // Game Loop Effect
+  useEffect(() => {
+      if (simulationState !== 'running') return;
+
+      let animationFrameId: number;
+
+      const loop = (time: number) => {
+          const delta = time - lastTimeRef.current;
+          lastTimeRef.current = time;
+
+          setSimulationTime(prevTime => {
+              const nextTime = prevTime + delta * simulationSpeed;
+              
+              const raceTracks = tracks.filter(t => raceSelectionIds.has(t.id));
+              if (raceTracks.length === 0) return nextTime;
+
+              const allFinished = raceTracks.every(t => nextTime >= t.duration);
+
+              if (allFinished) {
+                  setSimulationState('finished');
+                  const results: RaceResult[] = raceTracks.map(t => ({
+                      rank: 0,
+                      trackId: t.id,
+                      name: t.name,
+                      color: t.color,
+                      finishTime: t.duration,
+                      avgSpeed: t.distance / (t.duration / 3600000),
+                      distance: t.distance
+                  })).sort((a, b) => a.finishTime - b.finishTime)
+                    .map((r, i) => ({ ...r, rank: i + 1 }));
+                  
+                  setRaceResults(results);
+                  return nextTime;
+              }
+              animationFrameId = requestAnimationFrame(loop);
+              return nextTime;
+          });
+      };
+
+      lastTimeRef.current = performance.now();
+      animationFrameId = requestAnimationFrame(loop);
+
+      return () => cancelAnimationFrame(animationFrameId);
+  }, [simulationState, simulationSpeed, tracks, raceSelectionIds]);
+
   const confirmRaceStart = (renamedMap: Record<string, string>) => {
+      if (renamedMap) {
+          setTracks(prev => prev.map(t => renamedMap[t.id] ? { ...t, name: renamedMap[t.id] } : t));
+      }
       setSimulationState('running');
       setSimulationTime(0);
       setRaceResults([]);
       setShowRaceSetup(false);
-      lastTimeRef.current = performance.now();
-      requestAnimationFrame(gameLoop);
   };
-
-  const gameLoop = (time: number) => {
-      if (simulationState === 'paused' || simulationState === 'finished') return;
-      
-      const delta = time - lastTimeRef.current;
-      lastTimeRef.current = time;
-      
-      setSimulationTime(prev => {
-          const newTime = prev + delta * simulationSpeed;
-          const selectedTracks = tracks.filter(t => raceSelectionIds.has(t.id));
-          const maxDuration = Math.max(...selectedTracks.map(t => t.duration));
-          
-          if (newTime >= maxDuration) {
-              setSimulationState('finished');
-              const results: RaceResult[] = selectedTracks.map((t, i) => ({
-                  rank: i + 1,
-                  trackId: t.id,
-                  name: t.name,
-                  color: t.color,
-                  finishTime: t.duration,
-                  avgSpeed: t.distance / (t.duration / 3600000),
-                  distance: t.distance
-              })).sort((a, b) => a.finishTime - b.finishTime);
-              
-              results.forEach((r, i) => r.rank = i + 1);
-              setRaceResults(results);
-              return maxDuration;
-          }
-          return newTime;
-      });
-      
-      if (simulationState === 'running') {
-          simulationRef.current = requestAnimationFrame(gameLoop);
-      }
-  };
-
-  useEffect(() => {
-      if (simulationState === 'running') {
-          lastTimeRef.current = performance.now();
-          simulationRef.current = requestAnimationFrame(gameLoop);
-      } else {
-          if (simulationRef.current) cancelAnimationFrame(simulationRef.current);
-      }
-      return () => { if (simulationRef.current) cancelAnimationFrame(simulationRef.current); };
-  }, [simulationState, simulationSpeed]);
 
   const raceRunners = useMemo(() => {
       if (simulationState === 'idle') return null;
@@ -548,6 +565,38 @@ const App: React.FC = () => {
           };
       });
   }, [simulationState, simulationTime, tracks, raceSelectionIds]);
+
+  // Update race stats effect
+  useEffect(() => {
+      if (simulationState === 'idle' || !raceRunners) return;
+      
+      const newSpeeds = new Map<string, number>();
+      const newDistances = new Map<string, number>();
+      const newRanks = new Map<string, number>();
+      const newGaps = new Map<string, number>();
+
+      const sortedRunners = [...raceRunners].sort((a, b) => b.position.cummulativeDistance - a.position.cummulativeDistance);
+      const leaderDist = sortedRunners.length > 0 ? sortedRunners[0].position.cummulativeDistance : 0;
+
+      sortedRunners.forEach((r, i) => {
+          newRanks.set(r.trackId, i + 1);
+          newDistances.set(r.trackId, r.position.cummulativeDistance);
+          
+          // Pace is min/km. Speed km/h = 60 / pace.
+          const speed = r.pace > 0 ? 60 / r.pace : 0;
+          newSpeeds.set(r.trackId, speed);
+          
+          // Gap in meters
+          const gapKm = leaderDist - r.position.cummulativeDistance;
+          newGaps.set(r.trackId, gapKm * 1000);
+      });
+
+      setRaceRanks(newRanks);
+      setRunnerSpeeds(newSpeeds);
+      setRunnerDistances(newDistances);
+      setRunnerGaps(newGaps);
+
+  }, [simulationTime, raceRunners, simulationState]);
 
   const handleMobileSummaryClick = () => {
       if (mobileSelectedTrackId) {
@@ -594,9 +643,27 @@ const App: React.FC = () => {
       setUserId(null);
       setIsGuest(true);
       setUserProfile({});
-      // Optional: clear local tracks if desired, or keep them as local cache
       addToast("Logout effettuato.", "info");
-      setShowProfile(false); // Close profile if open
+      setShowProfile(false); 
+      // Reset view to Auth Selection
+      setShowAuthSelection(true);
+      setShowHome(false);
+  };
+
+  const handleGuestContinue = () => {
+      setIsGuest(true);
+      setShowAuthSelection(false);
+      loadData(true); // Load local data
+  };
+
+  const handleUserLoginSuccess = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if(session) {
+          setUserId(session.user.id);
+          setIsGuest(false);
+          addToast('Accesso effettuato.', 'success');
+          await loadData(false); // Load cloud data
+      }
   };
 
   const selectedDetailTrack = useMemo(() => tracks.find(t => t.id === selectedDetailTrackId), [tracks, selectedDetailTrackId]);
@@ -607,6 +674,24 @@ const App: React.FC = () => {
   return (
     <div className="h-screen w-screen bg-slate-900 text-white overflow-hidden flex flex-col">
         {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} />}
+
+        {/* AUTH GATES */}
+        {showAuthSelection && !showSplash && (
+            <AuthSelectionModal 
+                onGuest={handleGuestContinue}
+                onLogin={() => { setShowAuthSelection(false); setShowLoginModal(true); }}
+            />
+        )}
+
+        {showLoginModal && (
+            <LoginModal 
+                onClose={() => setShowLoginModal(false)}
+                onLoginSuccess={handleUserLoginSuccess}
+                tracks={tracks}
+                userProfile={userProfile}
+                plannedWorkouts={plannedWorkouts}
+            />
+        )}
 
         <div className={`flex-grow flex overflow-hidden relative ${isMobile ? 'flex-col' : 'flex-row'}`}>
             
@@ -688,13 +773,7 @@ const App: React.FC = () => {
                         apiUsageStats={apiUsage}
                         onOpenHub={() => setShowHome(true)}
                         onOpenPerformanceAnalysis={() => setShowPerformancePanel(true)}
-                        onUserLogin={async () => { 
-                            const { data: { session } } = await supabase.auth.getSession();
-                            if(session) setUserId(session.user.id);
-                            loadTracksFromDB().then(setTracks); 
-                            addToast('Login effettuato (Locale)', 'success'); 
-                            setIsGuest(false); 
-                        }}
+                        onUserLogin={() => setShowLoginModal(true)} // Sidebar login link
                         onCompareSelected={handleCompareSelected}
                         userProfile={userProfile}
                         onOpenSocial={() => {
@@ -740,8 +819,6 @@ const App: React.FC = () => {
                         onExit={(updated) => {
                             if (updated) {
                                 const newTracks = tracks.map(t => t.id === updated.id ? updated : t);
-                                // If it's a new track from merge/split it might not be in tracks list yet, but here we usually edit existing or merged ones.
-                                // If it's a merged track with new ID, we add it. 
                                 if (!tracks.find(t => t.id === updated.id)) {
                                     newTracks.push(updated);
                                 }
@@ -876,6 +953,7 @@ const App: React.FC = () => {
                 onUploadOpponent={handleAddOpponent}
                 onEnterRaceMode={handleStartRace}
                 onLogout={handleLogout}
+                onLogin={() => { setShowHome(false); setShowLoginModal(true); }} // New handler
                 isGuest={isGuest}
             />
         )}
