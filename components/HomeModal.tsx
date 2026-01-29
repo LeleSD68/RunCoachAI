@@ -21,6 +21,7 @@ interface HomeModalProps {
     onManualCloudSave?: () => void; 
     onCheckAiAccess?: () => boolean; 
     onLogout?: () => void;
+    onLogin?: () => void; // New Prop
     isGuest?: boolean;
 }
 
@@ -33,6 +34,7 @@ const LogoutIcon = () => (
         <path fillRule="evenodd" d="M19 10a.75.75 0 0 0-.75-.75H8.704l1.048-.943a.75.75 0 1 0-1.004-1.114l-2.5 2.25a.75.75 0 0 0 0 1.114l2.5 2.25a.75.75 0 1 0 1.004-1.114l-1.048-.943h9.546A.75.75 0 0 0 19 10Z" clipRule="evenodd" />
     </svg>
 );
+const UserIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-5.5-2.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0ZM10 12a5.99 5.99 0 0 0-4.793 2.39A9.916 9.916 0 0 0 10 18c2.695 0 5.145-1.075 6.99-2.825A5.99 5.99 0 0 0 10 12Z" clipRule="evenodd" /></svg>);
 
 const LargeLogoIcon = () => (
     <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-2xl border-2 border-cyan-500/20 relative z-10 p-2">
@@ -44,7 +46,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
     onOpenDiary, onOpenExplorer, onOpenHelp, onImportBackup, onExportBackup, 
     onUploadTracks, onClose, trackCount, plannedWorkouts = [], onOpenWorkout, 
     onOpenProfile, onOpenChangelog, onUploadOpponent, onEnterRaceMode, onManualCloudSave, onCheckAiAccess,
-    onLogout, isGuest
+    onLogout, onLogin, isGuest
 }) => {
     const backupInputRef = useRef<HTMLInputElement>(null);
     const trackInputRef = useRef<HTMLInputElement>(null);
@@ -227,14 +229,18 @@ const HomeModal: React.FC<HomeModalProps> = ({
                     <div className="flex gap-4">
                         <button onClick={onOpenProfile} className="hover:text-white transition-colors flex items-center gap-1"><SettingsIcon /> Profilo</button>
                         <button onClick={onOpenHelp} className="hover:text-white transition-colors flex items-center gap-1"><HelpIcon /> Guida</button>
-                        {onLogout && (
-                             <button onClick={onLogout} className="hover:text-red-400 transition-colors flex items-center gap-1">
-                                <LogoutIcon /> {isGuest ? 'Esci' : 'Logout'}
-                             </button>
+                        {isGuest ? (
+                            <button onClick={onLogin} className="hover:text-cyan-400 transition-colors flex items-center gap-1 text-cyan-500">
+                                <UserIcon /> Accedi
+                            </button>
+                        ) : (
+                            <button onClick={onLogout} className="hover:text-red-400 transition-colors flex items-center gap-1">
+                                <LogoutIcon /> Logout
+                            </button>
                         )}
                     </div>
                     <div className="flex gap-4">
-                        {onManualCloudSave && (
+                        {onManualCloudSave && !isGuest && (
                             <button onClick={onManualCloudSave} className="hover:text-green-400 transition-colors flex items-center gap-1" title="Sincronizza Cloud"><CloudUpIcon /> Cloud</button>
                         )}
                         
