@@ -11,6 +11,7 @@ interface NavigationDockProps {
     onOpenGuide: () => void;
     onExportBackup: () => void;
     onOpenHub: () => void;
+    onOpenSocial: () => void; // Added social handler
     isSidebarOpen: boolean; // To highlight the active state
 }
 
@@ -33,18 +34,6 @@ const ChartIcon = () => (
     </svg>
 );
 
-const GuideIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-        <path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7.75-4.25a1.25 1.25 0 1 1 2.5 0c0 .533-.335.918-.78 1.163-.407.224-.72.576-.72 1.087v.25a.75.75 0 0 1-1.5 0v-.25c0-.942.667-1.761 1.547-2.035.25-.078.453-.312.453-.565 0-.138-.112-.25-.25-.25a.25.25 0 0 0-.25.25.75.75 0 0 1-1.5 0 1.75 1.75 0 0 1 1.75-1.75ZM10 13a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z" clipRule="evenodd" />
-    </svg>
-);
-
-const BackupIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-        <path d="M13.75 7h-3v5.296l1.943-2.048a.75.75 0 0 1 1.114 1.004l-3.25 3.5a.75.75 0 0 1-1.114 0l-3.25-3.5a.75.75 0 1 1 1.114-1.004l1.943 2.048V7h1.5V1.75a.75.75 0 0 0-1.5 0V7h-3A2.25 2.25 0 0 0 4 9.25v7.5A2.25 2.25 0 0 0 6.25 19h7.5A2.25 2.25 0 0 0 16 16.75v-7.5A2.25 2.25 0 0 0 13.75 7Z" />
-    </svg>
-);
-
 const HomeIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
         <path fillRule="evenodd" d="M9.293 2.293a1 1 0 0 1 1.414 0l7 7A1 1 0 0 1 17 11h-1v6a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-3a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-6H3a1 1 0 0 1-.707-1.707l7-7Z" clipRule="evenodd" />
@@ -64,8 +53,14 @@ const MapIcon = () => (
     </svg>
 );
 
+const UserGroupIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+        <path d="M7 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM14.5 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM1.615 16.428a1.224 1.224 0 0 1-.569-1.175 6.002 6.002 0 0 1 11.908 0c.058.467-.172.92-.57 1.174A9.953 9.953 0 0 1 7 18a9.953 9.953 0 0 1-5.385-1.572ZM14.5 16h-.106c.07-.38.106-.772.106-1.175 0-.537-.067-1.054-.191-1.543A7.001 7.001 0 0 1 17 18a9.952 9.952 0 0 1-2.5-2Z" />
+    </svg>
+);
+
 const NavigationDock: React.FC<NavigationDockProps> = ({ 
-    onOpenSidebar, onCloseSidebar, onOpenExplorer, onOpenDiary, onOpenPerformance, onOpenGuide, onExportBackup, onOpenHub, isSidebarOpen 
+    onOpenSidebar, onCloseSidebar, onOpenExplorer, onOpenDiary, onOpenPerformance, onOpenGuide, onExportBackup, onOpenHub, isSidebarOpen, onOpenSocial
 }) => {
     return (
         <div className="fixed bottom-0 left-0 w-full z-[9000] md:hidden bg-slate-950 border-t border-slate-800 pb-safe">
@@ -106,6 +101,12 @@ const NavigationDock: React.FC<NavigationDockProps> = ({
                 <Tooltip text="Performance" subtext="Analisi" position="top">
                     <button onClick={onOpenPerformance} className="p-2.5 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-green-400 transition-all active:scale-95">
                         <ChartIcon />
+                    </button>
+                </Tooltip>
+
+                <Tooltip text="Social" subtext="Amici" position="top">
+                    <button onClick={onOpenSocial} className="p-2.5 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-pink-400 transition-all active:scale-95">
+                        <UserGroupIcon />
                     </button>
                 </Tooltip>
                 
