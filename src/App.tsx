@@ -28,7 +28,7 @@ import MobileTrackSummary from '../components/MobileTrackSummary';
 import NavigationDock from '../components/NavigationDock';
 import PerformanceAnalysisPanel from '../components/PerformanceAnalysisPanel';
 import ComparisonModal from '../components/ComparisonModal';
-import SocialHub from '../components/SocialHub'; // New Import
+import SocialHub from '../components/SocialHub';
 
 import { Track, TrackPoint, UserProfile, Toast, RaceResult, TrackStats, PlannedWorkout, ApiUsageStats, Commentary } from '../types';
 import { loadTracksFromDB, saveTracksToDB, loadProfileFromDB, saveProfileToDB, loadPlannedWorkoutsFromDB, savePlannedWorkoutsToDB, exportAllData, importAllData, BackupData, syncTrackToCloud } from '../services/dbService';
@@ -39,7 +39,7 @@ import { parseGpx } from '../services/gpxService';
 import { parseTcx } from '../services/tcxService';
 import { generateSmartTitle } from '../services/titleGenerator';
 import { isSupabaseConfigured, supabase } from '../services/supabaseClient';
-import { updatePresence } from '../services/socialService'; // New Import
+import { updatePresence } from '../services/socialService';
 
 const TRACK_COLORS = [
   '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e'
@@ -79,9 +79,8 @@ const App: React.FC = () => {
   const [veoTrack, setVeoTrack] = useState<Track | null>(null);
   const [aiReviewTrackId, setAiReviewTrackId] = useState<string | null>(null);
   const [showComparison, setShowComparison] = useState(false);
-  const [showSocialHub, setShowSocialHub] = useState(false); // New
+  const [showSocialHub, setShowSocialHub] = useState(false);
   
-  // ... (New States for Navigation Dock remains same) ...
   const [isSidebarMobileOpen, setIsSidebarMobileOpen] = useState(false);
   const [showPerformancePanel, setShowPerformancePanel] = useState(false);
   const [mobileSelectedTrackId, setMobileSelectedTrackId] = useState<string | null>(null);
@@ -133,10 +132,9 @@ const App: React.FC = () => {
       setShowAiChatbot(false);
       setShowRaceSetup(false);
       setShowComparison(false);
-      setShowSocialHub(false); // Close social
+      setShowSocialHub(false);
   }, []);
 
-  // ... (handleOpenDetailView, checkAiAccess, handleLimitReached remain same) ...
   const handleOpenDetailView = useCallback((trackId: string) => {
       setShowExplorer(false);
       setShowDiary(false);
@@ -222,9 +220,7 @@ const App: React.FC = () => {
     setToasts(prev => [...prev, { id, message, type }]);
   };
 
-  // ... (processFilesOnMainThread, handleAddOpponent, handleRemoveRaceTrack remain same) ...
   const processFilesOnMainThread = async (files: File[]) => {
-      // ... same logic ...
       const existingFingerprints = new Set(tracks.map(t => `${t.points.length}-${t.duration}-${t.distance.toFixed(5)}`));
       const newTracks: Track[] = [];
       let skippedCount = 0;
@@ -302,7 +298,6 @@ const App: React.FC = () => {
   };
 
   const handleAddOpponent = async (files: File[]) => {
-      // ... same logic ...
       const newTracks: Track[] = [];
       let count = 0;
       for (const file of files) {
@@ -349,7 +344,6 @@ const App: React.FC = () => {
       setTracks(prev => prev.filter(t => t.id !== id || !t.isExternal));
   };
 
-  // ... (File Handling, Workout Management, Track Metadata functions remain same) ...
   const handleFileUpload = (files: File[] | null) => {
     if (!files || files.length === 0) return;
     addToast("Elaborazione file in corso...", "info");
@@ -401,7 +395,6 @@ const App: React.FC = () => {
     }
   };
 
-  // --- WORKOUT MANAGEMENT ---
   const handleAddPlannedWorkout = (workout: PlannedWorkout) => {
     const updated = [...plannedWorkouts, workout];
     setPlannedWorkouts(updated);
@@ -448,7 +441,6 @@ const App: React.FC = () => {
       setWorkoutConfirmation(null);
   };
 
-  // --- TRACK METADATA ---
   const handleUpdateTrackMetadata = (id: string, meta: Partial<Track>) => {
     const updatedTracks = tracks.map(t => {
         if (t.id === id) {
@@ -470,7 +462,19 @@ const App: React.FC = () => {
     addToast('Traccia eliminata.', 'info');
   };
 
-  // ... (Simulation / Race handlers remain same) ...
+  const handleToggleArchived = (id: string) => {
+      const track = tracks.find(t => t.id === id);
+      if (track) {
+          const newArchivedStatus = !track.isArchived;
+          handleUpdateTrackMetadata(id, { isArchived: newArchivedStatus });
+          // If archiving, ensure it's hidden from map
+          if (newArchivedStatus) {
+              setVisibleTrackIds(prev => { const n = new Set(prev); n.delete(id); return n; });
+          }
+          addToast(newArchivedStatus ? 'Traccia archiviata.' : 'Traccia ripristinata.', 'info');
+      }
+  };
+
   const handleStartRace = () => {
       if (raceSelectionIds.size < 2) return;
       setShowRaceSetup(true);
@@ -612,7 +616,13 @@ const App: React.FC = () => {
                         tracks={tracks}
                         onFileUpload={handleFileUpload}
                         visibleTrackIds={visibleTrackIds}
-                        onToggleVisibility={(id) => setVisibleTrackIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
+                        onToggleVisibility={(id) => {
+                            if (visibleTrackIds.has(id)) {
+                                setVisibleTrackIds(prev => { const n = new Set(prev); n.delete(id); return n; });
+                            } else {
+                                setVisibleTrackIds(prev => { const n = new Set(prev); n.add(id); return n; });
+                            }
+                        }}
                         raceSelectionIds={raceSelectionIds}
                         onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
                         onDeselectAll={() => setRaceSelectionIds(new Set())}
@@ -685,11 +695,11 @@ const App: React.FC = () => {
                                 setShowSocialHub(true);
                             }
                         }}
+                        onToggleArchived={handleToggleArchived}
                     />
                 </div>
             )}
 
-            {/* ... Map/Detail View Container (same as before) ... */}
             <div className={`
                 relative transition-all duration-300
                 ${selectedDetailTrackId || editorTracks ? 'h-full w-full' : ''}
@@ -720,7 +730,12 @@ const App: React.FC = () => {
                         initialTracks={editorTracks}
                         onExit={(updated) => {
                             if (updated) {
-                                const newTracks = [...tracks, updated];
+                                const newTracks = tracks.map(t => t.id === updated.id ? updated : t);
+                                // If it's a new track from merge/split it might not be in tracks list yet, but here we usually edit existing or merged ones.
+                                // If it's a merged track with new ID, we add it. 
+                                if (!tracks.find(t => t.id === updated.id)) {
+                                    newTracks.push(updated);
+                                }
                                 setTracks(newTracks);
                                 saveTracksToDB(newTracks);
                                 addToast('Traccia modificata salvata.', 'success');
@@ -798,7 +813,6 @@ const App: React.FC = () => {
             </div>
         </div>
 
-        {/* ... Navigation Dock (Same) ... */}
         {!editorTracks && !showHome && !showDiary && !showExplorer && !selectedDetailTrackId && !showAiChatbot && !simulationState.startsWith('run') && (
             <NavigationDock 
                 onOpenSidebar={() => { closeAllViews(); setIsSidebarMobileOpen(true); }}
@@ -813,7 +827,6 @@ const App: React.FC = () => {
             />
         )}
 
-        {/* ... Other Modals ... */}
         {showInitialChoice && (
             <InitialChoiceModal 
                 onImportBackup={handleImportBackup} 
