@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Track, UserProfile, PlannedWorkout, Toast, ActivityType, RaceRunner, RaceResult, TrackStats, Commentary } from './types';
+import { Track, UserProfile, PlannedWorkout, Toast, ActivityType, RaceRunner, RaceResult, TrackStats, Commentary, TrackPoint } from './types';
 import Sidebar from './components/Sidebar';
 import MapDisplay from './components/MapDisplay';
 import TrackEditor from './components/TrackEditor';
@@ -217,7 +217,7 @@ const App: React.FC = () => {
                         name: title,
                         points: parsed.points,
                         distance: parsed.distance,
-                        duration: parsed.duration,
+                        duration: parsed.duration, // CORRECTED
                         color: '#' + Math.floor(Math.random()*16777215).toString(16),
                         activityType,
                         folder,
@@ -370,7 +370,7 @@ const App: React.FC = () => {
                         points: parsed.points,
                         distance: parsed.distance,
                         duration: parsed.duration,
-                        color: '#94a3b8', // Slate-400
+                        color: '#' + Math.floor(Math.random()*16777215).toString(16),
                         isExternal: true,
                         activityType: 'Gara'
                     });
