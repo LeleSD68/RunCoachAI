@@ -73,6 +73,14 @@ export const acceptFriendRequest = async (requestId: string) => {
     if (error) throw error;
 };
 
+export const rejectFriendRequest = async (requestId: string) => {
+    const { error } = await supabase
+        .from('friends')
+        .delete()
+        .eq('id', requestId);
+    if (error) throw error;
+};
+
 export const getFriends = async (currentUserId: string): Promise<UserProfile[]> => {
     // Get confirmed friendships
     const { data, error } = await supabase
