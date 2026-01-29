@@ -7,6 +7,15 @@ interface ChangelogProps {
 
 const changelogData = [
     {
+        version: 'v1.33',
+        date: '2026-01-27',
+        changes: [
+            '🎨 Layout Matrix: Introdotto un sistema di layout a 6 configurazioni (Classico, Mappa Estesa, Dati a Destra, Verticale, Focus Basso, 3 Colonne).',
+            '🔄 Slot Dinamici: Ogni riquadro dell\'interfaccia ora ha un menu contestuale (visibile al passaggio del mouse) per scambiare rapidamente Dati, Mappa e Grafici.',
+            '🧩 Preset Intelligenti: Cambiando layout, i contenuti si riorganizzano automaticamente nella posizione ottimale.',
+        ]
+    },
+    {
         version: 'v1.32',
         date: '2026-01-26',
         changes: [

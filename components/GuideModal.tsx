@@ -64,8 +64,8 @@ const GuideModal: React.FC<GuideModalProps> = ({ onClose }) => {
                             <span className="text-2xl">📖</span>
                         </div>
                         <div>
-                            <h2 className="text-xl sm:text-2xl font-black text-white italic tracking-tighter uppercase">Guida Galattica</h2>
-                            <p className="text-cyan-500 text-[10px] font-black uppercase tracking-[0.2em] opacity-80">Manuale di Volo RunCoachAI v1.30</p>
+                            <h2 className="text-xl sm:text-2xl font-black text-white italic tracking-tighter uppercase">Istruzioni di RunCoach AI</h2>
+                            <p className="text-cyan-500 text-[10px] font-black uppercase tracking-[0.2em] opacity-80">Manuale Utente RunCoachAI v1.33</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition-all text-2xl">&times;</button>
@@ -91,6 +91,15 @@ const GuideModal: React.FC<GuideModalProps> = ({ onClose }) => {
                             <li><strong>Rinomina:</strong> Fai <strong>doppio click</strong> sul nome di una traccia nella lista laterale per rinominarla.</li>
                             <li><strong>Gruppi:</strong> Usa il menu a tendina nella sidebar per raggruppare le corse per <em>Mese</em>, <em>Tipo</em>, <em>Distanza</em> o <em>Cartella</em>.</li>
                             <li><strong>Selezione Multipla:</strong> Clicca sulle caselle di spunta nella lista per selezionare più corse. Apparirà un menu per Gara, Confronto o Eliminazione.</li>
+                        </ul>
+                    </GuideSection>
+
+                    <GuideSection title="Layout & Personalizzazione (v1.33)" icon="🎨" isOpen={openSection === 'layout'} onToggle={() => toggle('layout')}>
+                        <p>Hai il controllo totale sull'area di lavoro (Vista Dettagli).</p>
+                        <ul className="list-disc list-inside ml-2 space-y-1">
+                            <li><strong>6 Layout:</strong> Clicca l'icona del layout nella barra in alto per scegliere la configurazione (es. <em>Focus Basso</em> per grafici larghi, <em>3 Colonne</em> per vedere tutto insieme).</li>
+                            <li><strong>Swap Contenuti Dinamico:</strong> Ogni riquadro è interscambiabile. Passa il mouse nell'angolo in alto a sinistra di un pannello (Mappa, Dati o Grafico). Apparirà un menu a tendina: cambia la selezione e i pannelli si scambieranno automaticamente di posto.</li>
+                            <li><strong>Mobile Friendly:</strong> Usa il layout "Verticale" per la migliore esperienza su smartphone.</li>
                         </ul>
                     </GuideSection>
 

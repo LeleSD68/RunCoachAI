@@ -11,6 +11,7 @@ import ResizablePanel from './ResizablePanel';
 import HeartRateZonePanel from './HeartRateZonePanel';
 import PersonalRecordsPanel from './PersonalRecordsPanel';
 import RatingStars from './RatingStars';
+import ShareModal from './ShareModal';
 import { calculateTrackStats, estimateTrackRPE } from '../services/trackStatsService';
 import { getPointsInDistanceRange, getTrackStateAtTime, getTrackPointAtDistance, getSmoothedPace } from '../services/trackEditorUtils';
 import { smoothTrackPoints, calculateSmoothedMetrics, calculateRunningPower } from '../services/dataProcessingService';
@@ -42,6 +43,10 @@ const useIsMobile = () => {
     return isMobile;
 };
 
+type LayoutType = 'classic' | 'map-top' | 'data-right' | 'vertical' | 'focus-bottom' | 'columns';
+type ContentType = 'data' | 'map' | 'chart';
+type SlotId = 1 | 2 | 3;
+
 const metricLabels: Record<YAxisMetric, string> = {
     pace: 'Ritmo',
     elevation: 'Alt.',
@@ -63,18 +68,12 @@ const metricFormatters: Record<YAxisMetric, (v: number) => string> = {
     power: (v) => `${Math.round(v)}W`
 };
 
-const ClockIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 mr-1">
-        <path fillRule="evenodd" d="M8 15A7 7 0 1 0 8 1a7 7 0 0 0 0 14Zm.75-10.25a.75.75 0 0 0-1.5 0v4.5c0 .414.336.75.75.75h4.5a.75.75 0 0 0 0-1.5h-3.75v-3.75Z" clipRule="evenodd" />
-    </svg>
-);
-
-const ReplayIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 mr-1">
-        <path fillRule="evenodd" d="M15.312 11.424a5.5 5.5 0 0 1-9.201 2.466l-.312-.311h2.433a.75.75 0 0 0 0-1.5H3.989a.75.75 0 0 0-.75.75v4.242a.75.75 0 0 0 1.5 0v-2.43l.31.31a7 7 0 0 0 11.712-3.138.75.75 0 0 0-1.449-.39Z" clipRule="evenodd" />
-        <path fillRule="evenodd" d="M13.485 1.431a.75.75 0 0 0-1.449.39 5.5 5.5 0 0 1 9.201 2.466l.312-.311h-2.433a.75.75 0 0 0 .75-.75V.484a.75.75 0 0 0-1.5 0v2.43l-.31-.31a7 7 0 0 0-11.712-3.138Z" clipRule="evenodd" />
-    </svg>
-);
+// Icons
+const ClockIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 mr-1"><path fillRule="evenodd" d="M8 15A7 7 0 1 0 8 1a7 7 0 0 0 0 14Zm.75-10.25a.75.75 0 0 0-1.5 0v4.5c0 .414.336.75.75.75h4.5a.75.75 0 0 0 0-1.5h-3.75v-3.75Z" clipRule="evenodd" /></svg>);
+const ReplayIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 mr-1"><path fillRule="evenodd" d="M15.312 11.424a5.5 5.5 0 0 1-9.201 2.466l-.312-.311h2.433a.75.75 0 0 0 0-1.5H3.989a.75.75 0 0 0-.75.75v4.242a.75.75 0 0 0 1.5 0v-2.43l.31.31a7 7 0 0 0 11.712-3.138.75.75 0 0 0-1.449-.39Z" clipRule="evenodd" /><path fillRule="evenodd" d="M13.485 1.431a.75.75 0 0 0-1.449.39 5.5 5.5 0 0 1 9.201 2.466l.312-.311h-2.433a.75.75 0 0 0 .75-.75V.484a.75.75 0 0 0-1.5 0v2.43l-.31-.31a7 7 0 0 0-11.712-3.138Z" clipRule="evenodd" /></svg>);
+const ShareIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M13 4.5a2.5 2.5 0 1 1 .702 1.737L6.97 9.604a2.518 2.518 0 0 1 0 .792l6.733 3.367a2.5 2.5 0 1 1-.671 1.341l-6.733-3.367a2.5 2.5 0 1 1 0-3.475l6.733-3.366A2.52 2.52 0 0 1 13 4.5Z" /></svg>);
+const LayoutIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M2 4.25A2.25 2.25 0 0 1 4.25 2h11.5A2.25 2.25 0 0 1 18 4.25v11.5A2.25 2.25 0 0 1 15.75 18H4.25A2.25 2.25 0 0 1 2 15.75V4.25ZM4.25 3.5a.75.75 0 0 0-.75.75v11.5c0 .414.336.75.75.75h11.5a.75.75 0 0 0 .75-.75V4.25a.75.75 0 0 0-.75-.75H4.25Z" clipRule="evenodd" /><path d="M3.5 10h13v1.5h-13V10Z" /></svg>);
+const SwapIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3"><path fillRule="evenodd" d="M2.24 6.8a.75.75 0 0 0 1.06-.04l1.95-2.1 1.95 2.1a.75.75 0 1 0 1.1-1.02l-2.5-2.7a.75.75 0 0 0-1.1 0l-2.5 2.7a.75.75 0 0 0 .04 1.06Zm6.94 3.7a.75.75 0 0 0 1.06-.04l1.95-2.1 1.95 2.1a.75.75 0 1 0 1.1-1.02l-2.5-2.7a.75.75 0 0 0-1.1 0l-2.5 2.7a.75.75 0 0 0 .04 1.06Zm-6.94 3.7a.75.75 0 0 0 1.06-.04l1.95-2.1 1.95 2.1a.75.75 0 1 0 1.1-1.02l-2.5-2.7a.75.75 0 0 0-1.1 0l-2.5 2.7a.75.75 0 0 0 .04 1.06Z" clipRule="evenodd" /></svg>);
 
 const formatDuration = (ms: number, compact = false) => {
     const totalSeconds = Math.floor(ms / 1000);
@@ -102,8 +101,57 @@ interface ExtendedStats {
     }
 }
 
-// Memoized Left Panel to avoid re-renders during animation
-const LeftDataPanel = React.memo(({ 
+const TrackMetadataEditor = ({ track, userProfile, onUpdate }: { track: Track, userProfile: UserProfile, onUpdate?: (id: string, data: Partial<Track>) => void }) => {
+    const [notes, setNotes] = useState(track.notes || '');
+    
+    useEffect(() => {
+        setNotes(track.notes || '');
+    }, [track.id, track.notes]);
+
+    return (
+        <div className="grid grid-cols-1 gap-3 p-3 bg-slate-800 rounded-lg border border-slate-700">
+            <div>
+               <div className="flex items-center gap-2 mb-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 text-orange-400">
+                        <path fillRule="evenodd" d="M1 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H4a3 3 0 0 1-3-3V6Zm4 1.5a2 2 0 1 1 4 0 2 2 0 0 1-4 0Zm2 3a4 4 0 0 0-3.665 2.395.75.75 0 0 0 .416 1.002l.464.132a.75.75 0 0 0 .943-.496A2.5 2.5 0 0 1 7 12h6a2.5 2.5 0 0 1 2.342 1.533.75.75 0 0 0 .944.496l.463-.132a.75.75 0 0 0 .416-1.002A4 4 0 0 0 13 10.5H7Z" clipRule="evenodd" />
+                    </svg>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Scarpa</label>
+               </div>
+               {userProfile.shoes && userProfile.shoes.length > 0 ? (
+                   <select 
+                        value={track.shoe || ''} 
+                        onChange={(e) => onUpdate && onUpdate(track.id, { shoe: e.target.value })}
+                        className="w-full bg-slate-900 text-white text-xs border border-slate-600 rounded px-2 py-1.5 focus:border-cyan-500 outline-none"
+                   >
+                        <option value="">Seleziona scarpa...</option>
+                        {userProfile.shoes.map(s => <option key={s} value={s}>{s}</option>)}
+                   </select>
+               ) : (
+                   <div className="text-[10px] text-slate-500 italic px-1">Nessuna scarpa nel profilo.</div>
+               )}
+            </div>
+
+            <div>
+                <div className="flex items-center gap-2 mb-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 text-cyan-400">
+                        <path fillRule="evenodd" d="M4.5 2A1.5 1.5 0 0 0 3 3.5v13A1.5 1.5 0 0 0 4.5 18h11a1.5 1.5 0 0 0 1.5-1.5V7.621a1.5 1.5 0 0 0-.44-1.06l-4.12-4.122A1.5 1.5 0 0 0 11.38 2H4.5Zm10 14.5h-9a.5.5 0 0 1-.5-.5v-13a.5.5 0 0 1 .5-.5H11v3.5A1.5 1.5 0 0 0 12.5 7H16v9a.5.5 0 0 1-.5.5ZM16 5.5l-3.5-3.5V5.5H16Z" clipRule="evenodd" />
+                    </svg>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Note</label>
+                </div>
+                <textarea 
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    onBlur={() => { if(notes !== track.notes && onUpdate) onUpdate(track.id, { notes }) }}
+                    className="w-full bg-slate-900 text-white text-xs border border-slate-600 rounded px-2 py-1.5 focus:border-cyan-500 outline-none resize-none h-20 placeholder-slate-600"
+                    placeholder="Sensazioni, meteo, dettagli..."
+                />
+            </div>
+        </div>
+    );
+};
+
+// Memoized Data Panel (Generic)
+const DataSection = React.memo(({ 
     stats, 
     track, 
     userProfile, 
@@ -115,11 +163,14 @@ const LeftDataPanel = React.memo(({
     onCheckAiAccess, 
     selectedSegment, 
     handleSegmentSelect, 
-    hasHrData 
+    hasHrData,
+    className 
 }: any) => {
     return (
-        <div className="h-full overflow-y-auto bg-slate-900 p-4 custom-scrollbar border-r border-slate-800 flex flex-col space-y-6">
+        <div className={`overflow-y-auto bg-slate-900 p-4 custom-scrollbar flex flex-col space-y-6 h-full ${className}`}>
             <StatsPanel stats={stats} selectedSegment={selectedSegment} onSegmentSelect={handleSegmentSelect} />
+
+            <TrackMetadataEditor track={track} userProfile={userProfile} onUpdate={onUpdateTrackMetadata} />
 
             {hasHrData && <HeartRateZonePanel track={track} userProfile={userProfile} />}
             <PersonalRecordsPanel track={track} />
@@ -180,7 +231,7 @@ const SelectionStatsOverlay: React.FC<{ data: ExtendedStats, onClose: () => void
 };
 
 const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, onExit, allHistory = [], plannedWorkouts = [], onUpdateTrackMetadata, onAddPlannedWorkout, onStartAnimation, onOpenReview, autoOpenAi = false, onCheckAiAccess, isGuest = false, onLimitReached }) => {
-    // CRITICAL FIX: Ensure track is defined before any hooks or logic run to prevent "Cannot read properties of undefined"
+    // CRITICAL FIX: Ensure track is defined
     if (!track) return null;
 
     const isMobile = useIsMobile();
@@ -190,8 +241,47 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
     const [selectedSegment, setSelectedSegment] = useState<Split | PauseSegment | AiSegment | null>(null);
     const [chartSelection, setChartSelection] = useState<{ startDistance: number; endDistance: number } | null>(null);
     const [mapGradientMetric, setMapGradientMetric] = useState<'none' | 'elevation' | 'pace' | 'speed' | 'hr' | 'hr_zones' | 'power'>('none');
+    const [showShareModal, setShowShareModal] = useState(false);
     
-    // Safe access to rpe with fallback (though guard clause above handles null track)
+    // Layout State
+    const [currentLayout, setCurrentLayout] = useState<LayoutType>(isMobile ? 'vertical' : 'classic');
+    const [showLayoutMenu, setShowLayoutMenu] = useState(false);
+    
+    // Slot Contents (default mapping depends on layout logic)
+    const [slotContent, setSlotContent] = useState<Record<SlotId, ContentType>>({
+        1: 'data',
+        2: 'map',
+        3: 'chart'
+    });
+
+    const handleContentChange = (slotId: SlotId, newContent: ContentType) => {
+        setSlotContent(prev => {
+            const next = { ...prev };
+            // Check if content is already elsewhere and swap
+            const existingSlot = (Object.keys(next) as unknown as SlotId[]).find(key => next[key] === newContent);
+            if (existingSlot && existingSlot !== slotId) {
+                next[existingSlot] = next[slotId]; // Swap contents
+            }
+            next[slotId] = newContent;
+            return next;
+        });
+    };
+
+    const applyLayoutPreset = (type: LayoutType) => {
+        setCurrentLayout(type);
+        setShowLayoutMenu(false);
+        // Apply sensible defaults for the selected layout
+        switch(type) {
+            case 'classic': setSlotContent({ 1: 'data', 2: 'map', 3: 'chart' }); break;
+            case 'map-top': setSlotContent({ 1: 'map', 2: 'data', 3: 'chart' }); break;
+            case 'data-right': setSlotContent({ 1: 'map', 2: 'chart', 3: 'data' }); break;
+            case 'vertical': setSlotContent({ 1: 'data', 2: 'chart', 3: 'map' }); break;
+            case 'focus-bottom': setSlotContent({ 1: 'data', 2: 'map', 3: 'chart' }); break;
+            case 'columns': setSlotContent({ 1: 'data', 2: 'map', 3: 'chart' }); break;
+        }
+    };
+    
+    // Safe access to rpe with fallback
     const [rpe, setRpe] = useState(track.rpe || 5);
     
     const [smoothingWindow, setSmoothingWindow] = useState(30);
@@ -200,10 +290,10 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
 
     // Animation State (Local)
     const [isAnimating, setIsAnimating] = useState(false);
-    const [isAnimationMode, setIsAnimationMode] = useState(false); // Track if we are in animation view mode even if paused
+    const [isAnimationMode, setIsAnimationMode] = useState(false); 
     const [animationProgress, setAnimationProgress] = useState(0); // in km
     const [animationSpeed, setAnimationSpeed] = useState(20);
-    const [animationTime, setAnimationTime] = useState(0); // track time in ms
+    const [animationTime, setAnimationTime] = useState(0); 
     const animationFrameRef = useRef<number | null>(null);
     const lastFrameTimeRef = useRef<number>(0);
 
@@ -424,6 +514,8 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
         }
     };
 
+    // --- Component Sections ---
+
     const chartControls = (
         <div className="w-full h-full flex items-center justify-between px-2 bg-slate-800/90 border-b border-slate-700">
             <div className="flex items-center space-x-1 sm:space-x-2">
@@ -450,26 +542,30 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
         </div>
     );
 
-    const chartSection = (
-        <div className="w-full h-full relative group bg-slate-900 overflow-hidden">
-            <TimelineChart 
-                track={displayTrack} 
-                onSelectionChange={handleChartSelection}
-                yAxisMetrics={yAxisMetrics}
-                onChartHover={handleHoverChange}
-                hoveredPoint={hoveredPoint}
-                pauseSegments={stats.pauses}
-                showPauses={showPauses}
-                highlightedRange={highlightedChartRange}
-                smoothingWindow={smoothingWindow}
-                animationProgress={animationProgress}
-                isAnimating={isAnimating}
-                userProfile={userProfile}
-            />
+    const ChartSection = (
+        <div className="w-full h-full relative flex flex-col bg-slate-900">
+            {selectionStats && <SelectionStatsOverlay data={selectionStats} onClose={() => setChartSelection(null)} />}
+            <div className="h-8 flex-shrink-0 border-b border-slate-700">{chartControls}</div>
+            <div className="flex-grow min-h-0 relative group">
+                <TimelineChart 
+                    track={displayTrack} 
+                    onSelectionChange={handleChartSelection}
+                    yAxisMetrics={yAxisMetrics}
+                    onChartHover={handleHoverChange}
+                    hoveredPoint={hoveredPoint}
+                    pauseSegments={stats.pauses}
+                    showPauses={showPauses}
+                    highlightedRange={highlightedChartRange}
+                    smoothingWindow={smoothingWindow}
+                    animationProgress={animationProgress}
+                    isAnimating={isAnimating}
+                    userProfile={userProfile}
+                />
+            </div>
         </div>
     );
 
-    const mapSection = (
+    const MapSection = (
         <div className="w-full h-full relative bg-slate-900 flex flex-col">
              <div className="absolute top-2 right-2 z-10 flex flex-col gap-1">
                  <select value={mapGradientMetric} onChange={(e) => setMapGradientMetric(e.target.value as any)} className="bg-slate-800/95 border border-slate-700 text-white text-[8px] font-black uppercase py-1 px-1.5 rounded focus:border-cyan-500 appearance-none cursor-pointer shadow-lg">
@@ -510,10 +606,178 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
         </div>
     );
 
+    const DataSectionComponent = (
+        <DataSection 
+            className="h-full w-full"
+            stats={stats} 
+            track={displayTrack}
+            userProfile={userProfile}
+            allHistory={allHistory}
+            plannedWorkouts={plannedWorkouts}
+            onUpdateTrackMetadata={onUpdateTrackMetadata}
+            onAddPlannedWorkout={onAddPlannedWorkout}
+            autoOpenAi={autoOpenAi}
+            onCheckAiAccess={onCheckAiAccess}
+            selectedSegment={selectedSegment}
+            handleSegmentSelect={handleSegmentSelect}
+            hasHrData={hasHrData}
+        />
+    );
+
+    // Dynamic Render Function
+    const renderPane = (slotId: SlotId) => {
+        const type = slotContent[slotId];
+        let content;
+        switch(type) {
+            case 'data': content = DataSectionComponent; break;
+            case 'map': content = MapSection; break;
+            case 'chart': content = ChartSection; break;
+        }
+
+        return (
+            <div className="w-full h-full flex flex-col relative overflow-hidden group/pane">
+                {/* Minimal Pane Header for switching */}
+                <div className="absolute top-2 left-2 z-[1000] opacity-0 group-hover/pane:opacity-100 transition-opacity bg-slate-900/90 rounded-lg p-1 border border-slate-600 shadow-xl flex gap-1">
+                    <SwapIcon />
+                    <select 
+                        value={type}
+                        onChange={(e) => handleContentChange(slotId, e.target.value as ContentType)}
+                        className="bg-transparent text-[10px] text-white font-bold uppercase outline-none cursor-pointer pr-1"
+                    >
+                        <option value="data">Dati</option>
+                        <option value="map">Mappa</option>
+                        <option value="chart">Grafico</option>
+                    </select>
+                </div>
+                {content}
+            </div>
+        );
+    };
+
+    // --- Render Logic based on Layout ---
+
+    const renderLayout = () => {
+        switch (currentLayout) {
+            case 'classic': // Classic: Left (Slot 1) | Right-Top (Slot 2) / Right-Bottom (Slot 3)
+                return (
+                    <ResizablePanel direction="horizontal" initialSizeRatio={0.35} minSize={250} className="h-full">
+                        {renderPane(1)}
+                        <div className="h-full relative bg-slate-900 w-full border-l border-slate-700">
+                            <ResizablePanel direction="vertical" initialSizeRatio={0.75} minSize={150} minSizeSecondary={100}>
+                                {renderPane(2)}
+                                {renderPane(3)}
+                            </ResizablePanel>
+                        </div>
+                    </ResizablePanel>
+                );
+            
+            case 'map-top': // Map Top: Top (Slot 1) | Bottom-Left (Slot 2) / Bottom-Right (Slot 3)
+                return (
+                    <ResizablePanel direction="vertical" initialSizeRatio={0.5} minSize={150} className="h-full">
+                        {renderPane(1)}
+                        <div className="h-full relative bg-slate-900 w-full border-t border-slate-700">
+                            <ResizablePanel direction="horizontal" initialSizeRatio={0.4} minSize={250}>
+                                {renderPane(2)}
+                                {renderPane(3)}
+                            </ResizablePanel>
+                        </div>
+                    </ResizablePanel>
+                );
+
+            case 'data-right': // Data Right: Left-Top (Slot 1) / Left-Bottom (Slot 2) | Right (Slot 3)
+                return (
+                    <ResizablePanel direction="horizontal" initialSizeRatio={0.7} minSize={300} className="h-full">
+                        <div className="h-full relative bg-slate-900 w-full border-r border-slate-700">
+                            <ResizablePanel direction="vertical" initialSizeRatio={0.70} minSize={150}>
+                                {renderPane(1)}
+                                {renderPane(2)}
+                            </ResizablePanel>
+                        </div>
+                        {renderPane(3)}
+                    </ResizablePanel>
+                );
+
+            case 'vertical': // Vertical: Stacked 1, 2, 3
+                return (
+                    <div className="flex flex-col h-full w-full">
+                        <div className="h-[40%] border-b border-slate-700 relative overflow-hidden">
+                            {renderPane(1)}
+                        </div>
+                        <div className="h-[30%] border-b border-slate-700 relative flex flex-col bg-slate-900">
+                            {renderPane(2)}
+                        </div>
+                        <div className="flex-grow relative w-full">
+                            {renderPane(3)}
+                        </div>
+                    </div>
+                );
+
+            case 'focus-bottom': // Focus Bottom: Top-Left (Slot 1) / Top-Right (Slot 2) | Bottom Wide (Slot 3)
+                return (
+                    <ResizablePanel direction="vertical" initialSizeRatio={0.6} minSize={150} className="h-full">
+                        <div className="h-full relative bg-slate-900 w-full border-b border-slate-700">
+                            <ResizablePanel direction="horizontal" initialSizeRatio={0.5} minSize={200}>
+                                {renderPane(1)}
+                                {renderPane(2)}
+                            </ResizablePanel>
+                        </div>
+                        {renderPane(3)}
+                    </ResizablePanel>
+                );
+
+            case 'columns': // 3 Columns: Slot 1 | Slot 2 | Slot 3
+                return (
+                    <ResizablePanel direction="horizontal" initialSizeRatio={0.33} minSize={200} className="h-full">
+                        {renderPane(1)}
+                        <div className="h-full relative bg-slate-900 w-full border-l border-slate-700">
+                            <ResizablePanel direction="horizontal" initialSizeRatio={0.5} minSize={200}>
+                                {renderPane(2)}
+                                <div className="h-full w-full border-l border-slate-700">
+                                    {renderPane(3)}
+                                </div>
+                            </ResizablePanel>
+                        </div>
+                    </ResizablePanel>
+                );
+
+            default: return null;
+        }
+    };
+
     return (
         <div className="flex flex-col h-full w-full font-sans text-white overflow-hidden bg-slate-900">
              <header className="flex items-center justify-between p-2 sm:p-3 bg-slate-800 border-b border-slate-700 flex-shrink-0 z-30 shadow-lg">
-                <button onClick={onExit} className="bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white font-black py-1.5 px-3 sm:py-2 sm:px-5 rounded-lg transition-all shadow-sm text-[10px] sm:text-sm">&larr; {isMobile ? 'INDIETRO' : 'CHIUDI'}</button>
+                <div className="flex items-center gap-2">
+                    <button onClick={onExit} className="bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white font-black py-1.5 px-3 sm:py-2 sm:px-5 rounded-lg transition-all shadow-sm text-[10px] sm:text-sm">&times; {isMobile ? 'INDIETRO' : 'CHIUDI'}</button>
+                    <button onClick={() => setShowShareModal(true)} className="bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white py-1.5 px-3 rounded-lg transition-all shadow-sm">
+                        <ShareIcon />
+                    </button>
+                    
+                    {/* Layout Selector */}
+                    <div className="relative">
+                        <button 
+                            onClick={() => setShowLayoutMenu(!showLayoutMenu)}
+                            className="bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white py-1.5 px-3 rounded-lg transition-all shadow-sm flex items-center gap-1"
+                            title="Cambia Layout"
+                        >
+                            <LayoutIcon />
+                        </button>
+                        {showLayoutMenu && (
+                            <>
+                                <div className="fixed inset-0 z-10" onClick={() => setShowLayoutMenu(false)}></div>
+                                <div className="absolute top-full left-0 mt-2 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl p-1 z-20 flex flex-col gap-1 w-48 animate-fade-in-down">
+                                    <button onClick={() => applyLayoutPreset('classic')} className={`text-left px-3 py-2 rounded text-xs font-bold ${currentLayout === 'classic' ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`}>Classico (Default)</button>
+                                    <button onClick={() => applyLayoutPreset('map-top')} className={`text-left px-3 py-2 rounded text-xs font-bold ${currentLayout === 'map-top' ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`}>Mappa Estesa</button>
+                                    <button onClick={() => applyLayoutPreset('data-right')} className={`text-left px-3 py-2 rounded text-xs font-bold ${currentLayout === 'data-right' ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`}>Dati a Destra</button>
+                                    <button onClick={() => applyLayoutPreset('vertical')} className={`text-left px-3 py-2 rounded text-xs font-bold ${currentLayout === 'vertical' ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`}>Verticale</button>
+                                    <button onClick={() => applyLayoutPreset('focus-bottom')} className={`text-left px-3 py-2 rounded text-xs font-bold ${currentLayout === 'focus-bottom' ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`}>Focus Basso (Footer)</button>
+                                    <button onClick={() => applyLayoutPreset('columns')} className={`text-left px-3 py-2 rounded text-xs font-bold ${currentLayout === 'columns' ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`}>3 Colonne</button>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+                
                 <div className="text-center px-2 flex-grow min-w-0">
                     <div className="flex flex-col items-center">
                         <div className="flex items-center gap-2">
@@ -552,48 +816,17 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
             </header>
 
             <main className="flex-grow overflow-hidden relative">
-                {/* RIGID SPLIT LAYOUT: Left (Data) vs Right (Map/Chart) */}
-                <ResizablePanel direction={isMobile ? 'vertical' : 'horizontal'} initialSizeRatio={isMobile ? 0.5 : 0.35} minSize={250} className="h-full">
-                    
-                    {/* LEFT PANEL: DATA & AI (Full Height Scrollable) - Memoized to prevent re-renders on animation frame */}
-                    <LeftDataPanel 
-                        stats={stats} 
-                        track={displayTrack}
-                        userProfile={userProfile}
-                        allHistory={allHistory}
-                        plannedWorkouts={plannedWorkouts}
-                        onUpdateTrackMetadata={onUpdateTrackMetadata}
-                        onAddPlannedWorkout={onAddPlannedWorkout}
-                        autoOpenAi={autoOpenAi}
-                        onCheckAiAccess={onCheckAiAccess}
-                        selectedSegment={selectedSegment}
-                        handleSegmentSelect={handleSegmentSelect}
-                        hasHrData={hasHrData}
-                    />
-
-                    {/* RIGHT PANEL: MAP & CHART (Split Vertically) */}
-                    <div className="h-full relative bg-slate-900 w-full">
-                        <ResizablePanel
-                            direction="vertical"
-                            initialSizeRatio={0.75} // Map 75%, Chart 25%
-                            minSize={150}
-                            minSizeSecondary={100}
-                        >
-                            {/* Top: Map */}
-                            <div className="h-full w-full relative z-0">
-                                {mapSection}
-                            </div>
-
-                            {/* Bottom: Chart */}
-                            <div className="h-full w-full bg-slate-900 border-t border-slate-700 relative flex flex-col">
-                                {selectionStats && <SelectionStatsOverlay data={selectionStats} onClose={() => setChartSelection(null)} />}
-                                <div className="h-8 flex-shrink-0">{chartControls}</div>
-                                <div className="flex-grow min-h-0">{chartSection}</div>
-                            </div>
-                        </ResizablePanel>
-                    </div>
-                </ResizablePanel>
+                {renderLayout()}
             </main>
+
+            {showShareModal && (
+                <ShareModal 
+                    track={track} 
+                    stats={stats} 
+                    userProfile={userProfile} 
+                    onClose={() => setShowShareModal(false)} 
+                />
+            )}
         </div>
     );
 };

@@ -194,9 +194,12 @@ const HomeModal: React.FC<HomeModalProps> = ({
                     </h2>
                     
                     <div className="flex items-center justify-center gap-2 mt-2">
-                         <span className="bg-slate-800 border border-slate-700 text-slate-400 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                            v1.32
-                        </span>
+                         <button 
+                            onClick={onOpenChangelog}
+                            className="bg-slate-800 border border-slate-700 text-slate-400 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider hover:bg-slate-700 hover:text-white transition-colors cursor-pointer"
+                         >
+                            v1.33
+                        </button>
                         <span className={`border text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${trackCount > 0 ? 'bg-cyan-900/20 border-cyan-500/30 text-cyan-400' : 'bg-slate-800 border-slate-700 text-slate-500'}`}>
                             {trackCount} {trackCount === 1 ? 'Attività' : 'Attività'}
                         </span>

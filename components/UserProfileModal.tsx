@@ -4,6 +4,7 @@ import { UserProfile, PersonalRecord, RunningGoal, AiPersonality, Track, WeightE
 import { getStoredPRs, findBestTimeForDistance, PR_DISTANCES } from '../services/prService';
 import Tooltip from './Tooltip';
 import SimpleLineChart from './SimpleLineChart';
+import GearManager from './GearManager'; // Import new component
 
 interface UserProfileModalProps {
     onClose: () => void;
@@ -51,12 +52,6 @@ const formatPRDistance = (meters: number): string => {
     return `${(meters / 1000).toFixed(2)} km`;
 };
 
-const ShoeIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 mr-2 text-cyan-400">
-        <path d="M2.273 5.625A4.483 4.483 0 0 1 5.25 4.5h13.5c1.141 0 2.183.425 2.977 1.125A3 3 0 0 0 18.75 3H5.25a3 3 0 0 0-2.977 2.625ZM2.273 8.625A4.483 4.483 0 0 1 5.25 7.5h13.5c1.141 0 2.183.425 2.977 1.125A3 3 0 0 0 18.75 6H5.25a3 3 0 0 0-2.977 2.625ZM5.25 9a3 3 0 0 0-3 3v2.25a3 3 0 0 0 3 3h13.5a3 3 0 0 0 3-3V12a3 3 0 0 0-3-3H5.25Z" />
-    </svg>
-);
-
 const ChartIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
         <path d="M15.5 2A1.5 1.5 0 0 0 14 3.5v8a1.5 1.5 0 0 0 1.5 1.5h1a1.5 1.5 0 0 0 1.5-1.5v-8A1.5 1.5 0 0 0 16.5 2h-1ZM9.5 6A1.5 1.5 0 0 0 8 7.5v4a1.5 1.5 0 0 0 1.5 1.5h1a1.5 1.5 0 0 0 1.5-1.5v-4A1.5 1.5 0 0 0 10.5 6h-1ZM3.5 10A1.5 1.5 0 0 0 2 11.5v0A1.5 1.5 0 0 0 3.5 13h1a1.5 1.5 0 0 0 1.5-1.5v0A1.5 1.5 0 0 0 4.5 10h-1Z" />
@@ -66,36 +61,24 @@ const ChartIcon = () => (
 const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, currentProfile, isWelcomeMode = false, tracks = [] }) => {
     const [profile, setProfile] = useState<UserProfile>({ ...currentProfile });
     const [personalRecords, setPersonalRecords] = useState<Record<string, PersonalRecord>>({});
-    const [newShoe, setNewShoe] = useState('');
     const [calculatingPRs, setCalculatingPRs] = useState(false);
     const [showWeightHistory, setShowWeightHistory] = useState(false);
 
     useEffect(() => {
         setProfile({ ...currentProfile });
         
-        // Logica avanzata: Scansiona TUTTE le tracce per trovare i migliori segmenti
-        // Questo assicura che se importi un backup o hai tante corse, i PR siano calcolati su tutto lo storico
-        // e non solo sull'ultimo import.
         if (tracks && tracks.length > 0) {
             setCalculatingPRs(true);
-            
-            // Timeout per non bloccare l'apertura del modale UI
             setTimeout(() => {
                 const computedPRs: Record<string, PersonalRecord> = {};
-                
                 PR_DISTANCES.forEach(distanceDef => {
                     const targetKm = distanceDef.meters / 1000;
                     let globalBestTime = Infinity;
                     let globalBestTrack: Track | null = null;
 
                     tracks.forEach(track => {
-                        // Salta tracce troppo corte
                         if (track.distance < targetKm) return;
-
-                        // findBestTimeForDistance usa una finestra scorrevole (sliding window)
-                        // Analizza OGNI possibile segmento (es. da 7.25 a 8.25 km), non solo i km interi.
                         const time = findBestTimeForDistance(track.points, targetKm);
-                        
                         if (time !== null && time < globalBestTime) {
                             globalBestTime = time;
                             globalBestTrack = track;
@@ -112,37 +95,21 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
                         };
                     }
                 });
-
                 setPersonalRecords(computedPRs);
                 setCalculatingPRs(false);
             }, 100);
         } else {
-            // Fallback se non ci sono tracce caricate
             setPersonalRecords(getStoredPRs());
         }
     }, [currentProfile, tracks]);
 
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') {
-                onClose();
-            }
+            if (event.key === 'Escape') onClose();
         };
         window.addEventListener('keydown', handleKeyDown);
-        return () => {
-            window.removeEventListener('keydown', handleKeyDown);
-        };
+        return () => window.removeEventListener('keydown', handleKeyDown);
     }, [onClose]);
-
-    const shoeMileageMap = useMemo(() => {
-        const map: Record<string, number> = {};
-        tracks.forEach(t => {
-            if (t.shoe) {
-                map[t.shoe] = (map[t.shoe] || 0) + t.distance;
-            }
-        });
-        return map;
-    }, [tracks]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
@@ -156,53 +123,39 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
         setProfile(prev => {
             const currentGoals = prev.goals || [];
             if (goal === 'none') return { ...prev, goals: ['none'] };
-            
             let nextGoals = currentGoals.filter(g => g !== 'none');
-            if (nextGoals.includes(goal)) {
-                nextGoals = nextGoals.filter(g => g !== goal);
-            } else {
-                nextGoals = [...nextGoals, goal];
-            }
-
+            if (nextGoals.includes(goal)) nextGoals = nextGoals.filter(g => g !== goal);
+            else nextGoals = [...nextGoals, goal];
             if (nextGoals.length === 0) nextGoals = ['none'];
             return { ...prev, goals: nextGoals };
         });
     };
 
-    const handleAddShoe = () => {
-        if (!newShoe.trim()) return;
+    // Gear Manager Handlers
+    const handleAddShoe = (shoeName: string) => {
         setProfile(prev => ({
             ...prev,
-            shoes: [...(prev.shoes || []), newShoe.trim()]
+            shoes: [...(prev.shoes || []), shoeName]
         }));
-        setNewShoe('');
     };
 
-    const handleRemoveShoe = (indexToRemove: number) => {
+    const handleRemoveShoe = (index: number) => {
         setProfile(prev => ({
             ...prev,
-            shoes: (prev.shoes || []).filter((_, i) => i !== indexToRemove)
+            shoes: (prev.shoes || []).filter((_, i) => i !== index)
         }));
     };
     
     const handleSave = () => {
         const updatedProfile = { ...profile };
-        
-        // Weight history logic
         const currentWeight = Number(profile.weight);
         const history = [...(profile.weightHistory || [])];
-        
-        // If there's a weight set and (history is empty OR last entry is different)
         if (!isNaN(currentWeight) && currentWeight > 0) {
             const lastEntry = history.length > 0 ? history[history.length - 1] : null;
             if (!lastEntry || Math.abs(lastEntry.weight - currentWeight) > 0.1) {
-                history.push({
-                    date: new Date().toISOString(),
-                    weight: currentWeight
-                });
+                history.push({ date: new Date().toISOString(), weight: currentWeight });
             }
         }
-        
         updatedProfile.weightHistory = history;
         onSave(updatedProfile);
         onClose();
@@ -212,27 +165,15 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
 
     const weightChartData = useMemo(() => {
         if (!profile.weightHistory || profile.weightHistory.length < 2) return null;
-        return profile.weightHistory.map(entry => ({
-            date: new Date(entry.date),
-            value: entry.weight
-        }));
+        return profile.weightHistory.map(entry => ({ date: new Date(entry.date), value: entry.weight }));
     }, [profile.weightHistory]);
 
     return (
-        <div 
-            className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9000] p-4 animate-fade-in"
-            onClick={onClose}
-        >
-            <div 
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="profile-modal-title"
-                className="bg-slate-800 text-white rounded-xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]"
-                onClick={(e) => e.stopPropagation()}
-            >
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9000] p-4 animate-fade-in" onClick={onClose}>
+            <div className="bg-slate-800 text-white rounded-xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
                 <header className="flex flex-col p-4 border-b border-slate-700 flex-shrink-0 bg-slate-900">
                     <div className="flex justify-between items-center w-full">
-                        <h2 id="profile-modal-title" className="text-xl font-bold text-cyan-400">
+                        <h2 className="text-xl font-bold text-cyan-400">
                             {isWelcomeMode ? 'Configurazione Atleta' : 'Profilo & Impostazioni'}
                         </h2>
                         {!isWelcomeMode && (
@@ -256,13 +197,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label htmlFor="gender" className="block text-sm font-medium text-slate-300">Genere</label>
-                                        <select 
-                                            name="gender" 
-                                            id="gender" 
-                                            value={profile.gender || ''} 
-                                            onChange={handleChange} 
-                                            className="mt-1 block w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white focus:ring-cyan-500 focus:border-cyan-500"
-                                        >
+                                        <select name="gender" id="gender" value={profile.gender || ''} onChange={handleChange} className="mt-1 block w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white focus:ring-cyan-500 focus:border-cyan-500">
                                             <option value="">Seleziona</option>
                                             <option value="M">Uomo</option>
                                             <option value="F">Donna</option>
@@ -308,12 +243,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
                                             <p className="text-[10px] text-slate-400 font-bold uppercase">Storico Peso</p>
                                             <button onClick={() => setShowWeightHistory(false)} className="text-slate-500 hover:text-white">&times;</button>
                                         </div>
-                                        <SimpleLineChart 
-                                            data={weightChartData} 
-                                            color1="#22d3ee" 
-                                            title="" 
-                                            yLabel="Kg" 
-                                        />
+                                        <SimpleLineChart data={weightChartData} color1="#22d3ee" title="" yLabel="Kg" />
                                     </div>
                                 )}
 
@@ -330,51 +260,12 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
                             </div>
 
                             <div className="border-t border-slate-700 pt-6">
-                                <label className="block text-sm font-bold text-cyan-500 uppercase tracking-widest mb-3 flex items-center">
-                                    <ShoeIcon />
-                                    Gestione Scarpe
-                                </label>
-                                <div className="flex space-x-2 mb-3">
-                                    <input 
-                                        type="text" 
-                                        value={newShoe}
-                                        onChange={(e) => setNewShoe(e.target.value)}
-                                        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddShoe())}
-                                        placeholder="Nuovo modello"
-                                        className="flex-grow bg-slate-700 border border-slate-600 rounded-md p-2 text-sm text-white focus:ring-cyan-500 focus:border-cyan-500"
-                                    />
-                                    <button 
-                                        type="button" 
-                                        onClick={handleAddShoe}
-                                        disabled={!newShoe.trim()}
-                                        className="bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white font-bold px-3 rounded-md transition-colors"
-                                    >
-                                        +
-                                    </button>
-                                </div>
-                                <div className="space-y-2 max-h-32 overflow-y-auto custom-scrollbar bg-slate-700/30 p-2 rounded-md border border-slate-700/50">
-                                    {(!profile.shoes || profile.shoes.length === 0) ? (
-                                        <p className="text-xs text-slate-500 italic text-center py-2">Nessuna scarpa aggiunta.</p>
-                                    ) : (
-                                        profile.shoes.map((shoe, index) => {
-                                            const mileage = shoeMileageMap[shoe] || 0;
-                                            return (
-                                                <div key={index} className="flex justify-between items-center bg-slate-800 p-2 rounded text-sm group">
-                                                    <span className="truncate">
-                                                        {shoe} <span className="text-xs text-slate-400 font-mono ml-1">({mileage.toFixed(1)} km)</span>
-                                                    </span>
-                                                    <button 
-                                                        type="button" 
-                                                        onClick={() => handleRemoveShoe(index)}
-                                                        className="text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity px-1"
-                                                    >
-                                                        &times;
-                                                    </button>
-                                                </div>
-                                            );
-                                        })
-                                    )}
-                                </div>
+                                <GearManager 
+                                    shoes={profile.shoes || []} 
+                                    onAddShoe={handleAddShoe} 
+                                    onRemoveShoe={handleRemoveShoe}
+                                    tracks={tracks} 
+                                />
                             </div>
 
                             <div>
@@ -402,13 +293,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
 
                             <div className="border-t border-slate-700 pt-6">
                                 <label htmlFor="aiPersonality" className="block text-sm font-bold text-cyan-500 uppercase tracking-widest mb-2">Tono del Coach AI</label>
-                                <select 
-                                    name="aiPersonality" 
-                                    id="aiPersonality" 
-                                    value={profile.aiPersonality || 'pro_balanced'} 
-                                    onChange={handleChange} 
-                                    className="block w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white focus:ring-cyan-500 focus:border-cyan-500"
-                                >
+                                <select name="aiPersonality" id="aiPersonality" value={profile.aiPersonality || 'pro_balanced'} onChange={handleChange} className="block w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white focus:ring-cyan-500 focus:border-cyan-500">
                                     {Object.entries(personalityLabels).map(([key, { label }]) => (
                                         <option key={key} value={key}>{label}</option>
                                     ))}
@@ -420,14 +305,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
 
                             <div className="border-t border-slate-700 pt-6">
                                 <label htmlFor="personalNotes" className="block text-sm font-bold text-cyan-500 uppercase tracking-widest mb-2">Note Personali</label>
-                                <textarea 
-                                    name="personalNotes" 
-                                    id="personalNotes" 
-                                    value={profile.personalNotes || ''} 
-                                    onChange={handleChange} 
-                                    placeholder="Es: Recupero da infortunio, obiettivo 10km in 50 minuti..."
-                                    className="block w-full bg-slate-700 border border-slate-600 rounded-md p-3 text-sm text-white focus:ring-cyan-500 focus:border-cyan-500 h-24 resize-none"
-                                />
+                                <textarea name="personalNotes" id="personalNotes" value={profile.personalNotes || ''} onChange={handleChange} placeholder="Es: Recupero da infortunio, obiettivo 10km in 50 minuti..." className="block w-full bg-slate-700 border border-slate-600 rounded-md p-3 text-sm text-white focus:ring-cyan-500 focus:border-cyan-500 h-24 resize-none" />
                             </div>
                         </div>
 

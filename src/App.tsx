@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Sidebar from '../components/Sidebar';
 import MapDisplay from '../components/MapDisplay';
@@ -42,6 +43,17 @@ const TRACK_COLORS = [
   '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e'
 ];
 
+const AiCoachButtonIcon = () => (
+    <div className="relative flex items-center justify-center">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8 text-white">
+            <path fillRule="evenodd" d="M4.848 2.771A49.144 49.144 0 0 1 12 2.25c2.405 0 4.781.173 7.152.521C20.88 3.034 22 4.538 22 6.315V16.5c0 2.25-2.25 4.5-4.5 4.5a34.456 34.456 0 0 1-2.72.174c-.67.032-1.34.063-2.01.093l-2.305 2.153a1.5 1.5 0 0 1-2.312-1.637l.633-2.673a33.583 33.583 0 0 1-2.433-.298C3.768 18.666 2 16.718 2 14.25V6.315c0-1.777 1.12-3.281 2.848-3.544Z" clipRule="evenodd" />
+        </svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 absolute -top-1.5 -right-1.5 text-cyan-200 animate-pulse drop-shadow-md">
+            <path fillRule="evenodd" d="M9 4.5a.75.75 0 0 1 .721.544l.813 2.846a3.75 3.75 0 0 0 2.576 2.576l2.846.813a.75.75 0 0 1 0 1.442l-2.846.813a3.75 3.75 0 0 0-2.576 2.576l-.813 2.846a.75.75 0 0 1-1.442 0l-.813-2.846a3.75 3.75 0 0 0-2.576-2.576l-2.846-.813a.75.75 0 0 1 0-1.442l2.846-.813a3.75 3.75 0 0 0 2.576-2.576l.813-2.846A.75.75 0 0 1 9 4.5Z" clipRule="evenodd" />
+        </svg>
+    </div>
+);
+
 const App: React.FC = () => {
   // --- STATE ---
   const [showSplash, setShowSplash] = useState(true);
@@ -77,7 +89,7 @@ const App: React.FC = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    const handleResize = () => setIsMobile(window.innerWidth <768);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -122,6 +134,20 @@ const App: React.FC = () => {
       setShowAiChatbot(false);
       setShowRaceSetup(false);
       setShowComparison(false);
+  }, []);
+
+  const handleOpenDetailView = useCallback((trackId: string) => {
+      // 1. Close overlays
+      setShowExplorer(false);
+      setShowDiary(false);
+      setShowHome(false);
+      
+      // 2. Reset mobile specific states to ensure clean layout transition
+      setIsSidebarMobileOpen(false);
+      setMobileSelectedTrackId(null);
+      
+      // 3. Set the detail track
+      setSelectedDetailTrackId(trackId);
   }, []);
 
   const checkAiAccess = useCallback(() => {
@@ -511,8 +537,7 @@ const App: React.FC = () => {
 
   const handleMobileSummaryClick = () => {
       if (mobileSelectedTrackId) {
-          setSelectedDetailTrackId(mobileSelectedTrackId);
-          setMobileSelectedTrackId(null);
+          handleOpenDetailView(mobileSelectedTrackId);
       }
   };
 
@@ -537,7 +562,7 @@ const App: React.FC = () => {
             setMobileSelectedTrackId(trackId);
             setHoveredTrackId(trackId);
         } else {
-            setSelectedDetailTrackId(trackId);
+            handleOpenDetailView(trackId);
             setHoveredTrackId(trackId);
         }
   };
@@ -602,7 +627,7 @@ const App: React.FC = () => {
                         onSortChange={() => {}}
                         onDeleteTrack={handleDeleteTrack}
                         onDeleteSelected={() => { raceSelectionIds.forEach(id => handleDeleteTrack(id)); setRaceSelectionIds(new Set()); }}
-                        onViewDetails={setSelectedDetailTrackId}
+                        onViewDetails={handleOpenDetailView}
                         onStartAnimation={(id) => { setAnimationTrackId(id); setIsAnimationPlaying(true); }}
                         raceRanks={raceRanks}
                         runnerSpeeds={runnerSpeeds}
@@ -731,7 +756,7 @@ const App: React.FC = () => {
                                     className="bg-purple-600 hover:bg-purple-500 text-white p-4 rounded-full shadow-2xl transition-transform hover:scale-110 flex items-center justify-center"
                                     title="Coach AI"
                                 >
-                                    <span className="text-2xl">🤖</span>
+                                    <AiCoachButtonIcon />
                                 </button>
                             </div>
                         )}
@@ -803,12 +828,12 @@ const App: React.FC = () => {
                 plannedWorkouts={plannedWorkouts}
                 userProfile={userProfile}
                 onClose={() => setShowDiary(false)}
-                onSelectTrack={(id) => { setShowDiary(false); setSelectedDetailTrackId(id); }}
+                onSelectTrack={handleOpenDetailView}
                 onDeletePlannedWorkout={handleDeletePlannedWorkout}
                 onAddPlannedWorkout={handleAddPlannedWorkout}
                 onUpdatePlannedWorkout={handleUpdatePlannedWorkout}
                 onMassUpdatePlannedWorkouts={handleMassUpdatePlannedWorkouts}
-                onOpenTrackChat={(id) => { setShowDiary(false); setSelectedDetailTrackId(id); }}
+                onOpenTrackChat={handleOpenDetailView}
                 onOpenGlobalChat={() => { setShowDiary(false); setShowAiChatbot(true); }}
                 initialSelectedWorkoutId={selectedWorkoutIdForDiary}
                 onCheckAiAccess={checkAiAccess}
@@ -819,7 +844,7 @@ const App: React.FC = () => {
             <ExplorerView 
                 tracks={tracks}
                 onClose={() => setShowExplorer(false)}
-                onSelectTrack={(id) => { setShowExplorer(false); setSelectedDetailTrackId(id); }}
+                onSelectTrack={handleOpenDetailView}
             />
         )}
 

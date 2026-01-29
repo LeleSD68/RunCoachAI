@@ -41,6 +41,12 @@ const SendIcon = () => (
     </svg>
 );
 
+const MinimizeIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+        <path fillRule="evenodd" d="M4 10a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 0 1.5H4.75A.75.75 0 0 1 4 10Z" clipRule="evenodd" />
+    </svg>
+);
+
 const CloseIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
         <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
@@ -53,24 +59,26 @@ const SaveIcon = () => (
     </svg>
 );
 
-const DEFAULT_WELCOME_MSG = "Analisi pronta. Cosa vuoi approfondire?";
+const DEFAULT_WELCOME_MSG = "Analisi pronta. Verifica diario in corso...";
 
 interface GeminiTrackAnalysisPanelProps {
     stats: TrackStats;
     userProfile: UserProfile;
     track: Track;
     allHistory?: Track[];
+    plannedWorkouts?: PlannedWorkout[];
     onUpdateTrackMetadata?: (id: string, metadata: Partial<Track>) => void;
     onAddPlannedWorkout?: (workout: PlannedWorkout) => void;
     startOpen?: boolean;
-    onCheckAiAccess?: () => boolean; // New prop
+    onCheckAiAccess?: () => boolean; 
 }
 
-const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ stats, userProfile, track, allHistory = [], onUpdateTrackMetadata, onAddPlannedWorkout, startOpen = false, onCheckAiAccess }) => {
+const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ stats, userProfile, track, allHistory = [], plannedWorkouts = [], onUpdateTrackMetadata, onAddPlannedWorkout, startOpen = false, onCheckAiAccess }) => {
     const [messages, setMessages] = useState<ChatMessage[]>([] as ChatMessage[]);
     const [isLoading, setIsLoading] = useState(false);
     const [input, setInput] = useState('');
     const [isOpen, setIsOpen] = useState(startOpen);
+    const [isMinimized, setIsMinimized] = useState(false);
     const [latestSummary, setLatestSummary] = useState<string | null>(null);
     const [isSaved, setIsSaved] = useState(false);
     const chatSessionRef = useRef<Chat | null>(null);
@@ -78,6 +86,14 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
     const hasAutoStartedRef = useRef(false);
     
     const CHAT_ID = `track-chat-${track.id}`;
+
+    // Calculate Planned Workout Context
+    const matchedWorkout = React.useMemo(() => {
+        if (!plannedWorkouts) return null;
+        // Check strict date match
+        const trackDate = new Date(track.points[0].time).toDateString();
+        return plannedWorkouts.find(w => new Date(w.date).toDateString() === trackDate && !w.completedTrackId);
+    }, [plannedWorkouts, track]);
 
     const generateSystemInstruction = useCallback(() => {
         const personalityKey = userProfile.aiPersonality || 'pro_balanced';
@@ -87,75 +103,65 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
         // Calcolo variabilità per capire se è ripetute/fartlek
         const validSplits = stats.splits.filter(s => s.distance > 0.5);
         const paces = validSplits.map(s => s.pace);
-        const minPace = Math.min(...paces);
-        const maxPace = Math.max(...paces);
-        const avgPaceCalc = paces.reduce((a,b)=>a+b,0) / paces.length;
-        const variance = paces.reduce((a,b) => a + Math.pow(b - avgPaceCalc, 2), 0) / paces.length;
+        const avgPaceCalc = paces.reduce((a,b)=>a+b,0) / (paces.length || 1);
+        const variance = paces.reduce((a,b) => a + Math.pow(b - avgPaceCalc, 2), 0) / (paces.length || 1);
         const stdDev = Math.sqrt(variance);
         
-        const isVariable = stdDev > 0.3; // Soglia empirica per variabilità significativa
-        const detectedType = track.activityType || (isVariable ? 'Lavoro Variato (Ripetute/Fartlek)' : 'Corsa Costante');
-
+        const isVariable = stdDev > 0.25; 
         const splitsHeader = "Km | Passo | FC | Watt | Disl.\n---|---|---|---|---";
         const splitsRows = stats.splits.map(s => {
             return `${s.splitNumber} | ${formatPace(s.pace)} | ${s.avgHr ? Math.round(s.avgHr) : 'N/D'} | ${s.avgWatts ? Math.round(s.avgWatts) : 'N/D'} | +${Math.round(s.elevationGain)}`;
         }).join('\n');
         
         const splitTable = `\nTABELLA PARZIALI:\n${splitsHeader}\n${splitsRows}\n`;
-
         const hrZoneInfo = getHeartRateZoneInfo(track, userProfile);
         const hrDistribution = hrZoneInfo.zones.map(z => `- ${z.name}: ${z.percent.toFixed(0)}%`).join(', ');
         
         let workoutContext = "";
-        if (track.linkedWorkout) {
+        if (matchedWorkout || track.linkedWorkout) {
+            const w = track.linkedWorkout || matchedWorkout;
             workoutContext = `
-            PROTOCOLLO PIANO DIARIO:
-            Previsto: ${track.linkedWorkout.activityType} "${track.linkedWorkout.title}"
-            Obiettivo: "${track.linkedWorkout.description}"
-            Verifica l'aderenza al piano.
+            ALLENAMENTO PIANIFICATO NEL DIARIO:
+            - Titolo: "${w?.title}"
+            - Tipo: ${w?.activityType}
+            - Descrizione: "${w?.description}"
             `;
+        } else {
+            workoutContext = "Nessun allenamento specifico trovato nel diario per questa data.";
         }
 
         return `${personality}
         
-        STILE DI COMUNICAZIONE:
-        - Parla SEMPRE E SOLO in ITALIANO.
-        - Rivolgiti all'atleta chiamandolo "${userName}".
-        - Limite parole: Massimo 450 parole.
-        - Sii estremamente SINTETICO ma COMPLETO ed ESAUSTIVO. Evita frasi riempitive.
-        - Mantieni un tono professionale (ed empatico se la personalità lo prevede).
-        - Fornisci analisi complete con osservazioni tecniche e suggerimenti mirati quando necessari.
+        PROTOCOLLO DI ANALISI RIGIDO:
+        1. **CHECK DIARIO**:
+           ${workoutContext}
+           
+           SE c'è un allenamento pianificato E l'utente NON ha ancora confermato:
+           - LA TUA PRIMA RISPOSTA DEVE ESSERE SOLO UNA DOMANDA: "Ciao ${userName}, per oggi era previsto '${matchedWorkout?.title || track.linkedWorkout?.title}'. Questa corsa corrisponde a quel programma?"
+           - NON ANALIZZARE NULLA FINCHÉ L'UTENTE NON RISPONDE SÌ O NO.
         
-        ANALISI STRUTTURA ALLENAMENTO (CRUCIALE):
-        Il sistema ha classificato questa attività come: **${detectedType}**.
-        Variabilità Passo (Deviazione Std): ${stdDev.toFixed(2)} min/km.
-        Min Passo: ${formatPace(minPace)}/km - Max Passo: ${formatPace(maxPace)}/km.
-        
-        ATTENZIONE:
-        - Se la variabilità è alta o il tipo è "Ripetute"/"Fartlek", NON analizzare la "media" generale come se fosse una corsa lenta costante. Analizza invece l'alternanza tra fasi veloci (ON) e lente (OFF) guardando la Tabella Parziali.
-        - Se è una "Corsa Lenta" ma c'è alta variabilità, segnalalo come errore di gestione del ritmo (pacing irregolare).
-        - Se è classificato "Gara", analizza la tenuta nel finale.
+        2. **SE L'UTENTE CONFERMA (SÌ) o SE IL PROGRAMMA È GIÀ LINKATO**:
+           - Esegui un'analisi comparativa: "Hai rispettato i ritmi previsti?", "L'intensità è coerente col piano?".
+           - Se doveva essere un Lento ed è stato veloce -> Segnala errore.
+           - Se dovevano essere Ripetute -> Analizza i picchi nella Tabella Parziali.
 
-        ${workoutContext}
-
-        METODOLOGIA:
-        1. **Check Tipologia:** Conferma se i dati rispecchiano il tipo di allenamento dichiarato.
-        2. **Analisi Segmenti:** Usa la tabella parziali per identificare i km chiave.
-        3. **Correlazione Passo/FC:** Cerca deriva cardiaca o disaccoppiamento aerobico.
-        4. **Potenza:** Valuta l'efficienza in salita/pianura.
-
-        **PROTOCOLLO SUGGERIMENTI RAPIDI:**
-        Se fai una domanda, aggiungi alla fine:
-        :::SUGGESTIONS=["Opzione 1", "Opzione 2", "Opzione 3"]:::
+        3. **SE NON C'È PROGRAMMA o L'UTENTE DICE NO**:
+           - DEVI DEDURRE IL TIPO DI CORSA DAI DATI.
+           - Variabilità Passo (StdDev): ${stdDev.toFixed(2)}.
+           - SE > 0.25 -> Probabile FARTLEK o RIPETUTE o SCALATA. Cerca pattern ON/OFF nella tabella.
+           - SE < 0.25 -> Probabile CORSA CONTINUA (Lento, Medio, Lungo).
+           - Analizza in base alla tipologia dedotta.
 
         DATI MACRO:
         Dist: ${stats.totalDistance.toFixed(2)} km, Tempo: ${formatDuration(stats.movingDuration)}.
-        Medie: Passo ${formatPace(stats.movingAvgPace)}/km, HR ${Math.round(stats.avgHr || 0)} bpm, Potenza ${Math.round(stats.avgWatts || 0)} Watt.
+        Medie: Passo ${formatPace(stats.movingAvgPace)}/km, HR ${Math.round(stats.avgHr || 0)} bpm.
         Zone Cardio: ${hrDistribution}.
 
         ${splitTable}
+
+        STILE: Rispondi in ITALIANO. Sii tecnico ma sintetico (max 450 parole).
         `;
-    }, [stats, userProfile, track]);
+    }, [stats, userProfile, track, matchedWorkout]);
 
     // Load messages and update summary
     useEffect(() => {
@@ -163,36 +169,42 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
             const savedMessages = await loadChatFromDB(CHAT_ID);
             if (savedMessages && savedMessages.length > 0) {
                 setMessages(savedMessages);
-                
-                // Find last model message for summary, excluding internal suggestion markers
                 const lastModelMsg = [...savedMessages].reverse().find(m => m.role === 'model');
                 if (lastModelMsg && lastModelMsg.text && !lastModelMsg.text.includes(DEFAULT_WELCOME_MSG)) {
                     setLatestSummary(lastModelMsg.text.split(':::SUGGESTIONS')[0]);
                 }
             } else {
-                setMessages([{
+                // Initial welcome message depends on workout context
+                let initText = DEFAULT_WELCOME_MSG;
+                if (matchedWorkout && !track.linkedWorkout) {
+                    initText = `Ciao ${userProfile.name || 'Atleta'}, ho visto che per oggi era previsto "${matchedWorkout.title}". Questa attività corrisponde al programma?`;
+                } else {
+                    initText = `Ciao ${userProfile.name || 'Atleta'}, analizzo subito questa corsa.`;
+                }
+
+                const initialMsg: ChatMessage = {
                     role: 'model',
-                    text: DEFAULT_WELCOME_MSG,
+                    text: initText,
                     timestamp: Date.now(),
-                    suggestedReplies: ["Analisi Struttura (Ripetute/Lento?)", "Analisi Cardio & Deriva", "Efficienza & Potenza", "Consigli Recupero"]
-                }]);
+                    suggestedReplies: matchedWorkout && !track.linkedWorkout ? ["Sì, è questo", "No, corsa diversa"] : ["Analisi Generale", "Focus Cardio", "Efficienza"]
+                };
+                setMessages([initialMsg]);
             }
         };
         initOrRestoreChat();
-    }, [CHAT_ID]);
+    }, [CHAT_ID, matchedWorkout, track.linkedWorkout, userProfile.name]);
 
-    // Sync state to DB and update local summary
+    // Sync state to DB
     useEffect(() => {
         if (messages.length > 0) {
             saveChatToDB(CHAT_ID, messages).catch(console.error);
-            // Update summary dynamically if a new model message arrives
             const lastModelMsg = [...messages].reverse().find(m => m.role === 'model');
             if (lastModelMsg && lastModelMsg.text && !lastModelMsg.text.includes(DEFAULT_WELCOME_MSG)) {
                 setLatestSummary(lastModelMsg.text.split(':::SUGGESTIONS')[0]);
             }
         }
-        if (isOpen) setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-    }, [messages, CHAT_ID, isOpen]);
+        if (isOpen && !isMinimized) setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+    }, [messages, CHAT_ID, isOpen, isMinimized]);
 
     const initChat = (forceRecreation = false) => {
         if (!chatSessionRef.current || forceRecreation) {
@@ -204,12 +216,8 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
                     history: messages.map(m => ({ role: m.role, parts: [{ text: m.text }] }))
                 });
             } catch (e: any) {
-                if (e.message === 'API_KEY_MISSING') {
-                    // Swallow error during init, handled in runWithRetry
-                    console.warn("AI Init skipped: Key Missing");
-                } else {
-                    throw e;
-                }
+                if (e.message === 'API_KEY_MISSING') console.warn("AI Init skipped");
+                else throw e;
             }
         }
     };
@@ -220,7 +228,6 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
         } catch (e: any) {
             if (isAuthError(e) || e.message === 'API_KEY_MISSING') {
                 await ensureApiKey();
-                // Ensure key availability before recreating chat
                 if (process.env.API_KEY) {
                     initChat(true);
                     await action();
@@ -233,12 +240,16 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
 
     const performSendMessage = async (text: string) => {
         if (!text.trim() || isLoading) return;
-        
-        // CHECK LIMIT
         if (onCheckAiAccess && !onCheckAiAccess()) return;
 
         window.gpxApp?.trackApiRequest();
         onUpdateTrackMetadata?.(track.id, { hasChat: true });
+
+        // Logic hook: If confirming workout
+        if (matchedWorkout && !track.linkedWorkout && (text.toLowerCase().includes('si') || text.toLowerCase().includes('sì') || text.toLowerCase().includes('certo'))) {
+             // Link the workout in local state/DB implicitly for next loads
+             onUpdateTrackMetadata?.(track.id, { linkedWorkout: matchedWorkout });
+        }
 
         const userMsg = text;
         setInput('');
@@ -256,41 +267,19 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
                 for await (const chunk of result) {
                     const c = chunk as GenerateContentResponse;
                     fullText += c.text || '';
-                    if (c.usageMetadata?.totalTokenCount) {
-                        finalTokenCount = c.usageMetadata.totalTokenCount;
-                    }
+                    if (c.usageMetadata?.totalTokenCount) finalTokenCount = c.usageMetadata.totalTokenCount;
+                    
                     setMessages((prev) => {
                         const next = [...prev];
                         if (next.length > 0) next[next.length - 1].text = fullText;
                         return next;
                     });
                 }
-                
-                // Add total tokens once the stream is complete
-                if (finalTokenCount > 0) {
-                    window.gpxApp?.addTokens(finalTokenCount);
-                }
-
-                const suggestionMatch = fullText.match(/:::SUGGESTIONS=(\[.*?\]):::/);
-                if (suggestionMatch && suggestionMatch[1]) {
-                    try {
-                        const replies = JSON.parse(suggestionMatch[1]);
-                        setMessages((prev: ChatMessage[]) => {
-                            const next = [...prev];
-                            const last = next[next.length - 1];
-                            if (last.role === 'model') {
-                                last.suggestedReplies = replies;
-                            }
-                            return next;
-                        });
-                    } catch (e) {
-                        console.error("Failed to parse suggestions JSON", e);
-                    }
-                }
+                if (finalTokenCount > 0) window.gpxApp?.addTokens(finalTokenCount);
             }
         }).catch(e => {
             console.error(e);
-            setMessages(prev => [...prev, { role: 'model', text: "⚠️ Si è verificato un errore di connessione con il Coach AI. Controlla la tua chiave API o riprova più tardi.", timestamp: Date.now() }]);
+            setMessages(prev => [...prev, { role: 'model', text: "⚠️ Errore connessione AI. Riprova.", timestamp: Date.now() }]);
         }).finally(() => setIsLoading(false));
     };
 
@@ -300,68 +289,59 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
     };
 
     const handleStartAnalysis = () => {
-        // CHECK LIMIT for auto-start too
         if (onCheckAiAccess && !onCheckAiAccess()) return;
 
+        // If we haven't started chatting yet (length <= 1 means only initial prompt or empty)
         if (messages.length <= 1) { 
-             performSendMessage("Analizza questa sessione. Identifica se si tratta di un lavoro specifico (Ripetute/Fartlek) o corsa continua e valuta l'esecuzione rispetto alla tipologia rilevata.");
+             // If there's a workout, we just trigger the user to answer the initial question if they haven't
+             if (matchedWorkout && !track.linkedWorkout) {
+                 // Do nothing, let user answer the greeting question
+             } else {
+                 // No workout or already linked, force detailed analysis
+                 performSendMessage("Analizza questa sessione nel dettaglio.");
+             }
         }
     };
 
+    // ... (rest of the component: Auto-start effect, Render functions, UI)
     const handleSaveToDiary = (content: string) => {
         if (!onAddPlannedWorkout) return;
-        
         const cleanContent = content.split(':::SUGGESTIONS')[0].trim();
-        
         const note: PlannedWorkout = {
             id: `ai-analysis-${Date.now()}`,
             title: `Analisi AI: ${track.name}`,
             description: cleanContent,
-            date: track.points[0].time, // Same date as track
+            date: track.points[0].time,
             activityType: 'Altro',
             isAiSuggested: true,
-            completedTrackId: track.id // Link to this track
+            completedTrackId: track.id
         };
-        
         onAddPlannedWorkout(note);
         setIsSaved(true);
         setTimeout(() => setIsSaved(false), 2500);
     };
 
-    // Auto-start if requested
     useEffect(() => {
         if (startOpen && !isOpen) {
-            // Delay auto-open slightly to allow parent to render
-            setTimeout(() => {
-                setIsOpen(true);
-            }, 100);
+            setTimeout(() => setIsOpen(true), 100);
         }
-        if (startOpen && !hasAutoStartedRef.current && messages.length <= 1) {
+        // Only auto-start analysis if we are NOT waiting for a workout confirmation
+        if (startOpen && !hasAutoStartedRef.current && messages.length <= 1 && (!matchedWorkout || track.linkedWorkout)) {
             hasAutoStartedRef.current = true;
             setTimeout(() => handleStartAnalysis(), 600);
         }
-    }, [startOpen, messages.length]);
+    }, [startOpen, messages.length, matchedWorkout, track.linkedWorkout]);
 
     const renderMessage = (msg: ChatMessage, index: number) => {
         const displayText = msg.text.split(':::SUGGESTIONS')[0];
-
         return (
             <div key={index} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} w-full`}>
                 <div className={`max-w-[95%] sm:max-w-[85%] p-3 rounded-2xl shadow-sm text-sm ${msg.role === 'user' ? 'bg-cyan-700 text-white rounded-tr-none' : 'bg-slate-700 text-slate-100 rounded-tl-none'}`}>
                     <FormattedAnalysis text={displayText} />
-                    
-                    {/* Add Save Button for Model messages */}
                     {msg.role === 'model' && onAddPlannedWorkout && displayText.length > 50 && (
                         <div className="mt-2 pt-2 border-t border-slate-600/50 flex justify-end">
-                            <button 
-                                onClick={() => handleSaveToDiary(displayText)}
-                                className="flex items-center gap-1 text-[10px] uppercase font-bold text-cyan-400 hover:text-cyan-300 transition-colors bg-slate-800/50 px-2 py-1 rounded"
-                            >
-                                {isSaved ? (
-                                    <>✓ Salvato</>
-                                ) : (
-                                    <><SaveIcon /> Salva nel Diario</>
-                                )}
+                            <button onClick={() => handleSaveToDiary(displayText)} className="flex items-center gap-1 text-[10px] uppercase font-bold text-cyan-400 hover:text-cyan-300 transition-colors bg-slate-800/50 px-2 py-1 rounded">
+                                {isSaved ? <>✓ Salvato</> : <><SaveIcon /> Salva nel Diario</>}
                             </button>
                         </div>
                     )}
@@ -369,14 +349,7 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
                 {msg.role === 'model' && msg.suggestedReplies && msg.suggestedReplies.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-2 animate-fade-in-up">
                         {msg.suggestedReplies.map((reply, i) => (
-                            <button
-                                key={i}
-                                onClick={() => performSendMessage(reply)}
-                                disabled={isLoading}
-                                className="bg-slate-800 border border-purple-500/30 text-purple-300 text-[10px] px-3 py-1.5 rounded-full hover:bg-purple-600 hover:text-white transition-all active:scale-95 shadow-sm font-semibold"
-                            >
-                                {reply}
-                            </button>
+                            <button key={i} onClick={() => performSendMessage(reply)} disabled={isLoading} className="bg-slate-800 border border-purple-500/30 text-purple-300 text-[10px] px-3 py-1.5 rounded-full hover:bg-purple-600 hover:text-white transition-all active:scale-95 shadow-sm font-semibold">{reply}</button>
                         ))}
                     </div>
                 )}
@@ -392,6 +365,7 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
                         onClick={() => { 
                             if(onCheckAiAccess && !onCheckAiAccess()) return;
                             setIsOpen(true); 
+                            setIsMinimized(false);
                             handleStartAnalysis(); 
                         }}
                         className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 border border-purple-400/30"
@@ -399,12 +373,8 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
                         <SparklesIcon />
                         {messages.length > 1 ? 'Apri Chat Coach AI' : 'Avvia Analisi Coach AI'}
                     </button>
-                    
                     {latestSummary && (
-                        <div 
-                            className="mt-3 bg-slate-800/60 p-4 rounded-xl border border-slate-700/50 cursor-pointer hover:bg-slate-800 transition-colors group relative overflow-hidden"
-                            onClick={() => setIsOpen(true)}
-                        >
+                        <div className="mt-3 bg-slate-800/60 p-4 rounded-xl border border-slate-700/50 cursor-pointer hover:bg-slate-800 transition-colors group relative overflow-hidden" onClick={() => { setIsOpen(true); setIsMinimized(false); }}>
                             <div className="flex items-center gap-2 mb-2 text-[10px] font-black uppercase tracking-widest text-purple-400">
                                 <span>Verdetto Coach</span>
                                 <div className="h-px bg-purple-500/30 flex-grow"></div>
@@ -412,14 +382,25 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
                             <div className="text-sm text-slate-300 line-clamp-3 italic opacity-90 leading-relaxed group-hover:text-slate-200 transition-colors">
                                 <FormattedAnalysis text={latestSummary} />
                             </div>
-                            <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-slate-900/90 to-transparent"></div>
-                            <div className="absolute bottom-1 right-2 text-[9px] text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity font-bold uppercase tracking-wider bg-slate-900/80 px-2 py-0.5 rounded-full backdrop-blur-sm">
-                                Leggi tutto &rarr;
-                            </div>
                         </div>
                     )}
                 </>
+            ) : isMinimized ? (
+                // Minimized State - A Floating Bubble in Sidebar
+                <div className="bg-slate-800 border border-purple-500/50 rounded-xl p-3 shadow-xl animate-fade-in cursor-pointer hover:bg-slate-750 transition-colors" onClick={() => setIsMinimized(false)}>
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <div className="bg-purple-600 p-1.5 rounded-lg animate-pulse"><SparklesIcon /></div>
+                            <div>
+                                <h3 className="font-bold text-white text-xs">Coach AI (Attivo)</h3>
+                                <p className="text-[9px] text-slate-400">Clicca per espandere</p>
+                            </div>
+                        </div>
+                        <button onClick={(e) => { e.stopPropagation(); setIsOpen(false); }} className="text-slate-500 hover:text-white">&times;</button>
+                    </div>
+                </div>
             ) : (
+                // Full Screen Modal State
                 <div className="fixed inset-0 z-[10000] bg-slate-900 flex flex-col animate-fade-in">
                     <header className="flex items-center justify-between p-4 border-b border-slate-700 bg-slate-800 shadow-md flex-shrink-0">
                         <div className="flex items-center gap-2">
@@ -429,42 +410,20 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
                                 <p className="text-[10px] text-purple-400 font-bold">{userProfile.aiPersonality || 'Coach'}</p>
                             </div>
                         </div>
-                        <button 
-                            onClick={() => setIsOpen(false)}
-                            className="bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
-                        >
-                            <CloseIcon /> Riduci
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button onClick={() => setIsMinimized(true)} className="bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white p-2 rounded-lg transition-colors" title="Riduci a icona"><MinimizeIcon /></button>
+                            <button onClick={() => setIsOpen(false)} className="bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white px-3 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"><CloseIcon /> Chiudi</button>
+                        </div>
                     </header>
-
                     <div className="flex-grow overflow-y-auto p-4 space-y-4 custom-scrollbar bg-slate-900/50">
                         {messages.map((msg, index) => renderMessage(msg, index))}
-                        {isLoading && (
-                            <div className="flex items-center gap-2 text-slate-500 italic text-xs animate-pulse p-2">
-                                <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                                AI sta analizzando i dati...
-                            </div>
-                        )}
+                        {isLoading && <div className="flex items-center gap-2 text-slate-500 italic text-xs animate-pulse p-2"><div className="w-2 h-2 bg-purple-500 rounded-full"></div>AI sta analizzando i dati...</div>}
                         <div ref={messagesEndRef} />
                     </div>
-                    
                     <div className="p-4 border-t border-slate-700 bg-slate-800 flex-shrink-0 safe-area-pb">
                         <form onSubmit={handleSend} className="flex gap-2 items-center bg-slate-900 p-1.5 rounded-xl border border-slate-700 focus-within:border-purple-500 transition-colors">
-                            <input 
-                                type="text" 
-                                value={input} 
-                                onChange={e => setInput(e.target.value)} 
-                                placeholder="Chiedi dettagli sulla corsa..."
-                                className="flex-grow bg-transparent p-2 text-sm text-white focus:outline-none placeholder-slate-500" 
-                                disabled={isLoading} 
-                            />
-                            <button 
-                                type="submit" 
-                                disabled={isLoading || !input.trim()}
-                                className="bg-purple-600 p-2 rounded-lg text-white hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                            >
-                                <SendIcon />
-                            </button>
+                            <input type="text" value={input} onChange={e => setInput(e.target.value)} placeholder="Rispondi al coach..." className="flex-grow bg-transparent p-2 text-sm text-white focus:outline-none placeholder-slate-500" disabled={isLoading} />
+                            <button type="submit" disabled={isLoading || !input.trim()} className="bg-purple-600 p-2 rounded-lg text-white hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"><SendIcon /></button>
                         </form>
                     </div>
                 </div>
