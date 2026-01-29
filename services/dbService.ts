@@ -46,6 +46,7 @@ const mapTrackToSupabase = (t: Track, userId: string) => ({
     tags: t.tags,
     is_favorite: t.isFavorite,
     is_archived: t.isArchived,
+    is_public: t.isPublic, // NEW
     has_chat: t.hasChat,
     linked_workout: t.linkedWorkout,
 });
@@ -86,6 +87,7 @@ const mapSupabaseToTrack = (row: any): Track | null => {
             tags: row.tags,
             isFavorite: row.is_favorite,
             isArchived: row.is_archived,
+            isPublic: row.is_public, // NEW
             hasChat: row.has_chat,
             linkedWorkout: row.linked_workout,
         };
