@@ -217,7 +217,7 @@ const App: React.FC = () => {
                         name: title,
                         points: parsed.points,
                         distance: parsed.distance,
-                        duration: parsed.duration,
+                        duration: parsed.duration, // CORRECTED
                         color: '#' + Math.floor(Math.random()*16777215).toString(16),
                         activityType,
                         folder,
