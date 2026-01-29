@@ -142,9 +142,9 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
   const kmMarkersLayerGroupRef = useRef<any>(null);
   const hoverMarkerRef = useRef<any>(null);
   const animationMarkerRef = useRef<any>(null);
+  const animationPaceLabelRef = useRef<HTMLElement | null>(null); // DOM Ref for optimized text update
   const aiSegmentPolylineRef = useRef<any>(null);
   const selectionPolylineRef = useRef<any>(null);
-  const lastAnimationPaceRef = useRef<string>(''); // Optimizes marker updates
   
   const [isAutoFitEnabled, setIsAutoFitEnabled] = useState(true);
   
@@ -280,6 +280,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
             kmMarkersLayerGroupRef.current = null;
             hoverMarkerRef.current = null;
             animationMarkerRef.current = null;
+            animationPaceLabelRef.current = null;
             selectionPolylineRef.current = null;
             aiSegmentPolylineRef.current = null;
         }
@@ -487,23 +488,26 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
   useEffect(() => {
       const map = mapRef.current;
       if (!map || !animationTrack || is3DMode) {
-          if (animationMarkerRef.current) { map?.removeLayer(animationMarkerRef.current); animationMarkerRef.current = null; }
+          if (animationMarkerRef.current) { 
+              map?.removeLayer(animationMarkerRef.current); 
+              animationMarkerRef.current = null; 
+              animationPaceLabelRef.current = null;
+          }
           return;
       }
 
       const currentInterp = getTrackPointAtDistance(animationTrack, animationProgress);
       if (currentInterp) {
           if (!showSummaryMode) {
-              // OPTIMIZATION: Use animate: false for frame-by-frame updates without CSS lag
+              // OPTIMIZATION: Always force center on animation tick, respecting current user zoom
               map.setView([currentInterp.lat, currentInterp.lon], map.getZoom(), { animate: false });
           }
           
           const paceStr = animationPace > 0 ? formatPace(animationPace) : '--:--';
           
-          // Only recreate icon HTML if pace string changed to avoid DOM thrashing
-          if (lastAnimationPaceRef.current !== paceStr || !animationMarkerRef.current) {
-              lastAnimationPaceRef.current = paceStr;
-              const iconHtml = `<div class="relative flex flex-col items-center"><div class="cursor-dot animate-pulse shadow-lg" style="background-color: ${animationTrack.color}; width: 20px; height: 20px; border: 3px solid white;"></div><div class="pace-label font-black" style="background-color: ${animationTrack.color};">${paceStr}</div></div>`;
+          // Create Marker ONLY ONCE
+          if (!animationMarkerRef.current) {
+              const iconHtml = `<div class="relative flex flex-col items-center"><div class="cursor-dot animate-pulse shadow-lg" style="background-color: ${animationTrack.color}; width: 20px; height: 20px; border: 3px solid white;"></div><div class="pace-label font-black" style="background-color: ${animationTrack.color};"><span class="pace-text-target">${paceStr}</span></div></div>`;
               const icon = L.divIcon({
                   className: 'race-cursor-icon',
                   html: iconHtml,
@@ -511,16 +515,22 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
                   iconAnchor: [30, 20]
               });
 
-              if (!animationMarkerRef.current) {
-                  animationMarkerRef.current = L.marker([currentInterp.lat, currentInterp.lon], { icon, zIndexOffset: 2000 }).addTo(map);
-              } else {
-                  animationMarkerRef.current.setIcon(icon);
+              const marker = L.marker([currentInterp.lat, currentInterp.lon], { icon, zIndexOffset: 2000 }).addTo(map);
+              animationMarkerRef.current = marker;
+              
+              // Cache DOM reference for text update without re-rendering icon
+              const el = marker.getElement();
+              if (el) {
+                  animationPaceLabelRef.current = el.querySelector('.pace-text-target');
               }
-          }
-          
-          // Always update position
-          if (animationMarkerRef.current) {
+          } else {
+              // Just update position
               animationMarkerRef.current.setLatLng([currentInterp.lat, currentInterp.lon]);
+              
+              // Direct DOM manipulation for smooth text update
+              if (animationPaceLabelRef.current) {
+                  animationPaceLabelRef.current.innerText = paceStr;
+              }
           }
       }
 
@@ -551,6 +561,12 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
       if (animationProgress < 0.1) {
           passedKmsRef.current.clear();
           kmMarkersLayerGroupRef.current?.clearLayers();
+          // Reset marker if we restart
+          if (animationMarkerRef.current) {
+              map.removeLayer(animationMarkerRef.current);
+              animationMarkerRef.current = null;
+              animationPaceLabelRef.current = null;
+          }
       }
 
   }, [animationTrack, animationProgress, animationPace, showSummaryMode, animationTrackStats, is3DMode]);
