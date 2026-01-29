@@ -28,6 +28,7 @@ import MobileTrackSummary from '../components/MobileTrackSummary';
 import NavigationDock from '../components/NavigationDock';
 import PerformanceAnalysisPanel from '../components/PerformanceAnalysisPanel';
 import ComparisonModal from '../components/ComparisonModal';
+import SocialHub from '../components/SocialHub'; // New Import
 
 import { Track, TrackPoint, UserProfile, Toast, RaceResult, TrackStats, PlannedWorkout, ApiUsageStats, Commentary } from '../types';
 import { loadTracksFromDB, saveTracksToDB, loadProfileFromDB, saveProfileToDB, loadPlannedWorkoutsFromDB, savePlannedWorkoutsToDB, exportAllData, importAllData, BackupData, syncTrackToCloud } from '../services/dbService';
@@ -37,21 +38,17 @@ import { getTrackPointAtDistance, getTrackStateAtTime } from '../services/trackE
 import { parseGpx } from '../services/gpxService';
 import { parseTcx } from '../services/tcxService';
 import { generateSmartTitle } from '../services/titleGenerator';
-import { isSupabaseConfigured } from '../services/supabaseClient';
+import { isSupabaseConfigured, supabase } from '../services/supabaseClient';
+import { updatePresence } from '../services/socialService'; // New Import
 
 const TRACK_COLORS = [
   '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e'
 ];
 
 const AiCoachButtonIcon = () => (
-    <div className="relative flex items-center justify-center">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8 text-white">
-            <path fillRule="evenodd" d="M4.848 2.771A49.144 49.144 0 0 1 12 2.25c2.405 0 4.781.173 7.152.521C20.88 3.034 22 4.538 22 6.315V16.5c0 2.25-2.25 4.5-4.5 4.5a34.456 34.456 0 0 1-2.72.174c-.67.032-1.34.063-2.01.093l-2.305 2.153a1.5 1.5 0 0 1-2.312-1.637l.633-2.673a33.583 33.583 0 0 1-2.433-.298C3.768 18.666 2 16.718 2 14.25V6.315c0-1.777 1.12-3.281 2.848-3.544Z" clipRule="evenodd" />
-        </svg>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 absolute -top-1.5 -right-1.5 text-cyan-200 animate-pulse drop-shadow-md">
-            <path fillRule="evenodd" d="M9 4.5a.75.75 0 0 1 .721.544l.813 2.846a3.75 3.75 0 0 0 2.576 2.576l2.846.813a.75.75 0 0 1 0 1.442l-2.846.813a3.75 3.75 0 0 0-2.576 2.576l-.813 2.846a.75.75 0 0 1-1.442 0l-.813-2.846a3.75 3.75 0 0 0-2.576-2.576l-2.846-.813a.75.75 0 0 1 0-1.442l2.846-.813a3.75 3.75 0 0 0 2.576-2.576l.813-2.846A.75.75 0 0 1 9 4.5Z" clipRule="evenodd" />
-        </svg>
-    </div>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+        <path d="M11.25 4.533A9.707 9.707 0 0 0 6 3a9.735 9.735 0 0 0-3.25.555.75.75 0 0 0-.5.707v14.25a.75.75 0 0 0 1 .707A8.237 8.237 0 0 1 6 18.75c1.995 0 3.823.707 5.25 1.886V4.533ZM12.75 20.636A8.214 8.214 0 0 1 18 18.75c.966 0 1.89.166 2.75.47a.75.75 0 0 0 1-.708V4.262a.75.75 0 0 0-.5-.707A9.735 9.735 0 0 0 18 3a9.707 9.707 0 0 0-5.25 1.533v16.103Z" />
+    </svg>
 );
 
 const App: React.FC = () => {
@@ -64,6 +61,7 @@ const App: React.FC = () => {
   const [plannedWorkouts, setPlannedWorkouts] = useState<PlannedWorkout[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [isGuest, setIsGuest] = useState(!isSupabaseConfigured());
+  const [userId, setUserId] = useState<string | null>(null);
   
   // Modals & Views
   const [showHome, setShowHome] = useState(false);
@@ -81,8 +79,9 @@ const App: React.FC = () => {
   const [veoTrack, setVeoTrack] = useState<Track | null>(null);
   const [aiReviewTrackId, setAiReviewTrackId] = useState<string | null>(null);
   const [showComparison, setShowComparison] = useState(false);
+  const [showSocialHub, setShowSocialHub] = useState(false); // New
   
-  // New States for Navigation Dock
+  // ... (New States for Navigation Dock remains same) ...
   const [isSidebarMobileOpen, setIsSidebarMobileOpen] = useState(false);
   const [showPerformancePanel, setShowPerformancePanel] = useState(false);
   const [mobileSelectedTrackId, setMobileSelectedTrackId] = useState<string | null>(null);
@@ -94,7 +93,7 @@ const App: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
   
-  // Race / Simulation State
+  // ... (Race / Simulation State remains same) ...
   const [simulationState, setSimulationState] = useState<'idle' | 'running' | 'paused' | 'finished'>('idle');
   const [simulationTime, setSimulationTime] = useState(0); // ms
   const [simulationSpeed, setSimulationSpeed] = useState(10);
@@ -106,16 +105,16 @@ const App: React.FC = () => {
   const [hoveredTrackId, setHoveredTrackId] = useState<string | null>(null);
   const [showRaceSetup, setShowRaceSetup] = useState(false);
   
-  // Analysis / Interaction
+  // ... (Analysis / Interaction remains same) ...
   const [selectedWorkoutIdForDiary, setSelectedWorkoutIdForDiary] = useState<string | null>(null);
   const [workoutConfirmation, setWorkoutConfirmation] = useState<PlannedWorkout | null>(null);
   const [liveCommentary, setLiveCommentary] = useState<Commentary[]>([]);
   const [isCommentaryLoading, setIsCommentaryLoading] = useState(false);
   
-  // API Usage Tracking
+  // ... (API Usage Tracking remains same) ...
   const [apiUsage, setApiUsage] = useState<ApiUsageStats>({ rpm: 0, daily: 0, limitRpm: 15, limitDaily: 1500, totalTokens: 0 });
   
-  // Animation Replay
+  // ... (Animation Replay remains same) ...
   const [animationTrackId, setAnimationTrackId] = useState<string | null>(null);
   const [animationProgress, setAnimationProgress] = useState(0);
   const [isAnimationPlaying, setIsAnimationPlaying] = useState(false);
@@ -134,19 +133,16 @@ const App: React.FC = () => {
       setShowAiChatbot(false);
       setShowRaceSetup(false);
       setShowComparison(false);
+      setShowSocialHub(false); // Close social
   }, []);
 
+  // ... (handleOpenDetailView, checkAiAccess, handleLimitReached remain same) ...
   const handleOpenDetailView = useCallback((trackId: string) => {
-      // 1. Close overlays
       setShowExplorer(false);
       setShowDiary(false);
       setShowHome(false);
-      
-      // 2. Reset mobile specific states to ensure clean layout transition
       setIsSidebarMobileOpen(false);
       setMobileSelectedTrackId(null);
-      
-      // 3. Set the detail track
       setSelectedDetailTrackId(trackId);
   }, []);
 
@@ -162,9 +158,24 @@ const App: React.FC = () => {
       addToast("Funzionalità limitata. Aggiorna il piano.", "info");
   }, []);
 
+  // --- PRESENCE PING LOOP ---
+  useEffect(() => {
+      if (!userId || isGuest) return;
+      
+      const ping = () => updatePresence(userId);
+      ping(); // Initial ping
+      
+      const interval = setInterval(ping, 180000); // 3 minutes
+      return () => clearInterval(interval);
+  }, [userId, isGuest]);
+
   // --- INITIALIZATION ---
   useEffect(() => {
     const init = async () => {
+      // Check session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) setUserId(session.user.id);
+
       const storedTracks = await loadTracksFromDB();
       const storedProfile = await loadProfileFromDB();
       const storedWorkouts = await loadPlannedWorkoutsFromDB();
@@ -190,12 +201,10 @@ const App: React.FC = () => {
     init();
   }, []);
 
-  // Global API Usage Setup
+  // ... (Global API Usage Setup and addToast remain same) ...
   useEffect(() => {
     window.gpxApp = {
-      addTokens: (count) => { 
-        setApiUsage(prev => ({ ...prev, totalTokens: prev.totalTokens + count }));
-      },
+      addTokens: (count) => { setApiUsage(prev => ({ ...prev, totalTokens: prev.totalTokens + count })); },
       getDailyTokenCount: () => apiUsage.daily,
       trackApiRequest: () => {
         setApiUsage(prev => {
@@ -213,7 +222,9 @@ const App: React.FC = () => {
     setToasts(prev => [...prev, { id, message, type }]);
   };
 
+  // ... (processFilesOnMainThread, handleAddOpponent, handleRemoveRaceTrack remain same) ...
   const processFilesOnMainThread = async (files: File[]) => {
+      // ... same logic ...
       const existingFingerprints = new Set(tracks.map(t => `${t.points.length}-${t.duration}-${t.distance.toFixed(5)}`));
       const newTracks: Track[] = [];
       let skippedCount = 0;
@@ -291,6 +302,7 @@ const App: React.FC = () => {
   };
 
   const handleAddOpponent = async (files: File[]) => {
+      // ... same logic ...
       const newTracks: Track[] = [];
       let count = 0;
       for (const file of files) {
@@ -306,7 +318,7 @@ const App: React.FC = () => {
                       id: `ghost-${Date.now()}-${count}`,
                       name: `GHOST: ${parsedData.name}`,
                       points: parsedData.points,
-                      color: '#94a3b8', // Slate color for ghosts
+                      color: '#94a3b8', 
                       distance: parsedData.distance,
                       duration: parsedData.duration,
                       isExternal: true
@@ -334,11 +346,10 @@ const App: React.FC = () => {
           next.delete(id);
           return next;
       });
-      // If it's a ghost/external track, completely remove it from the track list
       setTracks(prev => prev.filter(t => t.id !== id || !t.isExternal));
   };
 
-  // --- FILE HANDLING ---
+  // ... (File Handling, Workout Management, Track Metadata functions remain same) ...
   const handleFileUpload = (files: File[] | null) => {
     if (!files || files.length === 0) return;
     addToast("Elaborazione file in corso...", "info");
@@ -459,7 +470,7 @@ const App: React.FC = () => {
     addToast('Traccia eliminata.', 'info');
   };
 
-  // --- SIMULATION / RACE ---
+  // ... (Simulation / Race handlers remain same) ...
   const handleStartRace = () => {
       if (raceSelectionIds.size < 2) return;
       setShowRaceSetup(true);
@@ -658,13 +669,27 @@ const App: React.FC = () => {
                         apiUsageStats={apiUsage}
                         onOpenHub={() => setShowHome(true)}
                         onOpenPerformanceAnalysis={() => setShowPerformancePanel(true)}
-                        onUserLogin={() => { loadTracksFromDB().then(setTracks); addToast('Login effettuato (Locale)', 'success'); setIsGuest(false); }}
+                        onUserLogin={async () => { 
+                            const { data: { session } } = await supabase.auth.getSession();
+                            if(session) setUserId(session.user.id);
+                            loadTracksFromDB().then(setTracks); 
+                            addToast('Login effettuato (Locale)', 'success'); 
+                            setIsGuest(false); 
+                        }}
                         onCompareSelected={handleCompareSelected}
                         userProfile={userProfile}
+                        onOpenSocial={() => {
+                            if(isGuest) {
+                                addToast("Accesso Social riservato agli utenti registrati.", "info");
+                            } else {
+                                setShowSocialHub(true);
+                            }
+                        }}
                     />
                 </div>
             )}
 
+            {/* ... Map/Detail View Container (same as before) ... */}
             <div className={`
                 relative transition-all duration-300
                 ${selectedDetailTrackId || editorTracks ? 'h-full w-full' : ''}
@@ -773,6 +798,7 @@ const App: React.FC = () => {
             </div>
         </div>
 
+        {/* ... Navigation Dock (Same) ... */}
         {!editorTracks && !showHome && !showDiary && !showExplorer && !selectedDetailTrackId && !showAiChatbot && !simulationState.startsWith('run') && (
             <NavigationDock 
                 onOpenSidebar={() => { closeAllViews(); setIsSidebarMobileOpen(true); }}
@@ -787,6 +813,7 @@ const App: React.FC = () => {
             />
         )}
 
+        {/* ... Other Modals ... */}
         {showInitialChoice && (
             <InitialChoiceModal 
                 onImportBackup={handleImportBackup} 
@@ -921,6 +948,13 @@ const App: React.FC = () => {
             <ComparisonModal
                 tracks={tracks.filter(t => raceSelectionIds.has(t.id))}
                 onClose={() => setShowComparison(false)}
+            />
+        )}
+
+        {showSocialHub && userId && (
+            <SocialHub 
+                currentUserId={userId} 
+                onClose={() => setShowSocialHub(false)} 
             />
         )}
 

@@ -40,6 +40,9 @@ export interface Track {
       description: string;
       activityType: ActivityType;
   };
+  userId?: string; // Owner ID for social features
+  userDisplayName?: string; // Owner Name for social features
+  startTime?: string; // ISO String
 }
 
 export interface MonthlyStats {
@@ -201,7 +204,9 @@ export interface WeightEntry {
 }
 
 export interface UserProfile {
+  id?: string; // ID Database
   name?: string; 
+  email?: string;
   age?: number;
   weight?: number;
   height?: number; // in cm
@@ -214,6 +219,15 @@ export interface UserProfile {
   personalNotes?: string; // Note generali (infortuni, etc)
   shoes?: string[]; // Lista di scarpe possedute
   theme?: 'dark' | 'light';
+  lastSeenAt?: string; // ISO String for presence
+  isOnline?: boolean; // Derived state
+}
+
+export interface FriendRequest {
+    id: string;
+    requester: UserProfile;
+    status: 'pending' | 'accepted';
+    createdAt: string;
 }
 
 export interface PersonalRecord {
