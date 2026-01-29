@@ -47,8 +47,8 @@ const ShareModal: React.FC<ShareModalProps> = ({ track, stats, userProfile, onCl
                     <div className="relative z-10 p-6 flex justify-between items-start">
                         <div>
                             <div className="flex items-center gap-2 mb-1">
-                                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg">
-                                    <span className="text-sm">🏃</span>
+                                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg p-1.5">
+                                    <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
                                 </div>
                                 <span className="font-black text-white text-lg tracking-tighter italic">RunCoach<span className="text-cyan-400">AI</span></span>
                             </div>
