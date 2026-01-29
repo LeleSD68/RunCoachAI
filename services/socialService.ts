@@ -1,6 +1,6 @@
 
 import { supabase } from './supabaseClient';
-import { UserProfile, FriendRequest, Track } from '../types';
+import { UserProfile, FriendRequest, Track, DirectMessage } from '../types';
 
 export const updatePresence = async (userId: string) => {
     if (!userId) return;
@@ -132,5 +132,36 @@ export const getFriendsActivityFeed = async (currentUserId: string): Promise<Tra
         color: t.color || '#3b82f6',
         activityType: t.activity_type,
         userDisplayName: t.profiles?.name || 'Amico'
+    }));
+};
+
+export const sendDirectMessage = async (senderId: string, receiverId: string, content: string) => {
+    const { error } = await supabase.from('direct_messages').insert({
+        sender_id: senderId,
+        receiver_id: receiverId,
+        content: content
+    });
+    if (error) throw error;
+};
+
+export const getDirectMessages = async (currentUserId: string, friendId: string): Promise<DirectMessage[]> => {
+    const { data, error } = await supabase
+        .from('direct_messages')
+        .select('id, sender_id, receiver_id, content, created_at')
+        .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${currentUserId})`)
+        .order('created_at', { ascending: true })
+        .limit(50); // Limit last 50 for performance
+
+    if (error) {
+        console.error("Chat fetch error", error);
+        return [];
+    }
+
+    return data.map((msg: any) => ({
+        id: msg.id,
+        senderId: msg.sender_id,
+        receiverId: msg.receiver_id,
+        content: msg.content,
+        createdAt: msg.created_at
     }));
 };
