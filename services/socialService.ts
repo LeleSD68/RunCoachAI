@@ -40,29 +40,44 @@ export const sendFriendRequest = async (toUserId: string, currentUserId: string)
 };
 
 export const getFriendRequests = async (currentUserId: string): Promise<FriendRequest[]> => {
-    const { data, error } = await supabase
+    // 1. Recupera le richieste pendenti (solo gli ID)
+    const { data: requests, error } = await supabase
         .from('friends')
-        .select(`
-            id,
-            status,
-            created_at,
-            user_id_1,
-            requester:profiles!user_id_1(id, name, last_seen_at)
-        `)
+        .select('id, status, created_at, user_id_1')
         .eq('user_id_2', currentUserId)
         .eq('status', 'pending');
 
     if (error) {
-        console.error(error);
+        console.error("Error fetching friend requests:", error);
         return [];
     }
 
-    return data.map((r: any) => ({
-        id: r.id,
-        status: r.status,
-        createdAt: r.created_at,
-        requester: r.requester
-    }));
+    if (!requests || requests.length === 0) return [];
+
+    // 2. Recupera i profili di chi ha fatto la richiesta
+    const requesterIds = requests.map((r: any) => r.user_id_1);
+    const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, name, last_seen_at')
+        .in('id', requesterIds);
+
+    if (profilesError) {
+        console.error("Error fetching requester profiles:", profilesError);
+        return [];
+    }
+
+    // 3. Unisci i dati
+    const profilesMap = new Map(profiles?.map((p: any) => [p.id, p]));
+
+    return requests.map((r: any) => {
+        const profile = profilesMap.get(r.user_id_1);
+        return {
+            id: r.id,
+            status: r.status,
+            createdAt: r.created_at,
+            requester: profile || { id: r.user_id_1, name: 'Utente sconosciuto' }
+        };
+    });
 };
 
 export const acceptFriendRequest = async (requestId: string) => {
@@ -108,12 +123,10 @@ export const getFriends = async (currentUserId: string): Promise<UserProfile[]> 
 
 export const getFriendsActivityFeed = async (currentUserId: string): Promise<Track[]> => {
     // Requires the RLS policy "Users can view own and friends tracks" to be active
-    const { data, error } = await supabase
+    // 1. Fetch tracks raw data
+    const { data: tracks, error } = await supabase
         .from('tracks')
-        .select(`
-            id, name, distance_km, duration_ms, start_time, activity_type, color,
-            profiles!tracks_user_id_fkey(name)
-        `)
+        .select('id, name, distance_km, duration_ms, start_time, activity_type, color, user_id')
         .neq('user_id', currentUserId) // Don't show my own tracks in "Friends Feed"
         .order('start_time', { ascending: false })
         .limit(20);
@@ -123,7 +136,18 @@ export const getFriendsActivityFeed = async (currentUserId: string): Promise<Tra
         return [];
     }
 
-    return data.map((t: any) => ({
+    if (!tracks || tracks.length === 0) return [];
+
+    // 2. Fetch profiles for these tracks
+    const userIds = [...new Set(tracks.map((t: any) => t.user_id))];
+    const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, name')
+        .in('id', userIds);
+        
+    const profilesMap = new Map(profiles?.map((p: any) => [p.id, p.name]));
+
+    return tracks.map((t: any) => ({
         id: t.id,
         name: t.name,
         distance: t.distance_km,
@@ -131,7 +155,7 @@ export const getFriendsActivityFeed = async (currentUserId: string): Promise<Tra
         points: [{ time: new Date(t.start_time), lat: 0, lon: 0, ele: 0, cummulativeDistance: 0 }], // Minimal points for list
         color: t.color || '#3b82f6',
         activityType: t.activity_type,
-        userDisplayName: t.profiles?.name || 'Amico'
+        userDisplayName: profilesMap.get(t.user_id) || 'Runner'
     }));
 };
 
