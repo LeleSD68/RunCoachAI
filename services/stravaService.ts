@@ -35,6 +35,16 @@ export const getStravaConfig = () => {
     };
 };
 
+export const isStravaConnected = () => {
+    return !!localStorage.getItem(STRAVA_TOKEN_KEY);
+};
+
+export const disconnectStrava = () => {
+    localStorage.removeItem(STRAVA_TOKEN_KEY);
+    localStorage.removeItem(STRAVA_REFRESH_TOKEN_KEY);
+    localStorage.removeItem(STRAVA_EXPIRES_AT_KEY);
+};
+
 export const initiateStravaAuth = () => {
     const { clientId } = getStravaConfig();
     if (!clientId) throw new Error("Strava Client ID mancante.");
