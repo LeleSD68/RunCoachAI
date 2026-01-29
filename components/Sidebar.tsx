@@ -22,6 +22,7 @@ const RectangleStackIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBo
 const ArchiveBoxIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M2 3a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3Z" /><path fillRule="evenodd" d="M13 9a1 1 0 1 0 0 2h-6a1 1 0 1 0 0-2h6ZM2.75 7A.75.75 0 0 0 2 7.75v8.5c0 .69.56 1.25 1.25 1.25h13.5c.69 0 1.25-.56 1.25-1.25v-8.5A.75.75 0 0 0 17.25 7H2.75Z" clipRule="evenodd" /></svg>);
 const CheckIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-green-400"><path fillRule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clipRule="evenodd" /></svg>);
 const XMarkIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-red-400"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" /></svg>);
+const LogoutIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M3 4.25A2.25 2.25 0 0 1 5.25 2h5.5A2.25 2.25 0 0 1 13 4.25v2a.75.75 0 0 1-1.5 0v-2a.75.75 0 0 0-.75-.75h-5.5a.75.75 0 0 0-.75.75v11.5c0 .414.336.75.75.75h5.5a.75.75 0 0 0 .75-.75v-2a.75.75 0 0 1 1.5 0v2A2.25 2.25 0 0 1 10.75 18h-5.5A2.25 2.25 0 0 1 3 15.75V4.25Z" clipRule="evenodd" /><path fillRule="evenodd" d="M19 10a.75.75 0 0 0-.75-.75H8.704l1.048-.943a.75.75 0 1 0-1.004-1.114l-2.5 2.25a.75.75 0 0 0 0 1.114l2.5 2.25a.75.75 0 1 0 1.004-1.114l-1.048-.943h9.546A.75.75 0 0 0 19 10Z" clipRule="evenodd" /></svg>);
 
 interface SidebarProps {
     tracks: Track[];
@@ -82,10 +83,12 @@ interface SidebarProps {
     onOpenHub: () => void;
     onOpenPerformanceAnalysis: () => void;
     onUserLogin: () => void;
+    onUserLogout?: () => void; // Added Prop
     onCompareSelected: () => void;
     userProfile: UserProfile;
     onOpenSocial: () => void;
     onToggleArchived: (id: string) => void; 
+    isGuest?: boolean; // Added Prop
 }
 
 type SortOption = 'date_desc' | 'date_asc' | 'distance_desc' | 'distance_asc' | 'time_desc' | 'time_asc';
@@ -98,7 +101,8 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
         hoveredTrackId, onTrackHoverStart, onTrackHoverEnd, simulationState, 
         onOpenDiary, showExplorer, onToggleExplorer,
         onOpenHub, onOpenPerformanceAnalysis, onOpenSocial, onCompareSelected,
-        onUpdateTrackMetadata, onToggleArchived
+        onUpdateTrackMetadata, onToggleArchived,
+        userProfile, onUserLogin, onUserLogout, isGuest
     } = props;
 
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -395,6 +399,45 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                         {showArchived ? 'Nessuna attività in archivio.' : 'Nessuna attività trovata.'}
                     </div>
                 )}
+            </div>
+
+            {/* User Status Bar */}
+            <div className="bg-slate-900 border-t border-slate-800 p-2 shrink-0">
+                <div className="flex items-center justify-between bg-slate-800/50 rounded-lg p-2 border border-slate-700">
+                    <div className="flex items-center gap-2">
+                        <div className="relative">
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-600 to-blue-600 flex items-center justify-center text-white font-bold text-xs shadow-md border border-slate-600">
+                                {userProfile.name ? userProfile.name.substring(0, 1).toUpperCase() : 'O'}
+                            </div>
+                            <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-slate-800 ${isGuest ? 'bg-slate-500' : 'bg-green-500 animate-pulse'}`} title={isGuest ? "Ospite" : "Online"}></div>
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="text-xs font-bold text-white leading-tight truncate max-w-[100px]">
+                                {userProfile.name || 'Ospite'}
+                            </span>
+                            <span className="text-[9px] text-slate-400 leading-tight">
+                                {isGuest ? 'Locale' : 'Connesso'}
+                            </span>
+                        </div>
+                    </div>
+                    
+                    {isGuest ? (
+                        <button 
+                            onClick={onUserLogin}
+                            className="text-[10px] font-bold bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-1 rounded transition-colors"
+                        >
+                            Accedi
+                        </button>
+                    ) : (
+                        <button 
+                            onClick={onUserLogout}
+                            className="p-1.5 text-slate-400 hover:text-red-400 transition-colors"
+                            title="Logout"
+                        >
+                            <LogoutIcon />
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* Footer Navigation */}

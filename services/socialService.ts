@@ -96,6 +96,7 @@ export const rejectFriendRequest = async (requestId: string) => {
     if (error) throw error;
 };
 
+// Exported for external use in App.tsx notification handling
 export const getFriends = async (currentUserId: string): Promise<UserProfile[]> => {
     // Get confirmed friendships
     const { data, error } = await supabase
@@ -117,7 +118,7 @@ export const getFriends = async (currentUserId: string): Promise<UserProfile[]> 
 
     return profiles?.map((p: any) => ({
         ...p,
-        isOnline: p.last_seen_at && (new Date().getTime() - new Date(p.last_seen_at).getTime() < 5 * 60 * 1000) // Online if seen in last 5 mins
+        isOnline: p.last_seen_at && (new Date().getTime() - new Date(p.last_seen_at).getTime() < 2 * 60 * 1000) // Online if seen in last 2 mins (stricter)
     })) || [];
 };
 

@@ -31,6 +31,7 @@ import ComparisonModal from '../components/ComparisonModal';
 import SocialHub from '../components/SocialHub';
 import AuthSelectionModal from '../components/AuthSelectionModal';
 import LoginModal from '../components/LoginModal';
+import MiniChat from '../components/MiniChat';
 
 import { Track, TrackPoint, UserProfile, Toast, RaceResult, TrackStats, PlannedWorkout, ApiUsageStats, Commentary } from '../types';
 import { loadTracksFromDB, saveTracksToDB, loadProfileFromDB, saveProfileToDB, loadPlannedWorkoutsFromDB, savePlannedWorkoutsToDB, exportAllData, importAllData, BackupData, syncTrackToCloud } from '../services/dbService';
@@ -41,7 +42,7 @@ import { parseGpx } from '../services/gpxService';
 import { parseTcx } from '../services/tcxService';
 import { generateSmartTitle } from '../services/titleGenerator';
 import { isSupabaseConfigured, supabase } from '../services/supabaseClient';
-import { updatePresence } from '../services/socialService';
+import { updatePresence, getFriends } from '../services/socialService';
 
 const TRACK_COLORS = [
   '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e'
@@ -84,6 +85,9 @@ const App: React.FC = () => {
   const [showSocialHub, setShowSocialHub] = useState(false);
   const [showAuthSelection, setShowAuthSelection] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  
+  // Realtime Chat & Presence
+  const [activeChatFriend, setActiveChatFriend] = useState<UserProfile | null>(null);
   
   const [isSidebarMobileOpen, setIsSidebarMobileOpen] = useState(false);
   const [showPerformancePanel, setShowPerformancePanel] = useState(false);
@@ -167,9 +171,80 @@ const App: React.FC = () => {
       const ping = () => updatePresence(userId);
       ping(); // Initial ping
       
-      const interval = setInterval(ping, 180000); // 3 minutes
+      const interval = setInterval(ping, 60000); // Ping every minute
       return () => clearInterval(interval);
   }, [userId, isGuest]);
+
+  // --- REALTIME NOTIFICATIONS & PRESENCE ---
+  useEffect(() => {
+      if (!userId || isGuest || !isSupabaseConfigured()) return;
+
+      const channel = supabase.channel('realtime-social')
+          // Listen for new messages
+          .on(
+              'postgres_changes',
+              {
+                  event: 'INSERT',
+                  schema: 'public',
+                  table: 'direct_messages',
+                  filter: `receiver_id=eq.${userId}`
+              },
+              async (payload: any) => {
+                  if (activeChatFriend && activeChatFriend.id === payload.new.sender_id) return; // Already open
+                  
+                  // Play sound notification
+                  try {
+                      const audio = new Audio('/notification.mp3'); // Assuming file exists or fails silently
+                      audio.play().catch(() => {});
+                  } catch(e) {}
+
+                  // Fetch sender details
+                  const { data: sender } = await supabase.from('profiles').select('id, name').eq('id', payload.new.sender_id).single();
+                  const senderName = sender?.name || 'Un amico';
+
+                  addToast(`Nuovo messaggio da ${senderName}`, 'info');
+                  
+                  // Optional: We could trigger a state update here to show a badge on the Social Icon
+              }
+          )
+          // Listen for online status updates (Profile updates)
+          .on(
+              'postgres_changes',
+              {
+                  event: 'UPDATE',
+                  schema: 'public',
+                  table: 'profiles',
+              },
+              (payload: any) => {
+                  // If social hub is open, it might auto-refresh via its own logic, 
+                  // but we can trigger global toasts here if a friend comes online? 
+                  // Maybe too noisy. Let's stick to updatePresence logic.
+              }
+          )
+          .subscribe();
+
+      return () => {
+          supabase.removeChannel(channel);
+      };
+  }, [userId, isGuest, activeChatFriend]);
+
+  const handleToastClick = async (toast: Toast) => {
+      // Basic heuristic: if toast message contains "Nuovo messaggio da", try to open chat
+      if (toast.message.includes("Nuovo messaggio da")) {
+          // This is a bit hacky without passing payload to toast, but works for UI demo
+          //Ideally we should pass metadata to toast
+          if (!userId) return;
+          // Just open social hub for now, or find friend
+          const friends = await getFriends(userId);
+          // Find friend name in toast msg
+          const friend = friends.find(f => toast.message.includes(f.name || '###'));
+          if (friend) {
+              setActiveChatFriend(friend);
+          } else {
+              setShowSocialHub(true);
+          }
+      }
+  };
 
   const loadData = async (forceLocal = false) => {
       const storedTracks = await loadTracksFromDB(forceLocal);
@@ -693,6 +768,15 @@ const App: React.FC = () => {
             />
         )}
 
+        {/* Mini Chat Overlay - Always visible if a chat is active */}
+        {activeChatFriend && !isGuest && (
+            <MiniChat 
+                currentUser={{id: userId!, name: userProfile.name}}
+                friend={activeChatFriend}
+                onClose={() => setActiveChatFriend(null)}
+            />
+        )}
+
         <div className={`flex-grow flex overflow-hidden relative ${isMobile ? 'flex-col' : 'flex-row'}`}>
             
             {(!selectedDetailTrackId && !editorTracks) && (
@@ -774,6 +858,8 @@ const App: React.FC = () => {
                         onOpenHub={() => setShowHome(true)}
                         onOpenPerformanceAnalysis={() => setShowPerformancePanel(true)}
                         onUserLogin={() => setShowLoginModal(true)} // Sidebar login link
+                        onUserLogout={handleLogout}
+                        isGuest={isGuest}
                         onCompareSelected={handleCompareSelected}
                         userProfile={userProfile}
                         onOpenSocial={() => {
