@@ -520,7 +520,9 @@ export const loadProfileFromDB = async (forceLocal: boolean = false): Promise<Us
       const { data, error } = await supabase.from('profiles').select('*').single();
       if (data && !error) {
           const cloudProfile: UserProfile = {
+              id: session.user.id,
               name: data.name,
+              email: session.user.email, // Inject email from session
               age: data.age,
               weight: data.weight,
               height: data.height,
@@ -544,7 +546,13 @@ export const loadProfileFromDB = async (forceLocal: boolean = false): Promise<Us
     const transaction = db.transaction([PROFILE_STORE], 'readonly');
     const store = transaction.objectStore(PROFILE_STORE);
     const request = store.get('current');
-    request.onsuccess = () => resolve(request.result || null);
+    request.onsuccess = () => {
+        const profile = request.result;
+        if (profile && session?.user?.email) {
+            profile.email = session.user.email; // Inject email locally if session exists
+        }
+        resolve(profile || null);
+    };
     request.onerror = () => reject(request.error);
   });
 };
