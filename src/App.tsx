@@ -34,7 +34,7 @@ import LoginModal from '../components/LoginModal';
 import MiniChat from '../components/MiniChat';
 
 import { Track, TrackPoint, UserProfile, Toast, RaceResult, TrackStats, PlannedWorkout, ApiUsageStats, Commentary } from '../types';
-import { loadTracksFromDB, saveTracksToDB, loadProfileFromDB, saveProfileToDB, loadPlannedWorkoutsFromDB, savePlannedWorkoutsToDB, exportAllData, importAllData, BackupData, syncTrackToCloud } from '../services/dbService';
+import { loadTracksFromDB, saveTracksToDB, loadProfileFromDB, saveProfileToDB, loadPlannedWorkoutsFromDB, savePlannedWorkoutsToDB, exportAllData, importAllData, BackupData, syncTrackToCloud, deleteTrackFromCloud } from '../services/dbService';
 import { findPersonalRecordsForTrack, updateStoredPRs } from '../services/prService';
 import { calculateTrackStats } from '../services/trackStatsService';
 import { getTrackPointAtDistance, getTrackStateAtTime } from '../services/trackEditorUtils';
@@ -549,8 +549,29 @@ const App: React.FC = () => {
     const updatedTracks = tracks.filter(t => t.id !== id);
     setTracks(updatedTracks);
     saveTracksToDB(updatedTracks);
+    deleteTrackFromCloud(id);
     setVisibleTrackIds(prev => { const n = new Set(prev); n.delete(id); return n; });
     addToast('Traccia eliminata.', 'info');
+  };
+
+  const handleDeleteSelected = () => {
+        const selectedIds = Array.from(raceSelectionIds);
+        if (selectedIds.length === 0) return;
+
+        const updatedTracks = tracks.filter(t => !raceSelectionIds.has(t.id));
+        setTracks(updatedTracks);
+        saveTracksToDB(updatedTracks);
+        
+        selectedIds.forEach(id => deleteTrackFromCloud(id)); // Sync cloud
+
+        setVisibleTrackIds(prev => {
+            const next = new Set(prev);
+            selectedIds.forEach(id => next.delete(id));
+            return next;
+        });
+        
+        setRaceSelectionIds(new Set());
+        addToast(`${selectedIds.length} tracce eliminate.`, 'info');
   };
 
   const handleToggleArchived = (id: string) => {
@@ -825,7 +846,7 @@ const App: React.FC = () => {
                         sortOrder={'date_desc'}
                         onSortChange={() => {}}
                         onDeleteTrack={handleDeleteTrack}
-                        onDeleteSelected={() => { raceSelectionIds.forEach(id => handleDeleteTrack(id)); setRaceSelectionIds(new Set()); }}
+                        onDeleteSelected={handleDeleteSelected}
                         onViewDetails={handleOpenDetailView}
                         onStartAnimation={(id) => { setAnimationTrackId(id); setIsAnimationPlaying(true); }}
                         raceRanks={raceRanks}
