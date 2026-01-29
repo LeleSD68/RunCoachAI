@@ -204,6 +204,11 @@ export interface WeightEntry {
     weight: number;
 }
 
+export interface StravaConfig {
+    clientId: string;
+    clientSecret: string;
+}
+
 export interface UserProfile {
   id?: string; // ID Database
   name?: string; 
@@ -222,6 +227,7 @@ export interface UserProfile {
   theme?: 'dark' | 'light';
   lastSeenAt?: string; // ISO String for presence
   isOnline?: boolean; // Derived state
+  stravaConfig?: StravaConfig; // NEW: Strava Credentials
 }
 
 export interface FriendRequest {
