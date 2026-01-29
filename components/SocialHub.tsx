@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { UserProfile, FriendRequest, Track } from '../types';
-import { searchUsers, sendFriendRequest, getFriendRequests, acceptFriendRequest, getFriends, getFriendsActivityFeed } from '../services/socialService';
+import { searchUsers, sendFriendRequest, getFriendRequests, acceptFriendRequest, rejectFriendRequest, getFriends, getFriendsActivityFeed } from '../services/socialService';
 
 interface SocialHubProps {
     onClose: () => void;
@@ -87,6 +87,13 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
     const handleAccept = async (reqId: string) => {
         await acceptFriendRequest(reqId);
         loadData();
+    };
+
+    const handleReject = async (reqId: string) => {
+        if(confirm("Vuoi rifiutare questa richiesta di amicizia?")) {
+            await rejectFriendRequest(reqId);
+            loadData();
+        }
     };
 
     return (
@@ -181,7 +188,10 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
                                                 </div>
                                                 <span className="text-white font-bold text-sm">{req.requester.name}</span>
                                             </div>
-                                            <button onClick={() => handleAccept(req.id)} className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-lg shadow-purple-900/20">Accetta</button>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => handleAccept(req.id)} className="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-lg shadow-purple-900/20">Accetta</button>
+                                                <button onClick={() => handleReject(req.id)} className="bg-slate-700 hover:bg-red-500 text-slate-300 hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">Rifiuta</button>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
