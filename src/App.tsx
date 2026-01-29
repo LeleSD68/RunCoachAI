@@ -875,6 +875,8 @@ const App: React.FC = () => {
                 onOpenChangelog={() => setShowChangelog(true)}
                 onUploadOpponent={handleAddOpponent}
                 onEnterRaceMode={handleStartRace}
+                onLogout={handleLogout}
+                isGuest={isGuest}
             />
         )}
 

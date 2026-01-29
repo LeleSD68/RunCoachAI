@@ -20,11 +20,19 @@ interface HomeModalProps {
     onEnterRaceMode?: () => void;
     onManualCloudSave?: () => void; 
     onCheckAiAccess?: () => boolean; 
+    onLogout?: () => void;
+    isGuest?: boolean;
 }
 
 const SettingsIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M7.84 1.804A1 1 0 0 1 8.82 1h2.36a1 1 0 0 1 .98.804l.331 1.652a6.993 6.993 0 0 1 1.929 1.115l1.598-.54a1 1 0 0 1 1.186.447l1.18 2.044a1 1 0 0 1-.205 1.251l-1.267 1.113a7.047 7.047 0 0 1 0 2.228l1.267 1.113a1 1 0 0 1 .206 1.25l-1.18 2.045a1 1 0 0 1 1.187-.447l1.598.54a6.993 6.993 0 0 1 7.51 3.456l.33-1.652ZM10 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" clipRule="evenodd" /></svg>);
 const HelpIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a.75.75 0 0 0 0 1.5h.253a.25.25 0 0 1 .244.304l-.459 2.066A.75.75 0 0 0 10 12.5a.75.75 0 0 0 .75-.75v-.105a.25.25 0 0 1 .244-.304l.46-2.067a.75.75 0 0 0-.67-1.03Z" clipRule="evenodd" /></svg>);
 const CloudUpIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M5.5 17a4.5 4.5 0 0 1-1.44-8.765 4.5 4.5 0 0 1 8.302-3.046 3.5 3.5 0 0 1 4.504 4.272A4 4 0 0 1 15 17H5.5Zm3.75-2.75a.75.75 0 0 0 1.5 0V9.66l1.95 2.1a.75.75 0 1 0 1.1-1.02l-3.25-3.5a.75.75 0 0 0-1.1 0l-3.25 3.5a.75.75 0 1 0 1.1 1.02l1.95-2.1v4.59Z" clipRule="evenodd" /></svg>);
+const LogoutIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+        <path fillRule="evenodd" d="M3 4.25A2.25 2.25 0 0 1 5.25 2h5.5A2.25 2.25 0 0 1 13 4.25v2a.75.75 0 0 1-1.5 0v-2a.75.75 0 0 0-.75-.75h-5.5a.75.75 0 0 0-.75.75v11.5c0 .414.336.75.75.75h5.5a.75.75 0 0 0 .75-.75v-2a.75.75 0 0 1 1.5 0v2A2.25 2.25 0 0 1 10.75 18h-5.5A2.25 2.25 0 0 1 3 15.75V4.25Z" clipRule="evenodd" />
+        <path fillRule="evenodd" d="M19 10a.75.75 0 0 0-.75-.75H8.704l1.048-.943a.75.75 0 1 0-1.004-1.114l-2.5 2.25a.75.75 0 0 0 0 1.114l2.5 2.25a.75.75 0 1 0 1.004-1.114l-1.048-.943h9.546A.75.75 0 0 0 19 10Z" clipRule="evenodd" />
+    </svg>
+);
 
 const LargeLogoIcon = () => (
     <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-2xl border-2 border-cyan-500/20 relative z-10 p-2">
@@ -35,7 +43,8 @@ const LargeLogoIcon = () => (
 const HomeModal: React.FC<HomeModalProps> = ({ 
     onOpenDiary, onOpenExplorer, onOpenHelp, onImportBackup, onExportBackup, 
     onUploadTracks, onClose, trackCount, plannedWorkouts = [], onOpenWorkout, 
-    onOpenProfile, onOpenChangelog, onUploadOpponent, onEnterRaceMode, onManualCloudSave, onCheckAiAccess
+    onOpenProfile, onOpenChangelog, onUploadOpponent, onEnterRaceMode, onManualCloudSave, onCheckAiAccess,
+    onLogout, isGuest
 }) => {
     const backupInputRef = useRef<HTMLInputElement>(null);
     const trackInputRef = useRef<HTMLInputElement>(null);
@@ -218,6 +227,11 @@ const HomeModal: React.FC<HomeModalProps> = ({
                     <div className="flex gap-4">
                         <button onClick={onOpenProfile} className="hover:text-white transition-colors flex items-center gap-1"><SettingsIcon /> Profilo</button>
                         <button onClick={onOpenHelp} className="hover:text-white transition-colors flex items-center gap-1"><HelpIcon /> Guida</button>
+                        {onLogout && (
+                             <button onClick={onLogout} className="hover:text-red-400 transition-colors flex items-center gap-1">
+                                <LogoutIcon /> {isGuest ? 'Esci' : 'Logout'}
+                             </button>
+                        )}
                     </div>
                     <div className="flex gap-4">
                         {onManualCloudSave && (
