@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
-import { UserProfile, FriendRequest, Track } from '../types';
-import { searchUsers, sendFriendRequest, getFriendRequests, acceptFriendRequest, rejectFriendRequest, getFriends, getFriendsActivityFeed } from '../services/socialService';
+import React, { useState, useEffect, useRef } from 'react';
+import { UserProfile, FriendRequest, Track, DirectMessage } from '../types';
+import { searchUsers, sendFriendRequest, getFriendRequests, acceptFriendRequest, rejectFriendRequest, getFriends, getFriendsActivityFeed, sendDirectMessage, getDirectMessages } from '../services/socialService';
 
 interface SocialHubProps {
     onClose: () => void;
@@ -12,6 +12,8 @@ const UserIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 
 const AddUserIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M11 5a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM2.615 16.428a1.224 1.224 0 0 1-.569-1.175 6.002 6.002 0 0 1 11.908 0c.058.467-.172.92-.57 1.174A9.953 9.953 0 0 1 7 18a9.953 9.953 0 0 1-4.385-1.572ZM16.25 5.75a.75.75 0 0 0-1.5 0v2h-2a.75.75 0 0 0 0 1.5h2v2a.75.75 0 0 0 1.5 0v-2h2a.75.75 0 0 0 0-1.5h-2v-2Z" /></svg>);
 const ActivityIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM6.75 9.25a.75.75 0 0 0 0 1.5h4.59l-2.1 2.1a.75.75 0 1 0 1.06 1.06l3.38-3.38a.75.75 0 0 0 0-1.06l-3.38-3.38a.75.75 0 1 0-1.06 1.06l2.1 2.1H6.75Z" clipRule="evenodd" /></svg>);
 const SearchIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clipRule="evenodd" /></svg>);
+const ChatBubbleIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M10 2c-2.236 0-4.43.18-6.57.524C1.993 2.755 1 4.014 1 5.426v5.148c0 1.413.993 2.67 2.43 2.902.848.137 1.705.248 2.57.331v3.443a.75.75 0 0 0 1.28.53l3.58-3.579a.78.78 0 0 1 .527-.224 41.202 41.202 0 0 0 5.183-.5c1.437-.232 2.43-1.49 2.43-2.903V5.426c0-1.413-.993-2.67-2.43-2.902A41.289 41.289 0 0 0 10 2Zm0 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM8 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm5 1a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd" /></svg>);
+const SendIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M3.105 2.289a.75.75 0 0 0-.826.95l1.414 4.949a.75.75 0 0 0 .95.95l4.95-1.414a.75.75 0 0 0-.95-.95l-3.539 1.01-1.01-3.54a.75.75 0 0 0-.95-.826ZM12.23 7.77a.75.75 0 0 0-1.06 0l-4.25 4.25a.75.75 0 0 0 0 1.06l4.25 4.25a.75.75 0 0 0 1.06-1.06l-3.72-3.72 3.72-3.72a.75.75 0 0 0 0-1.06ZM15.5 10a.75.75 0 0 1 .75-.75h.01a.75.75 0 0 1 0 1.5H16.25a.75.75 0 0 1-.75-.75Z" /></svg>);
 
 const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
     const [activeTab, setActiveTab] = useState<'feed' | 'friends' | 'add'>('feed');
@@ -23,6 +25,13 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState('');
     const [sentRequests, setSentRequests] = useState<Set<string>>(new Set());
+    
+    // Chat State
+    const [activeChatFriend, setActiveChatFriend] = useState<UserProfile | null>(null);
+    const [chatMessages, setChatMessages] = useState<DirectMessage[]>([]);
+    const [newMessage, setNewMessage] = useState('');
+    const chatEndRef = useRef<HTMLDivElement>(null);
+    const pollIntervalRef = useRef<number | null>(null);
 
     useEffect(() => {
         loadData();
@@ -41,6 +50,24 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
         return () => clearTimeout(timer);
     }, [searchQuery, activeTab]);
 
+    // Chat Polling
+    useEffect(() => {
+        if (activeChatFriend) {
+            fetchChatMessages(); // Initial fetch
+            pollIntervalRef.current = window.setInterval(fetchChatMessages, 3000); // Poll every 3s
+        } else {
+            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+        }
+        return () => { if (pollIntervalRef.current) clearInterval(pollIntervalRef.current); };
+    }, [activeChatFriend]);
+
+    // Scroll to bottom on new messages
+    useEffect(() => {
+        if (activeChatFriend) {
+            chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [chatMessages, activeChatFriend]);
+
     const loadData = async () => {
         setLoading(true);
         try {
@@ -58,6 +85,12 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const fetchChatMessages = async () => {
+        if (!activeChatFriend || !activeChatFriend.id) return;
+        const msgs = await getDirectMessages(currentUserId, activeChatFriend.id);
+        setChatMessages(msgs);
     };
 
     const handleSearch = async () => {
@@ -95,6 +128,92 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
             loadData();
         }
     };
+
+    const openChat = (friend: UserProfile) => {
+        setActiveChatFriend(friend);
+        setChatMessages([]);
+    };
+
+    const sendMessage = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newMessage.trim() || !activeChatFriend || !activeChatFriend.id) return;
+        
+        try {
+            // Optimistic update
+            const tempMsg: DirectMessage = {
+                id: 'temp-' + Date.now(),
+                senderId: currentUserId,
+                receiverId: activeChatFriend.id,
+                content: newMessage,
+                createdAt: new Date().toISOString()
+            };
+            setChatMessages(prev => [...prev, tempMsg]);
+            
+            await sendDirectMessage(currentUserId, activeChatFriend.id, newMessage);
+            setNewMessage('');
+            fetchChatMessages(); // Refresh real data
+        } catch (e) {
+            console.error("Failed to send", e);
+            setMessage("Errore invio messaggio.");
+        }
+    };
+
+    if (activeChatFriend) {
+        return (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[9000] flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
+                <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-lg h-[80vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+                    <header className="bg-slate-800 p-4 border-b border-slate-700 flex justify-between items-center shrink-0">
+                        <div className="flex items-center gap-3">
+                            <button onClick={() => setActiveChatFriend(null)} className="text-slate-400 hover:text-white mr-2">&larr;</button>
+                            <div className="w-8 h-8 bg-slate-700 rounded-full flex items-center justify-center text-white font-bold text-xs border border-slate-600">
+                                {activeChatFriend.name?.substring(0,1)}
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-white text-sm">{activeChatFriend.name}</h3>
+                                {activeChatFriend.isOnline && <p className="text-[10px] text-green-400">Online</p>}
+                            </div>
+                        </div>
+                        <button onClick={onClose} className="text-slate-400 hover:text-white text-xl">&times;</button>
+                    </header>
+                    
+                    <div className="flex-grow overflow-y-auto p-4 custom-scrollbar bg-slate-900/50 space-y-3">
+                        {chatMessages.length === 0 && <div className="text-center text-slate-500 text-xs mt-10">Inizia la conversazione con {activeChatFriend.name}</div>}
+                        {chatMessages.map(msg => {
+                            const isMe = msg.senderId === currentUserId;
+                            return (
+                                <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                                    <div className={`max-w-[75%] p-3 rounded-2xl text-sm ${isMe ? 'bg-cyan-700 text-white rounded-br-none' : 'bg-slate-700 text-slate-200 rounded-bl-none'}`}>
+                                        <p>{msg.content}</p>
+                                        <p className={`text-[9px] mt-1 text-right ${isMe ? 'text-cyan-300' : 'text-slate-400'}`}>
+                                            {new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                        </p>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                        <div ref={chatEndRef} />
+                    </div>
+
+                    <form onSubmit={sendMessage} className="p-3 bg-slate-800 border-t border-slate-700 flex gap-2 shrink-0">
+                        <input 
+                            type="text" 
+                            value={newMessage} 
+                            onChange={e => setNewMessage(e.target.value)} 
+                            placeholder="Scrivi un messaggio..."
+                            className="flex-grow bg-slate-900 border border-slate-600 rounded-xl px-4 py-2 text-sm text-white focus:border-cyan-500 outline-none transition-colors"
+                        />
+                        <button 
+                            type="submit" 
+                            disabled={!newMessage.trim()}
+                            className="bg-cyan-600 hover:bg-cyan-500 text-white p-2.5 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <SendIcon />
+                        </button>
+                    </form>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[9000] flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
@@ -215,11 +334,21 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
                                                 </div>
                                                 <span className="text-slate-200 font-medium text-sm">{friend.name}</span>
                                             </div>
-                                            {friend.isOnline ? (
-                                                <span className="text-[10px] text-green-400 font-bold uppercase tracking-wider bg-green-900/20 px-2 py-0.5 rounded border border-green-500/20">Online</span>
-                                            ) : (
-                                                <span className="text-[10px] text-slate-600 font-bold uppercase tracking-wider">Offline</span>
-                                            )}
+                                            
+                                            <div className="flex items-center gap-2">
+                                                {friend.isOnline ? (
+                                                    <span className="text-[10px] text-green-400 font-bold uppercase tracking-wider bg-green-900/20 px-2 py-0.5 rounded border border-green-500/20">Online</span>
+                                                ) : (
+                                                    <span className="text-[10px] text-slate-600 font-bold uppercase tracking-wider">Offline</span>
+                                                )}
+                                                <button 
+                                                    onClick={() => openChat(friend)}
+                                                    className="bg-slate-700 hover:bg-cyan-600 text-slate-300 hover:text-white p-2 rounded-lg transition-colors border border-slate-600"
+                                                    title="Messaggio Privato"
+                                                >
+                                                    <ChatBubbleIcon />
+                                                </button>
+                                            </div>
                                         </div>
                                     ))
                                 )}
