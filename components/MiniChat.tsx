@@ -116,7 +116,7 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose }) => 
     };
 
     // Group Messages Logic
-    const groupedMessages = useMemo(() => {
+    const groupedMessages = useMemo<Record<string, DirectMessage[]>>(() => {
         const groups: Record<string, DirectMessage[]> = {};
         messages.forEach(msg => {
             const dateLabel = getMessageDateLabel(msg.createdAt);
