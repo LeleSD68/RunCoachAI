@@ -116,7 +116,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
                 <button onClick={() => setMenuStep('plan')} className="flex flex-col items-center justify-center p-4 md:p-6 bg-purple-600/5 hover:bg-purple-600/10 border-2 border-purple-500/20 hover:border-purple-400 rounded-2xl transition-all group active:scale-95 shadow-lg min-h-[120px]">
                     <div className="text-3xl md:text-4xl mb-2 group-hover:scale-110 transition-transform">📅</div>
                     <span className="text-sm md:text-lg font-black text-white uppercase tracking-tight">Pianifica</span>
-                    <span className="text-[10px] text-purple-400 font-bold uppercase tracking-widest mt-1 opacity-60">Crea il tuo programma</span>
+                    <span className="text-[10px] text-purple-400 font-bold uppercase tracking-widest mt-1 opacity-60">Diario & Coach AI</span>
                 </button>
 
                 <button onClick={onOpenExplorer} className="flex flex-col items-center justify-center p-4 md:p-6 bg-slate-700/20 hover:bg-slate-700/40 border-2 border-slate-600/40 hover:border-white/40 rounded-2xl transition-all group active:scale-95 shadow-lg min-h-[120px]">
@@ -181,11 +181,11 @@ const HomeModal: React.FC<HomeModalProps> = ({
     const PlanMenu = () => (
         <div className="flex flex-col gap-4 animate-fade-in">
             <h3 className="text-lg font-black text-white uppercase tracking-tighter mb-2 border-b border-slate-700 pb-2">
-                Pianificazione
+                Pianificazione & Coach
             </h3>
             <button onClick={() => { onOpenDiary(); onClose(); }} className="p-4 bg-slate-700/30 hover:bg-slate-700 border border-slate-600 rounded-xl text-left transition-all hover:border-purple-500 group">
-                <span className="block text-sm font-bold text-white group-hover:text-purple-400 mb-1">📅 Apri Diario</span>
-                <span className="text-xs text-slate-400">Visualizza il calendario e gestisci i tuoi allenamenti.</span>
+                <span className="block text-sm font-bold text-white group-hover:text-purple-400 mb-1">📅 Apri Diario & Calendario</span>
+                <span className="text-xs text-slate-400">Visualizza il calendario, gestisci allenamenti e chatta col Coach.</span>
             </button>
             {nextWorkout && (
                 <button 
@@ -259,7 +259,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
                             onClick={onOpenChangelog}
                             className="bg-slate-800 border border-slate-700 text-slate-400 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider hover:bg-slate-700 hover:text-white transition-colors cursor-pointer"
                          >
-                            v1.34
+                            v1.35
                         </button>
                         <span className={`border text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${trackCount > 0 ? 'bg-cyan-900/20 border-cyan-500/30 text-cyan-400' : 'bg-slate-800 border-slate-700 text-slate-500'}`}>
                             {trackCount} {trackCount === 1 ? 'Attività' : 'Attività'}
@@ -292,7 +292,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
                     
                     {/* Timestamp for last update */}
                     <div className="absolute bottom-1 right-2 text-[9px] text-slate-700 opacity-50 pointer-events-none hidden md:block">
-                        Aggiornato: 28/01/2026 16:00
+                        Aggiornato: 28/01/2026 18:00
                     </div>
 
                     <div className="flex gap-4">
