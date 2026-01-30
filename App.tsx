@@ -305,7 +305,7 @@ const App: React.FC = () => {
                     // Check duplicate
                     const isDuplicate = tracks.some(t => 
                         Math.abs(t.points[0].time.getTime() - parsed!.points[0].time.getTime()) < 1000 && 
-                        Math.abs(t.distance - parsed!.distance) < 0.1
+                        Math.abs(t.distance - parsed!.distance) < 0.1)
                     );
 
                     if (isDuplicate) {
