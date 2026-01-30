@@ -18,6 +18,10 @@ let DefaultIcon = L.icon({
 });
 L.Marker.prototype.options.icon = DefaultIcon;
 
+const ZoomInIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" /></svg>;
+const ZoomOutIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M4 10a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 0 1.5H4.75A.75.75 0 0 1 4 10Z" clipRule="evenodd" /></svg>;
+const CenterIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M2 10a8 8 0 1 1 16 0 8 8 0 0 1-16 0Zm8-2.25a.75.75 0 0 1 .75.75v.5h.5a.75.75 0 0 1 0 1.5h-.5v.5a.75.75 0 0 1-1.5 0v-.5h-.5a.75.75 0 0 1 0-1.5h.5v-.5a.75.75 0 0 1 .75-.75Z" clipRule="evenodd" /></svg>;
+
 const MapDisplay: React.FC<MapDisplayProps> = ({
     tracks,
     visibleTrackIds,
@@ -34,6 +38,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
     onTrackHover,
     onPauseClick,
     mapGradientMetric = 'none',
+    onMapGradientChange,
     coloredPauseSegments,
     selectedPoint,
     onPointClick,
@@ -75,9 +80,9 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
             mapRef.current = L.map(mapContainerRef.current, {
                 center: [41.9028, 12.4964], // Rome default
                 zoom: 13,
-                zoomControl: false
+                zoomControl: false // Disable default zoom control
             });
-            L.control.zoom({ position: 'bottomright' }).addTo(mapRef.current);
+            // L.control.zoom({ position: 'bottomright' }).addTo(mapRef.current); // Removed
             
             // Tile Layer
             L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
@@ -99,8 +104,8 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
         };
     }, []);
 
-    // Fit Bounds
-    useEffect(() => {
+    // Fit Bounds Helper
+    const handleFitBounds = () => {
         const map = mapRef.current;
         if (!map) return;
         
@@ -115,6 +120,11 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
         if (bounds.isValid()) {
             map.fitBounds(bounds, { padding: [50, 50] });
         }
+    };
+
+    // Auto Fit Bounds
+    useEffect(() => {
+        handleFitBounds();
     }, [tracks, visibleTrackIds, fitBoundsCounter, animationTrack]);
 
     // Main Track Rendering Effect - 2D Only
@@ -281,7 +291,54 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
         }
     }, [selectionPoints]);
 
-    return <div ref={mapContainerRef} className="w-full h-full bg-slate-900" />;
+    return (
+        <div className="w-full h-full relative group">
+            {/* Custom Control Bar */}
+            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[1000] bg-slate-900/90 backdrop-blur-sm border border-slate-600 rounded-lg p-1 flex items-center gap-1 shadow-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <button 
+                    onClick={() => mapRef.current?.zoomIn()} 
+                    className="p-1.5 hover:bg-slate-700 rounded text-slate-300 hover:text-white transition-colors"
+                    title="Zoom In"
+                >
+                    <ZoomInIcon />
+                </button>
+                <button 
+                    onClick={() => mapRef.current?.zoomOut()} 
+                    className="p-1.5 hover:bg-slate-700 rounded text-slate-300 hover:text-white transition-colors"
+                    title="Zoom Out"
+                >
+                    <ZoomOutIcon />
+                </button>
+                <div className="w-px h-4 bg-slate-600 mx-1"></div>
+                <button 
+                    onClick={handleFitBounds} 
+                    className="p-1.5 hover:bg-slate-700 rounded text-slate-300 hover:text-white transition-colors"
+                    title="Centra Mappa"
+                >
+                    <CenterIcon />
+                </button>
+                {onMapGradientChange && (
+                    <>
+                        <div className="w-px h-4 bg-slate-600 mx-1"></div>
+                        <select 
+                            value={mapGradientMetric} 
+                            onChange={(e) => onMapGradientChange(e.target.value as GradientMetric)}
+                            className="bg-transparent text-[10px] uppercase font-bold text-slate-300 outline-none cursor-pointer hover:text-white pr-1"
+                        >
+                            <option value="none">Standard</option>
+                            <option value="elevation">Elevazione</option>
+                            <option value="pace">Ritmo</option>
+                            <option value="speed">Velocità</option>
+                            <option value="hr">Cardio</option>
+                            <option value="power">Watt</option>
+                        </select>
+                    </>
+                )}
+            </div>
+
+            <div ref={mapContainerRef} className="w-full h-full bg-slate-900" />
+        </div>
+    );
 };
 
 export default MapDisplay;
