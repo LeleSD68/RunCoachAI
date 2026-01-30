@@ -29,7 +29,11 @@ const ChevronRightIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox=
 const ChevronDownIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z" clipRule="evenodd" /></svg>);
 const ExpandAllIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M5.22 14.78a.75.75 0 0 0 1.06 0l7.22-7.22v5.69a.75.75 0 0 0 1.5 0v-7.5a.75.75 0 0 0-.75-.75h-7.5a.75.75 0 0 0 0 1.5h5.69l-7.22 7.22a.75.75 0 0 0 0 1.06Z" clipRule="evenodd" /></svg>);
 const CollapseAllIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M13.28 5.22a.75.75 0 0 0-1.06 0l-7.22 7.22v-5.69a.75.75 0 0 0-1.5 0v7.5a.75.75 0 0 0 .75.75h7.5a.75.75 0 0 0 0-1.5h-5.69l7.22-7.22a.75.75 0 0 0 0-1.06Z" clipRule="evenodd" /></svg>);
-
+const StravaIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 text-[#fc4c02]">
+        <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.477 0 4.177 12.173h4.172" />
+    </svg>
+);
 
 interface SidebarProps {
     tracks: Track[];
@@ -393,7 +397,9 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                             
                             {!isCollapsed && (
                                 <div className={`space-y-1 mt-1 ${viewMode === 'list' ? 'space-y-0' : ''} animate-fade-in`}>
-                                    {groupTracks.map(track => (
+                                    {groupTracks.map(track => {
+                                        const isStrava = track.id.startsWith('strava-') || track.tags?.includes('Strava');
+                                        return (
                                         <div 
                                             key={track.id} 
                                             className={`
@@ -446,10 +452,13 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                                                             title="Doppio clic per rinominare"
                                                         >
                                                             <div className="flex justify-between items-center mb-0.5">
-                                                                <span className={`text-sm font-medium text-white truncate ${viewMode === 'list' ? 'text-xs' : ''}`}>
-                                                                    {track.name}
-                                                                </span>
-                                                                <div className="flex items-center gap-1">
+                                                                <div className="flex items-center gap-1 truncate">
+                                                                    <span className={`text-sm font-medium text-white truncate ${viewMode === 'list' ? 'text-xs' : ''}`}>
+                                                                        {track.name}
+                                                                    </span>
+                                                                    {isStrava && <StravaIcon />}
+                                                                </div>
+                                                                <div className="flex items-center gap-1 shrink-0">
                                                                     {track.isPublic && <GlobeIcon />} 
                                                                     {track.rating && <RatingStars rating={track.rating} size="xs" />}
                                                                 </div>
@@ -480,7 +489,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                                                 </div>
                                             </div>
                                         </div>
-                                    ))}
+                                    )})}
                                 </div>
                             )}
                         </div>
