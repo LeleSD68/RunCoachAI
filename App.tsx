@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Track, UserProfile, PlannedWorkout, Toast, ActivityType, RaceRunner, RaceResult, TrackStats, Commentary, TrackPoint } from './types';
 import Sidebar from './components/Sidebar';
@@ -41,7 +42,7 @@ import {
 } from './services/dbService';
 import { generateSmartTitle } from './services/titleGenerator';
 import { supabase } from './services/supabaseClient';
-import { fetchRecentStravaActivities } from './services/stravaService';
+import { fetchRecentStravaActivities, handleStravaCallback, saveStravaConfig } from './services/stravaService'; // Import helper
 import { SAMPLE_GPX_DATA } from './services/sampleTrackData';
 import { getGenAI } from './services/aiHelper';
 
@@ -131,9 +132,35 @@ const App: React.FC = () => {
         };
     }, [dailyTokenCount]);
 
+    // Handle Strava OAuth Return
+    useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        if (code) {
+            // Clean URL
+            window.history.replaceState({}, document.title, "/");
+            // Show config modal immediately to show status
+            setShowSplash(false);
+            setShowStravaConfig(true);
+            
+            handleStravaCallback(code)
+                .then(() => {
+                    addToast("Strava Connesso! Avvio sincronizzazione...", "success");
+                    handleStravaSync();
+                })
+                .catch(err => {
+                    console.error(err);
+                    addToast("Errore connessione Strava.", "error");
+                });
+        }
+    }, []);
+
     const handleSplashFinish = () => {
-        setShowSplash(false);
-        checkSession();
+        // Only run if not handling auth redirect
+        if (!window.location.search.includes('code=')) {
+            setShowSplash(false);
+            checkSession();
+        }
     };
 
     const checkSession = async () => {
@@ -180,6 +207,61 @@ const App: React.FC = () => {
         } catch (e) {
             console.error("Error loading data", e);
             addToast("Errore caricamento dati.", "error");
+        }
+    };
+
+    // --- STRAVA SYNC HANDLER ---
+    const handleStravaSync = async (): Promise<number> => {
+        try {
+            const newActivities = await fetchRecentStravaActivities(10);
+            if (newActivities.length === 0) {
+                return 0;
+            }
+
+            const uniqueNewTracks: Track[] = [];
+            let importedCount = 0;
+
+            // Filter duplicates against existing tracks
+            for (const activity of newActivities) {
+                // Check by Strava ID prefix or similar timestamp/distance fingerprint
+                const isDuplicate = tracks.some(t => 
+                    t.id === activity.id || 
+                    (Math.abs(t.points[0].time.getTime() - activity.points[0].time.getTime()) < 1000 && 
+                     Math.abs(t.distance - activity.distance) < 0.1)
+                );
+
+                if (!isDuplicate) {
+                    uniqueNewTracks.push(activity);
+                    importedCount++;
+                }
+            }
+
+            if (uniqueNewTracks.length > 0) {
+                const updatedTracks = [...tracks, ...uniqueNewTracks].sort((a, b) => b.points[0].time.getTime() - a.points[0].time.getTime());
+                setTracks(updatedTracks);
+                setFilteredTracks(updatedTracks);
+                
+                // Make new Strava tracks visible
+                setVisibleTrackIds(prev => {
+                    const next = new Set(prev);
+                    uniqueNewTracks.forEach(t => next.add(t.id));
+                    return next;
+                });
+
+                await saveTracksToDB(updatedTracks);
+                if (!isGuest && userId) {
+                    uniqueNewTracks.forEach(t => syncTrackToCloud(t));
+                }
+                
+                addToast(`Importate ${importedCount} nuove attività da Strava.`, "success");
+            } else {
+                addToast("Nessuna nuova attività trovata su Strava.", "info");
+            }
+            return importedCount;
+        } catch (error) {
+            console.error(error);
+            addToast("Errore sincronizzazione Strava.", "error");
+            throw error;
         }
     };
 
@@ -755,7 +837,7 @@ const App: React.FC = () => {
 
             {showChangelog && <Changelog onClose={() => setShowChangelog(false)} />}
             {showGuide && <GuideModal onClose={() => setShowGuide(false)} />}
-            {showStravaConfig && <StravaConfigModal onClose={() => setShowStravaConfig(false)} />}
+            {showStravaConfig && <StravaConfigModal onClose={() => setShowStravaConfig(false)} onSync={handleStravaSync} />}
             
             {showExplorer && (
                 <ExplorerView 
