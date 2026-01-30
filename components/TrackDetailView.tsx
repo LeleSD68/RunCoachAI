@@ -166,10 +166,11 @@ const DataSection = React.memo(({
     selectedSegment, 
     handleSegmentSelect, 
     hasHrData,
-    className 
+    className,
+    disableScroll 
 }: any) => {
     return (
-        <div className={`overflow-y-auto bg-slate-900 p-4 custom-scrollbar flex flex-col space-y-6 h-full ${className}`}>
+        <div className={`bg-slate-900 p-4 space-y-6 h-full ${disableScroll ? '' : 'overflow-y-auto custom-scrollbar'} ${className}`}>
             <StatsPanel stats={stats} selectedSegment={selectedSegment} onSegmentSelect={handleSegmentSelect} />
 
             <TrackMetadataEditor track={track} userProfile={userProfile} onUpdate={onUpdateTrackMetadata} />
@@ -282,7 +283,7 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
             case 'classic': return { 1: 'data', 2: 'map', 3: 'chart' };
             case 'map-top': return { 1: 'map', 2: 'data', 3: 'chart' };
             case 'data-right': return { 1: 'map', 2: 'chart', 3: 'data' };
-            case 'vertical': return { 1: 'data', 2: 'chart', 3: 'map' };
+            case 'vertical': return { 1: 'map', 2: 'data', 3: 'chart' }; // Optimized defaults for vertical
             case 'focus-bottom': return { 1: 'data', 2: 'map', 3: 'chart' };
             case 'columns': return { 1: 'data', 2: 'map', 3: 'chart' };
             default: return { 1: 'data', 2: 'map', 3: 'chart' };
@@ -664,7 +665,7 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
         </div>
     );
 
-    const DataSectionComponent = (
+    const DataSectionComponent = (props: { disableScroll?: boolean }) => (
         <DataSection 
             className="h-full w-full"
             stats={stats} 
@@ -679,28 +680,35 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
             selectedSegment={selectedSegment}
             handleSegmentSelect={handleSegmentSelect}
             hasHrData={hasHrData}
+            disableScroll={props.disableScroll}
         />
     );
 
     // Dynamic Render Function
-    const renderPane = (slotId: SlotId) => {
+    const renderPane = (slotId: SlotId, mobileStackMode = false) => {
         const type = slotContent[slotId];
         let content;
+        
         switch(type) {
-            case 'data': content = DataSectionComponent; break;
+            case 'data': content = <DataSectionComponent disableScroll={mobileStackMode} />; break;
             case 'map': content = MapSection; break;
             case 'chart': content = ChartSection; break;
         }
 
+        // If in mobile stack mode (bottom part of vertical layout), enforce height for visuals
+        const containerStyle = mobileStackMode && (type === 'map' || type === 'chart') 
+            ? { minHeight: '400px', flexShrink: 0 } 
+            : { height: '100%', flexGrow: 1 };
+
         return (
-            <div className="w-full h-full flex flex-col relative overflow-hidden group/pane">
-                {/* Minimal Pane Header for switching */}
-                <div className="absolute top-2 left-2 z-[1000] opacity-0 group-hover/pane:opacity-100 transition-opacity bg-slate-900/90 rounded-lg p-1 border border-slate-600 shadow-xl flex gap-1">
+            <div style={containerStyle} className="w-full relative overflow-hidden group/pane border-b border-slate-700/50 last:border-b-0">
+                {/* Enhanced Touch-Friendly Swap Menu */}
+                <div className="absolute top-2 left-2 z-[1000] opacity-0 group-hover/pane:opacity-100 transition-opacity bg-slate-900/90 rounded-lg p-1.5 border border-slate-600 shadow-xl flex gap-1.5 backdrop-blur-sm hover:opacity-100 touch-manipulation">
                     <SwapIcon />
                     <select 
                         value={type}
                         onChange={(e) => handleContentChange(slotId, e.target.value as ContentType)}
-                        className="bg-transparent text-[10px] text-white font-bold uppercase outline-none cursor-pointer pr-1"
+                        className="bg-transparent text-xs text-white font-bold uppercase outline-none cursor-pointer pr-1 appearance-none"
                     >
                         <option value="data">Dati</option>
                         <option value="map">Mappa</option>
@@ -719,8 +727,33 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
             return layoutSizes[currentLayout]?.[panelId] || defaultR;
         };
 
-        // Use keys to force ResizablePanel re-mount on layout change, allowing new initialSizeRatio
         const keyPrefix = currentLayout;
+
+        // Optimized Vertical Layout for Mobile
+        if (currentLayout === 'vertical') {
+            return (
+                <ResizablePanel
+                    key={`${keyPrefix}-mobile-stack`}
+                    direction="vertical"
+                    initialSizeRatio={getRatio('main', 0.45)}
+                    minSize={200}
+                    className="h-full"
+                    onResizeEnd={(_, r) => handlePanelResize('vertical', 'main', r)}
+                >
+                    {/* Top Slot: Always fixed height, resizable */}
+                    <div className="h-full w-full relative">
+                        {renderPane(1)}
+                    </div>
+
+                    {/* Bottom Slot: Scrollable Container for Slot 2 and 3 */}
+                    <div className="h-full w-full overflow-y-auto bg-slate-900 custom-scrollbar flex flex-col">
+                        {/* We render Slot 2 and 3 stacked. If they are maps/charts, renderPane enforces minHeight */}
+                        {renderPane(2, true)}
+                        {renderPane(3, true)}
+                    </div>
+                </ResizablePanel>
+            );
+        }
 
         switch (currentLayout) {
             case 'classic': // Classic: Left (Slot 1) | Right-Top (Slot 2) / Right-Bottom (Slot 3)
@@ -800,38 +833,6 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
                         </div>
                         {renderPane(3)}
                     </ResizablePanel>
-                );
-
-            case 'vertical': // Vertical: Stacked 1, 2, 3
-                // No ResizablePanel needed for simpler stacking, or we could add resizing here too if desired.
-                // For simplicity, sticking to CSS flex/grid or fixed percentages here unless user requested full resizability everywhere.
-                // Let's assume standard behavior as requested: "manuale resizing fatto come default".
-                // Since 'vertical' layout in previous code was hardcoded percentages, let's keep it simple or implement resizing if needed.
-                // Given the request, user wants to persist resizing. Let's make it resizable.
-                return (
-                    <div className="flex flex-col h-full w-full">
-                         <ResizablePanel 
-                            key={`${keyPrefix}-top`}
-                            direction="vertical"
-                            initialSizeRatio={getRatio('top', 0.4)}
-                            minSize={100}
-                            className="h-full"
-                            onResizeEnd={(_, r) => handlePanelResize('vertical', 'top', r)}
-                         >
-                            {renderPane(1)}
-                            <ResizablePanel 
-                                key={`${keyPrefix}-bottom`}
-                                direction="vertical"
-                                initialSizeRatio={getRatio('bottom', 0.5)} // Relative to remaining space? No, ResizablePanel logic splits available space.
-                                minSize={100}
-                                className="h-full"
-                                onResizeEnd={(_, r) => handlePanelResize('vertical', 'bottom', r)}
-                            >
-                                {renderPane(2)}
-                                {renderPane(3)}
-                            </ResizablePanel>
-                         </ResizablePanel>
-                    </div>
                 );
 
             case 'focus-bottom': // Focus Bottom: Top-Left (Slot 1) / Top-Right (Slot 2) | Bottom Wide (Slot 3)
@@ -926,7 +927,7 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
                                     <button onClick={() => applyLayoutPreset('classic')} className={`text-left px-3 py-2 rounded text-xs font-bold ${currentLayout === 'classic' ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`}>Classico (Default)</button>
                                     <button onClick={() => applyLayoutPreset('map-top')} className={`text-left px-3 py-2 rounded text-xs font-bold ${currentLayout === 'map-top' ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`}>Mappa Estesa</button>
                                     <button onClick={() => applyLayoutPreset('data-right')} className={`text-left px-3 py-2 rounded text-xs font-bold ${currentLayout === 'data-right' ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`}>Dati a Destra</button>
-                                    <button onClick={() => applyLayoutPreset('vertical')} className={`text-left px-3 py-2 rounded text-xs font-bold ${currentLayout === 'vertical' ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`}>Verticale</button>
+                                    <button onClick={() => applyLayoutPreset('vertical')} className={`text-left px-3 py-2 rounded text-xs font-bold ${currentLayout === 'vertical' ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`}>Verticale (Mobile)</button>
                                     <button onClick={() => applyLayoutPreset('focus-bottom')} className={`text-left px-3 py-2 rounded text-xs font-bold ${currentLayout === 'focus-bottom' ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`}>Focus Basso (Footer)</button>
                                     <button onClick={() => applyLayoutPreset('columns')} className={`text-left px-3 py-2 rounded text-xs font-bold ${currentLayout === 'columns' ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`}>3 Colonne</button>
                                 </div>
