@@ -73,7 +73,7 @@ const ClockIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16
 const ReplayIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 mr-1"><path fillRule="evenodd" d="M15.312 11.424a5.5 5.5 0 0 1-9.201 2.466l-.312-.311h2.433a.75.75 0 0 0 0-1.5H3.989a.75.75 0 0 0-.75.75v4.242a.75.75 0 0 0 1.5 0v-2.43l.31.31a7 7 0 0 0 11.712-3.138.75.75 0 0 0-1.449-.39Z" clipRule="evenodd" /><path fillRule="evenodd" d="M13.485 1.431a.75.75 0 0 0-1.449.39 5.5 5.5 0 0 1 9.201 2.466l.312-.311h-2.433a.75.75 0 0 0 .75-.75V.484a.75.75 0 0 0-1.5 0v2.43l-.31-.31a7 7 0 0 0-11.712-3.138Z" clipRule="evenodd" /></svg>);
 const ShareIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M13 4.5a2.5 2.5 0 1 1 .702 1.737L6.97 9.604a2.518 2.518 0 0 1 0 .792l6.733 3.367a2.5 2.5 0 1 1-.671 1.341l-6.733-3.367a2.5 2.5 0 1 1 0-3.475l6.733-3.366A2.52 2.52 0 0 1 13 4.5Z" /></svg>);
 const LayoutIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M2 4.25A2.25 2.25 0 0 1 4.25 2h11.5A2.25 2.25 0 0 1 18 4.25v11.5A2.25 2.25 0 0 1 15.75 18H4.25A2.25 2.25 0 0 1 2 15.75V4.25ZM4.25 3.5a.75.75 0 0 0-.75.75v11.5c0 .414.336.75.75.75h11.5a.75.75 0 0 0 .75-.75V4.25a.75.75 0 0 0-.75-.75H4.25Z" clipRule="evenodd" /><path d="M3.5 10h13v1.5h-13V10Z" /></svg>);
-const SwapIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3"><path fillRule="evenodd" d="M2.24 6.8a.75.75 0 0 0 1.06-.04l1.95-2.1 1.95 2.1a.75.75 0 1 0 1.1-1.02l-2.5-2.7a.75.75 0 0 0-1.1 0l-2.5 2.7a.75.75 0 0 0 .04 1.06Zm6.94 3.7a.75.75 0 0 0 1.06-.04l1.95-2.1 1.95 2.1a.75.75 0 1 0 1.1-1.02l-2.5-2.7a.75.75 0 0 0-1.1 0l-2.5 2.7a.75.75 0 0 0 .04 1.06Zm-6.94 3.7a.75.75 0 0 0 1.06-.04l1.95-2.1 1.95 2.1a.75.75 0 1 0 1.1-1.02l-2.5-2.7a.75.75 0 0 0-1.1 0l-2.5 2.7a.75.75 0 0 0 .04 1.06Z" clipRule="evenodd" /></svg>);
+const SwapIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M2.24 6.8a.75.75 0 0 0 1.06-.04l1.95-2.1 1.95 2.1a.75.75 0 1 0 1.1-1.02l-2.5-2.7a.75.75 0 0 0-1.1 0l-2.5 2.7a.75.75 0 0 0 .04 1.06Zm6.94 3.7a.75.75 0 0 0 1.06-.04l1.95-2.1 1.95 2.1a.75.75 0 1 0 1.1-1.02l-2.5-2.7a.75.75 0 0 0-1.1 0l-2.5 2.7a.75.75 0 0 0 .04 1.06Zm-6.94 3.7a.75.75 0 0 0 1.06-.04l1.95-2.1 1.95 2.1a.75.75 0 1 0 1.1-1.02l-2.5-2.7a.75.75 0 0 0-1.1 0l-2.5 2.7a.75.75 0 0 0 .04 1.06Z" clipRule="evenodd" /></svg>);
 const GlobeIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-1.5 0a6.5 6.5 0 1 1-11-4.69v.447a3.5 3.5 0 0 0 1.025 2.475L8.293 10 8 10.293a1 1 0 0 0 0 1.414l1.06 1.06a1.5 1.5 0 0 1 .44 1.061v.363a6.5 6.5 0 0 1-5.5-2.259V10a6.5 6.5 0 0 1 12.5 0Z" clipRule="evenodd" /><path fillRule="evenodd" d="M9 2.5a.5.5 0 0 1 .5-.5 1 1 0 0 1 1 1 .5.5 0 0 1-.5.5h-1ZM5.5 5a.5.5 0 0 1 .5-.5 1 1 0 0 1 1 1 .5.5 0 0 1-.5.5h-1ZM14.5 13a.5.5 0 0 1 .5-.5 1 1 0 0 1 1 1 .5.5 0 0 1-.5.5h-1ZM12.5 16a.5.5 0 0 1 .5-.5 1 1 0 0 1 1 1 .5.5 0 0 1-.5.5h-1Z" clipRule="evenodd" /></svg>);
 const LockIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M10 1a4.5 4.5 0 0 0-4.5 4.5V9H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-.5V5.5A4.5 4.5 0 0 0 10 1Zm3 8V5.5a3 3 0 1 0-6 0V9h6Z" clipRule="evenodd" /></svg>);
 
@@ -695,20 +695,20 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
             case 'chart': content = ChartSection; break;
         }
 
-        // If in mobile stack mode (bottom part of vertical layout), enforce height for visuals
-        const containerStyle = mobileStackMode && (type === 'map' || type === 'chart') 
-            ? { minHeight: '400px', flexShrink: 0 } 
+        // On mobile stack, visuals (map/chart) get fixed height, data gets auto
+        const containerStyle = mobileStackMode
+            ? (type === 'data' ? { height: 'auto', minHeight: 'fit-content' } : { height: '450px', flexShrink: 0 })
             : { height: '100%', flexGrow: 1 };
 
         return (
             <div style={containerStyle} className="w-full relative overflow-hidden group/pane border-b border-slate-700/50 last:border-b-0">
-                {/* Enhanced Touch-Friendly Swap Menu */}
-                <div className="absolute top-2 left-2 z-[1000] opacity-0 group-hover/pane:opacity-100 transition-opacity bg-slate-900/90 rounded-lg p-1.5 border border-slate-600 shadow-xl flex gap-1.5 backdrop-blur-sm hover:opacity-100 touch-manipulation">
+                {/* Touch-Friendly Swap Menu */}
+                <div className="absolute top-2 left-2 z-[1000] opacity-0 group-hover/pane:opacity-100 transition-opacity bg-slate-900/90 rounded-lg p-2 border border-slate-600 shadow-xl flex gap-2 backdrop-blur-sm hover:opacity-100 touch-manipulation">
                     <SwapIcon />
                     <select 
                         value={type}
                         onChange={(e) => handleContentChange(slotId, e.target.value as ContentType)}
-                        className="bg-transparent text-xs text-white font-bold uppercase outline-none cursor-pointer pr-1 appearance-none"
+                        className="bg-transparent text-sm text-white font-bold uppercase outline-none cursor-pointer pr-1 appearance-none"
                     >
                         <option value="data">Dati</option>
                         <option value="map">Mappa</option>
@@ -746,7 +746,7 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
                     </div>
 
                     {/* Bottom Slot: Scrollable Container for Slot 2 and 3 */}
-                    <div className="h-full w-full overflow-y-auto bg-slate-900 custom-scrollbar flex flex-col">
+                    <div className="h-full w-full overflow-y-auto bg-slate-900 custom-scrollbar flex flex-col pb-20">
                         {/* We render Slot 2 and 3 stacked. If they are maps/charts, renderPane enforces minHeight */}
                         {renderPane(2, true)}
                         {renderPane(3, true)}
