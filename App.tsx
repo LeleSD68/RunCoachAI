@@ -283,6 +283,55 @@ const App: React.FC = () => {
         processFilesOnMainThread(files);
     };
 
+    const handleStravaSync = async () => {
+        try {
+            addToast("Sincronizzazione Strava in corso...", "info");
+            const fetchedTracks = await fetchRecentStravaActivities(10);
+            
+            if (fetchedTracks.length === 0) {
+                addToast("Nessuna nuova attività trovata su Strava.", "info");
+                return;
+            }
+
+            // Filter duplicates (checking against existing tracks)
+            const newTracks = fetchedTracks.filter(newT => {
+                // Check by Strava ID first (if preserved in ID) or generic time/dist match
+                const alreadyExists = tracks.some(existingT => {
+                    if (existingT.id === newT.id) return true; // Direct ID match
+                    // Fallback fuzzy match
+                    const timeDiff = Math.abs(existingT.points[0].time.getTime() - newT.points[0].time.getTime());
+                    const distDiff = Math.abs(existingT.distance - newT.distance);
+                    return timeDiff < 60000 && distDiff < 0.1; // Within 1 minute and 100m
+                });
+                return !alreadyExists;
+            });
+
+            if (newTracks.length > 0) {
+                // Assign User ID if logged in
+                const tracksWithUser = newTracks.map(t => ({ ...t, userId: userId || undefined }));
+                
+                const updatedTracks = [...tracks, ...tracksWithUser].sort((a, b) => b.points[0].time.getTime() - a.points[0].time.getTime());
+                setTracks(updatedTracks);
+                setFilteredTracks(updatedTracks);
+                
+                // Save to DB (this handles both local and cloud sync internally)
+                await saveTracksToDB(updatedTracks);
+                
+                addToast(`Importate ${newTracks.length} attività da Strava!`, "success");
+            } else {
+                addToast("Tutte le attività recenti sono già presenti.", "info");
+            }
+        } catch (e: any) {
+            console.error("Strava sync failed", e);
+            if (e.message === "AUTH_REQUIRED") {
+                addToast("Autenticazione Strava richiesta.", "error");
+                setShowStravaConfig(true);
+            } else {
+                addToast("Errore sincronizzazione Strava.", "error");
+            }
+        }
+    };
+
     const handleImportBackup = async (file: File) => {
         try {
             addToast("Analisi backup...", "info");
@@ -540,7 +589,7 @@ const App: React.FC = () => {
                     isGuest={isGuest}
                     onManualCloudSave={userId && !isGuest ? () => {} : undefined} // Placeholder for manual save if needed
                     onCheckAiAccess={() => { if(limitReached) { setShowLoginModal(true); return false; } return true; }}
-                    onOpenStravaConfig={() => setShowStravaConfig(true)}
+                    onOpenStravaConfig={handleStravaSync} // Using direct sync handler
                 />
             )}
 
