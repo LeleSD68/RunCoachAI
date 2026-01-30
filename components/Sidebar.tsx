@@ -29,7 +29,11 @@ const ChevronRightIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox=
 const ChevronDownIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z" clipRule="evenodd" /></svg>);
 const ExpandAllIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M5.22 14.78a.75.75 0 0 0 1.06 0l7.22-7.22v5.69a.75.75 0 0 0 1.5 0v-7.5a.75.75 0 0 0-.75-.75h-7.5a.75.75 0 0 0 0 1.5h5.69l-7.22 7.22a.75.75 0 0 0 0 1.06Z" clipRule="evenodd" /></svg>);
 const CollapseAllIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M13.28 5.22a.75.75 0 0 0-1.06 0l-7.22 7.22v-5.69a.75.75 0 0 0-1.5 0v7.5a.75.75 0 0 0 .75.75h7.5a.75.75 0 0 0 0-1.5h-5.69l7.22-7.22a.75.75 0 0 0 0-1.06Z" clipRule="evenodd" /></svg>);
-
+const StravaIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 text-[#fc4c02]">
+        <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.477 0 4.177 12.173h4.172" />
+    </svg>
+);
 
 interface SidebarProps {
     tracks: Track[];
@@ -420,6 +424,11 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                                                         onClick={() => onViewDetails(track.id)}
                                                     >
                                                         <TrackPreview points={track.points} color={track.color} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                                                        {track.id.startsWith('strava-') && (
+                                                            <div className="absolute top-0.5 right-0.5 bg-black/60 rounded p-0.5">
+                                                                <StravaIcon />
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 )}
 
@@ -450,6 +459,8 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                                                                     {track.name}
                                                                 </span>
                                                                 <div className="flex items-center gap-1">
+                                                                    {/* Show Strava icon in List Mode too */}
+                                                                    {viewMode === 'list' && track.id.startsWith('strava-') && <StravaIcon />}
                                                                     {track.isPublic && <GlobeIcon />} 
                                                                     {track.rating && <RatingStars rating={track.rating} size="xs" />}
                                                                 </div>
@@ -493,22 +504,32 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                 )}
             </div>
 
-            {/* User Status Bar */}
-            <div className="bg-slate-900 border-t border-slate-800 p-2 shrink-0">
-                <div className="flex items-center justify-between bg-slate-800/50 rounded-lg p-2 border border-slate-700">
-                    <div className="flex items-center gap-2">
+            {/* User Status Bar - REDESIGNED */}
+            <div className="bg-slate-900 border-t border-slate-800 p-3 shrink-0">
+                <div className={`flex items-center justify-between rounded-xl p-3 border shadow-inner ${
+                    isGuest 
+                        ? 'bg-amber-900/10 border-amber-500/30' 
+                        : 'bg-gradient-to-r from-cyan-900/20 to-blue-900/20 border-cyan-500/30'
+                }`}>
+                    <div className="flex items-center gap-3">
                         <div className="relative">
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-600 to-blue-600 flex items-center justify-center text-white font-bold text-xs shadow-md border border-slate-600">
-                                {userProfile.name ? userProfile.name.substring(0, 1).toUpperCase() : 'O'}
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md border-2 ${
+                                isGuest ? 'bg-slate-700 border-amber-500/50' : 'bg-gradient-to-br from-cyan-600 to-blue-600 border-cyan-400/50'
+                            }`}>
+                                {userProfile.name ? userProfile.name.substring(0, 1).toUpperCase() : (isGuest ? '?' : 'O')}
                             </div>
-                            <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-slate-800 ${isGuest ? 'bg-slate-500' : 'bg-green-500 animate-pulse'}`} title={isGuest ? "Ospite" : "Online"}></div>
+                            <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-slate-900 ${
+                                isGuest ? 'bg-amber-500' : 'bg-green-500 animate-pulse'
+                            }`} title={isGuest ? "Ospite (Offline)" : "Connesso al Cloud"}></div>
                         </div>
                         <div className="flex flex-col">
-                            <span className="text-xs font-bold text-white leading-tight truncate max-w-[100px]">
-                                {userProfile.name || 'Ospite'}
+                            <span className="text-sm font-bold text-white leading-tight truncate max-w-[120px]">
+                                {userProfile.name || (isGuest ? 'Ospite' : 'Utente')}
                             </span>
-                            <span className="text-[9px] text-slate-400 leading-tight">
-                                {isGuest ? 'Locale' : 'Connesso'}
+                            <span className={`text-[9px] uppercase font-black tracking-wider leading-tight ${
+                                isGuest ? 'text-amber-400' : 'text-cyan-400'
+                            }`}>
+                                {isGuest ? '⚠️ Salvataggio Locale' : '☁️ Cloud Attivo'}
                             </span>
                         </div>
                     </div>
@@ -516,14 +537,14 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                     {isGuest ? (
                         <button 
                             onClick={onUserLogin}
-                            className="text-[10px] font-bold bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-1 rounded transition-colors"
+                            className="text-[10px] font-bold bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-lg transition-colors shadow-lg active:scale-95 uppercase tracking-wide"
                         >
                             Accedi
                         </button>
                     ) : (
                         <button 
                             onClick={onUserLogout}
-                            className="p-1.5 text-slate-400 hover:text-red-400 transition-colors"
+                            className="p-2 text-slate-400 hover:text-red-400 transition-colors bg-slate-800/50 rounded-lg border border-slate-700 hover:border-red-500/50"
                             title="Logout"
                         >
                             <LogoutIcon />
