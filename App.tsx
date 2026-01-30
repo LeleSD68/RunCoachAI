@@ -142,9 +142,10 @@ const App: React.FC = () => {
         if (session) {
             setUserId(session.user.id);
             setIsGuest(false);
-            loadData();
+            // CRITICAL FIX: Await loadData to ensure profile is ready before showing Home
+            await loadData();
             setShowHome(true);
-            setShowAuthSelection(false); // Explicitly hide auth selection
+            setShowAuthSelection(false); 
         } else {
             setShowAuthSelection(true);
         }
