@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Track, UserProfile, PlannedWorkout, Toast, ActivityType, RaceRunner, RaceResult, TrackStats, Commentary, TrackPoint } from './types';
 import Sidebar from './components/Sidebar';
 import MapDisplay from './components/MapDisplay';
@@ -14,6 +14,7 @@ import Changelog from './components/Changelog';
 import NavigationDock from './components/NavigationDock';
 import Chatbot from './components/Chatbot';
 import StravaConfigModal from './components/StravaConfigModal';
+import StravaSyncModal from './components/StravaSyncModal';
 import GuideModal from './components/GuideModal';
 import RaceSetupModal from './components/RaceSetupModal';
 import RaceControls from './components/RaceControls';
@@ -55,6 +56,8 @@ const App: React.FC = () => {
     
     // UI State
     const [showSplash, setShowSplash] = useState(true);
+    const [isDataLoading, setIsDataLoading] = useState(false); // NEW: Loading state
+    const [loadingMessage, setLoadingMessage] = useState('Caricamento...'); // NEW: Specific loading message
     const [showAuthSelection, setShowAuthSelection] = useState(false);
     const [showLoginModal, setShowLoginModal] = useState(false);
     const [showInitialChoice, setShowInitialChoice] = useState(false);
@@ -64,6 +67,7 @@ const App: React.FC = () => {
     const [showChangelog, setShowChangelog] = useState(false);
     const [showGuide, setShowGuide] = useState(false);
     const [showStravaConfig, setShowStravaConfig] = useState(false);
+    const [showStravaSyncOptions, setShowStravaSyncOptions] = useState(false);
     const [showExplorer, setShowExplorer] = useState(false);
     const [showDiary, setShowDiary] = useState(false);
     const [showPerformance, setShowPerformance] = useState(false);
@@ -120,6 +124,14 @@ const App: React.FC = () => {
         setToasts(prev => [...prev, { id, message, type }]);
     };
 
+    const lastStravaRunDate = useMemo(() => {
+        const stravaTracks = tracks.filter(t => t.id.startsWith('strava-') || (t.tags && t.tags.includes('Strava')));
+        if (stravaTracks.length === 0) return null;
+        // Sort descending by time
+        const sorted = [...stravaTracks].sort((a, b) => b.points[0].time.getTime() - a.points[0].time.getTime());
+        return sorted[0].points[0].time;
+    }, [tracks]);
+
     // --- INITIALIZATION ---
 
     useEffect(() => {
@@ -137,16 +149,25 @@ const App: React.FC = () => {
     };
 
     const checkSession = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-            setUserId(session.user.id);
-            setIsGuest(false);
-            // CRITICAL FIX: Await loadData to ensure profile is ready before showing Home
-            await loadData();
-            setShowHome(true);
-            setShowAuthSelection(false); 
-        } else {
+        setIsDataLoading(true);
+        setLoadingMessage("Verifica sessione...");
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+                setUserId(session.user.id);
+                setIsGuest(false);
+                // CRITICAL FIX: Await loadData and ensure loading state wraps it
+                await loadData();
+                setShowHome(true);
+                setShowAuthSelection(false); 
+            } else {
+                setShowAuthSelection(true);
+            }
+        } catch (e) {
+            console.error("Session Check Error", e);
             setShowAuthSelection(true);
+        } finally {
+            setIsDataLoading(false);
         }
     };
 
@@ -166,10 +187,12 @@ const App: React.FC = () => {
     };
 
     const loadData = async (forceLocal = false) => {
+        setLoadingMessage("Recupero profilo utente...");
         try {
             const loadedProfile = await loadProfileFromDB(forceLocal);
             if (loadedProfile) setUserProfile(loadedProfile);
 
+            setLoadingMessage("Caricamento tracce e allenamenti...");
             const loadedTracks = await loadTracksFromDB(forceLocal);
             setTracks(loadedTracks);
             setFilteredTracks(loadedTracks);
@@ -182,6 +205,9 @@ const App: React.FC = () => {
         } catch (e) {
             console.error("Error loading data", e);
             addToast("Errore caricamento dati.", "error");
+        } finally {
+            // Optional: minimal delay to ensure user sees "Done"
+            await new Promise(r => setTimeout(r, 300));
         }
     };
 
@@ -283,10 +309,14 @@ const App: React.FC = () => {
         processFilesOnMainThread(files);
     };
 
-    const handleStravaSync = async () => {
+    const handleStravaSync = async (afterTimestamp?: number) => {
         try {
+            setIsDataLoading(true);
+            setLoadingMessage("Download da Strava...");
             addToast("Sincronizzazione Strava in corso...", "info");
-            const fetchedTracks = await fetchRecentStravaActivities(10);
+            
+            const limit = afterTimestamp ? 50 : 30;
+            const fetchedTracks = await fetchRecentStravaActivities(limit, afterTimestamp);
             
             if (fetchedTracks.length === 0) {
                 addToast("Nessuna nuova attività trovata su Strava.", "info");
@@ -321,6 +351,7 @@ const App: React.FC = () => {
             } else {
                 addToast("Tutte le attività recenti sono già presenti.", "info");
             }
+            setShowStravaSyncOptions(false);
         } catch (e: any) {
             console.error("Strava sync failed", e);
             if (e.message === "AUTH_REQUIRED") {
@@ -329,6 +360,8 @@ const App: React.FC = () => {
             } else {
                 addToast("Errore sincronizzazione Strava.", "error");
             }
+        } finally {
+            setIsDataLoading(false);
         }
     };
 
@@ -535,6 +568,15 @@ const App: React.FC = () => {
         <div className="h-screen w-screen flex flex-col overflow-hidden bg-slate-950 text-white font-sans">
             <ToastContainer toasts={toasts} setToasts={setToasts} />
 
+            {/* DATA LOADING OVERLAY */}
+            {isDataLoading && (
+                <div className="fixed inset-0 z-[99999] bg-slate-950/90 backdrop-blur-sm flex flex-col items-center justify-center text-white animate-fade-in">
+                    <div className="w-16 h-16 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mb-6 shadow-lg shadow-cyan-500/20"></div>
+                    <p className="text-xl font-black uppercase tracking-widest animate-pulse text-cyan-400">{loadingMessage}</p>
+                    <p className="text-xs text-slate-400 mt-2 font-mono">Attendere prego...</p>
+                </div>
+            )}
+
             {showAuthSelection && (
                 <AuthSelectionModal onGuest={handleGuestAccess} onLogin={handleLogin} />
             )}
@@ -587,9 +629,9 @@ const App: React.FC = () => {
                     onLogout={handleLogout}
                     onLogin={handleLogin}
                     isGuest={isGuest}
-                    onManualCloudSave={userId && !isGuest ? () => {} : undefined} // Placeholder for manual save if needed
+                    onManualCloudSave={userId && !isGuest ? () => {} : undefined} 
                     onCheckAiAccess={() => { if(limitReached) { setShowLoginModal(true); return false; } return true; }}
-                    onOpenStravaConfig={handleStravaSync} // Using direct sync handler
+                    onOpenStravaConfig={() => setShowStravaSyncOptions(true)} 
                     userProfile={userProfile}
                 />
             )}
@@ -808,6 +850,7 @@ const App: React.FC = () => {
             {showChangelog && <Changelog onClose={() => setShowChangelog(false)} />}
             {showGuide && <GuideModal onClose={() => setShowGuide(false)} />}
             {showStravaConfig && <StravaConfigModal onClose={() => setShowStravaConfig(false)} />}
+            {showStravaSyncOptions && <StravaSyncModal onClose={() => setShowStravaSyncOptions(false)} onSync={handleStravaSync} lastSyncDate={lastStravaRunDate} />}
             
             {showExplorer && (
                 <ExplorerView 
