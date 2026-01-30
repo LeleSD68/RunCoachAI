@@ -894,7 +894,7 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
     };
 
     return (
-        <div className="flex flex-col h-full w-full font-sans text-white overflow-hidden bg-slate-900">
+        <div className="flex flex-col w-full font-sans text-white overflow-hidden bg-slate-900 h-[100dvh]" style={{ overscrollBehavior: 'none' }}>
              <header className="flex items-center justify-between p-2 sm:p-3 bg-slate-800 border-b border-slate-700 flex-shrink-0 z-30 shadow-lg">
                 <div className="flex items-center gap-2">
                     <button onClick={onExit} className="bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white font-black py-1.5 px-3 sm:py-2 sm:px-5 rounded-lg transition-all shadow-sm text-[10px] sm:text-sm">&times; {isMobile ? 'INDIETRO' : 'CHIUDI'}</button>
