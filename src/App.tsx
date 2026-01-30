@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Track, UserProfile, PlannedWorkout, Toast, ActivityType, RaceRunner, RaceResult, TrackStats, Commentary, TrackPoint } from './types';
 import Sidebar from './components/Sidebar';
@@ -854,7 +855,7 @@ const App: React.FC = () => {
 
             {showChangelog && <Changelog onClose={() => setShowChangelog(false)} />}
             {showGuide && <GuideModal onClose={() => setShowGuide(false)} />}
-            {showStravaConfig && <StravaConfigModal onClose={() => setShowStravaConfig(false)} />}
+            {showStravaConfig && <StravaConfigModal onClose={() => setShowStravaConfig(false)} onSync={() => handleStravaSync(false)} />}
             
             {showExplorer && (
                 <ExplorerView 
