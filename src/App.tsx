@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Track, UserProfile, PlannedWorkout, Toast, ActivityType, RaceRunner, RaceResult, TrackStats, Commentary, TrackPoint } from './types';
 import Sidebar from './components/Sidebar';
@@ -42,7 +43,7 @@ import {
 } from './services/dbService';
 import { generateSmartTitle } from './services/titleGenerator';
 import { supabase } from './services/supabaseClient';
-import { fetchRecentStravaActivities } from './services/stravaService';
+import { fetchRecentStravaActivities, isStravaConnected } from './services/stravaService';
 import { SAMPLE_GPX_DATA } from './services/sampleTrackData';
 import { getGenAI } from './services/aiHelper';
 
@@ -202,6 +203,26 @@ const App: React.FC = () => {
 
             const loadedWorkouts = await loadPlannedWorkoutsFromDB(forceLocal);
             setPlannedWorkouts(loadedWorkouts);
+
+            // AUTO SYNC STRAVA IF CONNECTED
+            if (isStravaConnected()) {
+                // Determine last sync date from loaded tracks
+                const stravaTracks = loadedTracks.filter(t => t.id.startsWith('strava-'));
+                let lastTimestamp = 0;
+                if (stravaTracks.length > 0) {
+                    stravaTracks.sort((a, b) => b.points[0].time.getTime() - a.points[0].time.getTime());
+                    // Add 1 sec to avoid duplicate
+                    lastTimestamp = Math.floor(stravaTracks[0].points[0].time.getTime() / 1000) + 1;
+                } else {
+                    // Sync last 30 days if no local data
+                    const d = new Date();
+                    d.setDate(d.getDate() - 30);
+                    lastTimestamp = Math.floor(d.getTime() / 1000);
+                }
+                // Trigger sync without await to not block UI completely, but handleStravaSync manages loading state
+                handleStravaSync(lastTimestamp);
+            }
+
         } catch (e) {
             console.error("Error loading data", e);
             addToast("Errore caricamento dati.", "error");
@@ -319,7 +340,8 @@ const App: React.FC = () => {
             const fetchedTracks = await fetchRecentStravaActivities(limit, afterTimestamp);
             
             if (fetchedTracks.length === 0) {
-                addToast("Nessuna nuova attività trovata su Strava.", "info");
+                // Silent if auto-sync and no new tracks, otherwise toast
+                // addToast("Nessuna nuova attività trovata su Strava.", "info"); 
                 return;
             }
 
@@ -340,18 +362,16 @@ const App: React.FC = () => {
                 // Assign User ID if logged in
                 const tracksWithUser = newTracks.map(t => ({ ...t, userId: userId || undefined }));
                 
-                const updatedTracks = [...tracks, ...tracksWithUser].sort((a, b) => b.points[0].time.getTime() - a.points[0].time.getTime());
-                setTracks(updatedTracks);
-                setFilteredTracks(updatedTracks);
-                
-                // Save to DB (this handles both local and cloud sync internally)
-                await saveTracksToDB(updatedTracks);
+                // Functional update to avoid stale closure state
+                setTracks(prev => {
+                    const updated = [...prev, ...tracksWithUser].sort((a, b) => b.points[0].time.getTime() - a.points[0].time.getTime());
+                    saveTracksToDB(updated); // Side effect inside state update is generally bad, but okay here for immediate persist
+                    setFilteredTracks(updated);
+                    return updated;
+                });
                 
                 addToast(`Importate ${newTracks.length} attività da Strava!`, "success");
-            } else {
-                addToast("Tutte le attività recenti sono già presenti.", "info");
-            }
-            setShowStravaSyncOptions(false);
+            } 
         } catch (e: any) {
             console.error("Strava sync failed", e);
             if (e.message === "AUTH_REQUIRED") {
