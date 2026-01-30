@@ -84,7 +84,7 @@ const App: React.FC = () => {
     const [showComparison, setShowComparison] = useState(false);
     
     // Editor & Detail Views
-    const [editingTrack, setEditingTrack] = useState<Track | null>(null);
+    const [editingTracks, setEditingTracks] = useState<Track[] | null>(null); // Changed to Array for merging
     const [viewingTrack, setViewingTrack] = useState<Track | null>(null);
     const [selectedWorkoutId, setSelectedWorkoutId] = useState<string | null>(null);
     const [workoutToConfirm, setWorkoutToConfirm] = useState<PlannedWorkout | null>(null);
@@ -647,7 +647,13 @@ const App: React.FC = () => {
                                 onSelectAll={() => setRaceSelectionIds(new Set(tracks.map(t => t.id)))}
                                 onDeselectAll={() => setRaceSelectionIds(new Set())}
                                 onStartRace={() => setShowRaceSetup(true)}
-                                onGoToEditor={() => { if(raceSelectionIds.size === 1) setEditingTrack(tracks.find(t => t.id === Array.from(raceSelectionIds)[0]) || null); }}
+                                onGoToEditor={() => { if(raceSelectionIds.size === 1) setEditingTracks([tracks.find(t => t.id === Array.from(raceSelectionIds)[0])!]); }}
+                                onMergeSelected={() => {
+                                    if(raceSelectionIds.size > 1) {
+                                        const selected = tracks.filter(t => raceSelectionIds.has(t.id));
+                                        setEditingTracks(selected);
+                                    }
+                                }}
                                 onPauseRace={() => setSimulationState('paused')}
                                 onResumeRace={() => setSimulationState('running')}
                                 onResetRace={() => { setSimulationTime(0); setSimulationState('idle'); }}
@@ -893,16 +899,16 @@ const App: React.FC = () => {
                 <SocialHub onClose={() => setShowSocial(false)} currentUserId={userId} />
             )}
 
-            {editingTrack && (
+            {editingTracks && (
                 <div className="fixed inset-0 z-[5000] bg-slate-900">
                     <TrackEditor 
-                        initialTracks={[editingTrack]} 
+                        initialTracks={editingTracks} 
                         onExit={(updated) => {
                             if (updated) {
                                 setTracks(prev => prev.map(t => t.id === updated.id ? updated : t));
                                 saveTracksToDB([updated]); // Update just this one
                             }
-                            setEditingTrack(null);
+                            setEditingTracks(null);
                         }}
                         addToast={addToast}
                     />
@@ -915,7 +921,7 @@ const App: React.FC = () => {
                         track={viewingTrack}
                         userProfile={userProfile}
                         onExit={() => { setViewingTrack(null); setWorkoutToConfirm(null); }}
-                        onEdit={() => { setEditingTrack(viewingTrack); setViewingTrack(null); }}
+                        onEdit={() => { setEditingTracks([viewingTrack]); setViewingTrack(null); }}
                         allHistory={tracks}
                         plannedWorkouts={plannedWorkouts}
                         onUpdateTrackMetadata={(id, meta) => {
