@@ -99,7 +99,7 @@ const NavigationDock: React.FC<NavigationDockProps> = ({
                         <DiaryIcon />
                     </button>
                 </Tooltip>
-                
+
                 <Tooltip text="Performance" subtext="Analisi" position="top">
                     <button onClick={onOpenPerformance} className="p-2.5 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-green-400 transition-all active:scale-95">
                         <ChartIcon />
