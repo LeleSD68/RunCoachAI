@@ -29,7 +29,6 @@ const ChevronRightIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox=
 const ChevronDownIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z" clipRule="evenodd" /></svg>);
 const ExpandAllIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M5.22 14.78a.75.75 0 0 0 1.06 0l7.22-7.22v5.69a.75.75 0 0 0 1.5 0v-7.5a.75.75 0 0 0-.75-.75h-7.5a.75.75 0 0 0 0 1.5h5.69l-7.22 7.22a.75.75 0 0 0 0 1.06Z" clipRule="evenodd" /></svg>);
 const CollapseAllIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M13.28 5.22a.75.75 0 0 0-1.06 0l-7.22 7.22v-5.69a.75.75 0 0 0-1.5 0v7.5a.75.75 0 0 0 .75.75h7.5a.75.75 0 0 0 0-1.5h-5.69l7.22-7.22a.75.75 0 0 0 0-1.06Z" clipRule="evenodd" /></svg>);
-const MergeIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M11 5a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM2.615 16.428a1.224 1.224 0 0 1-.569-1.175 6.002 6.002 0 0 1 11.908 0c.058.467-.172.92-.57 1.174A9.953 9.953 0 0 1 7 18a9.953 9.953 0 0 1-4.385-1.572ZM16.25 5.75a.75.75 0 0 0-1.5 0v2h-2a.75.75 0 0 0 0 1.5h2v2a.75.75 0 0 0 1.5 0v-2h2a.75.75 0 0 0 0-1.5h-2v-2Z" /></svg>); // Reusing a similar icon for merge visual, or create specific
 const MergeTracksIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
         <path fillRule="evenodd" d="M3.75 3a.75.75 0 0 0-1.5 0v4a6.5 6.5 0 0 0 6.5 6.5h4.19l-1.72 1.72a.75.75 0 1 0 1.06 1.06l3-3a.75.75 0 0 0 0-1.06l-3-3a.75.75 0 1 0-1.06 1.06l1.72 1.72H8.75A5 5 0 0 1 3.75 7V3Z" clipRule="evenodd" />
@@ -151,7 +150,10 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
     const filteredTracks = useMemo(() => {
         return tracks.filter(t => {
             const matchesSearch = t.name.toLowerCase().includes(searchTerm.toLowerCase());
-            // Strict logic: Show ONLY archived if showArchived is true, otherwise show ONLY non-archived
+            // Updated Logic:
+            // If showArchived is TRUE -> Show ONLY archived tracks
+            // If showArchived is FALSE -> Show ONLY non-archived tracks (default)
+            // This ensures "Archived" tracks disappear from the main list immediately.
             const matchesArchive = showArchived ? t.isArchived : !t.isArchived;
             return matchesSearch && matchesArchive;
         });
@@ -251,7 +253,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
         <div className="flex flex-col h-full bg-slate-900 border-r border-slate-800 text-white">
             {/* Header */}
             <div className="p-4 border-b border-slate-800 shrink-0 flex items-center justify-between">
-                <h2 className="text-lg font-bold text-cyan-400">Attività</h2>
+                <h2 className="text-lg font-bold text-cyan-400">{showArchived ? 'Archivio' : 'Attività'}</h2>
                 <div className="flex items-center gap-2">
                     <button 
                         onClick={() => fileInputRef.current?.click()} 
@@ -334,7 +336,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                         <button 
                             onClick={() => setShowArchived(!showArchived)}
                             className={`p-1.5 rounded border ${showArchived ? 'bg-amber-600 text-white border-amber-500' : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'}`}
-                            title={showArchived ? "Nascondi Archivio" : "Mostra Archivio"}
+                            title={showArchived ? "Torna alla lista principale" : "Mostra Archivio"}
                         >
                             <ArchiveBoxIcon />
                         </button>
@@ -352,7 +354,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                             <button onClick={onStartRace} className="flex-1 bg-green-600 hover:bg-green-500 text-white text-xs font-bold py-2 rounded">
                                 Gara ({raceSelectionIds.size})
                             </button>
-                            {raceSelectionIds.size > 1 && onMergeSelected && (
+                            {raceSelectionIds.size >= 2 && onMergeSelected && (
                                 <button onClick={onMergeSelected} className="bg-cyan-700 hover:bg-cyan-600 text-cyan-100 px-2 rounded flex items-center justify-center" title="Unisci Tracce">
                                     <MergeTracksIcon />
                                 </button>
