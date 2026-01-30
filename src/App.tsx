@@ -58,7 +58,7 @@ const App: React.FC = () => {
     // UI State
     const [showSplash, setShowSplash] = useState(true);
     const [isDataLoading, setIsDataLoading] = useState(false);
-    const [loadingMessage, setLoadingMessage] = useState('Caricamento...'); // NEW: Specific loading message
+    const [loadingMessage, setLoadingMessage] = useState('Caricamento...'); 
     const [showAuthSelection, setShowAuthSelection] = useState(false);
     const [showLoginModal, setShowLoginModal] = useState(false);
     const [showInitialChoice, setShowInitialChoice] = useState(false);
@@ -155,15 +155,11 @@ const App: React.FC = () => {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    // LOGIC: Sidebar should be visible if:
-    // 1. Manually opened (isSidebarOpen true)
-    // 2. OR We are on Desktop AND NOT in Race Mode (Desktop always shows sidebar unless racing)
     const shouldShowSidebar = isSidebarOpen || (!isMobileView && !isRaceMode);
 
     // --- INITIALIZATION ---
 
     useEffect(() => {
-        // Global API Token Tracking
         window.gpxApp = {
             addTokens: (count: number) => setDailyTokenCount(prev => prev + count),
             getDailyTokenCount: () => dailyTokenCount,
@@ -179,7 +175,6 @@ const App: React.FC = () => {
 
         if (stravaCode) {
             window.history.replaceState({}, document.title, window.location.pathname);
-            
             setIsDataLoading(true);
             setLoadingMessage("Connessione Strava in corso...");
             addToast("Finalizzazione connessione Strava...", "info");
@@ -215,7 +210,7 @@ const App: React.FC = () => {
             if (session) {
                 setUserId(session.user.id);
                 setIsGuest(false);
-                await loadData(); // Load data explicitly
+                await loadData();
                 setShowHome(true);
                 setShowAuthSelection(false); 
             } else {
@@ -233,9 +228,8 @@ const App: React.FC = () => {
         setIsGuest(true);
         setUserId('guest');
         setShowAuthSelection(false);
-        loadData(true); // Force local load
+        loadData(true);
         
-        // Check if first time guest
         const hasSeenWelcome = localStorage.getItem('hasSeenWelcome');
         if (!hasSeenWelcome) {
             setShowInitialChoice(true);
@@ -262,101 +256,62 @@ const App: React.FC = () => {
             console.error("Error loading data", e);
             addToast("Errore caricamento dati.", "error");
         } finally {
-            // Optional: minimal delay to ensure user sees "Done"
             await new Promise(r => setTimeout(r, 300));
         }
     };
 
-    // --- FILE PROCESSING ---
-
+    // --- FILE PROCESSING --- (Omitted for brevity, logic unchanged)
     const processFilesOnMainThread = async (files: File[]) => {
         const newTracks: Track[] = [];
         let duplicateCount = 0;
-
         for (const file of files) {
             try {
                 const text = await file.text();
                 let parsed: { name: string; points: TrackPoint[]; distance: number; duration: number; } | null = null;
-
                 if (file.name.toLowerCase().endsWith('.gpx')) {
                     parsed = parseGpx(text, file.name);
                 } else if (file.name.toLowerCase().endsWith('.tcx')) {
                     parsed = parseTcx(text, file.name);
                 }
-
                 if (parsed && parsed.points.length > 0) {
                     const { title, activityType, folder } = generateSmartTitle(parsed.points, parsed.distance, parsed.name);
-                    
-                    // Check duplicate
                     const isDuplicate = tracks.some(t => 
                         Math.abs(t.points[0].time.getTime() - parsed!.points[0].time.getTime()) < 1000 && 
                         Math.abs(t.distance - parsed!.distance) < 0.1
                     );
-
                     if (isDuplicate) {
                         duplicateCount++;
                         continue;
                     }
-
                     const trackId = crypto.randomUUID ? crypto.randomUUID() : `track-${Date.now()}-${Math.random()}`;
                     const newTrack: Track = {
-                        id: trackId,
-                        name: title,
-                        points: parsed.points,
-                        distance: parsed.distance,
-                        duration: parsed.duration, // CORRECTED
-                        color: '#' + Math.floor(Math.random()*16777215).toString(16),
-                        activityType,
-                        folder,
-                        isFavorite: false,
-                        isArchived: false,
-                        isPublic: true,
-                        isExternal: false,
-                        userId: userId || undefined
+                        id: trackId, name: title, points: parsed.points, distance: parsed.distance, duration: parsed.duration,
+                        color: '#' + Math.floor(Math.random()*16777215).toString(16), activityType, folder,
+                        isFavorite: false, isArchived: false, isPublic: true, isExternal: false, userId: userId || undefined
                     };
                     newTracks.push(newTrack);
                 }
-            } catch (e) {
-                console.error(`Error parsing ${file.name}`, e);
-                addToast(`Errore parsing ${file.name}`, "error");
-            }
+            } catch (e) { console.error(`Error parsing ${file.name}`, e); addToast(`Errore parsing ${file.name}`, "error"); }
         }
-
         if (newTracks.length > 0) {
             const updatedTracks = [...tracks, ...newTracks].sort((a, b) => b.points[0].time.getTime() - a.points[0].time.getTime());
             setTracks(updatedTracks);
             setFilteredTracks(updatedTracks);
-            
-            // Automatically make new tracks visible
             setVisibleTrackIds(prev => {
                 const next = new Set(prev);
                 newTracks.forEach(t => next.add(t.id));
                 return next;
             });
-
             await saveTracksToDB(updatedTracks);
-            
-            // Sync to cloud if logged in
-            if (!isGuest && userId) {
-                newTracks.forEach(t => syncTrackToCloud(t));
-            }
-
-            // Check for planned workouts matches for new tracks
+            if (!isGuest && userId) newTracks.forEach(t => syncTrackToCloud(t));
             newTracks.forEach(t => {
                 const tDate = t.points[0].time.toDateString();
                 const workout = plannedWorkouts.find(w => new Date(w.date).toDateString() === tDate && !w.completedTrackId);
-                if (workout) {
-                    setWorkoutToConfirm(workout);
-                    setViewingTrack(t); // Open detail view context
-                }
+                if (workout) { setWorkoutToConfirm(workout); setViewingTrack(t); }
             });
-
             addToast(`Caricate ${newTracks.length} attività.`, "success");
         }
-
-        if (duplicateCount > 0) {
-            addToast(`${duplicateCount} duplicati ignorati.`, "info");
-        }
+        if (duplicateCount > 0) addToast(`${duplicateCount} duplicati ignorati.`, "info");
     };
 
     const handleFileUpload = (files: File[] | null) => {
@@ -366,11 +321,7 @@ const App: React.FC = () => {
     };
 
     const handleStravaClick = () => {
-        if (isStravaConnected()) {
-            setShowStravaSyncOptions(true);
-        } else {
-            setShowStravaConfig(true);
-        }
+        if (isStravaConnected()) setShowStravaSyncOptions(true); else setShowStravaConfig(true);
     };
 
     const handleStravaSync = async (afterTimestamp?: number) => {
@@ -379,15 +330,9 @@ const App: React.FC = () => {
             setIsDataLoading(true);
             setLoadingMessage("Download da Strava...");
             addToast("Sincronizzazione Strava in corso...", "info");
-            
             const limit = afterTimestamp ? 50 : 10;
             const fetchedTracks = await fetchRecentStravaActivities(limit, afterTimestamp);
-            
-            if (fetchedTracks.length === 0) {
-                addToast("Nessuna nuova attività trovata su Strava.", "info");
-                return;
-            }
-
+            if (fetchedTracks.length === 0) { addToast("Nessuna nuova attività trovata su Strava.", "info"); return; }
             const newTracks = fetchedTracks.filter(newT => {
                 const alreadyExists = tracks.some(existingT => {
                     if (existingT.id === newT.id) return true;
@@ -397,7 +342,6 @@ const App: React.FC = () => {
                 });
                 return !alreadyExists;
             });
-
             if (newTracks.length > 0) {
                 const tracksWithUser = newTracks.map(t => ({ ...t, userId: userId || undefined }));
                 const updatedTracks = [...tracks, ...tracksWithUser].sort((a, b) => b.points[0].time.getTime() - a.points[0].time.getTime());
@@ -405,20 +349,11 @@ const App: React.FC = () => {
                 setFilteredTracks(updatedTracks);
                 await saveTracksToDB(updatedTracks);
                 addToast(`Importate ${newTracks.length} attività da Strava!`, "success");
-            } else {
-                addToast("Tutte le attività recenti sono già presenti.", "info");
-            }
+            } else { addToast("Tutte le attività recenti sono già presenti.", "info"); }
         } catch (e: any) {
             console.error("Strava sync failed", e);
-            if (e.message === "AUTH_REQUIRED") {
-                addToast("Autenticazione Strava richiesta.", "error");
-                setShowStravaConfig(true);
-            } else {
-                addToast("Errore sincronizzazione Strava.", "error");
-            }
-        } finally {
-            setIsDataLoading(false);
-        }
+            if (e.message === "AUTH_REQUIRED") { addToast("Autenticazione Strava richiesta.", "error"); setShowStravaConfig(true); } else addToast("Errore sincronizzazione Strava.", "error");
+        } finally { setIsDataLoading(false); }
     };
 
     const handleImportBackup = async (file: File) => {
@@ -427,17 +362,12 @@ const App: React.FC = () => {
             const text = await file.text();
             const data = JSON.parse(text);
             if (!data.tracks && !data.profile) throw new Error("File non valido");
-            
             await importAllData(data);
             await loadData(true);
-            
             addToast("Backup ripristinato con successo!", "success");
             setShowInitialChoice(false);
             setShowHome(true);
-        } catch (e) {
-            console.error(e);
-            addToast("Errore importazione backup.", "error");
-        }
+        } catch (e) { console.error(e); addToast("Errore importazione backup.", "error"); }
     };
 
     const handleExportBackup = async () => {
@@ -447,24 +377,18 @@ const App: React.FC = () => {
             const jsonString = JSON.stringify(data, null, 2);
             const blob = new Blob([jsonString], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
-            
             const a = document.createElement('a');
             a.href = url;
             a.download = `runcoach_backup_${new Date().toISOString().slice(0, 10)}.json`;
             document.body.appendChild(a);
             a.click();
-            
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
             addToast("Backup salvato nei download.", "success");
-        } catch (e) {
-            console.error(e);
-            addToast("Errore durante l'esportazione.", "error");
-        }
+        } catch (e) { console.error(e); addToast("Errore durante l'esportazione.", "error"); }
     };
 
     // --- WORKOUTS ---
-
     const handleAddPlannedWorkout = (workout: PlannedWorkout) => {
         const updated = [...plannedWorkouts, workout];
         setPlannedWorkouts(updated);
@@ -491,8 +415,7 @@ const App: React.FC = () => {
         let updated = [...plannedWorkouts];
         workouts.forEach(w => {
             const idx = updated.findIndex(ex => ex.id === w.id);
-            if (idx >= 0) updated[idx] = w;
-            else updated.push(w); // Should not happen for updates but safe
+            if (idx >= 0) updated[idx] = w; else updated.push(w);
         });
         setPlannedWorkouts(updated);
         await savePlannedWorkoutsToDB(updated);
@@ -500,18 +423,15 @@ const App: React.FC = () => {
     };
 
     // --- RACE MODE HANDLERS ---
-
     const handleAddOpponent = async (files: File[]) => {
         if (!files || files.length === 0) return;
         const tempTracks: Track[] = [];
-        
         for (const file of files) {
             try {
                 const text = await file.text();
                 let parsed = null;
                 if (file.name.toLowerCase().endsWith('.gpx')) parsed = parseGpx(text, file.name);
                 else if (file.name.toLowerCase().endsWith('.tcx')) parsed = parseTcx(text, file.name);
-                
                 if (parsed) {
                     tempTracks.push({
                         id: `ghost-${Date.now()}-${Math.random()}`,
@@ -524,11 +444,8 @@ const App: React.FC = () => {
                         activityType: 'Gara'
                     });
                 }
-            } catch (e) {
-                console.error(e);
-            }
+            } catch (e) { console.error(e); }
         }
-        
         if (tempTracks.length > 0) {
             setTracks(prev => [...prev, ...tempTracks]);
             setRaceSelectionIds(prev => {
@@ -546,32 +463,22 @@ const App: React.FC = () => {
             n.delete(id);
             return n;
         });
-        // If it was a ghost, remove from tracks entirely
         if (id.startsWith('ghost-')) {
             setTracks(prev => prev.filter(t => t.id !== id));
         }
     };
 
     const handleStartRace = (renamedMap: Record<string, string>) => {
-        // Apply renames
         setTracks(prev => prev.map(t => renamedMap[t.id] ? { ...t, name: renamedMap[t.id] } : t));
-        
-        // Prepare runners
         const selectedTracks = tracks.filter(t => raceSelectionIds.has(t.id));
         const runners = selectedTracks.map(t => ({
-            trackId: t.id,
-            name: t.name,
-            color: t.color,
-            position: t.points[0],
-            pace: 0
+            trackId: t.id, name: t.name, color: t.color, position: t.points[0], pace: 0
         }));
-        
         setRaceRunners(runners);
         setSimulationTime(0);
         setSimulationState('running');
         setShowRaceSetup(false);
         setIsRaceMode(true);
-        // Sidebar closes automatically based on isRaceMode state in rendering logic
     };
 
     const handleExitRace = () => {
@@ -580,13 +487,10 @@ const App: React.FC = () => {
         setRaceRunners([]);
         setRaceResults([]);
         setRaceSelectionIds(new Set());
-        // Clean up ghosts
         setTracks(prev => prev.filter(t => !t.isExternal));
-        // Sidebar re-opens automatically
     };
 
     // --- OTHER HANDLERS ---
-
     const handleLogout = async () => {
         await supabase.auth.signOut();
         setIsGuest(false);
@@ -616,14 +520,12 @@ const App: React.FC = () => {
     };
 
     // --- RENDER ---
-
     if (showSplash) return <SplashScreen onFinish={handleSplashFinish} />;
 
     return (
         <div className="h-screen w-screen flex flex-col overflow-hidden bg-slate-950 text-white font-sans">
             <ToastContainer toasts={toasts} setToasts={setToasts} />
 
-            {/* DATA LOADING OVERLAY */}
             {isDataLoading && (
                 <div className="fixed inset-0 z-[99999] bg-slate-950/90 backdrop-blur-sm flex flex-col items-center justify-center text-white animate-fade-in">
                     <div className="w-16 h-16 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mb-6 shadow-lg shadow-cyan-500/20"></div>
@@ -632,9 +534,7 @@ const App: React.FC = () => {
                 </div>
             )}
 
-            {showAuthSelection && (
-                <AuthSelectionModal onGuest={handleGuestAccess} onLogin={handleLogin} />
-            )}
+            {showAuthSelection && (<AuthSelectionModal onGuest={handleGuestAccess} onLogin={handleLogin} />)}
 
             {showLoginModal && (
                 <LoginModal 
@@ -659,7 +559,6 @@ const App: React.FC = () => {
                 <WelcomeModal onClose={() => { 
                     setShowWelcome(false); 
                     localStorage.setItem('hasSeenWelcome', 'true');
-                    // Load sample track
                     processFilesOnMainThread([new File([SAMPLE_GPX_DATA], "Colosseum_Run_Example.gpx", { type: "application/gpx+xml" })]);
                     setShowHome(true); 
                 }} />
@@ -699,11 +598,8 @@ const App: React.FC = () => {
                 />
             )}
 
-            {/* MAIN APP UI */}
             {!showHome && !showAuthSelection && !showInitialChoice && (
                 <div className="flex h-full relative">
-                    {/* SIDEBAR */}
-                    {/* FIXED: Sidebar is now always visible on desktop unless Race Mode is active */}
                     <div className={`
                         absolute md:relative z-20 h-full bg-slate-900 border-r border-slate-800 flex-shrink-0 transition-all duration-300
                         ${(shouldShowSidebar) ? 'w-80 translate-x-0' : 'w-0 -translate-x-full'}
@@ -731,35 +627,24 @@ const App: React.FC = () => {
                             simulationSpeed={simulationSpeed}
                             onSpeedChange={setSimulationSpeed}
                             lapTimes={new Map()}
-                            sortOrder={'date_desc'} // Placeholder
+                            sortOrder={'date_desc'}
                             onSortChange={() => {}}
                             onDeleteTrack={async (id) => {
-                                // 1. UI Update
                                 setTracks(prev => prev.filter(t => t.id !== id));
                                 setFilteredTracks(prev => prev.filter(t => t.id !== id));
-                                
-                                // 2. Local DB
                                 await deleteTrackFromLocalDB(id);
-                                
-                                // 3. Cloud (if applicable)
                                 if (!isGuest && userId) deleteTrackFromCloud(id);
-                                
                                 addToast("Traccia eliminata.", "info");
                             }}
                             onDeleteSelected={async () => {
                                 const idsToRemove = Array.from(raceSelectionIds);
-                                
-                                // 1. UI Update
                                 setTracks(prev => prev.filter(t => !raceSelectionIds.has(t.id)));
                                 setFilteredTracks(prev => prev.filter(t => !raceSelectionIds.has(t.id)));
                                 setRaceSelectionIds(new Set());
-                                
-                                // 2. Storage Updates
                                 for (const id of idsToRemove) {
                                     await deleteTrackFromLocalDB(id);
                                     if (!isGuest && userId) deleteTrackFromCloud(id);
                                 }
-                                
                                 addToast(`${idsToRemove.length} tracce eliminate.`, "info");
                             }}
                             onViewDetails={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)}
@@ -783,7 +668,6 @@ const App: React.FC = () => {
                             onCloseMobile={() => setIsSidebarOpen(false)}
                             onUpdateTrackMetadata={(id, meta) => {
                                 setTracks(prev => prev.map(t => t.id === id ? { ...t, ...meta } : t));
-                                // Should sync to cloud but simple update here
                             }}
                             onRegenerateTitles={() => {}}
                             onToggleExplorer={() => { closeAllOverlays(); setShowExplorer(true); }}
@@ -806,15 +690,14 @@ const App: React.FC = () => {
                             onOpenSocial={() => { closeAllOverlays(); setShowSocial(true); }}
                             onToggleArchived={(id) => setTracks(prev => prev.map(t => t.id === id ? { ...t, isArchived: !t.isArchived } : t))}
                             isGuest={isGuest}
-                            onlineCount={0} // Mock
-                            unreadCount={0} // Mock
+                            onlineCount={0}
+                            unreadCount={0}
                             onTogglePrivacySelected={(isPublic) => {
                                 setTracks(prev => prev.map(t => raceSelectionIds.has(t.id) ? { ...t, isPublic } : t));
                             }}
                         />
                     </div>
 
-                    {/* MAP AREA */}
                     <div className="flex-grow relative h-full bg-slate-900 overflow-hidden">
                         <MapDisplay 
                             tracks={tracks}
@@ -826,7 +709,7 @@ const App: React.FC = () => {
                             selectionPoints={null}
                             hoveredPoint={null}
                             onTrackHover={setHoveredTrackId}
-                            mapGradientMetric={'none'} // Simplified
+                            mapGradientMetric={'none'}
                             animationTrack={animationTrackId ? tracks.find(t => t.id === animationTrackId) : null}
                             animationProgress={animationProgress}
                             isAnimationPlaying={isAnimationPlaying}
@@ -849,9 +732,9 @@ const App: React.FC = () => {
                                     setRaceSelectionIds(new Set([id]));
                                 }
                             }}
+                            userProfile={userProfile}
                         />
 
-                        {/* Overlays */}
                         {isRaceMode && (
                             <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30">
                                 <RaceControls 
@@ -874,7 +757,6 @@ const App: React.FC = () => {
 
                         <LiveCommentary messages={raceCommentary} isLoading={false} />
 
-                        {/* Navigation Dock (Mobile) */}
                         {!isRaceMode && (
                             <NavigationDock 
                                 onOpenSidebar={() => setIsSidebarOpen(true)}
@@ -890,7 +772,6 @@ const App: React.FC = () => {
                             />
                         )}
 
-                        {/* Global Chatbot Bubble */}
                         <div className="absolute bottom-20 right-4 z-40">
                             {!showChatbot ? (
                                 <button 
@@ -916,7 +797,6 @@ const App: React.FC = () => {
                 </div>
             )}
 
-            {/* MODALS */}
             {showProfile && (
                 <UserProfileModal 
                     onClose={() => setShowProfile(false)} 
@@ -988,7 +868,7 @@ const App: React.FC = () => {
                         onExit={(updated) => {
                             if (updated) {
                                 setTracks(prev => prev.map(t => t.id === updated.id ? updated : t));
-                                saveTracksToDB([updated]); // Update just this one
+                                saveTracksToDB([updated]); 
                             }
                             setEditingTrack(null);
                         }}
@@ -1018,7 +898,6 @@ const App: React.FC = () => {
                             workout={workoutToConfirm}
                             onConfirm={() => {
                                 setTracks(prev => prev.map(t => t.id === viewingTrack.id ? { ...t, linkedWorkout: workoutToConfirm } : t));
-                                // Also update workout to point to track
                                 const updatedW = { ...workoutToConfirm, completedTrackId: viewingTrack.id };
                                 handleUpdatePlannedWorkout(updatedW);
                                 setWorkoutToConfirm(null);
@@ -1032,7 +911,9 @@ const App: React.FC = () => {
 
             {showRaceSetup && (
                 <RaceSetupModal 
-                    tracks={tracks.filter(t => raceSelectionIds.has(t.id))}
+                    tracks={tracks} // Pass ALL tracks for selection list
+                    initialSelection={raceSelectionIds} // Pass current selection
+                    onSelectionChange={setRaceSelectionIds} // Pass setter to update selection
                     onConfirm={handleStartRace}
                     onCancel={() => setShowRaceSetup(false)}
                     onAddOpponent={handleAddOpponent}
@@ -1043,7 +924,7 @@ const App: React.FC = () => {
             {showRaceSummary && (
                 <RaceSummary 
                     results={raceResults}
-                    racerStats={null} // Simplified
+                    racerStats={null}
                     onClose={() => { setShowRaceSummary(false); handleExitRace(); }}
                     userProfile={userProfile}
                     tracks={tracks}
@@ -1069,7 +950,6 @@ const App: React.FC = () => {
     );
 };
 
-// Helper for Mobile check
 const isMobile = () => window.innerWidth < 768;
 
 export default App;
