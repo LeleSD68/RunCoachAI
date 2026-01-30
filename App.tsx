@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Track, UserProfile, PlannedWorkout, Toast, ActivityType, RaceRunner, RaceResult, TrackStats, Commentary, TrackPoint } from './types';
 import Sidebar from './components/Sidebar';
@@ -910,7 +909,9 @@ const App: React.FC = () => {
 
             {showRaceSetup && (
                 <RaceSetupModal 
-                    tracks={tracks.filter(t => raceSelectionIds.has(t.id))}
+                    tracks={tracks} // Pass ALL tracks for selection list
+                    initialSelection={raceSelectionIds} // Pass current selection
+                    onSelectionChange={setRaceSelectionIds} // Pass setter to update selection
                     onConfirm={handleStartRace}
                     onCancel={() => setShowRaceSetup(false)}
                     onAddOpponent={handleAddOpponent}
