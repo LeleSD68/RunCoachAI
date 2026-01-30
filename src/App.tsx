@@ -57,7 +57,7 @@ const WhistleFloatingIcon = () => (
 const App: React.FC = () => {
     // --- STATE DEFINITIONS ---
     const [tracks, setTracks] = useState<Track[]>([]);
-    const [filteredTracks, setFilteredTracks] = useState<Track[]>([]);
+    // Removed redundant filteredTracks state for Sidebar - Sidebar handles its own filtering
     const [plannedWorkouts, setPlannedWorkouts] = useState<PlannedWorkout[]>([]);
     const [userProfile, setUserProfile] = useState<UserProfile>({});
     const [toasts, setToasts] = useState<Toast[]>([]);
@@ -201,7 +201,6 @@ const App: React.FC = () => {
             setLoadingMessage("Caricamento tracce e allenamenti...");
             const loadedTracks = await loadTracksFromDB(forceLocal);
             setTracks(loadedTracks);
-            setFilteredTracks(loadedTracks);
             
             setVisibleTrackIds(new Set(loadedTracks.map(t => t.id)));
 
@@ -287,7 +286,6 @@ const App: React.FC = () => {
         if (newTracks.length > 0) {
             const updatedTracks = [...tracks, ...newTracks].sort((a, b) => b.points[0].time.getTime() - a.points[0].time.getTime());
             setTracks(updatedTracks);
-            setFilteredTracks(updatedTracks);
             
             setVisibleTrackIds(prev => {
                 const next = new Set(prev);
@@ -357,8 +355,7 @@ const App: React.FC = () => {
                 
                 setTracks(prev => {
                     const updated = [...prev, ...tracksWithUser].sort((a, b) => b.points[0].time.getTime() - a.points[0].time.getTime());
-                    saveTracksToDB(updated); // Save including existing state (so order is kept)
-                    setFilteredTracks(updated);
+                    saveTracksToDB(updated); 
                     return updated;
                 });
                 
@@ -644,7 +641,7 @@ const App: React.FC = () => {
                             ${isSidebarOpen ? 'w-80 translate-x-0' : 'w-0 -translate-x-full md:w-0 md:translate-x-0'}
                         `}>
                             <Sidebar 
-                                tracks={filteredTracks}
+                                tracks={tracks} // PASSING FULL TRACKS ARRAY NOW
                                 onFileUpload={handleFileUpload}
                                 visibleTrackIds={visibleTrackIds}
                                 onToggleVisibility={(id) => setVisibleTrackIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
@@ -685,7 +682,6 @@ const App: React.FC = () => {
                                     
                                     const newTracks = tracks.filter(t => t.id !== id);
                                     setTracks(newTracks);
-                                    setFilteredTracks(newTracks);
                                     saveTracksToDB(newTracks); // Persist removal
                                     deleteTrackFromCloud(id);
                                     addToast("Traccia eliminata.", "info");
@@ -709,7 +705,6 @@ const App: React.FC = () => {
 
                                     const newTracks = tracks.filter(t => !raceSelectionIds.has(t.id));
                                     setTracks(newTracks);
-                                    setFilteredTracks(newTracks);
                                     saveTracksToDB(newTracks);
                                     setRaceSelectionIds(new Set());
                                     addToast("Tracce eliminate.", "info");
@@ -758,9 +753,8 @@ const App: React.FC = () => {
                                 onToggleArchived={(id) => {
                                     const newTracks = tracks.map(t => t.id === id ? { ...t, isArchived: !t.isArchived } : t);
                                     setTracks(newTracks);
-                                    setFilteredTracks(newTracks);
-                                    saveTracksToDB(newTracks); // Persist immediately
-                                    // Should ideally update cloud too for consistency
+                                    // SAVE TO DB IMMEDIATELY TO PERSIST ARCHIVE STATE
+                                    saveTracksToDB(newTracks); 
                                     if (userId && !isGuest) {
                                         const track = newTracks.find(t => t.id === id);
                                         if (track) syncTrackToCloud(track);
