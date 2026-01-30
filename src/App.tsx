@@ -84,7 +84,7 @@ const App: React.FC = () => {
     const [showComparison, setShowComparison] = useState(false);
     
     // Editor & Detail Views
-    const [editingTracks, setEditingTracks] = useState<Track[] | null>(null); // Changed to Array for merging
+    const [editingTracks, setEditingTracks] = useState<Track[] | null>(null); 
     const [viewingTrack, setViewingTrack] = useState<Track | null>(null);
     const [selectedWorkoutId, setSelectedWorkoutId] = useState<string | null>(null);
     const [workoutToConfirm, setWorkoutToConfirm] = useState<PlannedWorkout | null>(null);
@@ -230,7 +230,6 @@ const App: React.FC = () => {
         }
     };
 
-    // ... (File Processing and Strava Sync logic remains same)
     // --- FILE PROCESSING ---
 
     const processFilesOnMainThread = async (files: File[]) => {
@@ -337,8 +336,15 @@ const App: React.FC = () => {
             if (fetchedTracks.length === 0) return;
 
             const newTracks = fetchedTracks.filter(newT => {
+                // Check if this ID is in the ignore/deleted list
+                if (userProfile.ignoredStravaIds?.includes(newT.id)) {
+                    return false;
+                }
+
+                // Check against ALL existing tracks (even archived ones)
                 const alreadyExists = tracks.some(existingT => {
                     if (existingT.id === newT.id) return true;
+                    // Fuzzy match backup
                     const timeDiff = Math.abs(existingT.points[0].time.getTime() - newT.points[0].time.getTime());
                     const distDiff = Math.abs(existingT.distance - newT.distance);
                     return timeDiff < 60000 && distDiff < 0.1;
@@ -669,13 +675,42 @@ const App: React.FC = () => {
                                 sortOrder={'date_desc'} // Placeholder
                                 onSortChange={() => {}}
                                 onDeleteTrack={(id) => {
-                                    setTracks(prev => prev.filter(t => t.id !== id));
+                                    // 1. Add to Ignore list if Strava
+                                    if (id.startsWith('strava-')) {
+                                        const updatedIgnored = [...(userProfile.ignoredStravaIds || []), id];
+                                        const newProfile = { ...userProfile, ignoredStravaIds: updatedIgnored };
+                                        setUserProfile(newProfile);
+                                        saveProfileToDB(newProfile);
+                                    }
+                                    
+                                    const newTracks = tracks.filter(t => t.id !== id);
+                                    setTracks(newTracks);
+                                    setFilteredTracks(newTracks);
+                                    saveTracksToDB(newTracks); // Persist removal
                                     deleteTrackFromCloud(id);
                                     addToast("Traccia eliminata.", "info");
                                 }}
                                 onDeleteSelected={() => {
-                                    raceSelectionIds.forEach(id => deleteTrackFromCloud(id));
-                                    setTracks(prev => prev.filter(t => !raceSelectionIds.has(t.id)));
+                                    const newIgnored = [...(userProfile.ignoredStravaIds || [])];
+                                    let addedToIgnore = false;
+                                    raceSelectionIds.forEach(id => {
+                                        if (id.startsWith('strava-')) {
+                                            newIgnored.push(id);
+                                            addedToIgnore = true;
+                                        }
+                                        deleteTrackFromCloud(id);
+                                    });
+                                    
+                                    if (addedToIgnore) {
+                                        const newProfile = { ...userProfile, ignoredStravaIds: newIgnored };
+                                        setUserProfile(newProfile);
+                                        saveProfileToDB(newProfile);
+                                    }
+
+                                    const newTracks = tracks.filter(t => !raceSelectionIds.has(t.id));
+                                    setTracks(newTracks);
+                                    setFilteredTracks(newTracks);
+                                    saveTracksToDB(newTracks);
                                     setRaceSelectionIds(new Set());
                                     addToast("Tracce eliminate.", "info");
                                 }}
@@ -720,7 +755,17 @@ const App: React.FC = () => {
                                 onCompareSelected={() => setShowComparison(true)}
                                 userProfile={userProfile}
                                 onOpenSocial={() => setShowSocial(true)}
-                                onToggleArchived={(id) => setTracks(prev => prev.map(t => t.id === id ? { ...t, isArchived: !t.isArchived } : t))}
+                                onToggleArchived={(id) => {
+                                    const newTracks = tracks.map(t => t.id === id ? { ...t, isArchived: !t.isArchived } : t);
+                                    setTracks(newTracks);
+                                    setFilteredTracks(newTracks);
+                                    saveTracksToDB(newTracks); // Persist immediately
+                                    // Should ideally update cloud too for consistency
+                                    if (userId && !isGuest) {
+                                        const track = newTracks.find(t => t.id === id);
+                                        if (track) syncTrackToCloud(track);
+                                    }
+                                }}
                                 isGuest={isGuest}
                                 onlineCount={0} 
                                 unreadCount={0} 
