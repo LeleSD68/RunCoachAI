@@ -209,7 +209,7 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
     };
 
     // Group Messages Logic
-    const groupedMessages = React.useMemo(() => {
+    const groupedMessages = React.useMemo<Record<string, DirectMessage[]>>(() => {
         const groups: Record<string, DirectMessage[]> = {};
         chatMessages.forEach(msg => {
             const dateLabel = getMessageDateLabel(msg.createdAt);
