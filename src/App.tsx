@@ -357,7 +357,7 @@ const App: React.FC = () => {
                 
                 setTracks(prev => {
                     const updated = [...prev, ...tracksWithUser].sort((a, b) => b.points[0].time.getTime() - a.points[0].time.getTime());
-                    saveTracksToDB(updated);
+                    saveTracksToDB(updated); // Save including existing state (so order is kept)
                     setFilteredTracks(updated);
                     return updated;
                 });
