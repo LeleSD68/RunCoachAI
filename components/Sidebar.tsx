@@ -351,18 +351,18 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                 {raceSelectionIds.size > 0 && (
                     <div className="flex flex-col gap-1 animate-fade-in">
                         <div className="flex gap-1">
-                            <button onClick={onStartRace} className="flex-1 bg-green-600 hover:bg-green-500 text-white text-xs font-bold py-2 rounded">
+                            <button onClick={onStartRace} className="flex-grow bg-green-600 hover:bg-green-500 text-white text-xs font-bold py-2 rounded shadow-sm">
                                 Gara ({raceSelectionIds.size})
                             </button>
                             {raceSelectionIds.size >= 2 && onMergeSelected && (
-                                <button onClick={onMergeSelected} className="bg-cyan-700 hover:bg-cyan-600 text-cyan-100 px-2 rounded flex items-center justify-center" title="Unisci Tracce">
+                                <button onClick={onMergeSelected} className="w-8 bg-cyan-700 hover:bg-cyan-600 text-cyan-100 rounded flex items-center justify-center shadow-sm" title="Unisci Tracce">
                                     <MergeTracksIcon />
                                 </button>
                             )}
-                            <button onClick={onCompareSelected} className="bg-slate-700 hover:bg-slate-600 text-slate-200 px-2 rounded" title="Confronta">
+                            <button onClick={onCompareSelected} className="w-8 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded flex items-center justify-center shadow-sm" title="Confronta">
                                 <CompareIcon />
                             </button>
-                            <button onClick={onDeleteSelected} className="bg-red-900/50 hover:bg-red-900 text-red-200 px-2 rounded" title="Elimina selezionati">
+                            <button onClick={onDeleteSelected} className="w-8 bg-red-900/50 hover:bg-red-900 text-red-200 rounded flex items-center justify-center shadow-sm" title="Elimina selezionati">
                                 <TrashIcon />
                             </button>
                         </div>
