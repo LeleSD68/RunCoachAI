@@ -590,6 +590,7 @@ const App: React.FC = () => {
                     onManualCloudSave={userId && !isGuest ? () => {} : undefined} // Placeholder for manual save if needed
                     onCheckAiAccess={() => { if(limitReached) { setShowLoginModal(true); return false; } return true; }}
                     onOpenStravaConfig={handleStravaSync} // Using direct sync handler
+                    userProfile={userProfile}
                 />
             )}
 
