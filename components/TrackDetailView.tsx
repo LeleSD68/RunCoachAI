@@ -356,7 +356,7 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
             case 'classic': return { 1: 'data', 2: 'map', 3: 'chart' };
             case 'map-top': return { 1: 'map', 2: 'data', 3: 'chart' };
             case 'data-right': return { 1: 'map', 2: 'chart', 3: 'data' };
-            case 'vertical': return { 1: 'data', 2: 'chart', 3: 'map' };
+            case 'vertical': return { 1: 'data', 2: 'chart', 3: 'map' }; // Default vertical slots
             case 'focus-bottom': return { 1: 'data', 2: 'map', 3: 'chart' };
             case 'columns': return { 1: 'data', 2: 'map', 3: 'chart' };
             default: return { 1: 'data', 2: 'map', 3: 'chart' };
@@ -699,16 +699,6 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
 
     const MapSection = (
         <div className="w-full h-full relative bg-slate-900 flex flex-col">
-             <div className="absolute top-2 right-2 z-10 flex flex-col gap-1">
-                 <select value={mapGradientMetric} onChange={(e) => setMapGradientMetric(e.target.value as any)} className="bg-slate-800/95 border border-slate-700 text-white text-[8px] font-black uppercase py-1 px-1.5 rounded focus:border-cyan-500 appearance-none cursor-pointer shadow-lg">
-                    <option value="none">Mappa: Standard</option>
-                    <option value="elevation">Mappa: Altitudine</option>
-                    <option value="pace">Mappa: Ritmo</option>
-                    <option value="speed">Mappa: Velocità</option>
-                    <option value="power">Mappa: Watt</option>
-                    {hasHrData && <option value="hr">Mappa: FC</option>}
-                </select>
-             </div>
              <div className="flex-grow relative">
                 <MapDisplay
                     tracks={[track]}
@@ -722,6 +712,7 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
                     coloredPauseSegments={showPauses ? stats.pauses : undefined}
                     selectionPoints={selectionPoints}
                     mapGradientMetric={mapGradientMetric}
+                    onMapGradientChange={setMapGradientMetric}
                     animationTrack={isAnimationMode ? displayTrack : null} 
                     animationProgress={animationProgress}
                     animationPace={animationPace} 
@@ -798,20 +789,21 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
 
         switch (currentLayout) {
             case 'classic': // Classic: Left (Slot 1) | Right-Top (Slot 2) / Right-Bottom (Slot 3)
+                // For mobile, we force vertical stacking
                 return (
                     <ResizablePanel 
                         key={`${keyPrefix}-main`}
-                        direction="horizontal" 
+                        direction={isMobile ? 'vertical' : 'horizontal'} 
                         initialSizeRatio={getRatio('main', 0.35)} 
                         minSize={250} 
                         className="h-full"
                         onResizeEnd={(_, r) => handlePanelResize('classic', 'main', r)}
                     >
                         {renderPane(1)}
-                        <div className="h-full relative bg-slate-900 w-full border-l border-slate-700">
+                        <div className={`h-full relative bg-slate-900 w-full ${isMobile ? 'border-t' : 'border-l'} border-slate-700`}>
                             <ResizablePanel 
                                 key={`${keyPrefix}-sub`}
-                                direction="vertical" 
+                                direction={isMobile ? 'vertical' : 'vertical'} 
                                 initialSizeRatio={getRatio('sub', 0.75)} 
                                 minSize={150} 
                                 minSizeSecondary={100}
@@ -876,7 +868,7 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
                     </ResizablePanel>
                 );
 
-            case 'vertical': // Vertical: Stacked 1, 2, 3
+            case 'vertical': // Vertical: Stacked 1, 2, 3 (Mobile Default)
                 return (
                     <div className="flex flex-col h-full w-full">
                          <ResizablePanel 
