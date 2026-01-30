@@ -42,7 +42,7 @@ import {
 } from './services/dbService';
 import { generateSmartTitle } from './services/titleGenerator';
 import { supabase } from './services/supabaseClient';
-import { fetchRecentStravaActivities, handleStravaCallback, saveStravaConfig } from './services/stravaService'; // Import helper
+import { fetchRecentStravaActivities, handleStravaCallback, saveStravaConfig, isStravaConnected } from './services/stravaService'; 
 import { SAMPLE_GPX_DATA } from './services/sampleTrackData';
 import { getGenAI } from './services/aiHelper';
 
@@ -113,6 +113,8 @@ const App: React.FC = () => {
 
     // --- REFS ---
     const raceIntervalRef = useRef<number | null>(null);
+    // Ref to ensure auto-sync only runs once per session start
+    const hasAutoSyncedRef = useRef(false);
     
     // --- HELPER FUNCTIONS ---
     
@@ -168,18 +170,19 @@ const App: React.FC = () => {
         if (session) {
             setUserId(session.user.id);
             setIsGuest(false);
-            loadData();
+            await loadData(); // Await data loading
             setShowHome(true);
+            triggerAutoSync(); // Try to sync after load
         } else {
             setShowAuthSelection(true);
         }
     };
 
-    const handleGuestAccess = () => {
+    const handleGuestAccess = async () => {
         setIsGuest(true);
         setUserId('guest');
         setShowAuthSelection(false);
-        loadData(true); // Force local load
+        await loadData(true); // Force local load and await
         
         // Check if first time guest
         const hasSeenWelcome = localStorage.getItem('hasSeenWelcome');
@@ -187,6 +190,7 @@ const App: React.FC = () => {
             setShowInitialChoice(true);
         } else {
             setShowHome(true);
+            triggerAutoSync(); // Try to sync for guest too if token exists
         }
     };
 
@@ -210,18 +214,31 @@ const App: React.FC = () => {
         }
     };
 
+    const triggerAutoSync = () => {
+        if (isStravaConnected() && !hasAutoSyncedRef.current) {
+            hasAutoSyncedRef.current = true;
+            // Small delay to ensure state 'tracks' is fully settled before comparison
+            setTimeout(() => {
+                console.log("Background Strava Sync started...");
+                handleStravaSync(true); // true = quiet mode
+            }, 2000);
+        }
+    };
+
     // --- STRAVA SYNC HANDLER ---
-    const handleStravaSync = async (): Promise<number> => {
+    // quietMode: if true, suppress "No new activities" toast
+    const handleStravaSync = async (quietMode = false): Promise<number> => {
         try {
             const newActivities = await fetchRecentStravaActivities(10);
             if (newActivities.length === 0) {
+                if (!quietMode) addToast("Nessuna nuova attività trovata su Strava.", "info");
                 return 0;
             }
 
             const uniqueNewTracks: Track[] = [];
             let importedCount = 0;
 
-            // Filter duplicates against existing tracks
+            // Filter duplicates against existing tracks (from state)
             for (const activity of newActivities) {
                 // Check by Strava ID prefix or similar timestamp/distance fingerprint
                 const isDuplicate = tracks.some(t => 
@@ -237,7 +254,8 @@ const App: React.FC = () => {
             }
 
             if (uniqueNewTracks.length > 0) {
-                const updatedTracks = [...tracks, ...uniqueNewTracks].sort((a, b) => b.points[0].time.getTime() - a.points[0].time.getTime());
+                // Sort by date descending
+                const updatedTracks = [...uniqueNewTracks, ...tracks].sort((a, b) => b.points[0].time.getTime() - a.points[0].time.getTime());
                 setTracks(updatedTracks);
                 setFilteredTracks(updatedTracks);
                 
@@ -255,12 +273,12 @@ const App: React.FC = () => {
                 
                 addToast(`Importate ${importedCount} nuove attività da Strava.`, "success");
             } else {
-                addToast("Nessuna nuova attività trovata su Strava.", "info");
+                if (!quietMode) addToast("Tutte le attività recenti sono già sincronizzate.", "info");
             }
             return importedCount;
         } catch (error) {
             console.error(error);
-            addToast("Errore sincronizzazione Strava.", "error");
+            if (!quietMode) addToast("Errore sincronizzazione Strava.", "error");
             throw error;
         }
     };
@@ -741,7 +759,7 @@ const App: React.FC = () => {
                             onToggleAnimationPlay={() => setIsAnimationPlaying(!isAnimationPlaying)}
                             onAnimationProgressChange={setAnimationProgress}
                             animationSpeed={simulationSpeed}
-                            onAnimationSpeedChange={setSimulationSpeed}
+                            onAnimationSpeedChange={setAnimationSpeed}
                             onExitAnimation={() => {
                                 setAnimationTrackId(null);
                                 setIsAnimationPlaying(false);
@@ -837,7 +855,7 @@ const App: React.FC = () => {
 
             {showChangelog && <Changelog onClose={() => setShowChangelog(false)} />}
             {showGuide && <GuideModal onClose={() => setShowGuide(false)} />}
-            {showStravaConfig && <StravaConfigModal onClose={() => setShowStravaConfig(false)} onSync={handleStravaSync} />}
+            {showStravaConfig && <StravaConfigModal onClose={() => setShowStravaConfig(false)} onSync={() => handleStravaSync(false)} />}
             
             {showExplorer && (
                 <ExplorerView 
