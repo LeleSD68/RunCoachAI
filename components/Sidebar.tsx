@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Track, TrackStats, UserProfile, PlannedWorkout, ApiUsageStats, MonthlyStats } from '../types';
 import TrackPreview from './TrackPreview';
@@ -19,6 +20,8 @@ const GridIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 2
 const DiaryIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M5.75 2a.75.75 0 0 1 .75.75V4h7V2.75a.75.75 0 0 1 1.5 0V4h.25A2.75 2.75 0 0 1 18 6.75v8.5A2.75 2.75 0 0 1 15.25 18H4.75A2.75 2.75 0 0 1 2 15.25v-8.5A2.75 2.75 0 0 1 4.75 4H5V2.75A.75.75 0 0 1 5.75 2Z" /><path d="M4.75 5.5a1.25 1.25 0 0 0-1.25 1.25v8.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-8.5c0-.69-.56-1.25-1.25-1.25H4.75Z" /></svg>;
 const UserGroupIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M7 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM14.5 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM1.615 16.428a1.224 1.224 0 0 1-.569-1.175 6.002 6.002 0 0 1 11.908 0c.058.467-.172.92-.57 1.174A9.953 9.953 0 0 1 7 18a9.953 9.953 0 0 1-5.385-1.572ZM14.5 16h-.106c.07-.38.106-.772.106-1.175 0-.537-.067-1.054-.191-1.543A7.001 7.001 0 0 1 17 18a9.952 9.952 0 0 1-2.5-2Z" /></svg>;
 const ChartIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M15.5 2A1.5 1.5 0 0 0 14 3.5v8a1.5 1.5 0 0 0 1.5 1.5h1a1.5 1.5 0 0 0 1.5-1.5v-8A1.5 1.5 0 0 0 16.5 2h-1ZM9.5 6A1.5 1.5 0 0 0 8 7.5v4a1.5 1.5 0 0 0 1.5 1.5h1a1.5 1.5 0 0 0 1.5-1.5v-4A1.5 1.5 0 0 0 10.5 6h-1ZM3.5 10A1.5 1.5 0 0 0 2 11.5v0A1.5 1.5 0 0 0 3.5 13h1a1.5 1.5 0 0 0 1.5-1.5v0A1.5 1.5 0 0 0 4.5 10h-1Z" /></svg>;
+const CheckSquareIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M7.25 2a.75.75 0 0 0-.75.75v.5a.75.75 0 0 0 .75.75h5.5a.75.75 0 0 0 .75-.75v-.5a.75.75 0 0 0-.75-.75h-5.5Z" /><path fillRule="evenodd" d="M5 6.75A.75.75 0 0 1 5.75 6h8.5a.75.75 0 0 1 .75.75v.5a.75.75 0 0 1-.75.75h-8.5A.75.75 0 0 1 5 7.25v-.5Zm-1 4.25a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 .75.75v.5a.75.75 0 0 1-.75.75H4.75a.75.75 0 0 1-.75-.75v-.5Z" clipRule="evenodd" /><path d="M2.5 13.5a.75.75 0 0 1 .75-.75h13.5a.75.75 0 0 1 .75.75v.5a.75.75 0 0 1-.75.75H3.25a.75.75 0 0 1-.75-.75v-.5Z" /></svg>; // Used for Select All icon
+const SquareIcon = () => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M4 4h12v12H4z" /></svg>; // Simple Square
 
 interface SidebarProps {
     tracks: Track[];
@@ -97,7 +100,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
         onTrackHoverStart, onTrackHoverEnd, onToggleRaceSelection, 
         onViewDetails, onToggleArchived, onUpdateTrackMetadata,
         onOpenHub, onToggleExplorer, showExplorer, onOpenDiary, onOpenSocial, onOpenPerformanceAnalysis,
-        onlineCount, unreadCount, simulationState
+        onlineCount, unreadCount, simulationState, onSelectAll, onDeselectAll
     } = props;
 
     const isSimulationInProgress = simulationState === 'running' || simulationState === 'paused';
@@ -107,8 +110,9 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
     const [viewMode, setViewMode] = useState<'list' | 'cards'>('cards');
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editName, setEditName] = useState('');
-    const [groupBy, setGroupBy] = useState<'none' | 'folder' | 'date' | 'distance' | 'type'>('date');
+    const [groupBy, setGroupBy] = useState<'none' | 'folder' | 'date' | 'distance' | 'type' | 'tag'>('date');
     const [showArchived, setShowArchived] = useState(false);
+    const [sortOption, setSortOption] = useState('date_desc');
 
     // Helpers
     const handleToggleGroup = (group: string) => {
@@ -150,14 +154,27 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
         if (e.key === 'Escape') cancelRename();
     };
 
-    // Filter & Group Logic
-    const filteredTracks = useMemo(() => {
-        return tracks.filter(t => showArchived ? true : !t.isArchived);
-    }, [tracks, showArchived]);
+    // Filter & Sort & Group Logic
+    const processedTracks = useMemo(() => {
+        let result = tracks.filter(t => showArchived ? true : !t.isArchived);
+        
+        result.sort((a, b) => {
+            switch (sortOption) {
+                case 'date_desc': return b.points[0].time.getTime() - a.points[0].time.getTime();
+                case 'date_asc': return a.points[0].time.getTime() - b.points[0].time.getTime();
+                case 'distance_desc': return b.distance - a.distance;
+                case 'distance_asc': return a.distance - b.distance;
+                case 'name_asc': return a.name.localeCompare(b.name);
+                default: return 0;
+            }
+        });
+        
+        return result;
+    }, [tracks, showArchived, sortOption]);
 
     const groupedTracks = useMemo(() => {
         const groups: Record<string, Track[]> = {};
-        filteredTracks.forEach(t => {
+        processedTracks.forEach(t => {
             let key = 'Altro';
             if (groupBy === 'date') {
                 key = new Date(t.points[0].time).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
@@ -170,35 +187,70 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                 else if (t.distance < 10) key = '5k - 10k';
                 else if (t.distance < 21) key = '10k - 21k';
                 else key = '> 21k';
+            } else if (groupBy === 'tag') {
+                const firstTag = (t.tags && t.tags.length > 0) ? t.tags[0] : 'Nessun Tag';
+                key = firstTag.toUpperCase();
             }
             if (!groups[key]) groups[key] = [];
             groups[key].push(t);
         });
         return groups;
-    }, [filteredTracks, groupBy]);
+    }, [processedTracks, groupBy]);
 
     return (
         <div className="flex flex-col h-full bg-slate-900 text-white border-r border-slate-800">
-            {/* Toolbar */}
-            <div className="p-2 border-b border-slate-800 flex gap-2 justify-between items-center">
+            {/* Header Title */}
+            <div className="p-3 border-b border-slate-800 flex justify-between items-center bg-slate-900">
+                <h2 className="text-sm font-black text-cyan-400 uppercase tracking-widest">Le Mie Corse</h2>
                 <div className="flex gap-2">
+                    <button 
+                        onClick={onSelectAll} 
+                        className="p-1.5 rounded bg-slate-800 border border-slate-700 hover:bg-slate-700 text-xs font-bold text-slate-300"
+                        title="Seleziona Tutto"
+                    >
+                       <CheckSquareIcon />
+                    </button>
+                    <button 
+                        onClick={onDeselectAll} 
+                        className="p-1.5 rounded bg-slate-800 border border-slate-700 hover:bg-slate-700 text-xs font-bold text-slate-300"
+                        title="Deseleziona Tutto"
+                    >
+                        <SquareIcon />
+                    </button>
+                </div>
+            </div>
+
+            {/* Toolbar */}
+            <div className="p-2 border-b border-slate-800 flex flex-col gap-2">
+                <div className="flex gap-2 justify-between items-center">
                     <select 
                         value={groupBy} 
                         onChange={(e) => setGroupBy(e.target.value as any)}
-                        className="bg-slate-800 text-xs rounded border border-slate-700 px-2 py-1 outline-none focus:border-cyan-500"
+                        className="bg-slate-800 text-[10px] rounded border border-slate-700 px-2 py-1 outline-none focus:border-cyan-500 flex-grow"
                     >
-                        <option value="date">Data</option>
-                        <option value="folder">Cartella</option>
-                        <option value="type">Tipo</option>
-                        <option value="distance">Dist.</option>
+                        <option value="date">Rag: Data</option>
+                        <option value="folder">Rag: Cartella</option>
+                        <option value="type">Rag: Tipo</option>
+                        <option value="distance">Rag: Dist.</option>
+                        <option value="tag">Rag: Tag</option>
                     </select>
-                    <button onClick={() => setViewMode(v => v === 'list' ? 'cards' : 'list')} className="p-1 bg-slate-800 rounded border border-slate-700 text-xs px-2">
-                        {viewMode === 'list' ? 'Cards' : 'Lista'}
-                    </button>
+                    <select 
+                        value={sortOption} 
+                        onChange={(e) => setSortOption(e.target.value)}
+                        className="bg-slate-800 text-[10px] rounded border border-slate-700 px-2 py-1 outline-none focus:border-cyan-500 flex-grow"
+                    >
+                        <option value="date_desc">Ord: Recenti</option>
+                        <option value="date_asc">Ord: Vecchi</option>
+                        <option value="distance_desc">Ord: Lunghi</option>
+                        <option value="name_asc">Ord: Nome</option>
+                    </select>
                 </div>
-                <div className="flex items-center gap-1">
-                    <label className="text-[10px] text-slate-500 flex items-center gap-1 cursor-pointer select-none">
-                        <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
+                <div className="flex justify-between items-center">
+                    <button onClick={() => setViewMode(v => v === 'list' ? 'cards' : 'list')} className="p-1 bg-slate-800 rounded border border-slate-700 text-[10px] px-2 w-full text-center hover:bg-slate-700">
+                        Vista: {viewMode === 'list' ? 'Compatta' : 'Schede'}
+                    </button>
+                    <label className="text-[10px] text-slate-500 flex items-center gap-1 cursor-pointer select-none ml-2 whitespace-nowrap">
+                        <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} className="accent-cyan-500" />
                         Archivio
                     </label>
                 </div>
@@ -324,7 +376,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                         </div>
                     );
                 })}
-                {filteredTracks.length === 0 && (
+                {processedTracks.length === 0 && (
                     <div className="text-center text-slate-500 text-sm py-8">
                         {showArchived ? 'Nessuna attività in archivio.' : 'Nessuna attività trovata.'}
                     </div>
