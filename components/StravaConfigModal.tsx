@@ -4,7 +4,6 @@ import { getStravaConfig, saveStravaConfig, initiateStravaAuth, isStravaConnecte
 
 interface StravaConfigModalProps {
     onClose: () => void;
-    onSync?: () => Promise<number>; // Function passed from App to trigger sync and get count
 }
 
 const StravaLogo = () => (
@@ -13,13 +12,11 @@ const StravaLogo = () => (
     </svg>
 );
 
-const StravaConfigModal: React.FC<StravaConfigModalProps> = ({ onClose, onSync }) => {
+const StravaConfigModal: React.FC<StravaConfigModalProps> = ({ onClose }) => {
     const [clientId, setClientId] = useState('');
     const [clientSecret, setClientSecret] = useState('');
     const [isSaved, setIsSaved] = useState(false);
     const [isConnected, setIsConnected] = useState(false);
-    const [syncStatus, setSyncStatus] = useState('');
-    const [isSyncing, setIsSyncing] = useState(false);
 
     useEffect(() => {
         const config = getStravaConfig();
@@ -43,22 +40,6 @@ const StravaConfigModal: React.FC<StravaConfigModalProps> = ({ onClose, onSync }
     const handleDisconnect = () => {
         disconnectStrava();
         setIsConnected(false);
-        setSyncStatus('');
-    };
-
-    const handleSync = async () => {
-        if (!onSync) return;
-        setIsSyncing(true);
-        setSyncStatus('Sincronizzazione in corso...');
-        try {
-            const count = await onSync();
-            setSyncStatus(`Sincronizzazione completata! ${count} nuove attività importate.`);
-        } catch (e) {
-            setSyncStatus('Errore durante la sincronizzazione.');
-            console.error(e);
-        } finally {
-            setIsSyncing(false);
-        }
     };
 
     return (
@@ -112,47 +93,28 @@ const StravaConfigModal: React.FC<StravaConfigModalProps> = ({ onClose, onSync }
                     </div>
                 </div>
 
-                {/* SYNC STATUS MESSAGE */}
-                {syncStatus && (
-                    <div className="mt-4 p-3 bg-slate-800 rounded-lg border border-slate-600 text-center text-xs font-bold text-white animate-fade-in">
-                        {syncStatus}
-                    </div>
-                )}
-
                 <div className="mt-6 flex gap-3">
                     <button 
                         onClick={onClose}
                         className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition-colors"
                     >
-                        Chiudi
+                        Annulla
                     </button>
                     
                     {isConnected ? (
-                        <>
-                            {onSync && (
-                                <button 
-                                    onClick={handleSync}
-                                    disabled={isSyncing}
-                                    className="flex-1 py-3 bg-green-600 hover:bg-green-500 text-white font-bold rounded-xl transition-colors disabled:opacity-50"
-                                >
-                                    {isSyncing ? 'Attendere...' : 'Sincronizza Ora'}
-                                </button>
-                            )}
-                            <button 
-                                onClick={handleDisconnect}
-                                className="px-4 py-3 bg-red-900/30 hover:bg-red-900/50 text-red-400 border border-red-900/50 font-bold rounded-xl transition-colors"
-                                title="Disconnetti"
-                            >
-                                ✕
-                            </button>
-                        </>
+                        <button 
+                            onClick={handleDisconnect}
+                            className="flex-1 py-3 bg-red-900/30 hover:bg-red-900/50 text-red-400 border border-red-900/50 font-bold rounded-xl transition-colors"
+                        >
+                            Disconnetti
+                        </button>
                     ) : (
                         <button 
                             onClick={handleConnect}
                             disabled={!clientId || !clientSecret}
-                            className="flex-[2] py-3 bg-[#fc4c02] hover:bg-[#e34402] text-white font-bold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+                            className="flex-1 py-3 bg-[#fc4c02] hover:bg-[#e34402] text-white font-bold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
                         >
-                            {isSaved ? 'Connetti & Sincronizza' : 'Salva & Connetti'}
+                            {isSaved ? 'Sincronizza Ora' : 'Salva & Connetti'}
                         </button>
                     )}
                 </div>

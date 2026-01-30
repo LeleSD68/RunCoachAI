@@ -3,8 +3,6 @@ export type ActivityType = 'Lento' | 'Fartlek' | 'Ripetute' | 'Gara' | 'Lungo' |
 
 export type AiPersonality = 'pro_balanced' | 'analytic' | 'strict';
 
-export type GradientMetric = 'none' | 'elevation' | 'pace' | 'speed' | 'hr' | 'hr_zones' | 'power';
-
 export interface TrackPoint {
   lat: number;
   lon: number;
@@ -104,8 +102,7 @@ export interface MapDisplayProps {
   onMapHover?: (point: TrackPoint | null) => void; // For editor map hover -> chart sync
   onTrackHover?: (trackId: string | null) => void; // Callback for track hover synchronization
   onPauseClick?: (segment: PauseSegment) => void;
-  mapGradientMetric?: GradientMetric;
-  onMapGradientChange?: (metric: GradientMetric) => void; // Added for internal control
+  mapGradientMetric?: 'none' | 'elevation' | 'pace' | 'speed' | 'hr' | 'hr_zones' | 'power';
   coloredPauseSegments?: PauseSegment[];
   selectedPoint?: TrackPoint | null; // Point selected by clicking
   onPointClick?: (point: TrackPoint | null) => void; // Callback for when a point is clicked on map
@@ -130,7 +127,6 @@ export interface MapDisplayProps {
   aiSegmentHighlight?: AiSegment | null;
   showSummaryMode?: boolean;
   theme?: 'dark' | 'light';
-  is3DMode?: boolean;
 }
 
 

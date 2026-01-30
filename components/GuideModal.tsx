@@ -65,7 +65,7 @@ const GuideModal: React.FC<GuideModalProps> = ({ onClose }) => {
                         </div>
                         <div>
                             <h2 className="text-xl sm:text-2xl font-black text-white italic tracking-tighter uppercase">Istruzioni di RunCoach AI</h2>
-                            <p className="text-cyan-500 text-[10px] font-black uppercase tracking-[0.2em] opacity-80">Manuale Utente RunCoachAI v1.34</p>
+                            <p className="text-cyan-500 text-[10px] font-black uppercase tracking-[0.2em] opacity-80">Manuale Utente RunCoachAI v1.33</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition-all text-2xl">&times;</button>
@@ -73,33 +73,6 @@ const GuideModal: React.FC<GuideModalProps> = ({ onClose }) => {
 
                 <div className="flex-grow overflow-y-auto p-4 sm:p-8 custom-scrollbar bg-slate-900/30">
                     
-                    <GuideSection title="Configurazione Strava (Novità!)" icon="🟠" isOpen={openSection === 'strava'} onToggle={() => toggle('strava')}>
-                        <p>Puoi collegare il tuo account Strava per scaricare automaticamente le attività recenti. Essendo un'app Open Source lato client, devi creare le tue chiavi API personali.</p>
-                        <div className="bg-slate-800 p-4 rounded-xl border border-[#fc4c02]/30 mt-2">
-                            <h4 className="text-[#fc4c02] font-bold uppercase text-xs mb-2">Procedura Passo-Passo:</h4>
-                            <ol className="list-decimal list-inside ml-2 space-y-2 text-xs">
-                                <li>
-                                    Vai su <a href="https://www.strava.com/settings/api" target="_blank" className="text-white underline hover:text-[#fc4c02]">strava.com/settings/api</a> e fai login.
-                                </li>
-                                <li>
-                                    Crea una nuova Applicazione (se non ne hai una).
-                                    <ul className="list-disc list-inside ml-4 mt-1 text-slate-400">
-                                        <li><strong>Nome Applicazione:</strong> RunCoachAI (o quello che preferisci).</li>
-                                        <li><strong>Sito Web:</strong> <code>https://runcoachai.com</code> (o un sito qualsiasi).</li>
-                                        <li>
-                                            <strong>Authorization Callback Domain:</strong> <code>{window.location.hostname}</code>
-                                            <br/><span className="text-[10px] text-amber-400">(Importante: Se usi l'app in locale scrivi "localhost", se è online scrivi il dominio esatto senza "https://")</span>
-                                        </li>
-                                    </ul>
-                                </li>
-                                <li>Carica un'icona qualsiasi se richiesto.</li>
-                                <li>Una volta creata, vedrai <strong>Client ID</strong> (un numero) e <strong>Client Secret</strong> (una stringa lunga).</li>
-                                <li>Torna qui su RunCoachAI, vai nel menu <strong>Analizza</strong> e clicca su <strong>"Sincronizza Strava"</strong>.</li>
-                                <li>Incolla i codici e premi "Salva & Connetti".</li>
-                            </ol>
-                        </div>
-                    </GuideSection>
-
                     <GuideSection title="Hub & Backup Dati" icon="🏠" isOpen={openSection === 'hub'} onToggle={() => toggle('hub')}>
                         <p><strong>Hub Principale:</strong> È il tuo centro di comando. Da qui accedi alle sezioni principali: Analisi, Pianificazione e Gara.</p>
                         <p className="bg-slate-800 p-2 rounded border-l-2 border-amber-500">
@@ -121,7 +94,7 @@ const GuideModal: React.FC<GuideModalProps> = ({ onClose }) => {
                         </ul>
                     </GuideSection>
 
-                    <GuideSection title="Layout & Personalizzazione" icon="🎨" isOpen={openSection === 'layout'} onToggle={() => toggle('layout')}>
+                    <GuideSection title="Layout & Personalizzazione (v1.33)" icon="🎨" isOpen={openSection === 'layout'} onToggle={() => toggle('layout')}>
                         <p>Hai il controllo totale sull'area di lavoro (Vista Dettagli).</p>
                         <ul className="list-disc list-inside ml-2 space-y-1">
                             <li><strong>6 Layout:</strong> Clicca l'icona del layout nella barra in alto per scegliere la configurazione (es. <em>Focus Basso</em> per grafici larghi, <em>3 Colonne</em> per vedere tutto insieme).</li>

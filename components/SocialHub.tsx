@@ -247,7 +247,7 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
                                         {dateLabel}
                                     </span>
                                 </div>
-                                {(messages as DirectMessage[]).map(msg => {
+                                {messages.map(msg => {
                                     const isMe = msg.senderId === currentUserId;
                                     return (
                                         <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>

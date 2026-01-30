@@ -1,4 +1,3 @@
-
 import { Track, ChatMessage, UserProfile, PlannedWorkout } from '../types';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 
@@ -28,33 +27,28 @@ const initDB = (): Promise<IDBDatabase> => {
 };
 
 // --- MAPPERS ---
-const mapTrackToSupabase = (t: Track, userId: string) => {
-    // Safety check for points
-    if (!t.points || t.points.length === 0) return null;
-    
-    return {
-        user_id: userId,
-        name: t.name,
-        start_time: t.points[0].time.toISOString(),
-        distance_km: t.distance,
-        duration_ms: t.duration,
-        activity_type: t.activityType,
-        points_data: t.points, 
-        color: t.color,
-        folder: t.folder,
-        notes: t.notes,
-        shoe: t.shoe,
-        rpe: t.rpe,
-        rating: t.rating,
-        rating_reason: t.ratingReason,
-        tags: t.tags,
-        is_favorite: t.isFavorite,
-        is_archived: t.isArchived,
-        is_public: t.isPublic,
-        has_chat: t.hasChat,
-        linked_workout: t.linkedWorkout,
-    };
-};
+const mapTrackToSupabase = (t: Track, userId: string) => ({
+    user_id: userId,
+    name: t.name,
+    start_time: t.points[0].time.toISOString(),
+    distance_km: t.distance,
+    duration_ms: t.duration,
+    activity_type: t.activityType,
+    points_data: t.points, 
+    color: t.color,
+    folder: t.folder,
+    notes: t.notes,
+    shoe: t.shoe,
+    rpe: t.rpe,
+    rating: t.rating,
+    rating_reason: t.ratingReason,
+    tags: t.tags,
+    is_favorite: t.isFavorite,
+    is_archived: t.isArchived,
+    is_public: t.isPublic, // NEW
+    has_chat: t.hasChat,
+    linked_workout: t.linkedWorkout,
+});
 
 const mapSupabaseToTrack = (row: any): Track | null => {
     try {
@@ -70,8 +64,8 @@ const mapSupabaseToTrack = (row: any): Track | null => {
             }
         }
 
-        if (!pointsData || !Array.isArray(pointsData) || pointsData.length === 0) {
-            console.warn("Invalid or empty points_data for track:", row.id);
+        if (!pointsData || !Array.isArray(pointsData)) {
+            console.warn("Invalid points_data format for track:", row.id);
             return null;
         }
         
@@ -92,7 +86,7 @@ const mapSupabaseToTrack = (row: any): Track | null => {
             tags: row.tags,
             isFavorite: row.is_favorite,
             isArchived: row.is_archived,
-            isPublic: row.is_public,
+            isPublic: row.is_public, // NEW
             hasChat: row.has_chat,
             linkedWorkout: row.linked_workout,
         };
@@ -108,7 +102,6 @@ const deduplicateTracks = (tracks: Track[]): Track[] => {
     return tracks.filter(t => {
         if (!t.points || t.points.length === 0) return false;
         // Fingerprint: StartTime + Distance (3 decimals) + Duration
-        // This allows matching a local 'strava-123' track with a cloud 'uuid-abc' track if they are the same run
         const fingerprint = `${t.points[0].time.getTime()}-${t.distance.toFixed(3)}-${t.duration}`;
         if (seen.has(fingerprint)) return false;
         seen.add(fingerprint);
@@ -118,9 +111,14 @@ const deduplicateTracks = (tracks: Track[]): Track[] => {
 
 const deduplicateWorkouts = (workouts: PlannedWorkout[]): PlannedWorkout[] => {
     const seen = new Set<string>();
+    // Prioritize Cloud IDs (UUIDs usually) or newer items
+    // Reverse sort helps keep the "latest" version if duplicates exist in list, but here we just want unique content
     return workouts.filter(w => {
         const dateStr = w.date instanceof Date ? w.date.toISOString().split('T')[0] : new Date(w.date).toISOString().split('T')[0];
+        // Fingerprint: Date + Title + Type. 
+        // Note: We ignore Description slight variations to be aggressive on dupes
         const fingerprint = `${dateStr}|${w.title.trim().toLowerCase()}|${w.activityType}`;
+        
         if (seen.has(fingerprint)) return false;
         seen.add(fingerprint);
         return true;
@@ -146,8 +144,6 @@ export const saveTracksToDB = async (tracks: Track[], options: { skipCloud?: boo
           const validTracks = tracks.filter(t => !t.isExternal);
           for (const t of validTracks) {
               const payload = mapTrackToSupabase(t, session.user.id);
-              if (!payload) continue;
-              
               // Only upsert if it already has a UUID. New tracks are handled by syncTrackToCloud logic called explicitly
               if (t.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)) {
                  await supabase.from('tracks').upsert({ id: t.id, ...payload });
@@ -157,10 +153,13 @@ export const saveTracksToDB = async (tracks: Track[], options: { skipCloud?: boo
   }
 };
 
+// Helper to update any workouts referencing a track that just got a new Cloud UUID
 const updateWorkoutReferences = async (oldTrackId: string, newTrackId: string) => {
     const db = await initDB();
     const tx = db.transaction([PLANNED_STORE], 'readwrite');
     const store = tx.objectStore(PLANNED_STORE);
+    
+    // Scan all workouts (not efficient for huge datasets but fine for local)
     const request = store.openCursor();
     
     request.onsuccess = (event) => {
@@ -174,6 +173,8 @@ const updateWorkoutReferences = async (oldTrackId: string, newTrackId: string) =
             cursor.continue();
         }
     };
+    
+    // We assume this completes quickly. For cloud sync of workouts, the next savePlannedWorkoutsToDB call handles it.
 };
 
 export const syncTrackToCloud = async (track: Track) => {
@@ -182,8 +183,6 @@ export const syncTrackToCloud = async (track: Track) => {
     if (!session || track.isExternal) return;
 
     const payload = mapTrackToSupabase(track, session.user.id);
-    if (!payload) return; // Skip invalid tracks
-
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(track.id);
 
     try {
@@ -198,7 +197,7 @@ export const syncTrackToCloud = async (track: Track) => {
 
             if (data && data.id) {
                 const oldId = track.id;
-                track.id = data.id; // Update local object reference immediately
+                track.id = data.id; // Update local object
                 
                 // Update Local DB with new ID
                 const db = await initDB();
@@ -235,43 +234,24 @@ export const loadTracksFromDB = async (forceLocal: boolean = false): Promise<Tra
       
       if (error) {
           console.error("Error fetching tracks from Supabase:", error);
-          // Don't fall through to local loading if it's a real error, to avoid sync issues.
-          // But here we want to at least show local data if cloud fails.
       } else if (data) {
-          // Parse Cloud Tracks
-          const cloudTracks = data
+          // Parse e poi DEDUPLICA
+          const parsedTracks = data
             .map(mapSupabaseToTrack)
             .filter((t): t is Track => t !== null);
             
-          // SMART MERGE: Fetch local tracks to preserve unsynced data (e.g. Strava imports not yet pushed)
-          const db = await initDB();
-          const localTracks = await new Promise<Track[]>((resolve) => {
-              const transaction = db.transaction([TRACKS_STORE], 'readonly');
-              const store = transaction.objectStore(TRACKS_STORE);
-              const request = store.getAll();
-              request.onsuccess = () => resolve(request.result as Track[]);
-              request.onerror = () => resolve([]);
-          });
-
-          // Identify unsynced tracks: Tracks with IDs that are NOT UUIDs (e.g. 'strava-...' or 'track-...')
-          // Standard UUID regex
-          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-          const unsyncedTracks = localTracks.filter(t => !uuidRegex.test(t.id));
-
-          // Combine Cloud tracks with Unsynced Local tracks.
-          // deduplicateTracks will handle if an unsynced track is actually the same run as a cloud track (based on time/distance).
-          // We put cloudTracks first so they take precedence (authoritative source).
-          const combinedTracks = [...cloudTracks, ...unsyncedTracks];
-          const finalTracks = deduplicateTracks(combinedTracks);
+          const cloudTracks = deduplicateTracks(parsedTracks);
             
-          // Save the merged authoritative state to local DB
-          await saveTracksToDB(finalTracks, { skipCloud: true }); 
-          
-          return finalTracks;
+          if (data.length > 0 && cloudTracks.length === 0) {
+              console.warn("Cloud returned data but parsing failed or all were filtered. Keeping local data safe.");
+          } else {
+              // Save clean list to local
+              await saveTracksToDB(cloudTracks, { skipCloud: true }); 
+              return cloudTracks;
+          }
       }
   }
 
-  // Fallback: Load purely local
   const db = await initDB();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([TRACKS_STORE], 'readonly');
@@ -286,6 +266,7 @@ export const loadTracksFromDB = async (forceLocal: boolean = false): Promise<Tra
           time: p.time instanceof Date ? p.time : new Date(p.time)
         }))
       }));
+      // Local fallback deduplication just in case
       resolve(deduplicateTracks(revived));
     };
     request.onerror = () => reject(request.error);

@@ -1,6 +1,7 @@
 
+import { Track, TrackPoint } from '../types';
 
-import { Track, TrackPoint, GradientMetric } from '../types';
+export type GradientMetric = 'none' | 'elevation' | 'pace' | 'speed' | 'hr' | 'hr_zones' | 'power';
 
 export interface ColoredSegment {
     p1: TrackPoint;

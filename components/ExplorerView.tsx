@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Track } from '../types';
 import TrackPreview from './TrackPreview';
 import RatingStars from './RatingStars';
@@ -31,12 +31,6 @@ const formatPace = (pace: number) => {
     return `${m}:${s.toString().padStart(2, '0')}`;
 };
 
-const StravaIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 text-[#fc4c02]">
-        <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.477 0 4.177 12.173h4.172" />
-    </svg>
-);
-
 const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTrack }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [viewMode, setViewMode] = useState<ViewMode>('table'); // Default to table for Runalize feel
@@ -44,25 +38,9 @@ const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTr
     const [sortOption, setSortOption] = useState<SortOption>('date_desc');
     const [groupingMode, setGroupingMode] = useState<GroupingMode>('none');
     
-    // Table Config - Persisted in localStorage
-    const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => {
-        try {
-            const saved = localStorage.getItem('explorer_visible_columns');
-            if (saved) {
-                return new Set(JSON.parse(saved));
-            }
-        } catch (e) {
-            console.error("Failed to load columns preference", e);
-        }
-        return new Set(['date', 'name', 'activity', 'distance', 'time', 'pace', 'hr', 'elevation']);
-    });
-
+    // Table Config
+    const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set(['date', 'name', 'activity', 'distance', 'time', 'pace', 'hr', 'elevation']));
     const [showColMenu, setShowColMenu] = useState(false);
-
-    // Effect to save columns preference whenever it changes
-    useEffect(() => {
-        localStorage.setItem('explorer_visible_columns', JSON.stringify(Array.from(visibleColumns)));
-    }, [visibleColumns]);
 
     const availableColumns = [
         { id: 'date', label: 'Data' },
@@ -94,12 +72,10 @@ const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTr
             const stats = calculateTrackStats(t);
             // Efficiency Index: (Speed km/h * 10) / (HR / 150 normalized) -> Rough approximation
             const efficiency = stats.avgHr && stats.avgHr > 0 ? (stats.avgSpeed * 100) / stats.avgHr : 0;
-            const isStrava = t.id.startsWith('strava-') || t.tags?.includes('Strava');
             return {
                 ...t,
                 stats,
-                efficiency,
-                isStrava
+                efficiency
             };
         });
     }, [tracks]);
@@ -283,10 +259,7 @@ const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTr
                                             <td className="p-3 font-mono text-slate-300">{new Date(t.points[0].time).toLocaleDateString()}</td>
                                         )}
                                         {visibleColumns.has('name') && (
-                                            <td className="p-3 font-bold text-white max-w-[200px] truncate group-hover:text-cyan-400 flex items-center gap-2">
-                                                {t.name}
-                                                {t.isStrava && <StravaIcon />}
-                                            </td>
+                                            <td className="p-3 font-bold text-white max-w-[200px] truncate group-hover:text-cyan-400">{t.name}</td>
                                         )}
                                         {visibleColumns.has('activity') && (
                                             <td className="p-3"><span className="bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-[10px] uppercase font-bold text-slate-400">{t.activityType || 'Run'}</span></td>
@@ -355,7 +328,6 @@ const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTr
                                                         {track.distance.toFixed(2)} km
                                                     </div>
                                                 )}
-                                                {track.isStrava && <div className="absolute top-2 right-2 bg-black/50 p-1 rounded-full"><StravaIcon /></div>}
                                             </div>
                                             <div className={gridCols === 1 ? 'flex-grow flex items-center justify-between' : 'p-3'}>
                                                 <div>

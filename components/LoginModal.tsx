@@ -152,13 +152,13 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
                         } else {
                             await syncLocalDataToCloud(data.user.id);
                             onLoginSuccess();
-                            onClose();
+                            // Do NOT call onClose() here, onLoginSuccess in parent handles the transition
                         }
                     } else {
                         setSuccessMessage('Account Locale creato! Accesso...');
                         await syncLocalDataToCloud(data.user.id);
                         onLoginSuccess();
-                        onClose();
+                        // Do NOT call onClose() here
                     }
                 }
             } else if (view === 'login') {
@@ -177,7 +177,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoginSuccess, tracks
                 if (data.user) {
                     await syncLocalDataToCloud(data.user.id);
                     onLoginSuccess();
-                    onClose();
+                    // Do NOT call onClose() here
                 }
             } else if (view === 'forgot') {
                 const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {

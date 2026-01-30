@@ -1,6 +1,6 @@
 
 import React, { useRef, useMemo, useState, useEffect } from 'react';
-import { PlannedWorkout, UserProfile } from '../types';
+import { PlannedWorkout } from '../types';
 import { isSupabaseConfigured } from '../services/supabaseClient';
 import { isStravaConnected } from '../services/stravaService';
 
@@ -25,7 +25,6 @@ interface HomeModalProps {
     onLogin?: () => void; // New Prop
     isGuest?: boolean;
     onOpenStravaConfig?: () => void; // NEW PROP
-    userProfile?: UserProfile; // Added prop
 }
 
 const SettingsIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M7.84 1.804A1 1 0 0 1 8.82 1h2.36a1 1 0 0 1 .98.804l.331 1.652a6.993 6.993 0 0 1 1.929 1.115l1.598-.54a1 1 0 0 1 1.186.447l1.18 2.044a1 1 0 0 1-.205 1.251l-1.267 1.113a7.047 7.047 0 0 1 0 2.228l1.267 1.113a1 1 0 0 1 .206 1.25l-1.18 2.045a1 1 0 0 1 1.187-.447l1.598.54a6.993 6.993 0 0 1 7.51 3.456l.33-1.652ZM10 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" clipRule="evenodd" /></svg>);
@@ -54,7 +53,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
     onOpenDiary, onOpenExplorer, onOpenHelp, onImportBackup, onExportBackup, 
     onUploadTracks, onClose, trackCount, plannedWorkouts = [], onOpenWorkout, 
     onOpenProfile, onOpenChangelog, onUploadOpponent, onEnterRaceMode, onManualCloudSave, onCheckAiAccess,
-    onLogout, onLogin, isGuest, onOpenStravaConfig, userProfile
+    onLogout, onLogin, isGuest, onOpenStravaConfig
 }) => {
     const backupInputRef = useRef<HTMLInputElement>(null);
     const trackInputRef = useRef<HTMLInputElement>(null);
@@ -235,27 +234,12 @@ const HomeModal: React.FC<HomeModalProps> = ({
                         RunCoach<span className="text-cyan-400">AI</span>
                     </h2>
                     
-                    {/* User Badge */}
-                    <div className="flex items-center justify-center mt-3 mb-1">
-                        {userProfile?.name && !isGuest ? (
-                            <div className="bg-slate-800/80 border border-cyan-500/30 px-3 py-1 rounded-full flex items-center gap-2 shadow-sm animate-fade-in">
-                                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                                <span className="text-xs font-bold text-cyan-100">Ciao, <span className="text-white">{userProfile.name}</span></span>
-                            </div>
-                        ) : (
-                            <div className="bg-slate-800/50 border border-slate-700 px-3 py-1 rounded-full flex items-center gap-2 animate-fade-in">
-                                <div className="w-2 h-2 bg-slate-500 rounded-full"></div>
-                                <span className="text-xs font-bold text-slate-400">Modalità Ospite</span>
-                            </div>
-                        )}
-                    </div>
-                    
                     <div className="flex items-center justify-center gap-2 mt-2">
                          <button 
                             onClick={onOpenChangelog}
                             className="bg-slate-800 border border-slate-700 text-slate-400 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider hover:bg-slate-700 hover:text-white transition-colors cursor-pointer"
                          >
-                            v1.34
+                            v1.33
                         </button>
                         <span className={`border text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${trackCount > 0 ? 'bg-cyan-900/20 border-cyan-500/30 text-cyan-400' : 'bg-slate-800 border-slate-700 text-slate-500'}`}>
                             {trackCount} {trackCount === 1 ? 'Attività' : 'Attività'}

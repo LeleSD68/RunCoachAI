@@ -162,8 +162,6 @@ const mapStravaToTrack = async (activity: any, token: string): Promise<Track | n
         });
     }
 
-    if (rawPoints.length < 2) return null;
-
     // Apply standard smoothing
     const smoothed = smoothElevation(rawPoints);
 
@@ -184,8 +182,7 @@ const mapStravaToTrack = async (activity: any, token: string): Promise<Track | n
         color: '#fc4c02', // Strava orange
         activityType: 'Lento', // Default, logic below could improve
         startTime: activity.start_date,
-        isPublic: false,
-        tags: ['Strava'] // Automatically tag as Strava
+        isPublic: false
     };
 };
 
