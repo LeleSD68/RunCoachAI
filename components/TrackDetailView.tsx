@@ -702,13 +702,13 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
 
         return (
             <div style={containerStyle} className="w-full relative overflow-hidden group/pane border-b border-slate-700/50 last:border-b-0">
-                {/* Touch-Friendly Swap Menu */}
-                <div className="absolute top-2 left-2 z-[1000] opacity-0 group-hover/pane:opacity-100 transition-opacity bg-slate-900/90 rounded-lg p-2 border border-slate-600 shadow-xl flex gap-2 backdrop-blur-sm hover:opacity-100 touch-manipulation">
-                    <SwapIcon />
+                {/* Touch-Friendly Swap Menu - Always visible on mobile, visible on hover on desktop */}
+                <div className={`absolute top-3 left-3 z-[1000] transition-opacity bg-slate-900/90 rounded-xl p-2 border border-slate-600 shadow-xl flex gap-2 backdrop-blur-md touch-manipulation ${isMobile ? 'opacity-100' : 'opacity-0 group-hover/pane:opacity-100'}`}>
+                    <div className="text-slate-400"><SwapIcon /></div>
                     <select 
                         value={type}
                         onChange={(e) => handleContentChange(slotId, e.target.value as ContentType)}
-                        className="bg-transparent text-sm text-white font-bold uppercase outline-none cursor-pointer pr-1 appearance-none"
+                        className="bg-transparent text-sm text-white font-bold uppercase outline-none cursor-pointer pr-4 appearance-none"
                     >
                         <option value="data">Dati</option>
                         <option value="map">Mappa</option>
