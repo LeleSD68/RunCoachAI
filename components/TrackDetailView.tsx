@@ -355,7 +355,7 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
             case 'classic': return { 1: 'data', 2: 'map', 3: 'chart' };
             case 'map-top': return { 1: 'map', 2: 'data', 3: 'chart' };
             case 'data-right': return { 1: 'map', 2: 'chart', 3: 'data' };
-            case 'vertical': return { 1: 'data', 2: 'map', 3: 'chart' }; // Default vertical slots
+            case 'vertical': return { 1: 'data', 2: 'chart', 3: 'map' }; // Default vertical slots
             case 'focus-bottom': return { 1: 'data', 2: 'map', 3: 'chart' };
             case 'columns': return { 1: 'data', 2: 'map', 3: 'chart' };
             default: return { 1: 'data', 2: 'map', 3: 'chart' };

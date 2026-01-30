@@ -1,5 +1,4 @@
 
-
 export type ActivityType = 'Lento' | 'Fartlek' | 'Ripetute' | 'Gara' | 'Lungo' | 'Altro' | 'Nota';
 
 export type AiPersonality = 'pro_balanced' | 'analytic' | 'strict';

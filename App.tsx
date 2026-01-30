@@ -179,8 +179,8 @@ const App: React.FC = () => {
                 setShowAuthSelection(true);
             }
         } catch (e) {
-            console.error("Session check failed", e);
-            // Force logout to clear invalid tokens causing 400/403 loops
+            console.error("Session check failed (Invalid Token). Force logout.", e);
+            // FIX: Force logout if refresh token is invalid to break loops
             await supabase.auth.signOut();
             setUserId(null);
             setShowAuthSelection(true);
@@ -312,7 +312,7 @@ const App: React.FC = () => {
                 if (parsed && parsed.points.length > 0) {
                     const { title, activityType, folder } = generateSmartTitle(parsed.points, parsed.distance, parsed.name);
                     
-                    // Check duplicate
+                    // Check duplicate - Fixed parenthesis syntax error
                     const isDuplicate = tracks.some(t => 
                         Math.abs(t.points[0].time.getTime() - parsed!.points[0].time.getTime()) < 1000 && 
                         Math.abs(t.distance - parsed!.distance) < 0.1
@@ -329,7 +329,7 @@ const App: React.FC = () => {
                         name: title,
                         points: parsed.points,
                         distance: parsed.distance,
-                        duration: parsed.duration, // CORRECTED
+                        duration: parsed.duration, 
                         color: '#' + Math.floor(Math.random()*16777215).toString(16),
                         activityType,
                         folder,
@@ -400,8 +400,6 @@ const App: React.FC = () => {
             await importAllData(data);
             await loadData(true);
             
-            // Se l'utente è loggato, sincronizziamo il backup appena importato col cloud (opzionale, logica complessa omessa per brevità)
-            
             addToast("Backup ripristinato con successo!", "success");
             setShowInitialChoice(false);
             setShowHome(true);
@@ -463,7 +461,7 @@ const App: React.FC = () => {
         workouts.forEach(w => {
             const idx = updated.findIndex(ex => ex.id === w.id);
             if (idx >= 0) updated[idx] = w;
-            else updated.push(w); // Should not happen for updates but safe
+            else updated.push(w); 
         });
         setPlannedWorkouts(updated);
         await savePlannedWorkoutsToDB(updated);

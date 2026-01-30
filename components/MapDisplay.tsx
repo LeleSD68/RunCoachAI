@@ -5,13 +5,13 @@ import { MapDisplayProps, GradientMetric } from '../types';
 import { getTrackSegmentColors } from '../services/colorService';
 import { getTrackPointAtDistance } from '../services/trackEditorUtils';
 
-// Fix for default marker icons in Leaflet with Webpack/Vite
-import icon from 'leaflet/dist/images/marker-icon.png';
-import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+// CDN URLs for Leaflet default markers to avoid bundler import issues in browser-native env
+const ICON_URL = 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png';
+const ICON_SHADOW_URL = 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png';
 
 let DefaultIcon = L.icon({
-    iconUrl: icon,
-    shadowUrl: iconShadow,
+    iconUrl: ICON_URL,
+    shadowUrl: ICON_SHADOW_URL,
     iconSize: [25, 41],
     iconAnchor: [12, 41]
 });
@@ -81,7 +81,6 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
                 zoom: 13,
                 zoomControl: false // Disable default zoom control
             });
-            // L.control.zoom({ position: 'bottomright' }).addTo(mapRef.current); // Removed
             
             // Tile Layer
             L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
@@ -165,10 +164,6 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
                         weight: 2,
                         fillOpacity: 1
                     }).addTo(map);
-                    // We don't track this marker ref in polylinesRef to clear it here,
-                    // but since we clear all layers on re-render by effect dependencies, 
-                    // it should be handled if we added it to a layer group. 
-                    // For simplicity, let's just add it to map and track in raceFaintPolylinesRef for now or better markersLayer
                     raceFaintPolylinesRef.current.set('animMarker', marker);
                 }
             }
@@ -293,7 +288,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
     return (
         <div className="w-full h-full relative group">
             {/* Custom Control Bar */}
-            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[1000] bg-slate-900/90 backdrop-blur-sm border border-slate-600 rounded-lg p-1 flex items-center gap-1 shadow-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[1000] bg-slate-900/90 backdrop-blur-sm border border-slate-600 rounded-lg p-1 flex items-center gap-1 shadow-xl opacity-100 transition-opacity duration-300">
                 <button 
                     onClick={() => mapRef.current?.zoomIn()} 
                     className="p-1.5 hover:bg-slate-700 rounded text-slate-300 hover:text-white transition-colors"

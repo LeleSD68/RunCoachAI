@@ -160,7 +160,7 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose }) => 
                                 {dateLabel}
                             </span>
                         </div>
-                        {groupMsgs.map(msg => {
+                        {(groupMsgs as DirectMessage[]).map(msg => {
                             const isMe = msg.senderId === currentUser.id;
                             return (
                                 <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
