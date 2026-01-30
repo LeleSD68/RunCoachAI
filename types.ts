@@ -228,6 +228,7 @@ export interface UserProfile {
   lastSeenAt?: string; // ISO String for presence
   isOnline?: boolean; // Derived state
   stravaConfig?: StravaConfig; // NEW: Strava Credentials
+  ignoredStravaIds?: string[]; // NEW: Blacklist for deleted Strava tracks to prevent re-import
 }
 
 export interface FriendRequest {
