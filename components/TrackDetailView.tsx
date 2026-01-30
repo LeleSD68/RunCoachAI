@@ -247,12 +247,22 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
     
     // Layout State Persistence
     const [currentLayout, setCurrentLayout] = useState<LayoutType>(() => {
+        // FORCE VERTICAL ON MOBILE ON INIT
+        if (window.innerWidth < 768) return 'vertical';
+
         const savedLayout = localStorage.getItem('runcoach-detail-layout');
         if (savedLayout && ['classic', 'map-top', 'data-right', 'vertical', 'focus-bottom', 'columns'].includes(savedLayout)) {
             return savedLayout as LayoutType;
         }
-        return isMobile ? 'vertical' : 'classic';
+        return 'classic';
     });
+
+    // Enforce vertical layout if resized to mobile
+    useEffect(() => {
+        if (isMobile && currentLayout !== 'vertical') {
+            setCurrentLayout('vertical');
+        }
+    }, [isMobile, currentLayout]);
 
     const [showLayoutMenu, setShowLayoutMenu] = useState(false);
     
