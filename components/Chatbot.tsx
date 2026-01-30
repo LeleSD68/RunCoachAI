@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { GoogleGenAI, Chat, GenerateContentResponse } from "@google/genai";
 import { Track, UserProfile, ChatMessage, PlannedWorkout } from '../types';
 import { calculateTrackStats } from '../services/trackStatsService';
@@ -72,19 +72,50 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
         });
     }, [userProfile.name]);
 
+    // Save to DB whenever messages change - Crucial for persistence
     useEffect(() => {
         if (messages.length > 0) {
             saveChatToDB(GLOBAL_CHAT_ID, messages).catch(console.error);
         }
+    }, [messages]);
+
+    // Scroll to bottom
+    useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages, isFullscreen]);
+
+    const groupedMessages = useMemo(() => {
+        const groups: Record<string, ChatMessage[]> = {};
+        messages.forEach(msg => {
+            const date = new Date(msg.timestamp || Date.now()).toLocaleDateString('it-IT', { 
+                weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' 
+            });
+            if (!groups[date]) groups[date] = [];
+            groups[date].push(msg);
+        });
+        return groups;
+    }, [messages]);
+
+    const handleDeleteDay = async (dateStr: string) => {
+        if(confirm(`Vuoi cancellare tutta la conversazione del ${dateStr}?`)) {
+            const newMessages = messages.filter(m => {
+                const mDate = new Date(m.timestamp || Date.now()).toLocaleDateString('it-IT', { 
+                    weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' 
+                });
+                return mDate !== dateStr;
+            });
+            setMessages(newMessages);
+            // Immediately sync with DB to prevent data loss on reload
+            await saveChatToDB(GLOBAL_CHAT_ID, newMessages);
+            chatSessionRef.current = null; // Reset session context
+        }
+    };
 
     const generateSystemInstruction = () => {
         const personality = userProfile.aiPersonality || 'pro_balanced';
         const userName = userProfile.name || 'Atleta';
         const today = new Date().toLocaleDateString('it-IT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
         
-        // Costruiamo un contesto ultra-dettagliato che include "Pensieri precedenti" (note/rating)
         const detailedHistory = tracksToAnalyze.slice(0, 10).map(t => {
             const stats = calculateTrackStats(t);
             const notes = t.notes ? `Note Atleta: "${t.notes}"` : '';
@@ -194,14 +225,6 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
         }
     };
 
-    const handleClearChat = () => {
-        if (confirm("Cancellare tutta la cronologia chat?")) {
-            setMessages([]);
-            chatSessionRef.current = null;
-            saveChatToDB(GLOBAL_CHAT_ID, []);
-        }
-    };
-
     const handleAddToDiary = (jsonString: string) => {
         try {
             const data = JSON.parse(jsonString);
@@ -221,9 +244,10 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
     const renderMessage = (msg: ChatMessage, index: number) => {
         // Parse for workout proposals
         const parts = msg.text.split(/:::WORKOUT_PROPOSAL=(.*?):::/g);
+        const timeStr = new Date(msg.timestamp || Date.now()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
         
         return (
-            <div key={index} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} mb-4`}>
+            <div key={index} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} mb-4 animate-fade-in`}>
                 <div className={`max-w-[90%] p-3 rounded-2xl shadow-sm text-sm leading-relaxed ${msg.role === 'user' ? 'bg-purple-600 text-white rounded-br-none' : 'bg-slate-700 text-slate-100 rounded-bl-none'}`}>
                     {parts.map((part, i) => {
                         if (i % 2 === 1) { // It's a JSON block
@@ -251,6 +275,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
                         }
                         return <FormattedAnalysis key={i} text={part} />;
                     })}
+                    <p className={`text-[9px] mt-1 text-right ${msg.role === 'user' ? 'text-purple-200' : 'text-slate-400'}`}>{timeStr}</p>
                 </div>
             </div>
         );
@@ -286,7 +311,6 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
                             {isFullscreen ? <MinimizeIcon /> : <ExpandIcon />}
                         </button>
                     )}
-                    <button onClick={handleClearChat} className="p-2 text-slate-400 hover:text-red-400 hover:bg-slate-700 rounded-lg transition-colors" title="Cancella chat"><TrashIcon /></button>
                     <button onClick={onClose} className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors font-bold text-lg">&times;</button>
                 </div>
             </header>
@@ -295,10 +319,33 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
                 {/* Background Decoration */}
                 <div className="absolute top-0 left-0 w-full h-full opacity-5 pointer-events-none bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-purple-900 via-slate-900 to-slate-900"></div>
                 
-                <div className="relative z-10 space-y-4 max-w-4xl mx-auto w-full">
-                    {messages.map((msg, idx) => renderMessage(msg, idx))}
+                <div className="relative z-10 space-y-8 max-w-4xl mx-auto w-full">
+                    
+                    {Object.entries(groupedMessages).map(([dateLabel, groupMsgs]) => (
+                        <div key={dateLabel}>
+                             <div className="flex items-center justify-center mb-6 relative">
+                                <div className="absolute inset-0 flex items-center">
+                                    <div className="w-full border-t border-slate-700/50"></div>
+                                </div>
+                                <div className="relative flex items-center gap-2">
+                                     <span className="bg-slate-800 text-slate-400 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border border-slate-700">
+                                        {dateLabel}
+                                     </span>
+                                     <button 
+                                        onClick={() => handleDeleteDay(dateLabel)}
+                                        className="bg-slate-800 hover:bg-red-900/30 text-slate-500 hover:text-red-400 px-2 py-1 rounded-full text-[10px] border border-slate-700 hover:border-red-900/50 transition-colors"
+                                        title="Elimina conversazioni di questo giorno"
+                                     >
+                                         <TrashIcon />
+                                     </button>
+                                </div>
+                             </div>
+                             {groupMsgs.map((msg, idx) => renderMessage(msg, idx))}
+                        </div>
+                    ))}
+
                     {isLoading && (
-                        <div className="flex items-center gap-2 text-slate-500 text-xs italic animate-pulse p-2">
+                        <div className="flex items-center gap-2 text-slate-500 text-xs italic animate-pulse p-2 justify-center">
                             <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
                             Il coach sta elaborando il piano...
                         </div>
