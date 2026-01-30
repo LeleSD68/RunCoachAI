@@ -21,6 +21,7 @@ interface TrackDetailViewProps {
     track: Track;
     userProfile: UserProfile;
     onExit: () => void;
+    onEdit?: () => void; // Restored prop
     allHistory?: Track[];
     plannedWorkouts?: PlannedWorkout[];
     onUpdateTrackMetadata?: (id: string, metadata: Partial<Track>) => void;
@@ -76,6 +77,7 @@ const LayoutIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2
 const SwapIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M2.24 6.8a.75.75 0 0 0 1.06-.04l1.95-2.1 1.95 2.1a.75.75 0 1 0 1.1-1.02l-2.5-2.7a.75.75 0 0 0-1.1 0l-2.5 2.7a.75.75 0 0 0 .04 1.06Zm6.94 3.7a.75.75 0 0 0 1.06-.04l1.95-2.1 1.95 2.1a.75.75 0 1 0 1.1-1.02l-2.5-2.7a.75.75 0 0 0-1.1 0l-2.5 2.7a.75.75 0 0 0 .04 1.06Zm-6.94 3.7a.75.75 0 0 0 1.06-.04l1.95-2.1 1.95 2.1a.75.75 0 1 0 1.1-1.02l-2.5-2.7a.75.75 0 0 0-1.1 0l-2.5 2.7a.75.75 0 0 0 .04 1.06Z" clipRule="evenodd" /></svg>);
 const GlobeIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-1.5 0a6.5 6.5 0 1 1-11-4.69v.447a3.5 3.5 0 0 0 1.025 2.475L8.293 10 8 10.293a1 1 0 0 0 0 1.414l1.06 1.06a1.5 1.5 0 0 1 .44 1.061v.363a6.5 6.5 0 0 1-5.5-2.259V10a6.5 6.5 0 0 1 12.5 0Z" clipRule="evenodd" /><path fillRule="evenodd" d="M9 2.5a.5.5 0 0 1 .5-.5 1 1 0 0 1 1 1 .5.5 0 0 1-.5.5h-1ZM5.5 5a.5.5 0 0 1 .5-.5 1 1 0 0 1 1 1 .5.5 0 0 1-.5.5h-1ZM14.5 13a.5.5 0 0 1 .5-.5 1 1 0 0 1 1 1 .5.5 0 0 1-.5.5h-1ZM12.5 16a.5.5 0 0 1 .5-.5 1 1 0 0 1 1 1 .5.5 0 0 1-.5.5h-1Z" clipRule="evenodd" /></svg>);
 const LockIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M10 1a4.5 4.5 0 0 0-4.5 4.5V9H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-.5V5.5A4.5 4.5 0 0 0 10 1Zm3 8V5.5a3 3 0 1 0-6 0V9h6Z" clipRule="evenodd" /></svg>);
+const PencilIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="m2.695 14.762-1.262 3.155a.5.5 0 0 0 .65.65l3.155-1.262a4 4 0 0 0 1.343-.886L17.5 5.501a2.121 2.121 0 0 0-3-3L3.58 13.419a4 4 0 0 0-.885 1.343Z" /></svg>);
 
 const formatDuration = (ms: number, compact = false) => {
     const totalSeconds = Math.floor(ms / 1000);
@@ -170,7 +172,7 @@ const DataSection = React.memo(({
     disableScroll 
 }: any) => {
     return (
-        <div className={`bg-slate-900 p-4 space-y-6 h-full ${disableScroll ? '' : 'overflow-y-auto custom-scrollbar'} ${className}`}>
+        <div className={`bg-slate-900 p-4 space-y-6 ${disableScroll ? '' : 'h-full overflow-y-auto custom-scrollbar'} ${className}`}>
             <StatsPanel stats={stats} selectedSegment={selectedSegment} onSegmentSelect={handleSegmentSelect} />
 
             <TrackMetadataEditor track={track} userProfile={userProfile} onUpdate={onUpdateTrackMetadata} />
@@ -227,13 +229,13 @@ const SelectionStatsOverlay: React.FC<{ data: ExtendedStats, onClose: () => void
                 )}
             </div>
             <button onClick={onClose} className="bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 p-1 rounded-full transition-colors flex-shrink-0">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 0 0-1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" /></svg>
             </button>
         </div>
     );
 };
 
-const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, onExit, allHistory = [], plannedWorkouts = [], onUpdateTrackMetadata, onAddPlannedWorkout, onStartAnimation, onOpenReview, autoOpenAi = false, onCheckAiAccess, isGuest = false, onLimitReached }) => {
+const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, onExit, onEdit, allHistory = [], plannedWorkouts = [], onUpdateTrackMetadata, onAddPlannedWorkout, onStartAnimation, onOpenReview, autoOpenAi = false, onCheckAiAccess, isGuest = false, onLimitReached }) => {
     if (!track) return null;
 
     const isMobile = useIsMobile();
@@ -675,32 +677,28 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
         </div>
     );
 
-    const DataSectionComponent = (props: { disableScroll?: boolean }) => (
-        <DataSection 
-            className="h-full w-full"
-            stats={stats} 
-            track={displayTrack}
-            userProfile={userProfile}
-            allHistory={allHistory}
-            plannedWorkouts={plannedWorkouts}
-            onUpdateTrackMetadata={onUpdateTrackMetadata}
-            onAddPlannedWorkout={onAddPlannedWorkout}
-            autoOpenAi={autoOpenAi}
-            onCheckAiAccess={onCheckAiAccess}
-            selectedSegment={selectedSegment}
-            handleSegmentSelect={handleSegmentSelect}
-            hasHrData={hasHrData}
-            disableScroll={props.disableScroll}
-        />
-    );
-
     // Dynamic Render Function
     const renderPane = (slotId: SlotId, mobileStackMode = false) => {
         const type = slotContent[slotId];
         let content;
         
         switch(type) {
-            case 'data': content = <DataSectionComponent disableScroll={mobileStackMode} />; break;
+            case 'data': content = <DataSection 
+                className="w-full"
+                stats={stats} 
+                track={displayTrack}
+                userProfile={userProfile}
+                allHistory={allHistory}
+                plannedWorkouts={plannedWorkouts}
+                onUpdateTrackMetadata={onUpdateTrackMetadata}
+                onAddPlannedWorkout={onAddPlannedWorkout}
+                autoOpenAi={autoOpenAi}
+                onCheckAiAccess={onCheckAiAccess}
+                selectedSegment={selectedSegment}
+                handleSegmentSelect={handleSegmentSelect}
+                hasHrData={hasHrData}
+                disableScroll={mobileStackMode}
+            />; break;
             case 'map': content = MapSection; break;
             case 'chart': content = ChartSection; break;
         }
@@ -908,6 +906,11 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
              <header className="flex items-center justify-between p-2 sm:p-3 bg-slate-800 border-b border-slate-700 flex-shrink-0 z-30 shadow-lg">
                 <div className="flex items-center gap-2">
                     <button onClick={onExit} className="bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white font-black py-1.5 px-3 sm:py-2 sm:px-5 rounded-lg transition-all shadow-sm text-[10px] sm:text-sm">&times; {isMobile ? 'INDIETRO' : 'CHIUDI'}</button>
+                    {onEdit && (
+                        <button onClick={onEdit} className="bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white py-1.5 px-3 rounded-lg transition-all shadow-sm" title="Modifica Traccia">
+                            <PencilIcon />
+                        </button>
+                    )}
                     <button onClick={() => setShowShareModal(true)} className="bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white py-1.5 px-3 rounded-lg transition-all shadow-sm">
                         <ShareIcon />
                     </button>
