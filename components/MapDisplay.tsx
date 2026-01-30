@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -64,7 +65,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
     const kmMarkersLayerGroupRef = useRef<L.LayerGroup | null>(null);
     const markersLayerGroupRef = useRef<L.LayerGroup | null>(null);
     const selectionLayerGroupRef = useRef<L.LayerGroup | null>(null);
-    const hoverMarkerRef = useRef<L.Marker | null>(null);
+    const hoverMarkerRef = useRef<L.CircleMarker | null>(null);
 
     // Initialize Map
     useEffect(() => {
@@ -221,7 +222,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
                     }
                     
                     if (isHovered || isSelected) {
-                        (layer as L.Layer).bringToFront();
+                        (layer as any).bringToFront();
                     }
                     
                     layer.on('mouseover', () => onTrackHover?.(track.id));
