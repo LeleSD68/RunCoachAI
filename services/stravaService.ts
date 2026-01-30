@@ -162,6 +162,8 @@ const mapStravaToTrack = async (activity: any, token: string): Promise<Track | n
         });
     }
 
+    if (rawPoints.length < 2) return null;
+
     // Apply standard smoothing
     const smoothed = smoothElevation(rawPoints);
 
