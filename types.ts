@@ -106,6 +106,7 @@ export interface MapDisplayProps {
   onTrackHover?: (trackId: string | null) => void; // Callback for track hover synchronization
   onPauseClick?: (segment: PauseSegment) => void;
   mapGradientMetric?: GradientMetric;
+  onMapGradientChange?: (metric: GradientMetric) => void; // Added for internal control
   coloredPauseSegments?: PauseSegment[];
   selectedPoint?: TrackPoint | null; // Point selected by clicking
   onPointClick?: (point: TrackPoint | null) => void; // Callback for when a point is clicked on map
