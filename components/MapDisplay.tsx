@@ -1,12 +1,13 @@
 
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
-import { Track, RaceRunner, MapDisplayProps, TrackPoint, PauseSegment, TrackStats, Split, AiSegment } from '../types';
+import { Track, RaceRunner, MapDisplayProps, TrackPoint, PauseSegment, TrackStats, Split, AiSegment, UserProfile } from '../types';
 import { calculateTrackStats } from '../services/trackStatsService';
 import { getTrackPointAtDistance, getPointsInDistanceRange } from '../services/trackEditorUtils';
 import { getTrackSegmentColors, ColoredSegment, GradientMetric } from '../services/colorService';
 import AnimationControls from './AnimationControls';
 import Tooltip from './Tooltip';
 import FlyoverMap from './FlyoverMap';
+import TimelineChart from './TimelineChart';
 
 declare const L: any; 
 
@@ -121,7 +122,11 @@ const formatPace = (pace: number) => {
 
 const isValidLatLng = (lat: any, lng: any) => typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng);
 
-const MapDisplay: React.FC<MapDisplayProps> = ({ 
+interface ExtendedMapDisplayProps extends MapDisplayProps {
+    userProfile?: UserProfile;
+}
+
+const MapDisplay: React.FC<ExtendedMapDisplayProps> = ({ 
     tracks, visibleTrackIds, selectedTrackIds, raceRunners, hoveredTrackId, runnerSpeeds, 
     selectionPoints, hoveredPoint, hoveredData, pauseSegments, showPauses, onMapHover, onTrackHover,
     onPauseClick, mapGradientMetric = 'none', coloredPauseSegments, animationTrack, 
@@ -129,9 +134,10 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
     isAnimationPlaying, onToggleAnimationPlay, onAnimationProgressChange,
     animationSpeed, onAnimationSpeedChange, fitBoundsCounter = 0,
     selectedPoint, onPointClick, hoveredLegendValue, aiSegmentHighlight,
-    showSummaryMode, onTrackClick
+    showSummaryMode, onTrackClick, userProfile
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null); // Wrapper for fullscreen
   const mapRef = useRef<any>(null);
   const tileLayerRef = useRef<any>(null);
   
@@ -142,12 +148,11 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
   const kmMarkersLayerGroupRef = useRef<any>(null);
   const hoverMarkerRef = useRef<any>(null);
   const animationMarkerRef = useRef<any>(null);
-  const animationPaceLabelRef = useRef<HTMLElement | null>(null); // DOM Ref for optimized text update
+  const animationPaceLabelRef = useRef<HTMLElement | null>(null);
   const aiSegmentPolylineRef = useRef<any>(null);
   const selectionPolylineRef = useRef<any>(null);
   
   const [isAutoFitEnabled, setIsAutoFitEnabled] = useState(true);
-  
   const [mapTheme, setMapTheme] = useState<'dark' | 'light' | 'satellite' | 'silver' | 'midnight'>(() => {
       const saved = localStorage.getItem('gpx-map-theme');
       return (saved as any) || 'light';
@@ -157,6 +162,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
   const [visibleMetrics, setVisibleMetrics] = useState<Set<string>>(new Set(['time', 'pace', 'elevation', 'hr']));
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [is3DMode, setIs3DMode] = useState(false); 
+  const [showChartOverlay, setShowChartOverlay] = useState(false);
 
   const passedKmsRef = useRef<Set<number>>(new Set());
 
@@ -170,7 +176,6 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
       return null;
   }, [animationTrack, raceRunners, tracks]);
 
-  // Stable list of tracks for FlyoverMap to prevent re-initialization loop
   const flyoverTracks = useMemo(() => {
       const safeVisibleIds = visibleTrackIds instanceof Set ? visibleTrackIds : new Set();
       const safeSelectedIds = selectedTrackIds instanceof Set ? selectedTrackIds : new Set();
@@ -185,7 +190,6 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
       return 0;
   }, [animationTrack, raceRunners, animationProgress]);
 
-  // Can we show 3D? Yes if we have a target track.
   const canShow3D = !!target3DTrack;
 
   useEffect(() => {
@@ -217,18 +221,26 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
       });
   }, []);
 
+  const handleFullscreenToggle = useCallback(() => {
+      if (!document.fullscreenElement) {
+          wrapperRef.current?.requestFullscreen().catch(err => {
+              console.error(`Error attempting to enable fullscreen: ${err.message}`);
+          });
+      } else {
+          document.exitFullscreen();
+      }
+  }, []);
+
   const fitMapToBounds = useCallback(() => {
       const map = mapRef.current;
       if (!map) return;
       let bounds: any = null;
       
-      // If manually animating single track, DON'T auto-fit constantly unless it's initial load
       if (animationTrack && isAnimationPlaying) return;
 
       const safeVisibleIds = visibleTrackIds instanceof Set ? visibleTrackIds : new Set();
       const safeSelectedIds = selectedTrackIds instanceof Set ? selectedTrackIds : new Set();
 
-      // Mobile padding to account for overlays (Top Header, Bottom Dock/Controls)
       const paddingOptions: any = isMobile 
         ? { padding: [20, 20], paddingTopLeft: [20, 80], paddingBottomRight: [20, 220] } 
         : { padding: [40, 40] };
@@ -237,7 +249,6 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
         const allPoints = animationTrack.points.filter(p => isValidLatLng(p.lat, p.lon)).map(p => [p.lat, p.lon]);
         if (allPoints.length > 0) bounds = L.latLngBounds(allPoints);
       } else if (raceRunners && raceRunners.length > 0) {
-          // RACE MODE: Fit to all runners
           const points = raceRunners.map(r => r.position).filter(p => isValidLatLng(p.lat, p.lon)).map(p => [p.lat, p.lon]);
           if (points.length > 0) {
                 bounds = L.latLngBounds(points);
@@ -267,7 +278,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
       if (bounds && bounds.isValid()) map.fitBounds(bounds, paddingOptions);
   }, [selectionPoints, tracks, visibleTrackIds, selectedTrackIds, animationTrack, aiSegmentHighlight, raceRunners, isMobile, isAnimationPlaying]);
 
-  // Init/Destroy 2D Map Logic based on 2D/3D Mode
+  // Init/Destroy 2D Map Logic
   useEffect(() => {
     if (is3DMode) {
         if (mapRef.current) {
@@ -308,9 +319,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
       });
       resizeObserver.observe(mapContainerRef.current);
 
-      if (tracks.length > 0) {
-          fitMapToBounds();
-      }
+      if (tracks.length > 0) fitMapToBounds();
 
       const saved = localStorage.getItem('gpx-map-theme') || 'light';
       setMapTheme(saved as any); 
@@ -362,7 +371,6 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
       }
       
       options.attribution = attribution;
-
       tileLayerRef.current = L.tileLayer(tileUrl, options).addTo(map);
 
   }, [mapTheme, is3DMode]);
@@ -377,7 +385,6 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
     raceFaintPolylinesRef.current.forEach(layer => map.removeLayer(layer));
     raceFaintPolylinesRef.current.clear();
     
-    // Only clear KM markers if we are switching contexts, but in animation they are cumulative
     if (!animationTrack) kmMarkersLayerGroupRef.current?.clearLayers();
 
     if (animationTrack) {
@@ -447,7 +454,6 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
                     });
                 }
                 
-                // Important: Bring hovered or selected track to front to ensure visibility
                 if (isHovered || isSelected) {
                     layer.bringToFront();
                 }
@@ -499,7 +505,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
     }
   }, [raceRunners, tracks, is3DMode]);
 
-  // Animation Marker & KM Markers - 2D Only - OPTIMIZED FOR SMOOTHNESS
+  // Animation Marker & KM Markers - 2D Only
   useEffect(() => {
       const map = mapRef.current;
       if (!map || !animationTrack || is3DMode) {
@@ -514,13 +520,11 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
       const currentInterp = getTrackPointAtDistance(animationTrack, animationProgress);
       if (currentInterp) {
           if (!showSummaryMode) {
-              // OPTIMIZATION: Always force center on animation tick, respecting current user zoom
               map.setView([currentInterp.lat, currentInterp.lon], map.getZoom(), { animate: false });
           }
           
           const paceStr = animationPace > 0 ? formatPace(animationPace) : '--:--';
           
-          // Create Marker ONLY ONCE
           if (!animationMarkerRef.current) {
               const iconHtml = `<div class="relative flex flex-col items-center"><div class="cursor-dot animate-pulse shadow-lg" style="background-color: ${animationTrack.color}; width: 20px; height: 20px; border: 3px solid white;"></div><div class="pace-label font-black" style="background-color: ${animationTrack.color};"><span class="pace-text-target">${paceStr}</span></div></div>`;
               const icon = L.divIcon({
@@ -533,16 +537,12 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
               const marker = L.marker([currentInterp.lat, currentInterp.lon], { icon, zIndexOffset: 2000 }).addTo(map);
               animationMarkerRef.current = marker;
               
-              // Cache DOM reference for text update without re-rendering icon
               const el = marker.getElement();
               if (el) {
                   animationPaceLabelRef.current = el.querySelector('.pace-text-target');
               }
           } else {
-              // Just update position
               animationMarkerRef.current.setLatLng([currentInterp.lat, currentInterp.lon]);
-              
-              // Direct DOM manipulation for smooth text update
               if (animationPaceLabelRef.current) {
                   animationPaceLabelRef.current.innerText = paceStr;
               }
@@ -576,7 +576,6 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
       if (animationProgress < 0.1) {
           passedKmsRef.current.clear();
           kmMarkersLayerGroupRef.current?.clearLayers();
-          // Reset marker if we restart
           if (animationMarkerRef.current) {
               map.removeLayer(animationMarkerRef.current);
               animationMarkerRef.current = null;
@@ -586,7 +585,6 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
 
   }, [animationTrack, animationProgress, animationPace, showSummaryMode, animationTrackStats, is3DMode]);
 
-  // Hover Marker - 2D Only
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !hoveredPoint || is3DMode) {
@@ -617,7 +615,6 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
     }
   }, [hoveredPoint, hoveredData, is3DMode]);
 
-  // Selections / AI Segments - 2D Only
   useEffect(() => {
       const map = mapRef.current;
       if (!map || is3DMode) return;
@@ -640,13 +637,13 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
   useEffect(() => { if (fitBoundsCounter > 0 && !is3DMode) fitMapToBounds(); }, [fitBoundsCounter, fitMapToBounds, is3DMode]);
 
   return (
-    <div className="relative h-full w-full bg-slate-900 overflow-hidden">
+    <div ref={wrapperRef} className="relative h-full w-full bg-slate-900 overflow-hidden group/map">
       {/* 3D Map Rendering */}
       {is3DMode && target3DTrack ? (
           <FlyoverMap 
-              track={animationTrack} // Used for single track animation
-              tracks={flyoverTracks} // Pass MEMOIZED relevant tracks
-              raceRunners={raceRunners} // Pass race positions
+              track={animationTrack} 
+              tracks={flyoverTracks} 
+              raceRunners={raceRunners} 
               progress={target3DProgress} 
               isPlaying={!!isAnimationPlaying || (!!raceRunners && raceRunners.length > 0)} 
               pace={animationPace}
@@ -716,7 +713,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
                     </>
                 )}
 
-                {/* 3D Toggle Button - Visible if target track available (Animation or Race) */}
+                {/* 3D Toggle Button */}
                 {canShow3D && (
                    <Tooltip text={is3DMode ? "Vista 2D" : "Flyover 3D"} subtext="Cambia prospettiva" position="right">
                        <button 
@@ -731,13 +728,45 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
             </div>
        </div>
 
+        {/* Replay Chart Overlay */}
+        {showChartOverlay && animationTrack && (
+            <div className="absolute bottom-20 left-4 right-4 sm:left-20 sm:right-20 h-32 bg-slate-900/80 backdrop-blur-md border border-slate-600 rounded-xl z-[90] p-2 animate-slide-up shadow-2xl">
+                <TimelineChart 
+                    track={animationTrack} 
+                    onSelectionChange={() => {}} 
+                    yAxisMetrics={['elevation', 'pace']}
+                    onChartHover={() => {}}
+                    hoveredPoint={null}
+                    pauseSegments={[]}
+                    showPauses={false}
+                    animationProgress={animationProgress}
+                    isAnimating={isAnimationPlaying}
+                    userProfile={userProfile}
+                />
+            </div>
+        )}
+
         {/* Stats & Animation Controls - Show in 3D Mode too if it's a replay */}
         {animationTrack && !showSummaryMode && (
             <>
                 {(!is3DMode || (is3DMode && animationTrack)) && (
                     <StatsDisplay stats={animationStats} splits={animationTrackStats?.splits || []} currentDistance={animationProgress} visibleMetrics={visibleMetrics} />
                 )}
-                <AnimationControls isPlaying={isAnimationPlaying!} onTogglePlay={onToggleAnimationPlay!} progress={animationProgress} totalDistance={animationTrack.distance} onProgressChange={onAnimationProgressChange!} speed={animationSpeed!} onSpeedChange={onAnimationSpeedChange!} onExit={onExitAnimation!} visibleMetrics={visibleMetrics} onToggleMetric={handleToggleMetric} />
+                <AnimationControls 
+                    isPlaying={isAnimationPlaying!} 
+                    onTogglePlay={onToggleAnimationPlay!} 
+                    progress={animationProgress} 
+                    totalDistance={animationTrack.distance} 
+                    onProgressChange={onAnimationProgressChange!} 
+                    speed={animationSpeed!} 
+                    onSpeedChange={onAnimationSpeedChange!} 
+                    onExit={onExitAnimation!} 
+                    visibleMetrics={visibleMetrics} 
+                    onToggleMetric={handleToggleMetric} 
+                    onToggleFullscreen={handleFullscreenToggle} // NEW PROP
+                    onToggleChart={() => setShowChartOverlay(!showChartOverlay)} // NEW PROP
+                    isChartVisible={showChartOverlay}
+                />
             </>
         )}
 
@@ -753,6 +782,8 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
         .hover-info-cursor { display: flex; align-items: center; justify-content: center; overflow: visible !important; }
         @keyframes fade-in-down { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in-down { animation: fade-in-down 0.2s ease-out forwards; }
+        @keyframes slide-up { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .animate-slide-up { animation: slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         .map-tiles-dark {
             filter: invert(100%) hue-rotate(180deg) brightness(70%) contrast(150%) grayscale(20%);
         }
