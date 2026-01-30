@@ -7,6 +7,16 @@ interface ChangelogProps {
 
 const changelogData = [
     {
+        version: 'v1.34',
+        date: '2026-01-28',
+        changes: [
+            '📱 **Mobile Vertical Stack**: Il layout su smartphone è stato rivoluzionato. Ora utilizza uno "Smart Stack" con una sezione superiore fissa (ridimensionabile) e una inferiore a scorrimento infinito.',
+            '📐 **Adattamento Dinamico**: Mappe e Grafici ottengono automaticamente un\'altezza minima garantita quando sono nella zona di scorrimento, evitando di apparire schiacciati.',
+            '👆 **Interfaccia Touch-First**: I menu per scambiare i pannelli (Swap) e le maniglie di ridimensionamento sono stati ingranditi per un uso più comodo con le dita.',
+            '💾 **Memoria Layout**: Le tue preferenze (es. "Mappa sopra, Dati sotto") vengono salvate e ricordate al prossimo avvio.'
+        ]
+    },
+    {
         version: 'v1.33',
         date: '2026-01-27',
         changes: [
@@ -298,7 +308,13 @@ const Changelog: React.FC<ChangelogProps> = ({ onClose }) => {
                             <p className="text-xs text-slate-500 mb-2">{entry.date}</p>
                             <ul className="list-disc list-inside space-y-1 text-sm text-slate-300">
                                 {entry.changes.map((change, index) => (
-                                    <li key={index}>{change}</li>
+                                    <li key={index}>
+                                        {change.includes('**') ? (
+                                            <span dangerouslySetInnerHTML={{ __html: change.replace(/\*\*(.*?)\*\*/g, '<strong class="text-cyan-400">$1</strong>') }} />
+                                        ) : (
+                                            change
+                                        )}
+                                    </li>
                                 ))}
                             </ul>
                         </div>
