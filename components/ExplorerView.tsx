@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Track } from '../types';
 import TrackPreview from './TrackPreview';
 import RatingStars from './RatingStars';
@@ -31,16 +31,55 @@ const formatPace = (pace: number) => {
     return `${m}:${s.toString().padStart(2, '0')}`;
 };
 
+const RotateDeviceIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 animate-pulse">
+        <path d="M10.5 18.75a.75.75 0 0 0 0 1.5h3a.75.75 0 0 0 0-1.5h-3Z" />
+        <path fillRule="evenodd" d="M8.625.75A3.375 3.375 0 0 0 5.25 4.125v15.75a3.375 3.375 0 0 0 3.375 3.375h6.75a3.375 3.375 0 0 0 3.375-3.375V4.125A3.375 3.375 0 0 0 15.375.75h-6.75ZM7.5 4.125C7.5 3.504 8.004 3 8.625 3h6.75c.621 0 1.125.504 1.125 1.125v15.75c0 .621-.504 1.125-1.125 1.125h-6.75A1.125 1.125 0 0 1 7.5 19.875V4.125Z" clipRule="evenodd" />
+    </svg>
+);
+
 const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTrack }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [viewMode, setViewMode] = useState<ViewMode>('table'); // Default to table for Runalize feel
     const [gridCols, setGridCols] = useState(4);
     const [sortOption, setSortOption] = useState<SortOption>('date_desc');
     const [groupingMode, setGroupingMode] = useState<GroupingMode>('none');
+    const [showRotateHint, setShowRotateHint] = useState(false);
     
-    // Table Config
-    const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set(['date', 'name', 'activity', 'distance', 'time', 'pace', 'hr', 'elevation']));
+    // Table Config with Persistence
+    const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => {
+        try {
+            const saved = localStorage.getItem('runcoach-explorer-columns');
+            if (saved) return new Set(JSON.parse(saved));
+        } catch (e) {
+            console.error("Error loading column preferences", e);
+        }
+        // Default columns
+        return new Set(['date', 'name', 'activity', 'distance', 'time', 'pace', 'hr', 'elevation']);
+    });
+    
     const [showColMenu, setShowColMenu] = useState(false);
+
+    // Save columns preference whenever it changes
+    useEffect(() => {
+        localStorage.setItem('runcoach-explorer-columns', JSON.stringify(Array.from(visibleColumns)));
+    }, [visibleColumns]);
+
+    // Orientation Detection
+    useEffect(() => {
+        const checkOrientation = () => {
+            // Mobile width (< 768px) AND Height > Width (Portrait)
+            if (window.innerWidth < 768 && window.innerHeight > window.innerWidth) {
+                setShowRotateHint(true);
+            } else {
+                setShowRotateHint(false);
+            }
+        };
+        
+        checkOrientation();
+        window.addEventListener('resize', checkOrientation);
+        return () => window.removeEventListener('resize', checkOrientation);
+    }, []);
 
     const availableColumns = [
         { id: 'date', label: 'Data' },
@@ -140,7 +179,7 @@ const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTr
 
     return (
         <div className="absolute inset-0 z-[3000] bg-slate-900 flex flex-col font-sans text-white animate-fade-in overflow-hidden">
-            <header className="p-4 bg-slate-800 border-b border-slate-700 shadow-md z-10 flex flex-col gap-3">
+            <header className="p-4 bg-slate-800 border-b border-slate-700 shadow-md z-10 flex flex-col gap-3 shrink-0">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex items-center gap-2">
                         <button 
@@ -240,6 +279,15 @@ const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTr
                 </div>
             </header>
 
+            {/* Mobile Rotation Hint */}
+            {showRotateHint && viewMode === 'table' && (
+                <div className="bg-amber-600/90 backdrop-blur text-white text-xs font-bold py-2 px-4 text-center border-b border-amber-500/50 flex items-center justify-center gap-2 animate-fade-in z-20 shrink-0">
+                    <RotateDeviceIcon />
+                    Ruota lo schermo per visualizzare meglio la tabella
+                    <button onClick={() => setShowRotateHint(false)} className="ml-2 bg-black/20 rounded-full w-5 h-5 flex items-center justify-center hover:bg-black/40">&times;</button>
+                </div>
+            )}
+
             <div className="flex-grow overflow-hidden bg-slate-900">
                 {viewMode === 'table' ? (
                     <div className="h-full w-full overflow-auto custom-scrollbar">
@@ -256,43 +304,43 @@ const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTr
                                 {sortedTracks.map(t => (
                                     <tr key={t.id} className="hover:bg-slate-800/50 transition-colors group cursor-pointer" onClick={() => onSelectTrack(t.id)}>
                                         {visibleColumns.has('date') && (
-                                            <td className="p-3 font-mono text-slate-300">{new Date(t.points[0].time).toLocaleDateString()}</td>
+                                            <td className="p-2 sm:p-3 font-mono text-slate-300 whitespace-nowrap text-xs sm:text-sm">{new Date(t.points[0].time).toLocaleDateString()}</td>
                                         )}
                                         {visibleColumns.has('name') && (
-                                            <td className="p-3 font-bold text-white max-w-[200px] truncate group-hover:text-cyan-400">{t.name}</td>
+                                            <td className="p-2 sm:p-3 font-bold text-white max-w-[150px] sm:max-w-[250px] truncate group-hover:text-cyan-400 text-xs sm:text-sm">{t.name}</td>
                                         )}
                                         {visibleColumns.has('activity') && (
-                                            <td className="p-3"><span className="bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-[10px] uppercase font-bold text-slate-400">{t.activityType || 'Run'}</span></td>
+                                            <td className="p-2 sm:p-3"><span className="bg-slate-800 border border-slate-700 px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 whitespace-nowrap">{t.activityType || 'Run'}</span></td>
                                         )}
                                         {visibleColumns.has('distance') && (
-                                            <td className="p-3 font-mono text-cyan-100">{t.distance.toFixed(2)} km</td>
+                                            <td className="p-2 sm:p-3 font-mono text-cyan-100 text-xs sm:text-sm">{t.distance.toFixed(2)} km</td>
                                         )}
                                         {visibleColumns.has('time') && (
-                                            <td className="p-3 font-mono text-slate-300">{formatDuration(t.duration)}</td>
+                                            <td className="p-2 sm:p-3 font-mono text-slate-300 text-xs sm:text-sm">{formatDuration(t.duration)}</td>
                                         )}
                                         {visibleColumns.has('pace') && (
-                                            <td className="p-3 font-mono font-bold text-white">{formatPace(t.stats.movingAvgPace)}</td>
+                                            <td className="p-2 sm:p-3 font-mono font-bold text-white text-xs sm:text-sm">{formatPace(t.stats.movingAvgPace)}</td>
                                         )}
                                         {visibleColumns.has('hr') && (
-                                            <td className="p-3 font-mono text-red-300">{t.stats.avgHr ? Math.round(t.stats.avgHr) : '-'}</td>
+                                            <td className="p-2 sm:p-3 font-mono text-red-300 text-xs sm:text-sm">{t.stats.avgHr ? Math.round(t.stats.avgHr) : '-'}</td>
                                         )}
                                         {visibleColumns.has('power') && (
-                                            <td className="p-3 font-mono text-purple-300">{t.stats.avgWatts ? Math.round(t.stats.avgWatts) : '-'}</td>
+                                            <td className="p-2 sm:p-3 font-mono text-purple-300 text-xs sm:text-sm">{t.stats.avgWatts ? Math.round(t.stats.avgWatts) : '-'}</td>
                                         )}
                                         {visibleColumns.has('elevation') && (
-                                            <td className="p-3 font-mono text-amber-200">+{Math.round(t.stats.elevationGain)}m</td>
+                                            <td className="p-2 sm:p-3 font-mono text-amber-200 text-xs sm:text-sm">+{Math.round(t.stats.elevationGain)}m</td>
                                         )}
                                         {visibleColumns.has('rpe') && (
-                                            <td className="p-3 text-slate-400">{t.rpe ? `${t.rpe}/10` : '-'}</td>
+                                            <td className="p-2 sm:p-3 text-slate-400 text-xs sm:text-sm">{t.rpe ? `${t.rpe}/10` : '-'}</td>
                                         )}
                                         {visibleColumns.has('rating') && (
-                                            <td className="p-3"><RatingStars rating={t.rating} size="xs" /></td>
+                                            <td className="p-2 sm:p-3"><RatingStars rating={t.rating} size="xs" /></td>
                                         )}
                                         {visibleColumns.has('efficiency') && (
-                                            <td className="p-3 font-mono text-emerald-400">{t.efficiency > 0 ? t.efficiency.toFixed(1) : '-'}</td>
+                                            <td className="p-2 sm:p-3 font-mono text-emerald-400 text-xs sm:text-sm">{t.efficiency > 0 ? t.efficiency.toFixed(1) : '-'}</td>
                                         )}
-                                        <td className="p-3 text-right">
-                                            <button className="text-cyan-500 hover:text-white text-xs font-bold uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity">Apri</button>
+                                        <td className="p-2 sm:p-3 text-right">
+                                            <button className="text-cyan-500 hover:text-white text-[10px] font-bold uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity">Apri</button>
                                         </td>
                                     </tr>
                                 ))}
