@@ -47,6 +47,13 @@ import { fetchRecentStravaActivities, isStravaConnected } from './services/strav
 import { SAMPLE_GPX_DATA } from './services/sampleTrackData';
 import { getGenAI } from './services/aiHelper';
 
+// Professional Coach Icon for floating button
+const WhistleFloatingIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8">
+        <path fillRule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-1.99 3.963-4.98 3.963-8.827a8.25 8.25 0 00-16.5 0c0 3.846 2.02 6.837 3.963 8.827a19.58 19.58 0 002.682 2.282 16.975 16.975 0 001.145.742zM12 13.5a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+    </svg>
+);
+
 const App: React.FC = () => {
     // --- STATE DEFINITIONS ---
     const [tracks, setTracks] = useState<Track[]>([]);
@@ -57,8 +64,8 @@ const App: React.FC = () => {
     
     // UI State
     const [showSplash, setShowSplash] = useState(true);
-    const [isDataLoading, setIsDataLoading] = useState(false); // NEW: Loading state
-    const [loadingMessage, setLoadingMessage] = useState('Caricamento...'); // NEW: Specific loading message
+    const [isDataLoading, setIsDataLoading] = useState(false); 
+    const [loadingMessage, setLoadingMessage] = useState('Caricamento...');
     const [showAuthSelection, setShowAuthSelection] = useState(false);
     const [showLoginModal, setShowLoginModal] = useState(false);
     const [showInitialChoice, setShowInitialChoice] = useState(false);
@@ -157,7 +164,6 @@ const App: React.FC = () => {
             if (session) {
                 setUserId(session.user.id);
                 setIsGuest(false);
-                // CRITICAL FIX: Await loadData and ensure loading state wraps it
                 await loadData();
                 setShowHome(true);
                 setShowAuthSelection(false); 
@@ -176,9 +182,8 @@ const App: React.FC = () => {
         setIsGuest(true);
         setUserId('guest');
         setShowAuthSelection(false);
-        loadData(true); // Force local load
+        loadData(true); 
         
-        // Check if first time guest
         const hasSeenWelcome = localStorage.getItem('hasSeenWelcome');
         if (!hasSeenWelcome) {
             setShowInitialChoice(true);
@@ -198,28 +203,22 @@ const App: React.FC = () => {
             setTracks(loadedTracks);
             setFilteredTracks(loadedTracks);
             
-            // Set all loaded tracks to visible by default
             setVisibleTrackIds(new Set(loadedTracks.map(t => t.id)));
 
             const loadedWorkouts = await loadPlannedWorkoutsFromDB(forceLocal);
             setPlannedWorkouts(loadedWorkouts);
 
-            // AUTO SYNC STRAVA IF CONNECTED
             if (isStravaConnected()) {
-                // Determine last sync date from loaded tracks
                 const stravaTracks = loadedTracks.filter(t => t.id.startsWith('strava-'));
                 let lastTimestamp = 0;
                 if (stravaTracks.length > 0) {
                     stravaTracks.sort((a, b) => b.points[0].time.getTime() - a.points[0].time.getTime());
-                    // Add 1 sec to avoid duplicate
                     lastTimestamp = Math.floor(stravaTracks[0].points[0].time.getTime() / 1000) + 1;
                 } else {
-                    // Sync last 30 days if no local data
                     const d = new Date();
                     d.setDate(d.getDate() - 30);
                     lastTimestamp = Math.floor(d.getTime() / 1000);
                 }
-                // Trigger sync without await to not block UI completely, but handleStravaSync manages loading state
                 handleStravaSync(lastTimestamp);
             }
 
@@ -227,11 +226,11 @@ const App: React.FC = () => {
             console.error("Error loading data", e);
             addToast("Errore caricamento dati.", "error");
         } finally {
-            // Optional: minimal delay to ensure user sees "Done"
             await new Promise(r => setTimeout(r, 300));
         }
     };
 
+    // ... (File Processing and Strava Sync logic remains same)
     // --- FILE PROCESSING ---
 
     const processFilesOnMainThread = async (files: File[]) => {
@@ -252,7 +251,6 @@ const App: React.FC = () => {
                 if (parsed && parsed.points.length > 0) {
                     const { title, activityType, folder } = generateSmartTitle(parsed.points, parsed.distance, parsed.name);
                     
-                    // Check duplicate
                     const isDuplicate = tracks.some(t => 
                         Math.abs(t.points[0].time.getTime() - parsed!.points[0].time.getTime()) < 1000 && 
                         Math.abs(t.distance - parsed!.distance) < 0.1
@@ -269,7 +267,7 @@ const App: React.FC = () => {
                         name: title,
                         points: parsed.points,
                         distance: parsed.distance,
-                        duration: parsed.duration, // CORRECTED
+                        duration: parsed.duration,
                         color: '#' + Math.floor(Math.random()*16777215).toString(16),
                         activityType,
                         folder,
@@ -292,7 +290,6 @@ const App: React.FC = () => {
             setTracks(updatedTracks);
             setFilteredTracks(updatedTracks);
             
-            // Automatically make new tracks visible
             setVisibleTrackIds(prev => {
                 const next = new Set(prev);
                 newTracks.forEach(t => next.add(t.id));
@@ -301,18 +298,16 @@ const App: React.FC = () => {
 
             await saveTracksToDB(updatedTracks);
             
-            // Sync to cloud if logged in
             if (!isGuest && userId) {
                 newTracks.forEach(t => syncTrackToCloud(t));
             }
 
-            // Check for planned workouts matches for new tracks
             newTracks.forEach(t => {
                 const tDate = t.points[0].time.toDateString();
                 const workout = plannedWorkouts.find(w => new Date(w.date).toDateString() === tDate && !w.completedTrackId);
                 if (workout) {
                     setWorkoutToConfirm(workout);
-                    setViewingTrack(t); // Open detail view context
+                    setViewingTrack(t);
                 }
             });
 
@@ -339,33 +334,24 @@ const App: React.FC = () => {
             const limit = afterTimestamp ? 50 : 30;
             const fetchedTracks = await fetchRecentStravaActivities(limit, afterTimestamp);
             
-            if (fetchedTracks.length === 0) {
-                // Silent if auto-sync and no new tracks, otherwise toast
-                // addToast("Nessuna nuova attività trovata su Strava.", "info"); 
-                return;
-            }
+            if (fetchedTracks.length === 0) return;
 
-            // Filter duplicates (checking against existing tracks)
             const newTracks = fetchedTracks.filter(newT => {
-                // Check by Strava ID first (if preserved in ID) or generic time/dist match
                 const alreadyExists = tracks.some(existingT => {
-                    if (existingT.id === newT.id) return true; // Direct ID match
-                    // Fallback fuzzy match
+                    if (existingT.id === newT.id) return true;
                     const timeDiff = Math.abs(existingT.points[0].time.getTime() - newT.points[0].time.getTime());
                     const distDiff = Math.abs(existingT.distance - newT.distance);
-                    return timeDiff < 60000 && distDiff < 0.1; // Within 1 minute and 100m
+                    return timeDiff < 60000 && distDiff < 0.1;
                 });
                 return !alreadyExists;
             });
 
             if (newTracks.length > 0) {
-                // Assign User ID if logged in
                 const tracksWithUser = newTracks.map(t => ({ ...t, userId: userId || undefined }));
                 
-                // Functional update to avoid stale closure state
                 setTracks(prev => {
                     const updated = [...prev, ...tracksWithUser].sort((a, b) => b.points[0].time.getTime() - a.points[0].time.getTime());
-                    saveTracksToDB(updated); // Side effect inside state update is generally bad, but okay here for immediate persist
+                    saveTracksToDB(updated);
                     setFilteredTracks(updated);
                     return updated;
                 });
@@ -394,8 +380,6 @@ const App: React.FC = () => {
             
             await importAllData(data);
             await loadData(true);
-            
-            // Se l'utente è loggato, sincronizziamo il backup appena importato col cloud (opzionale, logica complessa omessa per brevità)
             
             addToast("Backup ripristinato con successo!", "success");
             setShowInitialChoice(false);
@@ -429,8 +413,6 @@ const App: React.FC = () => {
         }
     };
 
-    // --- WORKOUTS ---
-
     const handleAddPlannedWorkout = (workout: PlannedWorkout) => {
         const updated = [...plannedWorkouts, workout];
         setPlannedWorkouts(updated);
@@ -458,14 +440,12 @@ const App: React.FC = () => {
         workouts.forEach(w => {
             const idx = updated.findIndex(ex => ex.id === w.id);
             if (idx >= 0) updated[idx] = w;
-            else updated.push(w); // Should not happen for updates but safe
+            else updated.push(w);
         });
         setPlannedWorkouts(updated);
         await savePlannedWorkoutsToDB(updated);
         addToast('Piano aggiornato.', 'success');
     };
-
-    // --- RACE MODE HANDLERS ---
 
     const handleAddOpponent = async (files: File[]) => {
         if (!files || files.length === 0) return;
@@ -512,17 +492,14 @@ const App: React.FC = () => {
             n.delete(id);
             return n;
         });
-        // If it was a ghost, remove from tracks entirely
         if (id.startsWith('ghost-')) {
             setTracks(prev => prev.filter(t => t.id !== id));
         }
     };
 
     const handleStartRace = (renamedMap: Record<string, string>) => {
-        // Apply renames
         setTracks(prev => prev.map(t => renamedMap[t.id] ? { ...t, name: renamedMap[t.id] } : t));
         
-        // Prepare runners
         const selectedTracks = tracks.filter(t => raceSelectionIds.has(t.id));
         const runners = selectedTracks.map(t => ({
             trackId: t.id,
@@ -537,7 +514,7 @@ const App: React.FC = () => {
         setSimulationState('running');
         setShowRaceSetup(false);
         setIsRaceMode(true);
-        setIsSidebarOpen(false); // Maximize map
+        setIsSidebarOpen(false);
     };
 
     const handleExitRace = () => {
@@ -546,12 +523,9 @@ const App: React.FC = () => {
         setRaceRunners([]);
         setRaceResults([]);
         setRaceSelectionIds(new Set());
-        // Clean up ghosts
         setTracks(prev => prev.filter(t => !t.isExternal));
         setIsSidebarOpen(true);
     };
-
-    // --- OTHER HANDLERS ---
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -624,7 +598,6 @@ const App: React.FC = () => {
                 <WelcomeModal onClose={() => { 
                     setShowWelcome(false); 
                     localStorage.setItem('hasSeenWelcome', 'true');
-                    // Load sample track
                     processFilesOnMainThread([new File([SAMPLE_GPX_DATA], "Colosseum_Run_Example.gpx", { type: "application/gpx+xml" })]);
                     setShowHome(true); 
                 }} />
@@ -656,7 +629,6 @@ const App: React.FC = () => {
                 />
             )}
 
-            {/* MAIN APP UI */}
             {!showHome && !showAuthSelection && !showInitialChoice && (
                 <div className="flex h-full relative">
                     {/* SIDEBAR */}
@@ -722,7 +694,6 @@ const App: React.FC = () => {
                                 onCloseMobile={() => setIsSidebarOpen(false)}
                                 onUpdateTrackMetadata={(id, meta) => {
                                     setTracks(prev => prev.map(t => t.id === id ? { ...t, ...meta } : t));
-                                    // Should sync to cloud but simple update here
                                 }}
                                 onRegenerateTitles={() => {}}
                                 onToggleExplorer={() => setShowExplorer(true)}
@@ -745,8 +716,8 @@ const App: React.FC = () => {
                                 onOpenSocial={() => setShowSocial(true)}
                                 onToggleArchived={(id) => setTracks(prev => prev.map(t => t.id === id ? { ...t, isArchived: !t.isArchived } : t))}
                                 isGuest={isGuest}
-                                onlineCount={0} // Mock
-                                unreadCount={0} // Mock
+                                onlineCount={0} 
+                                unreadCount={0} 
                                 onTogglePrivacySelected={(isPublic) => {
                                     setTracks(prev => prev.map(t => raceSelectionIds.has(t.id) ? { ...t, isPublic } : t));
                                 }}
@@ -814,7 +785,6 @@ const App: React.FC = () => {
 
                         <LiveCommentary messages={raceCommentary} isLoading={false} />
 
-                        {/* Navigation Dock (Mobile) */}
                         {!isRaceMode && (
                             <NavigationDock 
                                 onOpenSidebar={() => setIsSidebarOpen(true)}
@@ -835,9 +805,11 @@ const App: React.FC = () => {
                             {!showChatbot ? (
                                 <button 
                                     onClick={() => setShowChatbot(true)}
-                                    className="bg-purple-600 hover:bg-purple-500 text-white p-3 rounded-full shadow-2xl transition-transform hover:scale-110 active:scale-95 border-2 border-purple-400"
+                                    className="bg-purple-600 hover:bg-purple-500 text-white p-3 rounded-full shadow-2xl transition-transform hover:scale-110 active:scale-95 border-2 border-purple-400 group"
                                 >
-                                    <span className="text-2xl">🤖</span>
+                                    <span className="group-hover:scale-110 transition-transform block">
+                                        <WhistleFloatingIcon />
+                                    </span>
                                 </button>
                             ) : (
                                 <div className="animate-fade-in-up">
