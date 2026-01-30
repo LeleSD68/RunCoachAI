@@ -244,7 +244,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
                         <LargeLogoIcon />
                     </div>
                     {userProfile?.name && !isGuest ? (
-                        <h2 className="text-2xl md:text-3xl font-black text-white italic tracking-tighter uppercase mb-1">
+                        <h2 className="text-2xl md:text-3xl font-black text-white italic tracking-tighter uppercase mb-1 animate-fade-in">
                             Ciao, <span className="text-cyan-400">{userProfile.name}</span>
                         </h2>
                     ) : (
