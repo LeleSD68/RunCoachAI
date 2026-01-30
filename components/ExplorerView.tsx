@@ -38,6 +38,12 @@ const RotateDeviceIcon = () => (
     </svg>
 );
 
+const StravaIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 text-[#fc4c02]">
+        <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.477 0 4.177 12.173h4.172" />
+    </svg>
+);
+
 const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTrack }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [viewMode, setViewMode] = useState<ViewMode>('table'); // Default to table for Runalize feel
@@ -307,7 +313,10 @@ const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTr
                                             <td className="p-2 sm:p-3 font-mono text-slate-300 whitespace-nowrap text-xs sm:text-sm">{new Date(t.points[0].time).toLocaleDateString()}</td>
                                         )}
                                         {visibleColumns.has('name') && (
-                                            <td className="p-2 sm:p-3 font-bold text-white max-w-[150px] sm:max-w-[250px] truncate group-hover:text-cyan-400 text-xs sm:text-sm">{t.name}</td>
+                                            <td className="p-2 sm:p-3 font-bold text-white max-w-[150px] sm:max-w-[250px] truncate group-hover:text-cyan-400 text-xs sm:text-sm flex items-center gap-2">
+                                                {t.name}
+                                                {(t.id.startsWith('strava-') || (t.tags && t.tags.includes('Strava'))) && <StravaIcon />}
+                                            </td>
                                         )}
                                         {visibleColumns.has('activity') && (
                                             <td className="p-2 sm:p-3"><span className="bg-slate-800 border border-slate-700 px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 whitespace-nowrap">{t.activityType || 'Run'}</span></td>
@@ -374,6 +383,11 @@ const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTr
                                                 {gridCols > 1 && (
                                                     <div className="absolute bottom-2 left-2 bg-slate-900/80 backdrop-blur-md px-2 py-1 rounded text-[10px] font-mono text-white font-bold border border-slate-700">
                                                         {track.distance.toFixed(2)} km
+                                                    </div>
+                                                )}
+                                                {(track.id.startsWith('strava-') || (track.tags && track.tags.includes('Strava'))) && (
+                                                    <div className="absolute top-1 right-1 bg-black/60 p-1 rounded">
+                                                        <StravaIcon />
                                                     </div>
                                                 )}
                                             </div>
