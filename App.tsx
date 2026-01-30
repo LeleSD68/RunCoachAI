@@ -250,7 +250,7 @@ const App: React.FC = () => {
 
                 await saveTracksToDB(updatedTracks);
                 if (!isGuest && userId) {
-                    uniqueNewTracks.forEach(t => syncTrackToCloud(t));
+                    await Promise.all(uniqueNewTracks.map(t => syncTrackToCloud(t)));
                 }
                 
                 addToast(`Importate ${importedCount} nuove attività da Strava.`, "success");
