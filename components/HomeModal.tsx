@@ -25,7 +25,7 @@ interface HomeModalProps {
     onLogin?: () => void; 
     isGuest?: boolean;
     onOpenStravaConfig?: () => void;
-    userProfile?: UserProfile; // NEW PROP
+    userProfile?: UserProfile; 
 }
 
 const SettingsIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M7.84 1.804A1 1 0 0 1 8.82 1h2.36a1 1 0 0 1 .98.804l.331 1.652a6.993 6.993 0 0 1 1.929 1.115l1.598-.54a1 1 0 0 1 1.186.447l1.18 2.044a1 1 0 0 1-.205 1.251l-1.267 1.113a7.047 7.047 0 0 1 0 2.228l1.267 1.113a1 1 0 0 1 .206 1.25l-1.18 2.045a1 1 0 0 1 1.187-.447l1.598.54a6.993 6.993 0 0 1 7.51 3.456l.33-1.652ZM10 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" clipRule="evenodd" /></svg>);
@@ -243,9 +243,10 @@ const HomeModal: React.FC<HomeModalProps> = ({
                     <div className="flex justify-center mb-4">
                         <LargeLogoIcon />
                     </div>
-                    {userProfile?.name && !isGuest ? (
+                    {/* Updated Greeting Logic */}
+                    {!isGuest ? (
                         <h2 className="text-2xl md:text-3xl font-black text-white italic tracking-tighter uppercase mb-1 animate-fade-in">
-                            Ciao, <span className="text-cyan-400">{userProfile.name}</span>
+                            Ciao, <span className="text-cyan-400">{userProfile?.name || 'Atleta'}</span>
                         </h2>
                     ) : (
                         <h2 className="text-2xl md:text-3xl font-black text-white italic tracking-tighter uppercase mb-1">
@@ -274,7 +275,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
                     }
                 </div>
 
-                <footer className="bg-slate-950/50 p-4 border-t border-slate-800/50 flex justify-between items-center text-xs font-bold text-slate-500">
+                <footer className="bg-slate-950/50 p-4 border-t border-slate-800/50 flex justify-between items-center text-xs font-bold text-slate-500 relative">
                     <div className="flex gap-4">
                         <button onClick={onOpenProfile} className="hover:text-white transition-colors flex items-center gap-1"><SettingsIcon /> Profilo</button>
                         <button onClick={onOpenHelp} className="hover:text-white transition-colors flex items-center gap-1"><HelpIcon /> Guida</button>
@@ -288,6 +289,12 @@ const HomeModal: React.FC<HomeModalProps> = ({
                             </button>
                         )}
                     </div>
+                    
+                    {/* Timestamp for last update */}
+                    <div className="absolute bottom-1 right-2 text-[9px] text-slate-700 opacity-50 pointer-events-none hidden md:block">
+                        Aggiornato: 28/01/2026 16:00
+                    </div>
+
                     <div className="flex gap-4">
                         {onManualCloudSave && !isGuest && (
                             <button onClick={onManualCloudSave} className="hover:text-green-400 transition-colors flex items-center gap-1" title="Sincronizza Cloud"><CloudUpIcon /> Cloud</button>
