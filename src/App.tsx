@@ -42,7 +42,7 @@ import {
 } from './services/dbService';
 import { generateSmartTitle } from './services/titleGenerator';
 import { supabase } from './services/supabaseClient';
-import { fetchRecentStravaActivities } from './services/stravaService';
+import { fetchRecentStravaActivities, handleStravaCallback } from './services/stravaService';
 import { SAMPLE_GPX_DATA } from './services/sampleTrackData';
 import { getGenAI } from './services/aiHelper';
 
@@ -147,6 +147,38 @@ const App: React.FC = () => {
             trackApiRequest: () => {} // Placeholder
         };
     }, [dailyTokenCount]);
+
+    // STRAVA CALLBACK HANDLER
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const stravaCode = params.get('code');
+        const stravaError = params.get('error');
+
+        if (stravaCode) {
+            // Remove code from URL immediately to prevent re-triggering
+            window.history.replaceState({}, document.title, window.location.pathname);
+            
+            setIsDataLoading(true);
+            addToast("Finalizzazione connessione Strava...", "info");
+            
+            handleStravaCallback(stravaCode)
+                .then(() => {
+                    addToast("Strava connesso! Avvio sincronizzazione...", "success");
+                    // Wait a bit to ensure tokens are persisted then sync
+                    setTimeout(() => handleStravaSync(), 500);
+                })
+                .catch((err) => {
+                    console.error(err);
+                    addToast("Errore connessione Strava. Verifica le credenziali.", "error");
+                })
+                .finally(() => {
+                    setIsDataLoading(false);
+                });
+        } else if (stravaError) {
+            addToast("Accesso Strava negato o annullato.", "error");
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    }, []);
 
     const handleSplashFinish = () => {
         setShowSplash(false);
@@ -959,7 +991,7 @@ const App: React.FC = () => {
                     tracks={tracks}
                 />
             )}
-            
+
             {showComparison && (
                 <ComparisonModal 
                     tracks={tracks.filter(t => raceSelectionIds.has(t.id))}
