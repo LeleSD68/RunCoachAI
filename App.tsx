@@ -759,7 +759,7 @@ const App: React.FC = () => {
                             onToggleAnimationPlay={() => setIsAnimationPlaying(!isAnimationPlaying)}
                             onAnimationProgressChange={setAnimationProgress}
                             animationSpeed={simulationSpeed}
-                            onAnimationSpeedChange={setAnimationSpeed}
+                            onAnimationSpeedChange={setSimulationSpeed} // Corrected: Using the setter for simulationSpeed
                             onExitAnimation={() => {
                                 setAnimationTrackId(null);
                                 setIsAnimationPlaying(false);
