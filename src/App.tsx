@@ -39,7 +39,7 @@ import {
     saveTracksToDB, loadTracksFromDB, 
     saveProfileToDB, loadProfileFromDB, 
     savePlannedWorkoutsToDB, loadPlannedWorkoutsFromDB,
-    importAllData, exportAllData, syncTrackToCloud, deleteTrackFromCloud, deletePlannedWorkoutFromCloud
+    importAllData, exportAllData, syncTrackToCloud, deleteTrackFromCloud, deletePlannedWorkoutFromCloud, deleteTrackFromLocalDB
 } from './services/dbService';
 import { generateSmartTitle } from './services/titleGenerator';
 import { supabase } from './services/supabaseClient';
@@ -668,8 +668,8 @@ const App: React.FC = () => {
             {showHome && (
                 <HomeModal 
                     onClose={() => setShowHome(false)}
-                    onOpenDiary={() => { closeAllOverlays(); setShowDiary(true); }}
-                    onOpenExplorer={() => { closeAllOverlays(); setShowExplorer(true); }}
+                    onOpenDiary={() => { setShowHome(false); closeAllOverlays(); setShowDiary(true); }}
+                    onOpenExplorer={() => { setShowHome(false); closeAllOverlays(); setShowExplorer(true); }}
                     onOpenHelp={() => setShowGuide(true)}
                     onImportBackup={handleImportBackup}
                     onExportBackup={handleExportBackup}
@@ -680,7 +680,15 @@ const App: React.FC = () => {
                     onOpenProfile={() => setShowProfile(true)}
                     onOpenChangelog={() => setShowChangelog(true)}
                     onUploadOpponent={handleAddOpponent}
-                    onEnterRaceMode={() => { setShowHome(false); setShowRaceSetup(true); }}
+                    onEnterRaceMode={() => { 
+                        setShowHome(false); 
+                        if (raceSelectionIds.size > 0) {
+                            setShowRaceSetup(true); 
+                        } else {
+                            addToast("Seleziona le tracce dalla lista per la gara.", "info");
+                            setIsSidebarOpen(true);
+                        }
+                    }}
                     onLogout={handleLogout}
                     onLogin={handleLogin}
                     isGuest={isGuest}
@@ -725,16 +733,34 @@ const App: React.FC = () => {
                             lapTimes={new Map()}
                             sortOrder={'date_desc'} // Placeholder
                             onSortChange={() => {}}
-                            onDeleteTrack={(id) => {
+                            onDeleteTrack={async (id) => {
+                                // 1. UI Update
                                 setTracks(prev => prev.filter(t => t.id !== id));
-                                deleteTrackFromCloud(id);
+                                setFilteredTracks(prev => prev.filter(t => t.id !== id));
+                                
+                                // 2. Local DB
+                                await deleteTrackFromLocalDB(id);
+                                
+                                // 3. Cloud (if applicable)
+                                if (!isGuest && userId) deleteTrackFromCloud(id);
+                                
                                 addToast("Traccia eliminata.", "info");
                             }}
-                            onDeleteSelected={() => {
-                                raceSelectionIds.forEach(id => deleteTrackFromCloud(id));
+                            onDeleteSelected={async () => {
+                                const idsToRemove = Array.from(raceSelectionIds);
+                                
+                                // 1. UI Update
                                 setTracks(prev => prev.filter(t => !raceSelectionIds.has(t.id)));
+                                setFilteredTracks(prev => prev.filter(t => !raceSelectionIds.has(t.id)));
                                 setRaceSelectionIds(new Set());
-                                addToast("Tracce eliminate.", "info");
+                                
+                                // 2. Storage Updates
+                                for (const id of idsToRemove) {
+                                    await deleteTrackFromLocalDB(id);
+                                    if (!isGuest && userId) deleteTrackFromCloud(id);
+                                }
+                                
+                                addToast(`${idsToRemove.length} tracce eliminate.`, "info");
                             }}
                             onViewDetails={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)}
                             onStartAnimation={(id) => {
