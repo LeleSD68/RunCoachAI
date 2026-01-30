@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Track, UserProfile, PlannedWorkout, Toast, ActivityType, RaceRunner, RaceResult, TrackStats, Commentary, TrackPoint } from './types';
 import Sidebar from './components/Sidebar';
 import MapDisplay from './components/MapDisplay';
@@ -15,6 +15,7 @@ import Changelog from './components/Changelog';
 import NavigationDock from './components/NavigationDock';
 import Chatbot from './components/Chatbot';
 import StravaConfigModal from './components/StravaConfigModal';
+import StravaSyncModal from './components/StravaSyncModal';
 import GuideModal from './components/GuideModal';
 import RaceSetupModal from './components/RaceSetupModal';
 import RaceControls from './components/RaceControls';
@@ -42,7 +43,7 @@ import {
 } from './services/dbService';
 import { generateSmartTitle } from './services/titleGenerator';
 import { supabase } from './services/supabaseClient';
-import { fetchRecentStravaActivities, handleStravaCallback } from './services/stravaService';
+import { fetchRecentStravaActivities, handleStravaCallback, isStravaConnected } from './services/stravaService';
 import { SAMPLE_GPX_DATA } from './services/sampleTrackData';
 import { getGenAI } from './services/aiHelper';
 
@@ -56,7 +57,8 @@ const App: React.FC = () => {
     
     // UI State
     const [showSplash, setShowSplash] = useState(true);
-    const [isDataLoading, setIsDataLoading] = useState(false); // NEW: Loading state for data fetch
+    const [isDataLoading, setIsDataLoading] = useState(false);
+    const [loadingMessage, setLoadingMessage] = useState('Caricamento...'); // NEW: Specific loading message
     const [showAuthSelection, setShowAuthSelection] = useState(false);
     const [showLoginModal, setShowLoginModal] = useState(false);
     const [showInitialChoice, setShowInitialChoice] = useState(false);
@@ -66,8 +68,9 @@ const App: React.FC = () => {
     const [showChangelog, setShowChangelog] = useState(false);
     const [showGuide, setShowGuide] = useState(false);
     const [showStravaConfig, setShowStravaConfig] = useState(false);
+    const [showStravaSyncOptions, setShowStravaSyncOptions] = useState(false);
     
-    // Main View States (Mutually Exclusive ideally)
+    // Main View States
     const [showExplorer, setShowExplorer] = useState(false);
     const [showDiary, setShowDiary] = useState(false);
     const [showPerformance, setShowPerformance] = useState(false);
@@ -134,8 +137,28 @@ const App: React.FC = () => {
         setShowGuide(false);
         setShowChangelog(false);
         setShowProfile(false);
-        // Note: We don't close showHome here as it's the main parent view
     };
+
+    // Derived state for last strava run
+    const lastStravaRunDate = useMemo(() => {
+        const stravaTracks = tracks.filter(t => t.id.startsWith('strava-'));
+        if (stravaTracks.length === 0) return null;
+        const sorted = [...stravaTracks].sort((a,b) => b.points[0].time.getTime() - a.points[0].time.getTime());
+        return sorted[0].points[0].time;
+    }, [tracks]);
+
+    // Responsive helper
+    const [isMobileView, setIsMobileView] = useState(window.innerWidth < 768);
+    useEffect(() => {
+        const handleResize = () => setIsMobileView(window.innerWidth < 768);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    // LOGIC: Sidebar should be visible if:
+    // 1. Manually opened (isSidebarOpen true)
+    // 2. OR We are on Desktop AND NOT in Race Mode (Desktop always shows sidebar unless racing)
+    const shouldShowSidebar = isSidebarOpen || (!isMobileView && !isRaceMode);
 
     // --- INITIALIZATION ---
 
@@ -144,7 +167,7 @@ const App: React.FC = () => {
         window.gpxApp = {
             addTokens: (count: number) => setDailyTokenCount(prev => prev + count),
             getDailyTokenCount: () => dailyTokenCount,
-            trackApiRequest: () => {} // Placeholder
+            trackApiRequest: () => {} 
         };
     }, [dailyTokenCount]);
 
@@ -155,17 +178,16 @@ const App: React.FC = () => {
         const stravaError = params.get('error');
 
         if (stravaCode) {
-            // Remove code from URL immediately to prevent re-triggering
             window.history.replaceState({}, document.title, window.location.pathname);
             
             setIsDataLoading(true);
+            setLoadingMessage("Connessione Strava in corso...");
             addToast("Finalizzazione connessione Strava...", "info");
             
             handleStravaCallback(stravaCode)
                 .then(() => {
-                    addToast("Strava connesso! Avvio sincronizzazione...", "success");
-                    // Wait a bit to ensure tokens are persisted then sync
-                    setTimeout(() => handleStravaSync(), 500);
+                    addToast("Strava connesso! Configura la sincronizzazione...", "success");
+                    setShowStravaSyncOptions(true);
                 })
                 .catch((err) => {
                     console.error(err);
@@ -186,14 +208,14 @@ const App: React.FC = () => {
     };
 
     const checkSession = async () => {
-        setIsDataLoading(true); // Start loading spinner
+        setIsDataLoading(true);
+        setLoadingMessage("Verifica sessione...");
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (session) {
                 setUserId(session.user.id);
                 setIsGuest(false);
-                // CRITICAL FIX: Await loadData to ensure profile is ready before showing Home
-                await loadData();
+                await loadData(); // Load data explicitly
                 setShowHome(true);
                 setShowAuthSelection(false); 
             } else {
@@ -203,7 +225,7 @@ const App: React.FC = () => {
             console.error("Session Check Error", e);
             setShowAuthSelection(true);
         } finally {
-            setIsDataLoading(false); // Stop loading spinner
+            setIsDataLoading(false);
         }
     };
 
@@ -223,15 +245,15 @@ const App: React.FC = () => {
     };
 
     const loadData = async (forceLocal = false) => {
+        setLoadingMessage("Recupero profilo utente...");
         try {
             const loadedProfile = await loadProfileFromDB(forceLocal);
             if (loadedProfile) setUserProfile(loadedProfile);
 
+            setLoadingMessage("Caricamento tracce e allenamenti...");
             const loadedTracks = await loadTracksFromDB(forceLocal);
             setTracks(loadedTracks);
             setFilteredTracks(loadedTracks);
-            
-            // Set all loaded tracks to visible by default
             setVisibleTrackIds(new Set(loadedTracks.map(t => t.id)));
 
             const loadedWorkouts = await loadPlannedWorkoutsFromDB(forceLocal);
@@ -239,6 +261,9 @@ const App: React.FC = () => {
         } catch (e) {
             console.error("Error loading data", e);
             addToast("Errore caricamento dati.", "error");
+        } finally {
+            // Optional: minimal delay to ensure user sees "Done"
+            await new Promise(r => setTimeout(r, 300));
         }
     };
 
@@ -340,40 +365,45 @@ const App: React.FC = () => {
         processFilesOnMainThread(files);
     };
 
-    const handleStravaSync = async () => {
+    const handleStravaClick = () => {
+        if (isStravaConnected()) {
+            setShowStravaSyncOptions(true);
+        } else {
+            setShowStravaConfig(true);
+        }
+    };
+
+    const handleStravaSync = async (afterTimestamp?: number) => {
+        setShowStravaSyncOptions(false);
         try {
+            setIsDataLoading(true);
+            setLoadingMessage("Download da Strava...");
             addToast("Sincronizzazione Strava in corso...", "info");
-            const fetchedTracks = await fetchRecentStravaActivities(10);
+            
+            const limit = afterTimestamp ? 50 : 10;
+            const fetchedTracks = await fetchRecentStravaActivities(limit, afterTimestamp);
             
             if (fetchedTracks.length === 0) {
                 addToast("Nessuna nuova attività trovata su Strava.", "info");
                 return;
             }
 
-            // Filter duplicates (checking against existing tracks)
             const newTracks = fetchedTracks.filter(newT => {
-                // Check by Strava ID first (if preserved in ID) or generic time/dist match
                 const alreadyExists = tracks.some(existingT => {
-                    if (existingT.id === newT.id) return true; // Direct ID match
-                    // Fallback fuzzy match
+                    if (existingT.id === newT.id) return true;
                     const timeDiff = Math.abs(existingT.points[0].time.getTime() - newT.points[0].time.getTime());
                     const distDiff = Math.abs(existingT.distance - newT.distance);
-                    return timeDiff < 60000 && distDiff < 0.1; // Within 1 minute and 100m
+                    return timeDiff < 60000 && distDiff < 0.1;
                 });
                 return !alreadyExists;
             });
 
             if (newTracks.length > 0) {
-                // Assign User ID if logged in
                 const tracksWithUser = newTracks.map(t => ({ ...t, userId: userId || undefined }));
-                
                 const updatedTracks = [...tracks, ...tracksWithUser].sort((a, b) => b.points[0].time.getTime() - a.points[0].time.getTime());
                 setTracks(updatedTracks);
                 setFilteredTracks(updatedTracks);
-                
-                // Save to DB (this handles both local and cloud sync internally)
                 await saveTracksToDB(updatedTracks);
-                
                 addToast(`Importate ${newTracks.length} attività da Strava!`, "success");
             } else {
                 addToast("Tutte le attività recenti sono già presenti.", "info");
@@ -386,6 +416,8 @@ const App: React.FC = () => {
             } else {
                 addToast("Errore sincronizzazione Strava.", "error");
             }
+        } finally {
+            setIsDataLoading(false);
         }
     };
 
@@ -539,7 +571,7 @@ const App: React.FC = () => {
         setSimulationState('running');
         setShowRaceSetup(false);
         setIsRaceMode(true);
-        setIsSidebarOpen(false); // Maximize map
+        // Sidebar closes automatically based on isRaceMode state in rendering logic
     };
 
     const handleExitRace = () => {
@@ -550,7 +582,7 @@ const App: React.FC = () => {
         setRaceSelectionIds(new Set());
         // Clean up ghosts
         setTracks(prev => prev.filter(t => !t.isExternal));
-        setIsSidebarOpen(true);
+        // Sidebar re-opens automatically
     };
 
     // --- OTHER HANDLERS ---
@@ -593,10 +625,10 @@ const App: React.FC = () => {
 
             {/* DATA LOADING OVERLAY */}
             {isDataLoading && (
-                <div className="fixed inset-0 z-[99999] bg-slate-900 flex flex-col items-center justify-center text-white">
-                    <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                    <p className="text-lg font-bold animate-pulse">Sincronizzazione profilo...</p>
-                    <p className="text-xs text-slate-400 mt-2">Attendere il caricamento dei dati.</p>
+                <div className="fixed inset-0 z-[99999] bg-slate-950/90 backdrop-blur-sm flex flex-col items-center justify-center text-white animate-fade-in">
+                    <div className="w-16 h-16 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mb-6 shadow-lg shadow-cyan-500/20"></div>
+                    <p className="text-xl font-black uppercase tracking-widest animate-pulse text-cyan-400">{loadingMessage}</p>
+                    <p className="text-xs text-slate-400 mt-2 font-mono">Attendere prego...</p>
                 </div>
             )}
 
@@ -654,7 +686,7 @@ const App: React.FC = () => {
                     isGuest={isGuest}
                     onManualCloudSave={userId && !isGuest ? () => {} : undefined} 
                     onCheckAiAccess={() => { if(limitReached) { setShowLoginModal(true); return false; } return true; }}
-                    onOpenStravaConfig={handleStravaSync} 
+                    onOpenStravaConfig={handleStravaClick} 
                     userProfile={userProfile}
                 />
             )}
@@ -663,99 +695,98 @@ const App: React.FC = () => {
             {!showHome && !showAuthSelection && !showInitialChoice && (
                 <div className="flex h-full relative">
                     {/* SIDEBAR */}
-                    {(isSidebarOpen || !isMobile()) && (
-                        <div className={`
-                            absolute md:relative z-20 h-full bg-slate-900 border-r border-slate-800 flex-shrink-0 transition-all duration-300
-                            ${isSidebarOpen ? 'w-80 translate-x-0' : 'w-0 -translate-x-full md:w-0 md:translate-x-0'}
-                        `}>
-                            <Sidebar 
-                                tracks={filteredTracks}
-                                onFileUpload={handleFileUpload}
-                                visibleTrackIds={visibleTrackIds}
-                                onToggleVisibility={(id) => setVisibleTrackIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
-                                raceSelectionIds={raceSelectionIds}
-                                onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
-                                onSelectAll={() => setRaceSelectionIds(new Set(tracks.map(t => t.id)))}
-                                onDeselectAll={() => setRaceSelectionIds(new Set())}
-                                onStartRace={() => setShowRaceSetup(true)}
-                                onGoToEditor={() => { if(raceSelectionIds.size === 1) setEditingTrack(tracks.find(t => t.id === Array.from(raceSelectionIds)[0]) || null); }}
-                                onPauseRace={() => setSimulationState('paused')}
-                                onResumeRace={() => setSimulationState('running')}
-                                onResetRace={() => { setSimulationTime(0); setSimulationState('idle'); }}
-                                simulationState={simulationState}
-                                simulationTime={simulationTime}
-                                onTrackHoverStart={setHoveredTrackId}
-                                onTrackHoverEnd={() => setHoveredTrackId(null)}
-                                hoveredTrackId={hoveredTrackId}
-                                raceProgress={new Map()} 
-                                simulationSpeed={simulationSpeed}
-                                onSpeedChange={setSimulationSpeed}
-                                lapTimes={new Map()}
-                                sortOrder={'date_desc'} // Placeholder
-                                onSortChange={() => {}}
-                                onDeleteTrack={(id) => {
-                                    setTracks(prev => prev.filter(t => t.id !== id));
-                                    deleteTrackFromCloud(id);
-                                    addToast("Traccia eliminata.", "info");
-                                }}
-                                onDeleteSelected={() => {
-                                    raceSelectionIds.forEach(id => deleteTrackFromCloud(id));
-                                    setTracks(prev => prev.filter(t => !raceSelectionIds.has(t.id)));
-                                    setRaceSelectionIds(new Set());
-                                    addToast("Tracce eliminate.", "info");
-                                }}
-                                onViewDetails={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)}
-                                onStartAnimation={(id) => {
-                                    setAnimationTrackId(id);
-                                    setIsAnimationPlaying(true);
-                                }}
-                                raceRanks={raceLeaderboard.ranks}
-                                runnerSpeeds={new Map(raceRunners.map(r => [r.trackId, r.pace]))}
-                                runnerDistances={new Map(raceRunners.map(r => [r.trackId, r.position.cummulativeDistance]))}
-                                runnerGapsToLeader={new Map()}
-                                collapsedGroups={new Set()}
-                                onToggleGroup={() => {}}
-                                onOpenChangelog={() => setShowChangelog(true)}
-                                onOpenProfile={() => setShowProfile(true)}
-                                onOpenGuide={() => setShowGuide(true)}
-                                onOpenDiary={() => { closeAllOverlays(); setShowDiary(true); }}
-                                dailyTokenUsage={{ used: dailyTokenCount, limit: 1000000 }}
-                                onExportBackup={handleExportBackup}
-                                onImportBackup={handleImportBackup}
-                                onCloseMobile={() => setIsSidebarOpen(false)}
-                                onUpdateTrackMetadata={(id, meta) => {
-                                    setTracks(prev => prev.map(t => t.id === id ? { ...t, ...meta } : t));
-                                    // Should sync to cloud but simple update here
-                                }}
-                                onRegenerateTitles={() => {}}
-                                onToggleExplorer={() => { closeAllOverlays(); setShowExplorer(true); }}
-                                showExplorer={showExplorer}
-                                listViewMode={'cards'}
-                                onListViewModeChange={() => {}}
-                                onAiBulkRate={() => {}}
-                                onOpenReview={(id) => setAiReviewTrackId(id)}
-                                mobileRaceMode={isMobile()}
-                                monthlyStats={{}}
-                                plannedWorkouts={plannedWorkouts}
-                                onOpenPlannedWorkout={(id) => { setSelectedWorkoutId(id); closeAllOverlays(); setShowDiary(true); }}
-                                apiUsageStats={{ rpm: 0, daily: 0, limitRpm: 60, limitDaily: 1000, totalTokens: dailyTokenCount }}
-                                onOpenHub={() => setShowHome(true)}
-                                onOpenPerformanceAnalysis={() => { closeAllOverlays(); setShowPerformance(true); }}
-                                onUserLogin={handleLogin}
-                                onUserLogout={handleLogout}
-                                onCompareSelected={() => setShowComparison(true)}
-                                userProfile={userProfile}
-                                onOpenSocial={() => { closeAllOverlays(); setShowSocial(true); }}
-                                onToggleArchived={(id) => setTracks(prev => prev.map(t => t.id === id ? { ...t, isArchived: !t.isArchived } : t))}
-                                isGuest={isGuest}
-                                onlineCount={0} // Mock
-                                unreadCount={0} // Mock
-                                onTogglePrivacySelected={(isPublic) => {
-                                    setTracks(prev => prev.map(t => raceSelectionIds.has(t.id) ? { ...t, isPublic } : t));
-                                }}
-                            />
-                        </div>
-                    )}
+                    {/* FIXED: Sidebar is now always visible on desktop unless Race Mode is active */}
+                    <div className={`
+                        absolute md:relative z-20 h-full bg-slate-900 border-r border-slate-800 flex-shrink-0 transition-all duration-300
+                        ${(shouldShowSidebar) ? 'w-80 translate-x-0' : 'w-0 -translate-x-full'}
+                    `}>
+                        <Sidebar 
+                            tracks={filteredTracks}
+                            onFileUpload={handleFileUpload}
+                            visibleTrackIds={visibleTrackIds}
+                            onToggleVisibility={(id) => setVisibleTrackIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
+                            raceSelectionIds={raceSelectionIds}
+                            onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
+                            onSelectAll={() => setRaceSelectionIds(new Set(tracks.map(t => t.id)))}
+                            onDeselectAll={() => setRaceSelectionIds(new Set())}
+                            onStartRace={() => setShowRaceSetup(true)}
+                            onGoToEditor={() => { if(raceSelectionIds.size === 1) setEditingTrack(tracks.find(t => t.id === Array.from(raceSelectionIds)[0]) || null); }}
+                            onPauseRace={() => setSimulationState('paused')}
+                            onResumeRace={() => setSimulationState('running')}
+                            onResetRace={() => { setSimulationTime(0); setSimulationState('idle'); }}
+                            simulationState={simulationState}
+                            simulationTime={simulationTime}
+                            onTrackHoverStart={setHoveredTrackId}
+                            onTrackHoverEnd={() => setHoveredTrackId(null)}
+                            hoveredTrackId={hoveredTrackId}
+                            raceProgress={new Map()} 
+                            simulationSpeed={simulationSpeed}
+                            onSpeedChange={setSimulationSpeed}
+                            lapTimes={new Map()}
+                            sortOrder={'date_desc'} // Placeholder
+                            onSortChange={() => {}}
+                            onDeleteTrack={(id) => {
+                                setTracks(prev => prev.filter(t => t.id !== id));
+                                deleteTrackFromCloud(id);
+                                addToast("Traccia eliminata.", "info");
+                            }}
+                            onDeleteSelected={() => {
+                                raceSelectionIds.forEach(id => deleteTrackFromCloud(id));
+                                setTracks(prev => prev.filter(t => !raceSelectionIds.has(t.id)));
+                                setRaceSelectionIds(new Set());
+                                addToast("Tracce eliminate.", "info");
+                            }}
+                            onViewDetails={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)}
+                            onStartAnimation={(id) => {
+                                setAnimationTrackId(id);
+                                setIsAnimationPlaying(true);
+                            }}
+                            raceRanks={raceLeaderboard.ranks}
+                            runnerSpeeds={new Map(raceRunners.map(r => [r.trackId, r.pace]))}
+                            runnerDistances={new Map(raceRunners.map(r => [r.trackId, r.position.cummulativeDistance]))}
+                            runnerGapsToLeader={new Map()}
+                            collapsedGroups={new Set()}
+                            onToggleGroup={() => {}}
+                            onOpenChangelog={() => setShowChangelog(true)}
+                            onOpenProfile={() => setShowProfile(true)}
+                            onOpenGuide={() => setShowGuide(true)}
+                            onOpenDiary={() => { closeAllOverlays(); setShowDiary(true); }}
+                            dailyTokenUsage={{ used: dailyTokenCount, limit: 1000000 }}
+                            onExportBackup={handleExportBackup}
+                            onImportBackup={handleImportBackup}
+                            onCloseMobile={() => setIsSidebarOpen(false)}
+                            onUpdateTrackMetadata={(id, meta) => {
+                                setTracks(prev => prev.map(t => t.id === id ? { ...t, ...meta } : t));
+                                // Should sync to cloud but simple update here
+                            }}
+                            onRegenerateTitles={() => {}}
+                            onToggleExplorer={() => { closeAllOverlays(); setShowExplorer(true); }}
+                            showExplorer={showExplorer}
+                            listViewMode={'cards'}
+                            onListViewModeChange={() => {}}
+                            onAiBulkRate={() => {}}
+                            onOpenReview={(id) => setAiReviewTrackId(id)}
+                            mobileRaceMode={isMobile()}
+                            monthlyStats={{}}
+                            plannedWorkouts={plannedWorkouts}
+                            onOpenPlannedWorkout={(id) => { setSelectedWorkoutId(id); closeAllOverlays(); setShowDiary(true); }}
+                            apiUsageStats={{ rpm: 0, daily: 0, limitRpm: 60, limitDaily: 1000, totalTokens: dailyTokenCount }}
+                            onOpenHub={() => setShowHome(true)}
+                            onOpenPerformanceAnalysis={() => { closeAllOverlays(); setShowPerformance(true); }}
+                            onUserLogin={handleLogin}
+                            onUserLogout={handleLogout}
+                            onCompareSelected={() => setShowComparison(true)}
+                            userProfile={userProfile}
+                            onOpenSocial={() => { closeAllOverlays(); setShowSocial(true); }}
+                            onToggleArchived={(id) => setTracks(prev => prev.map(t => t.id === id ? { ...t, isArchived: !t.isArchived } : t))}
+                            isGuest={isGuest}
+                            onlineCount={0} // Mock
+                            unreadCount={0} // Mock
+                            onTogglePrivacySelected={(isPublic) => {
+                                setTracks(prev => prev.map(t => raceSelectionIds.has(t.id) ? { ...t, isPublic } : t));
+                            }}
+                        />
+                    </div>
 
                     {/* MAP AREA */}
                     <div className="flex-grow relative h-full bg-slate-900 overflow-hidden">
@@ -873,6 +904,7 @@ const App: React.FC = () => {
             {showChangelog && <Changelog onClose={() => setShowChangelog(false)} />}
             {showGuide && <GuideModal onClose={() => setShowGuide(false)} />}
             {showStravaConfig && <StravaConfigModal onClose={() => setShowStravaConfig(false)} />}
+            {showStravaSyncOptions && <StravaSyncModal onClose={() => setShowStravaSyncOptions(false)} onSync={handleStravaSync} lastSyncDate={lastStravaRunDate} />}
             
             {showExplorer && (
                 <ExplorerView 
