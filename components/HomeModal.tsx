@@ -157,7 +157,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
             </button>
             {onOpenStravaConfig && (
                 <button 
-                    onClick={onOpenStravaConfig} 
+                    onClick={() => { onOpenStravaConfig(); onClose(); }} 
                     className={`p-4 border rounded-xl text-left transition-all group ${
                         isStravaLinked 
                         ? 'bg-green-900/10 border-green-500/30 hover:bg-green-900/20' 
@@ -223,6 +223,18 @@ const HomeModal: React.FC<HomeModalProps> = ({
     return (
         <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[5000] flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
             <div className="bg-slate-900 text-white rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden border border-slate-700/50 ring-1 ring-white/10 relative" onClick={e => e.stopPropagation()}>
+                
+                {/* Guest Warning Banner */}
+                {isGuest && (
+                    <div className="bg-amber-600 text-white text-[10px] font-bold text-center py-1 uppercase tracking-widest shadow-md z-20 relative">
+                        ⚠️ Modalità Ospite: Dati non salvati nel cloud
+                    </div>
+                )}
+                {!isGuest && (
+                    <div className="bg-gradient-to-r from-cyan-600 to-blue-600 text-white text-[10px] font-bold text-center py-1 uppercase tracking-widest shadow-md z-20 relative">
+                        ☁️ Connesso al Cloud
+                    </div>
+                )}
                 
                 <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-cyan-900/20 to-transparent pointer-events-none"></div>
                 
