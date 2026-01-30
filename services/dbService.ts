@@ -1,3 +1,4 @@
+
 import { Track, ChatMessage, UserProfile, PlannedWorkout } from '../types';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 
@@ -226,11 +227,27 @@ export const deleteTrackFromCloud = async (id: string) => {
     await supabase.from('tracks').delete().eq('id', id);
 }
 
+export const deleteTrackFromLocalDB = async (id: string): Promise<void> => {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([TRACKS_STORE], 'readwrite');
+    const store = transaction.objectStore(TRACKS_STORE);
+    store.delete(id);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
+};
+
 export const loadTracksFromDB = async (forceLocal: boolean = false): Promise<Track[]> => {
   const { data: { session } } = await supabase.auth.getSession();
 
   if (!forceLocal && session && isSupabaseConfigured()) {
-      const { data, error } = await supabase.from('tracks').select('*').order('start_time', { ascending: false });
+      // FIX: Add filter .eq('user_id', session.user.id) so we don't load friends' tracks into main list
+      const { data, error } = await supabase
+        .from('tracks')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .order('start_time', { ascending: false });
       
       if (error) {
           console.error("Error fetching tracks from Supabase:", error);
