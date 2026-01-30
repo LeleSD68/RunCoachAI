@@ -201,7 +201,7 @@ export const fetchRecentStravaActivities = async (limit: number = 5): Promise<Tr
 
     // Process parallel or sequential? Sequential to avoid rate limits
     for (const act of activities) {
-        if (act.type === 'Run') {
+        if (['Run', 'TrailRun', 'VirtualRun'].includes(act.type)) {
             try {
                 const track = await mapStravaToTrack(act, token);
                 if (track) tracks.push(track);
