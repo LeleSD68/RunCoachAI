@@ -187,10 +187,15 @@ const mapStravaToTrack = async (activity: any, token: string): Promise<Track | n
     };
 };
 
-export const fetchRecentStravaActivities = async (limit: number = 5): Promise<Track[]> => {
+export const fetchRecentStravaActivities = async (limit: number = 30, afterTimestamp?: number): Promise<Track[]> => {
     const token = await getValidAccessToken();
     
-    const activitiesRes = await fetch(`https://www.strava.com/api/v3/athlete/activities?per_page=${limit}`, {
+    let url = `https://www.strava.com/api/v3/athlete/activities?per_page=${limit}`;
+    if (afterTimestamp) {
+        url += `&after=${afterTimestamp}`;
+    }
+    
+    const activitiesRes = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
     });
 
