@@ -165,14 +165,24 @@ const App: React.FC = () => {
     };
 
     const checkSession = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-            setUserId(session.user.id);
-            setIsGuest(false);
-            await loadData(); // Await data loading
-            setShowHome(true);
-            triggerAutoSync(); // Try to sync after load
-        } else {
+        try {
+            const { data: { session }, error } = await supabase.auth.getSession();
+            if (error) throw error;
+            
+            if (session) {
+                setUserId(session.user.id);
+                setIsGuest(false);
+                await loadData(); // Await data loading
+                setShowHome(true);
+                triggerAutoSync(); // Try to sync after load
+            } else {
+                setShowAuthSelection(true);
+            }
+        } catch (e) {
+            console.error("Session check failed", e);
+            // Force logout to clear invalid tokens causing 400/403 loops
+            await supabase.auth.signOut();
+            setUserId(null);
             setShowAuthSelection(true);
         }
     };

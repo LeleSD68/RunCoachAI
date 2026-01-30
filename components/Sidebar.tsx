@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Track, TrackStats, UserProfile, PlannedWorkout, ApiUsageStats, MonthlyStats } from '../types';
 import TrackPreview from './TrackPreview';

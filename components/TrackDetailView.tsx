@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Track, TrackPoint, Split, PauseSegment, AiSegment, UserProfile, TrackStats, PlannedWorkout } from '../types';
 import MapDisplay from './MapDisplay';
@@ -356,7 +355,7 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
             case 'classic': return { 1: 'data', 2: 'map', 3: 'chart' };
             case 'map-top': return { 1: 'map', 2: 'data', 3: 'chart' };
             case 'data-right': return { 1: 'map', 2: 'chart', 3: 'data' };
-            case 'vertical': return { 1: 'data', 2: 'chart', 3: 'map' }; // Default vertical slots
+            case 'vertical': return { 1: 'data', 2: 'map', 3: 'chart' }; // Default vertical slots
             case 'focus-bottom': return { 1: 'data', 2: 'map', 3: 'chart' };
             case 'columns': return { 1: 'data', 2: 'map', 3: 'chart' };
             default: return { 1: 'data', 2: 'map', 3: 'chart' };
@@ -789,7 +788,7 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
 
         switch (currentLayout) {
             case 'classic': // Classic: Left (Slot 1) | Right-Top (Slot 2) / Right-Bottom (Slot 3)
-                // For mobile, we force vertical stacking
+                // For mobile, force vertical stacking: Data (Slot 1) on Top, Map (Slot 2) Bottom
                 return (
                     <ResizablePanel 
                         key={`${keyPrefix}-main`}
@@ -801,17 +800,23 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
                     >
                         {renderPane(1)}
                         <div className={`h-full relative bg-slate-900 w-full ${isMobile ? 'border-t' : 'border-l'} border-slate-700`}>
-                            <ResizablePanel 
-                                key={`${keyPrefix}-sub`}
-                                direction={isMobile ? 'vertical' : 'vertical'} 
-                                initialSizeRatio={getRatio('sub', 0.75)} 
-                                minSize={150} 
-                                minSizeSecondary={100}
-                                onResizeEnd={(_, r) => handlePanelResize('classic', 'sub', r)}
-                            >
-                                {renderPane(2)}
-                                {renderPane(3)}
-                            </ResizablePanel>
+                            {isMobile ? (
+                                // Mobile: Just render Pane 2 (Map) below Pane 1 (Data), usually Chart is hidden or swapped in Pane 2
+                                // Or use nested resize if needed.
+                                <div className="h-full w-full">{renderPane(2)}</div>
+                            ) : (
+                                <ResizablePanel 
+                                    key={`${keyPrefix}-sub`}
+                                    direction="vertical"
+                                    initialSizeRatio={getRatio('sub', 0.75)} 
+                                    minSize={150} 
+                                    minSizeSecondary={100}
+                                    onResizeEnd={(_, r) => handlePanelResize('classic', 'sub', r)}
+                                >
+                                    {renderPane(2)}
+                                    {renderPane(3)}
+                                </ResizablePanel>
+                            )}
                         </div>
                     </ResizablePanel>
                 );

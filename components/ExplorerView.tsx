@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Track } from '../types';
 import TrackPreview from './TrackPreview';
 import RatingStars from './RatingStars';
@@ -44,9 +44,25 @@ const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTr
     const [sortOption, setSortOption] = useState<SortOption>('date_desc');
     const [groupingMode, setGroupingMode] = useState<GroupingMode>('none');
     
-    // Table Config
-    const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set(['date', 'name', 'activity', 'distance', 'time', 'pace', 'hr', 'elevation']));
+    // Table Config - Persisted in localStorage
+    const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => {
+        try {
+            const saved = localStorage.getItem('explorer_visible_columns');
+            if (saved) {
+                return new Set(JSON.parse(saved));
+            }
+        } catch (e) {
+            console.error("Failed to load columns preference", e);
+        }
+        return new Set(['date', 'name', 'activity', 'distance', 'time', 'pace', 'hr', 'elevation']);
+    });
+
     const [showColMenu, setShowColMenu] = useState(false);
+
+    // Effect to save columns preference whenever it changes
+    useEffect(() => {
+        localStorage.setItem('explorer_visible_columns', JSON.stringify(Array.from(visibleColumns)));
+    }, [visibleColumns]);
 
     const availableColumns = [
         { id: 'date', label: 'Data' },
