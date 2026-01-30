@@ -29,6 +29,12 @@ const ChevronRightIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox=
 const ChevronDownIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z" clipRule="evenodd" /></svg>);
 const ExpandAllIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M5.22 14.78a.75.75 0 0 0 1.06 0l7.22-7.22v5.69a.75.75 0 0 0 1.5 0v-7.5a.75.75 0 0 0-.75-.75h-7.5a.75.75 0 0 0 0 1.5h5.69l-7.22 7.22a.75.75 0 0 0 0 1.06Z" clipRule="evenodd" /></svg>);
 const CollapseAllIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M13.28 5.22a.75.75 0 0 0-1.06 0l-7.22 7.22v-5.69a.75.75 0 0 0-1.5 0v7.5a.75.75 0 0 0 .75.75h7.5a.75.75 0 0 0 0-1.5h-5.69l7.22-7.22a.75.75 0 0 0 0-1.06Z" clipRule="evenodd" /></svg>);
+const MergeIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M11 5a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM2.615 16.428a1.224 1.224 0 0 1-.569-1.175 6.002 6.002 0 0 1 11.908 0c.058.467-.172.92-.57 1.174A9.953 9.953 0 0 1 7 18a9.953 9.953 0 0 1-4.385-1.572ZM16.25 5.75a.75.75 0 0 0-1.5 0v2h-2a.75.75 0 0 0 0 1.5h2v2a.75.75 0 0 0 1.5 0v-2h2a.75.75 0 0 0 0-1.5h-2v-2Z" /></svg>); // Reusing a similar icon for merge visual, or create specific
+const MergeTracksIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+        <path fillRule="evenodd" d="M3.75 3a.75.75 0 0 0-1.5 0v4a6.5 6.5 0 0 0 6.5 6.5h4.19l-1.72 1.72a.75.75 0 1 0 1.06 1.06l3-3a.75.75 0 0 0 0-1.06l-3-3a.75.75 0 1 0-1.06 1.06l1.72 1.72H8.75A5 5 0 0 1 3.75 7V3Z" clipRule="evenodd" />
+    </svg>
+);
 const StravaIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 text-[#fc4c02]">
         <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.477 0 4.177 12.173h4.172" />
@@ -102,7 +108,8 @@ interface SidebarProps {
     isGuest?: boolean;
     onlineCount?: number;
     unreadCount?: number;
-    onTogglePrivacySelected?: (makePublic: boolean) => void; // NEW PROP
+    onTogglePrivacySelected?: (makePublic: boolean) => void;
+    onMergeSelected?: () => void; // New prop for merging
 }
 
 type SortOption = 'date_desc' | 'date_asc' | 'distance_desc' | 'distance_asc' | 'time_desc' | 'time_asc';
@@ -115,7 +122,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
         hoveredTrackId, onTrackHoverStart, onTrackHoverEnd, simulationState, 
         onOpenDiary, showExplorer, onToggleExplorer,
         onOpenHub, onOpenPerformanceAnalysis, onOpenSocial, onCompareSelected,
-        onUpdateTrackMetadata, onToggleArchived, onTogglePrivacySelected,
+        onUpdateTrackMetadata, onToggleArchived, onTogglePrivacySelected, onMergeSelected,
         userProfile, onUserLogin, onUserLogout, isGuest, onlineCount = 0, unreadCount = 0
     } = props;
 
@@ -345,6 +352,11 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                             <button onClick={onStartRace} className="flex-1 bg-green-600 hover:bg-green-500 text-white text-xs font-bold py-2 rounded">
                                 Gara ({raceSelectionIds.size})
                             </button>
+                            {raceSelectionIds.size > 1 && onMergeSelected && (
+                                <button onClick={onMergeSelected} className="bg-cyan-700 hover:bg-cyan-600 text-cyan-100 px-2 rounded flex items-center justify-center" title="Unisci Tracce">
+                                    <MergeTracksIcon />
+                                </button>
+                            )}
                             <button onClick={onCompareSelected} className="bg-slate-700 hover:bg-slate-600 text-slate-200 px-2 rounded" title="Confronta">
                                 <CompareIcon />
                             </button>
