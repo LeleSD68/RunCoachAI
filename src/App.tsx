@@ -959,7 +959,7 @@ const App: React.FC = () => {
                     tracks={tracks}
                 />
             )}
-
+            
             {showComparison && (
                 <ComparisonModal 
                     tracks={tracks.filter(t => raceSelectionIds.has(t.id))}
