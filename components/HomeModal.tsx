@@ -50,6 +50,9 @@ const LargeLogoIcon = () => (
     </div>
 );
 
+// UPDATE THIS STRING TO VERIFY DEPLOYMENT
+const LATEST_BUILD_TIME = "30/01/2026 10:30";
+
 const HomeModal: React.FC<HomeModalProps> = ({ 
     onOpenDiary, onOpenExplorer, onOpenHelp, onImportBackup, onExportBackup, 
     onUploadTracks, onClose, trackCount, plannedWorkouts = [], onOpenWorkout, 
@@ -290,9 +293,9 @@ const HomeModal: React.FC<HomeModalProps> = ({
                         )}
                     </div>
                     
-                    {/* Timestamp for last update */}
-                    <div className="absolute bottom-1 right-2 text-[9px] text-slate-700 opacity-50 pointer-events-none hidden md:block">
-                        Aggiornato: 28/01/2026 18:00
+                    {/* Timestamp for last update - VERIFICATION */}
+                    <div className="absolute bottom-1 right-2 text-[8px] text-slate-700 opacity-40 pointer-events-none">
+                        Rev: {LATEST_BUILD_TIME}
                     </div>
 
                     <div className="flex gap-4">
