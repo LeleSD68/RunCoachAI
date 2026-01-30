@@ -1,4 +1,5 @@
 
+
 export type ActivityType = 'Lento' | 'Fartlek' | 'Ripetute' | 'Gara' | 'Lungo' | 'Altro' | 'Nota';
 
 export type AiPersonality = 'pro_balanced' | 'analytic' | 'strict';
@@ -127,6 +128,7 @@ export interface MapDisplayProps {
   aiSegmentHighlight?: AiSegment | null;
   showSummaryMode?: boolean;
   theme?: 'dark' | 'light';
+  is3DMode?: boolean;
 }
 
 

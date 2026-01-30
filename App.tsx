@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Track, UserProfile, PlannedWorkout, Toast, ActivityType, RaceRunner, RaceResult, TrackStats, Commentary, TrackPoint } from './types';
 import Sidebar from './components/Sidebar';
@@ -759,7 +758,7 @@ const App: React.FC = () => {
                             onToggleAnimationPlay={() => setIsAnimationPlaying(!isAnimationPlaying)}
                             onAnimationProgressChange={setAnimationProgress}
                             animationSpeed={simulationSpeed}
-                            onAnimationSpeedChange={setSimulationSpeed} // Corrected: Using the setter for simulationSpeed
+                            onAnimationSpeedChange={setSimulationSpeed}
                             onExitAnimation={() => {
                                 setAnimationTrackId(null);
                                 setIsAnimationPlaying(false);
