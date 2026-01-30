@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Track, UserProfile, PlannedWorkout, Toast, ActivityType, RaceRunner, RaceResult, TrackStats, Commentary, TrackPoint } from './types';
 import Sidebar from './components/Sidebar';
@@ -528,6 +529,7 @@ const App: React.FC = () => {
                     onManualCloudSave={userId && !isGuest ? () => {} : undefined} // Placeholder for manual save if needed
                     onCheckAiAccess={() => { if(limitReached) { setShowLoginModal(true); return false; } return true; }}
                     onOpenStravaConfig={() => setShowStravaConfig(true)}
+                    userProfile={userProfile}
                 />
             )}
 
