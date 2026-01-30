@@ -460,7 +460,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                                                                 </span>
                                                                 <div className="flex items-center gap-1">
                                                                     {/* Show Strava icon in List Mode too */}
-                                                                    {viewMode === 'list' && track.id.startsWith('strava-') && <StravaIcon />}
+                                                                    {(viewMode === 'list' && (track.id.startsWith('strava-') || (track.tags && track.tags.includes('Strava')))) && <StravaIcon />}
                                                                     {track.isPublic && <GlobeIcon />} 
                                                                     {track.rating && <RatingStars rating={track.rating} size="xs" />}
                                                                 </div>
