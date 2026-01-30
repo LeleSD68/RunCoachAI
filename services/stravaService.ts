@@ -182,7 +182,8 @@ const mapStravaToTrack = async (activity: any, token: string): Promise<Track | n
         color: '#fc4c02', // Strava orange
         activityType: 'Lento', // Default, logic below could improve
         startTime: activity.start_date,
-        isPublic: false
+        isPublic: false,
+        tags: ['Strava'] // Automatically tag as Strava
     };
 };
 
