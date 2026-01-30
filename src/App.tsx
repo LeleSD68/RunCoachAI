@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Track, UserProfile, PlannedWorkout, Toast, ActivityType, RaceRunner, RaceResult, TrackStats, Commentary, TrackPoint } from './types';
 import Sidebar from './components/Sidebar';
@@ -55,6 +56,7 @@ const App: React.FC = () => {
     
     // UI State
     const [showSplash, setShowSplash] = useState(true);
+    const [isDataLoading, setIsDataLoading] = useState(false); // NEW: Loading state for data fetch
     const [showAuthSelection, setShowAuthSelection] = useState(false);
     const [showLoginModal, setShowLoginModal] = useState(false);
     const [showInitialChoice, setShowInitialChoice] = useState(false);
@@ -64,10 +66,13 @@ const App: React.FC = () => {
     const [showChangelog, setShowChangelog] = useState(false);
     const [showGuide, setShowGuide] = useState(false);
     const [showStravaConfig, setShowStravaConfig] = useState(false);
+    
+    // Main View States (Mutually Exclusive ideally)
     const [showExplorer, setShowExplorer] = useState(false);
     const [showDiary, setShowDiary] = useState(false);
     const [showPerformance, setShowPerformance] = useState(false);
     const [showSocial, setShowSocial] = useState(false);
+    
     const [showChatbot, setShowChatbot] = useState(false);
     const [showComparison, setShowComparison] = useState(false);
     
@@ -120,6 +125,18 @@ const App: React.FC = () => {
         setToasts(prev => [...prev, { id, message, type }]);
     };
 
+    // Helper to close overlay panels when switching views
+    const closeAllOverlays = () => {
+        setShowExplorer(false);
+        setShowDiary(false);
+        setShowPerformance(false);
+        setShowSocial(false);
+        setShowGuide(false);
+        setShowChangelog(false);
+        setShowProfile(false);
+        // Note: We don't close showHome here as it's the main parent view
+    };
+
     // --- INITIALIZATION ---
 
     useEffect(() => {
@@ -137,16 +154,24 @@ const App: React.FC = () => {
     };
 
     const checkSession = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-            setUserId(session.user.id);
-            setIsGuest(false);
-            // CRITICAL FIX: Await loadData to ensure profile is ready before showing Home
-            await loadData();
-            setShowHome(true);
-            setShowAuthSelection(false); 
-        } else {
+        setIsDataLoading(true); // Start loading spinner
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+                setUserId(session.user.id);
+                setIsGuest(false);
+                // CRITICAL FIX: Await loadData to ensure profile is ready before showing Home
+                await loadData();
+                setShowHome(true);
+                setShowAuthSelection(false); 
+            } else {
+                setShowAuthSelection(true);
+            }
+        } catch (e) {
+            console.error("Session Check Error", e);
             setShowAuthSelection(true);
+        } finally {
+            setIsDataLoading(false); // Stop loading spinner
         }
     };
 
@@ -342,8 +367,6 @@ const App: React.FC = () => {
             await importAllData(data);
             await loadData(true);
             
-            // Se l'utente è loggato, sincronizziamo il backup appena importato col cloud (opzionale, logica complessa omessa per brevità)
-            
             addToast("Backup ripristinato con successo!", "success");
             setShowInitialChoice(false);
             setShowHome(true);
@@ -524,6 +547,7 @@ const App: React.FC = () => {
 
     const handleOpenWorkout = (workoutId: string) => {
         setSelectedWorkoutId(workoutId);
+        closeAllOverlays();
         setShowDiary(true);
     };
 
@@ -534,6 +558,15 @@ const App: React.FC = () => {
     return (
         <div className="h-screen w-screen flex flex-col overflow-hidden bg-slate-950 text-white font-sans">
             <ToastContainer toasts={toasts} setToasts={setToasts} />
+
+            {/* DATA LOADING OVERLAY */}
+            {isDataLoading && (
+                <div className="fixed inset-0 z-[99999] bg-slate-900 flex flex-col items-center justify-center text-white">
+                    <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                    <p className="text-lg font-bold animate-pulse">Sincronizzazione profilo...</p>
+                    <p className="text-xs text-slate-400 mt-2">Attendere il caricamento dei dati.</p>
+                </div>
+            )}
 
             {showAuthSelection && (
                 <AuthSelectionModal onGuest={handleGuestAccess} onLogin={handleLogin} />
@@ -571,8 +604,8 @@ const App: React.FC = () => {
             {showHome && (
                 <HomeModal 
                     onClose={() => setShowHome(false)}
-                    onOpenDiary={() => setShowDiary(true)}
-                    onOpenExplorer={() => setShowExplorer(true)}
+                    onOpenDiary={() => { closeAllOverlays(); setShowDiary(true); }}
+                    onOpenExplorer={() => { closeAllOverlays(); setShowExplorer(true); }}
                     onOpenHelp={() => setShowGuide(true)}
                     onImportBackup={handleImportBackup}
                     onExportBackup={handleExportBackup}
@@ -587,9 +620,9 @@ const App: React.FC = () => {
                     onLogout={handleLogout}
                     onLogin={handleLogin}
                     isGuest={isGuest}
-                    onManualCloudSave={userId && !isGuest ? () => {} : undefined} // Placeholder for manual save if needed
+                    onManualCloudSave={userId && !isGuest ? () => {} : undefined} 
                     onCheckAiAccess={() => { if(limitReached) { setShowLoginModal(true); return false; } return true; }}
-                    onOpenStravaConfig={handleStravaSync} // Using direct sync handler
+                    onOpenStravaConfig={handleStravaSync} 
                     userProfile={userProfile}
                 />
             )}
@@ -653,7 +686,7 @@ const App: React.FC = () => {
                                 onOpenChangelog={() => setShowChangelog(true)}
                                 onOpenProfile={() => setShowProfile(true)}
                                 onOpenGuide={() => setShowGuide(true)}
-                                onOpenDiary={() => setShowDiary(true)}
+                                onOpenDiary={() => { closeAllOverlays(); setShowDiary(true); }}
                                 dailyTokenUsage={{ used: dailyTokenCount, limit: 1000000 }}
                                 onExportBackup={handleExportBackup}
                                 onImportBackup={handleImportBackup}
@@ -663,7 +696,7 @@ const App: React.FC = () => {
                                     // Should sync to cloud but simple update here
                                 }}
                                 onRegenerateTitles={() => {}}
-                                onToggleExplorer={() => setShowExplorer(true)}
+                                onToggleExplorer={() => { closeAllOverlays(); setShowExplorer(true); }}
                                 showExplorer={showExplorer}
                                 listViewMode={'cards'}
                                 onListViewModeChange={() => {}}
@@ -672,15 +705,15 @@ const App: React.FC = () => {
                                 mobileRaceMode={isMobile()}
                                 monthlyStats={{}}
                                 plannedWorkouts={plannedWorkouts}
-                                onOpenPlannedWorkout={(id) => { setSelectedWorkoutId(id); setShowDiary(true); }}
+                                onOpenPlannedWorkout={(id) => { setSelectedWorkoutId(id); closeAllOverlays(); setShowDiary(true); }}
                                 apiUsageStats={{ rpm: 0, daily: 0, limitRpm: 60, limitDaily: 1000, totalTokens: dailyTokenCount }}
                                 onOpenHub={() => setShowHome(true)}
-                                onOpenPerformanceAnalysis={() => setShowPerformance(true)}
+                                onOpenPerformanceAnalysis={() => { closeAllOverlays(); setShowPerformance(true); }}
                                 onUserLogin={handleLogin}
                                 onUserLogout={handleLogout}
                                 onCompareSelected={() => setShowComparison(true)}
                                 userProfile={userProfile}
-                                onOpenSocial={() => setShowSocial(true)}
+                                onOpenSocial={() => { closeAllOverlays(); setShowSocial(true); }}
                                 onToggleArchived={(id) => setTracks(prev => prev.map(t => t.id === id ? { ...t, isArchived: !t.isArchived } : t))}
                                 isGuest={isGuest}
                                 onlineCount={0} // Mock
@@ -757,13 +790,13 @@ const App: React.FC = () => {
                             <NavigationDock 
                                 onOpenSidebar={() => setIsSidebarOpen(true)}
                                 onCloseSidebar={() => setIsSidebarOpen(false)}
-                                onOpenExplorer={() => setShowExplorer(true)}
-                                onOpenDiary={() => setShowDiary(true)}
-                                onOpenPerformance={() => setShowPerformance(true)}
+                                onOpenExplorer={() => { closeAllOverlays(); setShowExplorer(true); }}
+                                onOpenDiary={() => { closeAllOverlays(); setShowDiary(true); }}
+                                onOpenPerformance={() => { closeAllOverlays(); setShowPerformance(true); }}
                                 onOpenGuide={() => setShowGuide(true)}
                                 onExportBackup={handleExportBackup}
                                 onOpenHub={() => setShowHome(true)}
-                                onOpenSocial={() => setShowSocial(true)}
+                                onOpenSocial={() => { closeAllOverlays(); setShowSocial(true); }}
                                 isSidebarOpen={isSidebarOpen}
                             />
                         )}
