@@ -12,6 +12,8 @@ interface NavigationDockProps {
     onExportBackup: () => void;
     onOpenHub: () => void;
     onOpenSocial: () => void;
+    // Added onOpenProfile to resolve type mismatch in App.tsx
+    onOpenProfile: () => void;
     isSidebarOpen: boolean; 
     onlineCount?: number;
     unreadCount?: number;
@@ -62,7 +64,7 @@ const UserGroupIcon = () => (
 );
 
 const NavigationDock: React.FC<NavigationDockProps> = ({ 
-    onOpenSidebar, onCloseSidebar, onOpenExplorer, onOpenDiary, onOpenPerformance, onOpenHub, isSidebarOpen, onOpenSocial, onlineCount = 0, unreadCount = 0
+    onOpenSidebar, onCloseSidebar, onOpenExplorer, onOpenDiary, onOpenPerformance, onOpenHub, isSidebarOpen, onOpenSocial, onOpenProfile, onlineCount = 0, unreadCount = 0
 }) => {
     return (
         <div className="fixed bottom-0 md:bottom-4 left-0 w-full z-[9000] flex justify-center pointer-events-none pb-safe">
