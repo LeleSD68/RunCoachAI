@@ -90,7 +90,7 @@ const GuideModal: React.FC<GuideModalProps> = ({ onClose }) => {
                                 <strong>Copia i Codici:</strong> Una volta salvato, Strava ti mostrerà un <code className="text-white">Client ID</code> (numero) e un <code className="text-white">Client Secret</code> (codice).
                             </li>
                             <li>
-                                <strong>Inserisci in RunCoachAI:</strong> Torna qui, apri <span className="text-white font-bold">Dati -> Sincronizza Strava</span> e incolla i due codici.
+                                <strong>Inserisci in RunCoachAI:</strong> Torna qui, apri <span className="text-white font-bold">Dati &rarr; Sincronizza Strava</span> e incolla i due codici.
                             </li>
                             <li>
                                 <strong>Autorizza:</strong> Premi "Connetti". Verrai mandato su Strava per confermare il permesso di leggere le tue corse. Fatto!
@@ -105,7 +105,7 @@ const GuideModal: React.FC<GuideModalProps> = ({ onClose }) => {
 
                     <GuideSection title="Gestione & Backup Dati" icon="🏠" isOpen={openSection === 'hub'} onToggle={() => toggle('hub')}>
                         <p><strong>Dati nel Cloud:</strong> Se hai effettuato l'accesso con email, i tuoi dati sono salvati sui nostri server sicuri.</p>
-                        <p><strong>Backup Manuale:</strong> Anche se sei connesso, ti consigliamo di scaricare periodicamente un backup locale (Dati -> Backup) per sicurezza totale.</p>
+                        <p><strong>Backup Manuale:</strong> Anche se sei connesso, ti consigliamo di scaricare periodicamente un backup locale (Dati &rarr; Backup) per sicurezza totale.</p>
                     </GuideSection>
 
                     <GuideSection title="Modalità Gara & Replay" icon="🏁" isOpen={openSection === 'race'} onToggle={() => toggle('race')}>
