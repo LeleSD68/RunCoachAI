@@ -4,56 +4,25 @@ import { Track, UserProfile, PlannedWorkout } from '../types';
 import { calculateTrackStats } from './trackStatsService';
 
 export const getGenAI = () => {
-    if (!process.env.API_KEY) {
-        throw new Error("API_KEY_MISSING");
-    }
+    if (!process.env.API_KEY) throw new Error("API_KEY_MISSING");
     return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
 export const isAuthError = (e: any): boolean => {
     const msg = (e.message || '').toLowerCase();
     const status = e.status || e.code;
-    return (
-        status === 403 || 
-        status === 400 && (msg.includes('key') || msg.includes('api')) ||
-        msg.includes('403') || 
-        msg.includes('blocked') || 
-        msg.includes('permission_denied') ||
-        msg.includes('api key must be set')
-    );
-};
-
-export const isRetryableError = (error: any): boolean => {
-    const status = error?.status || error?.code;
-    const errorMessage = (error?.message || '').toLowerCase();
-    if (status === 429 || status === 'RESOURCE_EXHAUSTED' || errorMessage.includes('quota') || errorMessage.includes('rate limit')) return false;
-    if (isAuthError(error) || errorMessage.includes('api key')) return false;
-    return errorMessage.includes('overloaded') || errorMessage.includes('unavailable') || (status === 'UNAVAILABLE') || (status === 503);
-};
-
-export const getFriendlyErrorMessage = (error: any): string => {
-    const msg = (error?.message || '').toLowerCase();
-    const status = error?.status || error?.code;
-    if (msg.includes('api_key_missing') || msg.includes('api key must be set')) return "⚠️ Chiave API mancante. Selezionala per continuare.";
-    if (status === 429 || status === 'RESOURCE_EXHAUSTED' || msg.includes('quota')) return "⚠️ Quota richieste esaurita. Riprova tra circa 1 minuto.";
-    if (isAuthError(error)) return "⚠️ Errore di autenticazione API. Controlla la tua chiave.";
-    if (msg.includes('overloaded')) return "⚠️ I server AI sono sovraccarichi. Riprova tra poco.";
-    return "⚠️ Si è verificato un errore di connessione.";
+    return status === 403 || status === 400 && (msg.includes('key') || msg.includes('api')) || msg.includes('403') || msg.includes('blocked') || msg.includes('permission_denied') || msg.includes('api key must be set');
 };
 
 export async function ensureApiKey() {
     if (window.aistudio) await window.aistudio.openSelectKey();
 }
 
-export async function retryWithPolicy<T>(
-    operation: () => Promise<T>, 
-    handleTokenCount?: (count: number) => void
-): Promise<T> {
+export async function retryWithPolicy<T>(operation: () => Promise<T>): Promise<T> {
     try {
         return await operation();
     } catch (e: any) {
-        if (isAuthError(e) || e.message === 'API_KEY_MISSING' || e.message?.includes('API Key')) {
-            console.warn("API Auth Error. Prompting for new key...", e);
+        if (isAuthError(e)) {
             await ensureApiKey();
             return await operation();
         }
@@ -61,7 +30,13 @@ export async function retryWithPolicy<T>(
     }
 }
 
-// --- AUTOMATIC RATING FUNCTION ---
+const formatPace = (pace: number) => {
+    if (!isFinite(pace) || pace <= 0) return '--:--';
+    const minutes = Math.floor(pace);
+    const seconds = Math.round((pace - minutes) * 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+};
+
 export const generateAiRating = async (
     track: Track, 
     allTracks: Track[], 
@@ -69,57 +44,37 @@ export const generateAiRating = async (
     plannedWorkout?: { title: string; description: string; activityType: string }
 ): Promise<{ rating: number; reason: string } | null> => {
     
-    // 1. Calculate History Context
-    const similarTracks = allTracks.filter(t => 
-        t.id !== track.id && 
-        t.distance >= track.distance * 0.9 && 
-        t.distance <= track.distance * 1.1
-    );
-
-    let historyContext = "Questa è la prima volta che corri questa distanza.";
-    if (similarTracks.length > 0) {
-        const avgPace = similarTracks.reduce((acc, t) => acc + (t.duration / 1000 / 60) / t.distance, 0) / similarTracks.length;
-        const avgPaceStr = `${Math.floor(avgPace)}:${Math.round((avgPace % 1) * 60).toString().padStart(2, '0')}`;
-        historyContext = `Hai corso questa distanza ${similarTracks.length} volte in passato. La tua media storica è ${avgPaceStr}/km.`;
-    }
-
-    // 2. Prepare Stats
     const stats = calculateTrackStats(track);
-    const paceMinKm = stats.movingAvgPace;
-    const paceStr = `${Math.floor(paceMinKm)}:${Math.round((paceMinKm % 1) * 60).toString().padStart(2, '0')}`;
+    const paceStr = formatPace(stats.movingAvgPace);
     
-    // 3. Prepare Planned Workout Context
-    let planContext = "Nessun allenamento specifico pianificato.";
+    let planContext = "Nessun allenamento specifico pianificato nel diario.";
     if (plannedWorkout) {
         planContext = `
         ALLENAMENTO PIANIFICATO DAL DIARIO:
         - Titolo: "${plannedWorkout.title}"
-        - Tipo: ${plannedWorkout.activityType}
+        - Obiettivo Dichiarato: ${plannedWorkout.activityType}
         - Istruzioni: "${plannedWorkout.description}"
         
-        REGOLE CRITICHE DI VALUTAZIONE:
-        - Se l'atleta doveva correre un 'Lento' ma è andato troppo forte (Cardio alto), il voto è BASSO (1-2) anche se la performance è veloce.
-        - Se era un 'Recupero' ed è stato rispettato il cardio basso -> 5 STELLE.
-        - Se erano 'Ripetute' e i picchi di velocità sono coerenti -> 5 STELLE.
-        - La fedeltà alla tipologia di sforzo è più importante della velocità pura.
+        REGOLE DI VALUTAZIONE (MERITOCRATICHE):
+        - Se era un 'Lento' o 'Recupero' ma l'atleta ha corso forte (FC alta/Passo veloce) -> IL VOTO DEVE ESSERE BASSO (1-2 stelle) per mancata disciplina fisiologica.
+        - Se era un 'Lungo' ed è stato costante -> 5 stelle.
+        - Se erano 'Ripetute' e i ritmi sono corretti -> 5 stelle.
+        - Premia la coerenza con l'obiettivo, non la velocità fine a se stessa.
         `;
     }
 
-    const prompt = `Sei un coach di corsa esperto e severo. Valuta questa specifica sessione da 1 a 5 stelle.
+    const prompt = `Sei un Head Coach di corsa severo. Valuta questa sessione da 1 a 5 stelle.
 
-    DATI CORSA ATTUALE:
+    DATI REALI:
     - Distanza: ${track.distance.toFixed(2)} km
-    - Ritmo: ${paceStr}/km
-    - Tipo rilevato dai dati: ${track.activityType}
-    - FC Media: ${stats.avgHr ? Math.round(stats.avgHr) : 'N/D'} bpm
-    - Sforzo Percepito (RPE): ${track.rpe ?? 'Non inserito'} / 10
-
-    CONTEXT STORICO:
-    ${historyContext}
+    - Passo Medio: ${paceStr}/km
+    - FC Media: ${stats.avgHr ? Math.round(stats.avgHr) : 'N/D'} bpm (FC Max: ${stats.maxHr ?? 'N/D'})
+    - Sforzo Percepito (RPE): ${track.rpe ?? 'N/D'} / 10
+    - Note Atleta: "${track.notes || 'Nessuna'}"
 
     ${planContext}
 
-    Rispondi SOLO con un JSON: { "rating": number (1-5), "reason": "Motivazione tecnica in italiano (max 15 parole)" }`;
+    Rispondi SOLO con un JSON: { "rating": number (1-5), "reason": "Motivazione tecnica brevissima (max 12 parole)" }`;
 
     try {
         const ai = getGenAI();
@@ -131,23 +86,18 @@ export const generateAiRating = async (
                 responseSchema: {
                     type: Type.OBJECT,
                     properties: {
-                        rating: { type: Type.INTEGER, description: "Rating from 1 to 5 stars" },
-                        reason: { type: Type.STRING, description: "Short motivation in Italian" }
-                    }
+                        rating: { type: Type.INTEGER },
+                        reason: { type: Type.STRING }
+                    },
+                    required: ["rating", "reason"]
                 }
             }
         });
         
-        if (response.usageMetadata?.totalTokenCount) {
-             window.gpxApp?.addTokens(response.usageMetadata.totalTokenCount);
-        }
-
-        const json = JSON.parse(response.text || '{}');
-        if (json.rating && json.reason) {
-            return { rating: json.rating, reason: json.reason };
-        }
+        if (response.usageMetadata?.totalTokenCount) window.gpxApp?.addTokens(response.usageMetadata.totalTokenCount);
+        return JSON.parse(response.text || '{}');
     } catch (e) {
-        console.error("AI Rating Failed:", e);
+        console.error("Rating generation error", e);
+        return null;
     }
-    return null;
 };

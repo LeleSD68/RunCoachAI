@@ -48,7 +48,6 @@ const StatsPanel: React.FC<StatsPanelProps> = ({ stats, selectedSegment, onSegme
         return { minPace, maxPace, paceRange };
     }, [stats.splits]);
 
-    // Calcolo ritmo per velocità massima
     const maxSpeedPace = stats.maxSpeed > 0 ? 60 / stats.maxSpeed : 0;
 
     return (

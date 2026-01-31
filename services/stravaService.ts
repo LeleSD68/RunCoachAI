@@ -124,9 +124,6 @@ const getValidAccessToken = async () => {
 
 /**
  * Carica un file GPX direttamente su Strava.
- * @param gpxContent Il contenuto XML del file GPX
- * @param name Il nome dell'attività
- * @param activityType Il tipo di attività (default 'run')
  */
 export const uploadGpxToStrava = async (gpxContent: string, name: string, activityType: string = 'run') => {
     const token = await getValidAccessToken();
@@ -136,7 +133,7 @@ export const uploadGpxToStrava = async (gpxContent: string, name: string, activi
     formData.append('file', blob, 'activity.gpx');
     formData.append('data_type', 'gpx');
     formData.append('name', name);
-    formData.append('activity_type', activityType.toLowerCase() === 'corsa' || activityType.toLowerCase() === 'run' ? 'run' : 'run'); // Mappatura minima
+    formData.append('activity_type', activityType.toLowerCase() === 'corsa' || activityType.toLowerCase() === 'run' ? 'run' : 'run');
 
     const response = await fetch('https://www.strava.com/api/v3/uploads', {
         method: 'POST',
@@ -232,7 +229,11 @@ export const fetchRecentStravaActivities = async (limit: number = 30, afterTimes
     const tracks: Track[] = [];
 
     for (const act of activities) {
-        if (['Run', 'TrailRun', 'VirtualRun'].includes(act.type)) {
+        // Filtriamo esplicitamente per includere solo corse (Run), Trail (TrailRun) e Virtual (VirtualRun)
+        // Strava supporta anche Walk, Hike, Ride, ecc. che vogliamo escludere.
+        const isRunningType = ['Run', 'TrailRun', 'VirtualRun'].includes(act.type);
+        
+        if (isRunningType) {
             try {
                 const track = await mapStravaToTrack(act, token);
                 if (track) tracks.push(track);
