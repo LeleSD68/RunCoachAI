@@ -48,6 +48,9 @@ const StatsPanel: React.FC<StatsPanelProps> = ({ stats, selectedSegment, onSegme
         return { minPace, maxPace, paceRange };
     }, [stats.splits]);
 
+    // Calcolo ritmo per velocità massima
+    const maxSpeedPace = stats.maxSpeed > 0 ? 60 / stats.maxSpeed : 0;
+
     return (
         <div className="text-white space-y-3">
             <div className="grid grid-cols-2 gap-2">
@@ -55,8 +58,24 @@ const StatsPanel: React.FC<StatsPanelProps> = ({ stats, selectedSegment, onSegme
                 <StatCard title="Tempo" value={formatDuration(stats.movingDuration)} subvalue={`Tot. ${formatDuration(stats.totalDuration)}`} />
                 <StatCard title="Ritmo Medio" value={formatPace(stats.movingAvgPace)} subvalue={`/km`} />
                 <StatCard title="Dislivello" value={`+${Math.round(stats.elevationGain)} m`} subvalue={`Perso: -${Math.round(stats.elevationLoss)} m`} />
+                
+                <StatCard 
+                    title="Velocità Max" 
+                    value={formatPace(maxSpeedPace)} 
+                    subvalue={`${stats.maxSpeed.toFixed(1)} km/h`} 
+                    className="border-cyan-900/50"
+                />
+                
+                {stats.avgHr && (
+                    <StatCard 
+                        title="Freq. Card." 
+                        value={`${Math.round(stats.avgHr)} bpm`} 
+                        subvalue={`Max: ${stats.maxHr || '-'} bpm`}
+                        className="border-red-900/30"
+                    />
+                )}
+                
                 {stats.avgWatts && <StatCard title="Potenza Media" value={`${stats.avgWatts} W`} subvalue="(Stima)" />}
-                {stats.avgHr && <StatCard title="Frequenza Card." value={`${Math.round(stats.avgHr)} bpm`} subvalue={`Max: ${stats.maxHr} bpm`} />}
             </div>
 
             {stats.splits.length > 0 && (
