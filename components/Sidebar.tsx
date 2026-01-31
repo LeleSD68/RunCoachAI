@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useMemo } from 'react';
-import { Track, UserProfile, PlannedWorkout, ApiUsageStats } from '../types';
+import { Track, UserProfile, PlannedWorkout, ApiUsageStats, ActivityType } from '../types';
 import Tooltip from './Tooltip';
 import RatingStars from './RatingStars';
 import TrackPreview from './TrackPreview';
@@ -11,8 +11,9 @@ const MergeTracksIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="
 const ArchiveBoxIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M2 3a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3Z" /><path fillRule="evenodd" d="M13 9a1 1 0 1 0 0 2h-6a1 1 0 1 0 0-2h6ZM2.75 7A.75.75 0 0 0 2 7.75v8.5c0 .69.56 1.25 1.25 1.25h13.5c.69 0 1.25-.56 1.25-1.25v-8.5A.75.75 0 0 0 17.25 7H2.75Z" clipRule="evenodd" /></svg>);
 const EyeIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" /><path fillRule="evenodd" d="M.664 10.59a1.651 1.651 0 0 1 0-1.186A10.004 10.004 0 0 1 10 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0 1 10 17c-4.257 0-7.893-2.66-9.336-6.41ZM14 10a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" clipRule="evenodd" /></svg>);
 const EyeSlashIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M3.28 2.22a.75.75 0 0 0-1.06 1.06l14.5 14.5a.75.75 0 1 0 1.06-1.06l-1.745-1.745a10.029 10.029 0 0 0 3.3-5.59 1.651 1.651 0 0 0 0-1.185A10.004 10.004 0 0 0 9.999 3a9.956 9.956 0 0 0-4.744 1.194L3.28 2.22ZM7.752 6.69l1.092 1.092a2.5 2.5 0 0 1 3.374 3.373l1.091 1.092a4 4 0 0 0-5.557-5.557Z" clipRule="evenodd" /><path d="M10.748 13.93 5.39 8.57a10.015 10.015 0 0 0-3.39 1.42 1.651 1.651 0 0 0 0 1.186A10.004 10.004 0 0 1 10 17c1.9 0 3.682-.534 5.194-1.465l-2.637-2.637a3.987 3.987 0 0 1-1.808.032Z" /></svg>);
-const RectangleStackIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M5.127 3.502c.2.019.4.038.598.058l.175.018a47.092 47.092 0 0 0 3.237.24c.718.036 1.439.057 2.163.064l.95.006c.65 0 1.302-.005 1.954-.015.65-.01 1.304-.025 1.957-.045.312-.01.625-.02.937-.033a1.5 1.5 0 0 1 1.55 1.433l.034.338c.026.26.046.52.062.782.03.52.046 1.04.046 1.562 0 .56-.018 1.119-.054 1.677l-.027.424a1.5 1.5 0 0 1-1.536 1.402l-1.356.027a47.457 47.457 0 0 1-3.264.025 47.472 47.472 0 0 1-3.265-.025l-1.356-.027a1.5 1.5 0 0 1-1.536-1.402l-.027-.424a47.382 47.382 0 0 1-.054-1.677c0-.522.016-1.042.046-1.562l.062-.782a1.5 1.5 0 0 1 1.535-1.393ZM2.872 7.72l.061.782a48.887 48.887 0 0 0 .047 1.562c.036.558.054 1.117.054 1.677 0 .522-.016 1.042-.046 1.562l-.062.782a1.5 1.5 0 0 1-1.535 1.393L1.216 15.46a47.094 47.094 0 0 1-3.237-.24 47.462 47.462 0 0 1-3.265-.417l-.175-.027a1.5 1.5 0 0 1-1.324-1.63l.027-.424c.036-.558.054-1.117.054-1.677 0-.522-.016 1.042-.046-1.562l-.062-.782a1.5 1.5 0 0 1 1.324-1.63l.175-.027a47.383 47.383 0 0 1 3.265-.417 47.09 47.09 0 0 1 3.237-.24l.175-.018a1.5 1.5 0 0 1 1.55 1.433Z" /></svg>);
-const CompareIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M10 17a.75.75 0 0 1-.75-.75V5.612L5.29 9.77a.75.75 0 0 1-1.08-1.04l5.25-5.5a.75.75 0 0 1 1.08 0l5.25 5.5a.75.75 0 1 1-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0 1 10 17Z" /></svg>);
+
+type GroupingType = 'none' | 'date' | 'distance' | 'type' | 'folder' | 'tag';
+type SortType = 'date_desc' | 'date_asc' | 'dist_desc' | 'dist_asc' | 'dur_desc' | 'name_asc';
 
 interface SidebarProps {
     tracks: Track[];
@@ -47,108 +48,167 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [showArchived, setShowArchived] = useState(false);
-    const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
+    const [grouping, setGrouping] = useState<GroupingType>('date');
+    const [sort, setSort] = useState<SortType>('date_desc');
 
-    const filteredTracks = useMemo(() => {
-        return tracks.filter(t => {
+    const processedTracks = useMemo(() => {
+        let list = tracks.filter(t => {
             const matchesSearch = t.name.toLowerCase().includes(searchTerm.toLowerCase());
             const matchesArchive = showArchived ? t.isArchived : !t.isArchived;
             return matchesSearch && matchesArchive;
         });
-    }, [tracks, searchTerm, showArchived]);
+
+        // Sorting
+        list.sort((a, b) => {
+            const timeA = new Date(a.points[0].time).getTime();
+            const timeB = new Date(b.points[0].time).getTime();
+            switch(sort) {
+                case 'date_desc': return timeB - timeA;
+                case 'date_asc': return timeA - timeB;
+                case 'dist_desc': return b.distance - a.distance;
+                case 'dist_asc': return a.distance - b.distance;
+                case 'dur_desc': return b.duration - a.duration;
+                case 'name_asc': return a.name.localeCompare(b.name);
+                default: return 0;
+            }
+        });
+
+        return list;
+    }, [tracks, searchTerm, showArchived, sort]);
+
+    const groupedData = useMemo(() => {
+        if (grouping === 'none') return { 'Tutte le attività': processedTracks };
+
+        const groups: Record<string, Track[]> = {};
+        processedTracks.forEach(t => {
+            let key = 'Altro';
+            const date = new Date(t.points[0].time);
+            
+            if (grouping === 'date') {
+                key = date.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
+            } else if (grouping === 'distance') {
+                if (t.distance < 5) key = '< 5 km';
+                else if (t.distance < 10) key = '5 - 10 km';
+                else if (t.distance < 21) key = '10 - 21 km';
+                else key = '> 21 km';
+            } else if (grouping === 'type') {
+                key = t.activityType || 'Non classificato';
+            } else if (grouping === 'folder') {
+                key = t.folder || 'Senza cartella';
+            } else if (grouping === 'tag') {
+                key = (t.tags && t.tags.length > 0) ? `#${t.tags[0]}` : 'Nessun tag';
+            }
+
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(t);
+        });
+        return groups;
+    }, [processedTracks, grouping]);
 
     return (
-        <div className="flex flex-col h-full bg-slate-900 border-r border-slate-800 text-white">
-            <div className="p-4 border-b border-slate-800 shrink-0 flex items-center justify-between">
-                <h2 className="text-lg font-bold text-cyan-400">{showArchived ? 'Archivio' : 'Attività'}</h2>
-                <Tooltip text="Carica GPX/TCX" subtext="Aggiungi nuove corse">
-                    <button onClick={() => fileInputRef.current?.click()} className="bg-slate-700 hover:bg-slate-600 p-2 rounded transition-colors"><UploadIcon /></button>
-                </Tooltip>
+        <div className="flex flex-col h-full bg-slate-900 border-r border-slate-800 text-white overflow-hidden">
+            <div className="p-3 border-b border-slate-800 shrink-0 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                   <h2 className="text-sm font-black text-cyan-400 uppercase tracking-tighter italic">RunCoach Explorer</h2>
+                   <span className="text-[10px] bg-slate-800 px-1.5 rounded font-mono text-slate-500">{processedTracks.length}</span>
+                </div>
+                <button onClick={() => fileInputRef.current?.click()} className="bg-cyan-600/10 hover:bg-cyan-600/20 text-cyan-400 p-1.5 rounded transition-colors border border-cyan-500/30"><UploadIcon /></button>
                 <input type="file" ref={fileInputRef} className="hidden" multiple accept=".gpx,.tcx" onChange={e => onFileUpload(e.target.files ? Array.from(e.target.files) : null)} />
             </div>
 
-            <div className="p-3 border-b border-slate-800 bg-slate-900/50 space-y-3 shrink-0">
-                <input type="text" placeholder="Cerca..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm outline-none" />
-                <div className="flex justify-between items-center text-xs">
-                    <div className="flex gap-1">
-                        <button onClick={() => setViewMode(viewMode === 'cards' ? 'list' : 'cards')} className="p-1.5 rounded border border-slate-700 hover:bg-slate-700"><RectangleStackIcon /></button>
-                        <Tooltip text={showArchived ? "Torna alle Attività" : "Vedi Archivio"}>
-                            <button onClick={() => setShowArchived(!showArchived)} className={`p-1.5 rounded border transition-colors ${showArchived ? 'bg-amber-600 border-amber-500' : 'border-slate-700 hover:bg-slate-700'}`}><ArchiveBoxIcon /></button>
-                        </Tooltip>
+            <div className="p-2 border-b border-slate-800 bg-slate-900/50 space-y-2 shrink-0">
+                <div className="flex gap-1">
+                    <input type="text" placeholder="Filtra..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="flex-grow bg-slate-800 border border-slate-700 rounded px-2 py-1 text-[11px] outline-none focus:border-cyan-500" />
+                    <Tooltip text={showArchived ? "Attività" : "Archivio"}>
+                        <button onClick={() => setShowArchived(!showArchived)} className={`p-1.5 rounded border transition-colors ${showArchived ? 'bg-amber-600 border-amber-500' : 'border-slate-700 hover:bg-slate-700'}`}><ArchiveBoxIcon /></button>
+                    </Tooltip>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-1 text-[10px]">
+                    <div className="flex flex-col">
+                        <label className="text-slate-500 font-bold uppercase text-[8px] mb-0.5">Raggruppa</label>
+                        <select value={grouping} onChange={e => setGrouping(e.target.value as GroupingType)} className="bg-slate-800 border border-slate-700 rounded p-1 outline-none">
+                            <option value="none">Nessuno</option>
+                            <option value="date">Mese</option>
+                            <option value="distance">Distanza</option>
+                            <option value="type">Tipo</option>
+                            <option value="folder">Cartella</option>
+                            <option value="tag">Tag</option>
+                        </select>
                     </div>
-                    <div className="flex gap-2 text-[10px]">
-                        <button onClick={onSelectAll} className="text-cyan-400">Tutti</button>
-                        <button onClick={onDeselectAll} className="text-slate-400">Nessuno</button>
+                    <div className="flex flex-col">
+                        <label className="text-slate-500 font-bold uppercase text-[8px] mb-0.5">Ordina</label>
+                        <select value={sort} onChange={e => setSort(e.target.value as SortType)} className="bg-slate-800 border border-slate-700 rounded p-1 outline-none">
+                            <option value="date_desc">Data (Nuove)</option>
+                            <option value="date_asc">Data (Vecchie)</option>
+                            <option value="dist_desc">Distanza ↓</option>
+                            <option value="dist_asc">Distanza ↑</option>
+                            <option value="dur_desc">Durata ↓</option>
+                            <option value="name_asc">Nome A-Z</option>
+                        </select>
                     </div>
                 </div>
 
                 {raceSelectionIds.size > 0 && (
-                    <div className="flex flex-col gap-1 animate-fade-in">
-                        <div className="flex gap-1">
-                            <Tooltip 
-                                text="Inizia Gara Virtuale" 
-                                subtext={`Simula sfida tra ${raceSelectionIds.size} corse`}
-                                helpText="I runner virtuali partiranno insieme seguendo i rispettivi tempi storici. Ottimo per confrontare i tuoi miglioramenti nel tempo."
-                            >
-                                <button onClick={onStartRace} className="flex-grow bg-green-600 hover:bg-green-500 text-white text-xs font-bold py-2 rounded px-4">Gara ({raceSelectionIds.size})</button>
-                            </Tooltip>
-                            
-                            {raceSelectionIds.size >= 2 && onMergeSelected && (
-                                <Tooltip 
-                                    text="Unisci Tracce" 
-                                    subtext="Crea un'unica attività continua"
-                                    helpText="Le tracce verranno incollate l'una dopo l'altra rispettando l'ordine cronologico. Utile se hai diviso un lungo in più registrazioni."
-                                >
-                                    <button onClick={onMergeSelected} className="bg-cyan-700 hover:bg-cyan-600 text-cyan-100 px-3 rounded flex items-center justify-center shadow-lg"><MergeTracksIcon /></button>
-                                </Tooltip>
-                            )}
-
-                            <Tooltip 
-                                text="Confronta Dati" 
-                                subtext="Analisi comparativa tecnica"
-                                helpText="Apre una tabella dove puoi confrontare Ritmo, FC e Watt medi tra le sessioni selezionate."
-                            >
-                                <button onClick={onCompareSelected} className="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 rounded"><CompareIcon /></button>
-                            </Tooltip>
-
-                            <Tooltip 
-                                text="Elimina Selezionate" 
-                                subtext="Rimuove attività scelte"
-                                helpText="L'eliminazione è definitiva sia in locale che sul cloud. Usa con cautela."
-                            >
-                                <button onClick={onDeleteSelected} className="bg-red-900/50 hover:bg-red-900 text-red-200 px-3 rounded"><TrashIcon /></button>
-                            </Tooltip>
-                        </div>
+                    <div className="flex gap-1 pt-1 border-t border-slate-800">
+                        <button onClick={onStartRace} className="flex-grow bg-green-600 hover:bg-green-500 text-white text-[10px] font-black uppercase py-1.5 rounded">Gara ({raceSelectionIds.size})</button>
+                        {raceSelectionIds.size >= 2 && onMergeSelected && (
+                            <button onClick={onMergeSelected} className="bg-cyan-700 hover:bg-cyan-600 px-2 rounded"><MergeTracksIcon /></button>
+                        )}
+                        <button onClick={onDeleteSelected} className="bg-red-900/50 hover:bg-red-900 px-2 rounded"><TrashIcon /></button>
+                        <button onClick={onDeselectAll} className="text-[9px] text-slate-500 hover:text-white ml-auto px-2">Annulla</button>
                     </div>
                 )}
             </div>
 
-            <div className="flex-grow overflow-y-auto custom-scrollbar p-2">
-                {filteredTracks.map(track => (
-                    <div 
-                        key={track.id} 
-                        className={`flex p-2 rounded mb-1 hover:bg-slate-800 transition-colors group relative ${hoveredTrackId === track.id ? 'bg-slate-800' : ''}`}
-                        onMouseEnter={() => onTrackHoverStart(track.id)}
-                        onMouseLeave={onTrackHoverEnd}
-                    >
-                        <input type="checkbox" checked={raceSelectionIds.has(track.id)} onChange={() => onToggleRaceSelection(track.id)} className="mr-3 accent-cyan-500" />
-                        <div className="flex-grow min-w-0 cursor-pointer" onClick={() => onViewDetails(track.id)}>
-                            <div className="flex justify-between items-center mb-0.5">
-                                <span className="text-sm font-medium truncate pr-2">{track.name}</span>
-                                {track.rating && <RatingStars rating={track.rating} size="xs" />}
-                            </div>
-                            <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono">
-                                <span>{new Date(track.points[0].time).toLocaleDateString()}</span>
-                                <span>{track.distance.toFixed(2)}km</span>
-                            </div>
+            <div className="flex-grow overflow-y-auto custom-scrollbar">
+                {Object.entries(groupedData).map(([groupName, groupTracks]) => (
+                    <div key={groupName} className="mb-2">
+                        <div className="bg-slate-800/40 px-3 py-1 text-[9px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-700/50 sticky top-0 z-10 backdrop-blur-sm">
+                            {groupName} <span className="text-[8px] opacity-60 ml-1">({groupTracks.length})</span>
                         </div>
-                        <div className="flex items-center gap-1 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => onToggleArchived(track.id)} className="p-1 text-slate-500 hover:text-white" title={track.isArchived ? "Ripristina" : "Archivia"}>
-                                {track.isArchived ? <UploadIcon /> : <ArchiveBoxIcon />}
-                            </button>
-                            <button onClick={() => onToggleVisibility(track.id)} className={`p-1 ${visibleTrackIds.has(track.id) ? 'text-cyan-400' : 'text-slate-600'}`}>
-                                {visibleTrackIds.has(track.id) ? <EyeIcon /> : <EyeSlashIcon />}
-                            </button>
+                        <div className="divide-y divide-slate-800/30">
+                            {groupTracks.map(track => (
+                                <div 
+                                    key={track.id} 
+                                    className={`flex items-center p-1.5 hover:bg-slate-800 transition-colors group relative ${hoveredTrackId === track.id ? 'bg-slate-800' : ''}`}
+                                    onMouseEnter={() => onTrackHoverStart(track.id)}
+                                    onMouseLeave={onTrackHoverEnd}
+                                >
+                                    <input 
+                                        type="checkbox" 
+                                        checked={raceSelectionIds.has(track.id)} 
+                                        onChange={(e) => { e.stopPropagation(); onToggleRaceSelection(track.id); }} 
+                                        className="mr-2 accent-cyan-500 w-3 h-3 flex-shrink-0" 
+                                    />
+                                    
+                                    {/* Mini Track Preview */}
+                                    <div className="w-10 h-8 bg-slate-950 rounded border border-slate-700 overflow-hidden mr-2 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity">
+                                        <TrackPreview points={track.points} color={track.color} className="w-full h-full" />
+                                    </div>
+
+                                    <div className="flex-grow min-w-0 cursor-pointer" onClick={() => onViewDetails(track.id)}>
+                                        <div className="flex justify-between items-center mb-0.5">
+                                            <span className="text-[11px] font-bold truncate pr-1 group-hover:text-cyan-400 transition-colors">{track.name}</span>
+                                        </div>
+                                        <div className="flex items-center text-[9px] text-slate-500 font-mono gap-2">
+                                            <span className="text-cyan-100/70">{track.distance.toFixed(1)}k</span>
+                                            <span className="w-px h-2 bg-slate-700"></span>
+                                            <span>{new Date(track.points[0].time).toLocaleDateString('it-IT', {day:'2-digit', month:'2-digit'})}</span>
+                                            {track.rating && <div className="ml-auto scale-75 origin-right"><RatingStars rating={track.rating} size="xs" /></div>}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-1 ml-1 opacity-0 group-hover:opacity-100 transition-opacity absolute right-1 bg-slate-800 shadow-xl rounded px-1">
+                                        <button onClick={() => onToggleArchived(track.id)} className="p-1 text-slate-500 hover:text-white" title={track.isArchived ? "Ripristina" : "Archivia"}>
+                                            {track.isArchived ? <UploadIcon /> : <ArchiveBoxIcon />}
+                                        </button>
+                                        <button onClick={() => onToggleVisibility(track.id)} className={`p-1 ${visibleTrackIds.has(track.id) ? 'text-cyan-400' : 'text-slate-600'}`}>
+                                            {visibleTrackIds.has(track.id) ? <EyeIcon /> : <EyeSlashIcon />}
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 ))}
