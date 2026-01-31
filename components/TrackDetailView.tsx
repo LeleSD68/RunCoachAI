@@ -46,8 +46,6 @@ const useIsMobile = () => {
     return isMobile;
 };
 
-// Fix: Removed local declaration of 'YAxisMetric' as it conflicts with the import from './TimelineChart'
-
 const ReplayIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 mr-1"><path fillRule="evenodd" d="M15.312 11.424a5.5 5.5 0 0 1-9.201 2.466l-.312-.311h2.433a.75.75 0 0 0 0-1.5H3.989a.75.75 0 0 0-.75.75v4.242a.75.75 0 0 0 1.5 0v-2.43l.31.31a7 7 0 0 0 11.712-3.138.75.75 0 0 0-1.449-.39Z" clipRule="evenodd" /><path fillRule="evenodd" d="M13.485 1.431a.75.75 0 0 0-1.449.39 5.5 5.5 0 0 1 9.201 2.466l.312-.311h-2.433a.75.75 0 0 0 .75-.75V.484a.75.75 0 0 0-1.5 0v2.43l-.31-.31a7 7 0 0 0-11.712-3.138Z" clipRule="evenodd" /></svg>);
 const StravaIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 mr-1">
@@ -116,12 +114,15 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = (props) => {
         }, 1000);
     };
 
-    const getRpeColor = (val: number) => {
-        if (val <= 2) return 'bg-cyan-500';
-        if (val <= 4) return 'bg-green-500';
-        if (val <= 6) return 'bg-yellow-500';
-        if (val <= 8) return 'bg-orange-500';
-        return 'bg-red-500';
+    const getRpeColor = (val: number, currentRpe: number) => {
+        if (val > currentRpe) return 'bg-slate-800 text-slate-500 hover:bg-slate-700';
+        
+        // Gradient fill effect
+        if (val <= 2) return 'bg-cyan-500 text-white shadow-[0_0_8px_rgba(6,182,212,0.4)]';
+        if (val <= 4) return 'bg-green-500 text-white shadow-[0_0_8px_rgba(34,197,94,0.4)]';
+        if (val <= 6) return 'bg-yellow-500 text-white shadow-[0_0_8px_rgba(234,179,8,0.4)]';
+        if (val <= 8) return 'bg-orange-500 text-white shadow-[0_0_8px_rgba(249,115,22,0.4)]';
+        return 'bg-red-500 text-white shadow-[0_0_8px_rgba(239,68,68,0.4)]';
     };
 
     return (
@@ -169,7 +170,7 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = (props) => {
                             <div>
                                 <h3 className="text-[10px] font-black text-cyan-400 uppercase tracking-[0.2em] mb-4">Diario Post-Corsa</h3>
                                 
-                                {/* RPE scale */}
+                                {/* RPE scale with gradient filling */}
                                 <div className="mb-6">
                                     <div className="flex justify-between items-center mb-2">
                                         <label className="text-xs font-bold text-slate-400 uppercase">Sforzo Percepito (RPE)</label>
@@ -180,10 +181,8 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = (props) => {
                                             <button
                                                 key={val}
                                                 onClick={() => handleRpeChange(val)}
-                                                className={`flex-1 h-8 rounded text-[10px] font-black transition-all ${
-                                                    track.rpe === val 
-                                                        ? `${getRpeColor(val)} text-white shadow-[0_0_10px_rgba(255,255,255,0.2)] scale-110 z-10 ring-2 ring-white/50` 
-                                                        : 'bg-slate-800 text-slate-500 hover:bg-slate-700'
+                                                className={`flex-1 h-8 rounded text-[10px] font-black transition-all ${getRpeColor(val, track.rpe || 0)} ${
+                                                    track.rpe === val ? 'scale-110 z-10 ring-2 ring-white/50' : ''
                                                 }`}
                                             >
                                                 {val}
@@ -209,9 +208,13 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = (props) => {
                                             className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-4 py-2.5 text-sm text-white focus:border-cyan-500 outline-none appearance-none cursor-pointer hover:bg-slate-750 transition-colors"
                                         >
                                             <option value="">Nessuna scarpa selezionata</option>
-                                            {(userProfile.shoes || []).map((shoe, idx) => (
-                                                <option key={idx} value={shoe}>{shoe}</option>
-                                            ))}
+                                            {(userProfile.shoes || []).length > 0 ? (
+                                                userProfile.shoes!.map((shoe, idx) => (
+                                                    <option key={idx} value={shoe}>{shoe}</option>
+                                                ))
+                                            ) : (
+                                                <option disabled>Aggiungi scarpe nel profilo</option>
+                                            )}
                                         </select>
                                         <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none">
                                             <svg className="w-4 h-4 text-slate-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
