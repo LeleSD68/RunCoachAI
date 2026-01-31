@@ -262,6 +262,24 @@ const App: React.FC = () => {
         if (!isGuest) await syncTrackToCloud(updatedTrack);
     };
 
+    const handleUpdateTrackMetadata = async (id: string, metadata: Partial<Track>) => {
+        const updatedTracks = tracks.map(t => {
+            if (t.id === id) {
+                const updated = { ...t, ...metadata };
+                if (viewingTrack?.id === id) setViewingTrack(updated);
+                return updated;
+            }
+            return t;
+        });
+        setTracks(updatedTracks);
+        await saveTracksToDB(updatedTracks);
+        
+        const trackToSync = updatedTracks.find(t => t.id === id);
+        if (trackToSync && !isGuest) {
+            await syncTrackToCloud(trackToSync);
+        }
+    };
+
     const handleTrackClickFromMap = (id: string, isMultiSelect: boolean) => {
         setRaceSelectionIds(prev => {
             const next = new Set(prev);
@@ -514,6 +532,7 @@ const App: React.FC = () => {
                         onExit={() => setViewingTrack(null)} 
                         plannedWorkouts={plannedWorkouts}
                         onAddPlannedWorkout={handleAddPlannedWorkout}
+                        onUpdateTrackMetadata={handleUpdateTrackMetadata}
                     />
                 </div>
             )}
