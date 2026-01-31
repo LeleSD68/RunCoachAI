@@ -69,8 +69,6 @@ const App: React.FC = () => {
     const [isGuest, setIsGuest] = useState(false);
     const [userId, setUserId] = useState<string | null>(null);
     const [raceSelectionIds, setRaceSelectionIds] = useState<Set<string>>(new Set());
-
-    // Fix: Added missing state for track hover synchronization
     const [hoveredTrackId, setHoveredTrackId] = useState<string | null>(null);
 
     const addToast = (message: string, type: Toast['type']) => {
@@ -87,9 +85,9 @@ const App: React.FC = () => {
                 setIsDataLoading(true);
                 try {
                     await handleStravaCallback(code);
-                    addToast("Strava collegato con successo!", "success");
-                    // Pulizia URL
-                    window.history.replaceState({}, document.title, "/");
+                    addToast("Strava collegato correttamente!", "success");
+                    // Pulizia URL senza ricaricare la pagina
+                    window.history.replaceState({}, document.title, window.location.pathname);
                     handleStravaAutoSync();
                 } catch (e: any) {
                     addToast("Errore collegamento Strava: " + e.message, "error");
@@ -102,27 +100,46 @@ const App: React.FC = () => {
     }, []);
 
     const handleStravaAutoSync = async (afterTimestamp?: number) => {
-        if (!isStravaConnected()) return;
+        if (!isStravaConnected()) {
+            setShowStravaConfig(true);
+            return;
+        }
         setIsDataLoading(true);
         try {
             const newTracks = await fetchRecentStravaActivities(30, afterTimestamp);
             if (newTracks.length > 0) {
-                const updated = [...tracks, ...newTracks].sort((a, b) => new Date(b.points[0].time).getTime() - new Date(a.points[0].time).getTime());
+                // Filtriamo doppioni basandoci sull'id strava
+                const existingIds = new Set(tracks.map(t => t.id));
+                const filteredNew = newTracks.filter(t => !existingIds.has(t.id));
+                
+                if (filteredNew.length === 0) {
+                    addToast("Tutte le corse sono già sincronizzate.", "info");
+                    return;
+                }
+
+                const updated = [...tracks, ...filteredNew].sort((a, b) => 
+                    new Date(b.points[0].time).getTime() - new Date(a.points[0].time).getTime()
+                );
                 setTracks(updated);
                 await saveTracksToDB(updated);
-                if (!isGuest && userId) newTracks.forEach(t => syncTrackToCloud(t));
-                addToast(`Sincronizzate ${newTracks.length} corse da Strava!`, "success");
+                
+                if (!isGuest && userId) {
+                    for (const t of filteredNew) {
+                        await syncTrackToCloud(t);
+                    }
+                }
+                addToast(`Sincronizzate ${filteredNew.length} nuove corse da Strava!`, "success");
             } else {
-                addToast("Nessuna nuova corsa su Strava.", "info");
+                addToast("Nessuna nuova corsa trovata su Strava.", "info");
             }
         } catch (e: any) {
-            addToast("Errore sincronizzazione Strava.", "error");
+            console.error(e);
+            addToast("Errore durante la sincronizzazione.", "error");
         } finally {
             setIsDataLoading(false);
         }
     };
 
-    // Fix: Implemented missing handler for backup importation
     const handleImportBackup = async (file: File) => {
         try {
             const reader = new FileReader();
@@ -131,49 +148,50 @@ const App: React.FC = () => {
                 if (content) {
                     const data = JSON.parse(content);
                     await importAllData(data);
-                    addToast("Backup importato con successo!", "success");
+                    addToast("Backup ripristinato con successo!", "success");
                     await loadData();
                 }
             };
             reader.readAsText(file);
         } catch (err) {
-            addToast("Errore durante l'importazione del backup.", "error");
+            addToast("Errore lettura file backup.", "error");
         }
     };
 
-    // Fix: Implemented missing handler for data backup export with file download
     const handleExportBackup = async () => {
+        setIsDataLoading(true);
         try {
             const data = await exportAllData();
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
+            const date = new Date().toISOString().split('T')[0];
             a.href = url;
-            a.download = `runcoach-backup-${new Date().toISOString().split('T')[0]}.json`;
+            a.download = `runcoach-backup-${date}.json`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            addToast("Backup creato con successo.", "success");
+            addToast("File backup generato e scaricato.", "success");
         } catch (e) {
-            addToast("Errore durante la creazione del backup.", "error");
+            addToast("Errore creazione backup.", "error");
+        } finally {
+            setIsDataLoading(false);
         }
     };
 
-    // Fix: Implemented missing track deletion handler
     const handleDeleteTrack = async (id: string) => {
         if (confirm("Sei sicuro di voler eliminare questa traccia?")) {
             const updated = tracks.filter(t => t.id !== id);
             setTracks(updated);
             await saveTracksToDB(updated);
             if (!isGuest) await deleteTrackFromCloud(id);
-            addToast("Traccia eliminata con successo.", "success");
+            addToast("Traccia eliminata.", "success");
         }
     };
 
-    // Fix: Implemented missing bulk deletion handler
     const handleDeleteSelected = async () => {
-        if (confirm(`Sei sicuro di voler eliminare ${raceSelectionIds.size} tracce?`)) {
+        if (confirm(`Eliminare ${raceSelectionIds.size} tracce selezionate?`)) {
             const updated = tracks.filter(t => !raceSelectionIds.has(t.id));
             setTracks(updated);
             await saveTracksToDB(updated);
@@ -183,11 +201,10 @@ const App: React.FC = () => {
                 }
             }
             setRaceSelectionIds(new Set());
-            addToast("Tracce eliminate con successo.", "success");
+            addToast("Tracce eliminate.", "success");
         }
     };
 
-    // Fix: Implemented missing archive toggle handler
     const handleToggleArchived = async (id: string) => {
         const trackToUpdate = tracks.find(t => t.id === id);
         if (!trackToUpdate) return;
@@ -198,10 +215,9 @@ const App: React.FC = () => {
         if (!isGuest) await syncTrackToCloud(updatedTrack);
     };
 
-    // Fix: Implemented missing race mode start handler
     const handleStartRace = () => {
         setIsSidebarOpen(false);
-        addToast("Setup gara avviato.", "info");
+        addToast("Pronto alla sfida!", "info");
     };
 
     const handleSplashFinish = () => {
@@ -238,14 +254,14 @@ const App: React.FC = () => {
             const loadedWorkouts = await loadPlannedWorkoutsFromDB(forceLocal);
             setPlannedWorkouts(loadedWorkouts);
         } catch (e) {
-            addToast("Errore caricamento dati.", "error");
+            addToast("Errore sincronizzazione dati.", "error");
         }
     };
 
     const handleFileUpload = (files: File[] | null) => {
         if (!files || files.length === 0) return;
-        addToast("Elaborazione file...", "info");
-        // Logic for file parsing...
+        addToast("Analisi file in corso...", "info");
+        // Logica di parsing simulata per brevità qui
     };
 
     const resetNavigation = useCallback(() => {
@@ -265,7 +281,7 @@ const App: React.FC = () => {
             {isDataLoading && (
                 <div className="fixed inset-0 z-[99999] bg-slate-950/80 flex flex-col items-center justify-center">
                     <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                    <p className="text-cyan-400 font-bold uppercase tracking-widest animate-pulse">Inizializzazione...</p>
+                    <p className="text-cyan-400 font-bold uppercase tracking-widest animate-pulse">Sincronizzazione in corso...</p>
                 </div>
             )}
 
@@ -279,9 +295,7 @@ const App: React.FC = () => {
                     onOpenExplorer={() => { resetNavigation(); setShowExplorer(true); }}
                     onOpenHelp={() => { resetNavigation(); setShowGuide(true); }}
                     onOpenStravaConfig={() => setShowStravaSyncOptions(true)}
-                    // Fix: Added missing onImportBackup prop
                     onImportBackup={handleImportBackup}
-                    // Fix: Use dedicated handler for backup export
                     onExportBackup={handleExportBackup}
                     onUploadTracks={handleFileUpload}
                     trackCount={tracks.length}
@@ -297,7 +311,8 @@ const App: React.FC = () => {
                 />
             )}
 
-            {/* Rest of the application logic including Sidebar and MapDisplay */}
+            {showStravaConfig && <StravaConfigModal onClose={() => setShowStravaConfig(false)} />}
+
             {!showHome && !showAuthSelection && (
                 <div className="flex h-full relative">
                     <div className={`z-20 bg-slate-900 border-r border-slate-800 shrink-0 transition-all duration-300 ${isSidebarOpen ? 'w-80' : 'w-0 overflow-hidden border-none'}`}>
@@ -310,7 +325,6 @@ const App: React.FC = () => {
                             focusedTrackId={focusedTrackId}
                             raceSelectionIds={raceSelectionIds} 
                             onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
-                            // Fix: Added missing props for Sidebar component
                             onDeselectAll={() => setRaceSelectionIds(new Set())}
                             onSelectAll={() => setRaceSelectionIds(new Set(tracks.map(t => t.id)))}
                             onStartRace={handleStartRace}
@@ -335,7 +349,6 @@ const App: React.FC = () => {
                             onOpenDiary={() => setShowDiary(true)}
                             onOpenPerformance={() => setShowPerformance(true)} 
                             onOpenHub={() => setShowHome(true)}
-                            // Fix: Added missing props for NavigationDock component
                             onOpenGuide={() => setShowGuide(true)}
                             onExportBackup={handleExportBackup}
                             onOpenSocial={() => setShowSocial(true)}
