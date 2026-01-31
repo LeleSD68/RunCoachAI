@@ -81,6 +81,7 @@ const App: React.FC = () => {
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [visibleTrackIds, setVisibleTrackIds] = useState<Set<string>>(new Set());
+    const [focusedTrackId, setFocusedTrackId] = useState<string | null>(null);
     const [hoveredTrackId, setHoveredTrackId] = useState<string | null>(null);
     
     const [isGuest, setIsGuest] = useState(false);
@@ -321,6 +322,12 @@ const App: React.FC = () => {
         }
     };
 
+    // Override visible tracks if focus is set
+    const effectiveVisibleTrackIds = useMemo(() => {
+        if (focusedTrackId) return new Set([focusedTrackId]);
+        return visibleTrackIds;
+    }, [visibleTrackIds, focusedTrackId]);
+
     if (showSplash) return <SplashScreen onFinish={handleSplashFinish} />;
 
     return (
@@ -362,7 +369,6 @@ const App: React.FC = () => {
 
             {!showHome && !showAuthSelection && !showInitialChoice && (
                 <div className={`flex h-full relative ${isMobileView ? 'flex-col' : 'flex-row'}`}>
-                    {/* Pannello Liste: Sopra su Mobile, Sinistra su Desktop */}
                     <div className={`z-20 bg-slate-900 border-slate-800 flex-shrink-0 transition-all duration-500 ease-in-out ${
                         isMobileView 
                         ? `w-full ${isSidebarOpen ? 'h-[60vh] border-b' : 'h-0 overflow-hidden border-none'} relative` 
@@ -372,6 +378,8 @@ const App: React.FC = () => {
                             tracks={tracks}
                             onFileUpload={handleFileUpload}
                             visibleTrackIds={visibleTrackIds}
+                            focusedTrackId={focusedTrackId}
+                            onFocusTrack={(id) => setFocusedTrackId(prev => prev === id ? null : id)}
                             onToggleVisibility={(id) => setVisibleTrackIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
                             raceSelectionIds={raceSelectionIds}
                             onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
@@ -413,37 +421,34 @@ const App: React.FC = () => {
                         />
                     </div>
 
-                    {/* Mappa: Sotto su Mobile, Destra su Desktop */}
                     <div className="flex-grow relative h-full bg-slate-900 overflow-hidden">
                         <MapDisplay 
                             tracks={tracks}
-                            visibleTrackIds={visibleTrackIds}
+                            visibleTrackIds={effectiveVisibleTrackIds}
+                            selectedTrackIds={focusedTrackId ? new Set([focusedTrackId]) : new Set()}
                             raceRunners={raceRunners}
                             hoveredTrackId={hoveredTrackId}
                             runnerSpeeds={new Map()}
                             onTrackHover={setHoveredTrackId}
                             onTrackClick={(id, multi) => {
                                 if (multi) setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; });
-                                else setRaceSelectionIds(new Set([id]));
+                                else setFocusedTrackId(prev => prev === id ? null : id);
                             }}
                         />
 
-                        {/* NavigationDock posizionato in modo fisso rispetto all'area visuale */}
                         {!isRaceMode && (
-                            <div className="absolute bottom-0 left-0 w-full z-[1000]">
-                                <NavigationDock 
-                                    onOpenSidebar={() => { resetNavigation(); setIsSidebarOpen(true); }}
-                                    onCloseSidebar={() => { resetNavigation(); setIsSidebarOpen(false); }}
-                                    onOpenExplorer={() => { resetNavigation(); setShowExplorer(true); }}
-                                    onOpenDiary={() => { resetNavigation(); setShowDiary(true); }}
-                                    onOpenPerformance={() => { resetNavigation(); setShowPerformance(true); }}
-                                    onOpenGuide={() => { resetNavigation(); setShowGuide(true); }}
-                                    onExportBackup={exportAllData}
-                                    onOpenHub={() => { resetNavigation(); setShowHome(true); }}
-                                    onOpenSocial={() => { resetNavigation(); setShowSocial(true); }}
-                                    isSidebarOpen={isSidebarOpen}
-                                />
-                            </div>
+                            <NavigationDock 
+                                onOpenSidebar={() => { resetNavigation(); setIsSidebarOpen(true); }}
+                                onCloseSidebar={() => { resetNavigation(); setIsSidebarOpen(false); }}
+                                onOpenExplorer={() => { resetNavigation(); setShowExplorer(true); }}
+                                onOpenDiary={() => { resetNavigation(); setShowDiary(true); }}
+                                onOpenPerformance={() => { resetNavigation(); setShowPerformance(true); }}
+                                onOpenGuide={() => { resetNavigation(); setShowGuide(true); }}
+                                onExportBackup={exportAllData}
+                                onOpenHub={() => { resetNavigation(); setShowHome(true); }}
+                                onOpenSocial={() => { resetNavigation(); setShowSocial(true); }}
+                                isSidebarOpen={isSidebarOpen}
+                            />
                         )}
 
                         <div className="absolute bottom-24 right-4 z-40">
