@@ -126,15 +126,22 @@ const deduplicateWorkouts = (workouts: PlannedWorkout[]): PlannedWorkout[] => {
     });
 };
 
+// --- HELPER ID VALIDATION ---
+const isStableId = (id: string) => {
+    // Allows UUIDs OR Strava IDs
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id) || id.startsWith('strava-');
+};
+
 // --- TRACKS ---
 export const saveTracksToDB = async (tracks: Track[], options: { skipCloud?: boolean } = {}): Promise<void> => {
   const db = await initDB();
   await new Promise<void>((resolve, reject) => {
     const transaction = db.transaction([TRACKS_STORE], 'readwrite');
     const store = transaction.objectStore(TRACKS_STORE);
-    store.clear().onsuccess = () => {
-      tracks.filter(t => !t.isExternal).forEach(t => store.put(t));
-    };
+    
+    // CHANGED: Removed store.clear() to allow incremental upserts (fixing partial updates)
+    tracks.filter(t => !t.isExternal).forEach(t => store.put(t));
+    
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error);
   });
@@ -145,8 +152,8 @@ export const saveTracksToDB = async (tracks: Track[], options: { skipCloud?: boo
           const validTracks = tracks.filter(t => !t.isExternal);
           for (const t of validTracks) {
               const payload = mapTrackToSupabase(t, session.user.id);
-              // Only upsert if it already has a UUID. New tracks are handled by syncTrackToCloud logic called explicitly
-              if (t.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)) {
+              // Upsert if ID is stable (UUID or Strava)
+              if (isStableId(t.id)) {
                  await supabase.from('tracks').upsert({ id: t.id, ...payload });
               }
           }
@@ -174,8 +181,6 @@ const updateWorkoutReferences = async (oldTrackId: string, newTrackId: string) =
             cursor.continue();
         }
     };
-    
-    // We assume this completes quickly. For cloud sync of workouts, the next savePlannedWorkoutsToDB call handles it.
 };
 
 export const syncTrackToCloud = async (track: Track) => {
@@ -184,11 +189,11 @@ export const syncTrackToCloud = async (track: Track) => {
     if (!session || track.isExternal) return;
 
     const payload = mapTrackToSupabase(track, session.user.id);
-    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(track.id);
+    const stable = isStableId(track.id);
 
     try {
-        if (!isUUID) {
-            // INSERT: Rely on DB default uuid_generate_v4()
+        if (!stable) {
+            // INSERT: Rely on DB default uuid_generate_v4() because the local ID is temporary
             const { data, error } = await supabase.from('tracks').insert(payload).select().single();
             
             if (error) {
@@ -211,7 +216,7 @@ export const syncTrackToCloud = async (track: Track) => {
                 await updateWorkoutReferences(oldId, data.id);
             }
         } else {
-            // UPSERT
+            // UPSERT: We have a stable ID (UUID or Strava), preserve it.
             const { error } = await supabase.from('tracks').upsert({ id: track.id, ...payload });
             if (error) console.error("Cloud Upsert Error:", error);
         }
@@ -242,7 +247,6 @@ export const loadTracksFromDB = async (forceLocal: boolean = false): Promise<Tra
   const { data: { session } } = await supabase.auth.getSession();
 
   if (!forceLocal && session && isSupabaseConfigured()) {
-      // FIX: Add filter .eq('user_id', session.user.id) so we don't load friends' tracks into main list
       const { data, error } = await supabase
         .from('tracks')
         .select('*')
@@ -252,7 +256,6 @@ export const loadTracksFromDB = async (forceLocal: boolean = false): Promise<Tra
       if (error) {
           console.error("Error fetching tracks from Supabase:", error);
       } else if (data) {
-          // Parse e poi DEDUPLICA
           const parsedTracks = data
             .map(mapSupabaseToTrack)
             .filter((t): t is Track => t !== null);
@@ -283,7 +286,6 @@ export const loadTracksFromDB = async (forceLocal: boolean = false): Promise<Tra
           time: p.time instanceof Date ? p.time : new Date(p.time)
         }))
       }));
-      // Local fallback deduplication just in case
       resolve(deduplicateTracks(revived));
     };
     request.onerror = () => reject(request.error);
@@ -293,15 +295,14 @@ export const loadTracksFromDB = async (forceLocal: boolean = false): Promise<Tra
 // --- PLANNED WORKOUTS ---
 export const savePlannedWorkoutsToDB = async (workouts: PlannedWorkout[], options: { skipCloud?: boolean } = {}): Promise<void> => {
   const db = await initDB();
-  // Ensure we are saving a clean list
   const cleanWorkouts = deduplicateWorkouts(workouts);
 
   await new Promise<void>((resolve, reject) => {
     const transaction = db.transaction([PLANNED_STORE], 'readwrite');
     const store = transaction.objectStore(PLANNED_STORE);
-    store.clear().onsuccess = () => {
-      cleanWorkouts.forEach(w => store.put(w));
-    };
+    // CHANGED: Removed store.clear() to support incremental updates
+    cleanWorkouts.forEach(w => store.put(w));
+    
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error);
   });
@@ -311,7 +312,6 @@ export const savePlannedWorkoutsToDB = async (workouts: PlannedWorkout[], option
       if (session && isSupabaseConfigured()) {
           for (const w of cleanWorkouts) {
               const payload = {
-                  // Only send ID if it is a valid UUID, otherwise let DB generate it
                   id: (w.id.length === 36) ? w.id : undefined,
                   user_id: session.user.id,
                   title: w.title,
@@ -328,7 +328,6 @@ export const savePlannedWorkoutsToDB = async (workouts: PlannedWorkout[], option
 
               if (error) console.error("Error saving workout:", error);
               
-              // If we got a new ID from insert, update local
               if (data && data.id && !payload.id) {
                   w.id = data.id;
               }
