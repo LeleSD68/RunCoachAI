@@ -4,15 +4,15 @@ import Tooltip from './Tooltip';
 
 interface NavigationDockProps {
     onOpenSidebar: () => void;
-    onCloseSidebar: () => void; // New prop to close sidebar/show full map
+    onCloseSidebar: () => void; 
     onOpenExplorer: () => void;
     onOpenDiary: () => void;
     onOpenPerformance: () => void;
     onOpenGuide: () => void;
     onExportBackup: () => void;
     onOpenHub: () => void;
-    onOpenSocial: () => void; // Added social handler
-    isSidebarOpen: boolean; // To highlight the active state
+    onOpenSocial: () => void;
+    isSidebarOpen: boolean; 
     onlineCount?: number;
     unreadCount?: number;
 }
@@ -62,52 +62,54 @@ const UserGroupIcon = () => (
 );
 
 const NavigationDock: React.FC<NavigationDockProps> = ({ 
-    onOpenSidebar, onCloseSidebar, onOpenExplorer, onOpenDiary, onOpenPerformance, onOpenGuide, onExportBackup, onOpenHub, isSidebarOpen, onOpenSocial, onlineCount = 0, unreadCount = 0
+    onOpenSidebar, onCloseSidebar, onOpenExplorer, onOpenDiary, onOpenPerformance, onOpenHub, isSidebarOpen, onOpenSocial, onlineCount = 0, unreadCount = 0
 }) => {
     return (
-        <div className="fixed bottom-0 left-0 w-full z-[9000] md:hidden bg-slate-950 border-t border-slate-800 pb-safe">
-            <div className="flex justify-around items-center p-2">
+        <div className="fixed bottom-0 md:bottom-4 left-0 w-full z-[9000] flex justify-center pointer-events-none pb-safe">
+            <div className="flex justify-around items-center p-2 bg-slate-950/80 md:bg-slate-900/90 backdrop-blur-xl md:rounded-2xl border-t md:border border-slate-800 pointer-events-auto shadow-2xl md:w-auto md:px-6">
                 <Tooltip text="Home" subtext="Menu" position="top">
                     <button 
                         onClick={onOpenHub} 
-                        className="p-2.5 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-cyan-400 transition-all active:scale-95"
+                        className="p-2.5 md:p-3 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-cyan-400 transition-all active:scale-95"
                     >
                         <HomeIcon />
                     </button>
                 </Tooltip>
 
-                <Tooltip text="Mappa" subtext="Mappa 100%" position="top">
+                <Tooltip text="Mappa" subtext="Visuale Piena" position="top">
                     <button 
                         onClick={onCloseSidebar} 
-                        className={`p-2.5 rounded-xl hover:bg-slate-800 transition-all active:scale-95 ${!isSidebarOpen ? 'text-white bg-slate-800' : 'text-slate-400 hover:text-white'}`}
+                        className={`p-2.5 md:p-3 rounded-xl hover:bg-slate-800 transition-all active:scale-95 ${!isSidebarOpen ? 'text-white bg-slate-800 ring-1 ring-white/10' : 'text-slate-400 hover:text-white'}`}
                     >
                         <MapIcon />
                     </button>
                 </Tooltip>
 
-                <Tooltip text="Liste" subtext="Tracce (3/4)" position="top">
+                <Tooltip text="Attività" subtext="Lista Corse" position="top">
                     <button 
                         onClick={onOpenSidebar} 
-                        className={`p-2.5 rounded-xl hover:bg-slate-800 transition-all active:scale-95 ${isSidebarOpen ? 'text-white bg-slate-800' : 'text-slate-400 hover:text-white'}`}
+                        className={`p-2.5 md:p-3 rounded-xl hover:bg-slate-800 transition-all active:scale-95 ${isSidebarOpen ? 'text-white bg-slate-800 ring-1 ring-white/10' : 'text-slate-400 hover:text-white'}`}
                     >
                         <ListIcon />
                     </button>
                 </Tooltip>
 
+                <div className="w-px h-6 bg-slate-800 mx-1 md:mx-2 hidden md:block"></div>
+
                 <Tooltip text="Diario" subtext="Calendario" position="top">
-                    <button onClick={onOpenDiary} className="p-2.5 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-purple-400 transition-all active:scale-95">
+                    <button onClick={onOpenDiary} className="p-2.5 md:p-3 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-purple-400 transition-all active:scale-95">
                         <DiaryIcon />
                     </button>
                 </Tooltip>
                 
-                <Tooltip text="Performance" subtext="Analisi" position="top">
-                    <button onClick={onOpenPerformance} className="p-2.5 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-green-400 transition-all active:scale-95">
+                <Tooltip text="Performance" subtext="Analisi Dati" position="top">
+                    <button onClick={onOpenPerformance} className="p-2.5 md:p-3 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-green-400 transition-all active:scale-95">
                         <ChartIcon />
                     </button>
                 </Tooltip>
 
-                <Tooltip text="Social" subtext="Amici" position="top">
-                    <button onClick={onOpenSocial} className="p-2.5 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-pink-400 transition-all active:scale-95 relative">
+                <Tooltip text="Social" subtext="Crew" position="top">
+                    <button onClick={onOpenSocial} className="p-2.5 md:p-3 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-pink-400 transition-all active:scale-95 relative">
                         <UserGroupIcon />
                         {onlineCount > 0 && (
                             <span className="absolute -top-1 -right-1 bg-green-500 text-slate-900 text-[9px] font-black w-4 h-4 flex items-center justify-center rounded-full border border-slate-900">{onlineCount}</span>
@@ -118,8 +120,8 @@ const NavigationDock: React.FC<NavigationDockProps> = ({
                     </button>
                 </Tooltip>
                 
-                <Tooltip text="Altro" subtext="Esplora" position="top">
-                    <button onClick={onOpenExplorer} className="p-2.5 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-amber-400 transition-all active:scale-95">
+                <Tooltip text="Esplora" subtext="Tabella" position="top">
+                    <button onClick={onOpenExplorer} className="p-2.5 md:p-3 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-amber-400 transition-all active:scale-95">
                         <GridIcon />
                     </button>
                 </Tooltip>
