@@ -50,8 +50,7 @@ const LargeLogoIcon = () => (
     </div>
 );
 
-// UPDATE THIS STRING TO VERIFY DEPLOYMENT
-const LATEST_BUILD_TIME = "30/01/2026 10:30";
+const LATEST_BUILD_TIME = "30/01/2026 12:00";
 
 const HomeModal: React.FC<HomeModalProps> = ({ 
     onOpenDiary, onOpenExplorer, onOpenHelp, onImportBackup, onExportBackup, 
@@ -161,7 +160,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
             </button>
             {onOpenStravaConfig && (
                 <button 
-                    onClick={() => { onOpenStravaConfig(); onClose(); }} 
+                    onClick={() => { onOpenStravaConfig(); }} 
                     className={`p-4 border rounded-xl text-left transition-all group ${
                         isStravaLinked 
                         ? 'bg-green-900/10 border-green-500/30 hover:bg-green-900/20' 
@@ -169,11 +168,11 @@ const HomeModal: React.FC<HomeModalProps> = ({
                     }`}
                 >
                     <span className={`block text-sm font-bold mb-1 flex items-center gap-2 ${isStravaLinked ? 'text-green-400' : 'text-white group-hover:text-[#fc4c02]'}`}>
-                        <StravaIcon /> {isStravaLinked ? 'Strava (Connesso)' : 'Sincronizza Strava'}
+                        <StravaIcon /> {isStravaLinked ? 'Sincronizza Strava' : 'Connetti Strava'}
                         {isStravaLinked && <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>}
                     </span>
                     <span className="text-xs text-slate-400">
-                        {isStravaLinked ? 'Scarica nuove attività.' : 'Scarica automaticamente le ultime attività.'}
+                        {isStravaLinked ? 'Scarica le ultime attività caricate.' : 'Ottieni automaticamente le tue corse da Strava.'}
                     </span>
                 </button>
             )}
@@ -228,7 +227,6 @@ const HomeModal: React.FC<HomeModalProps> = ({
         <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[5000] flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
             <div className="bg-slate-900 text-white rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden border border-slate-700/50 ring-1 ring-white/10 relative" onClick={e => e.stopPropagation()}>
                 
-                {/* Guest Warning Banner */}
                 {isGuest && (
                     <div className="bg-amber-600 text-white text-[10px] font-bold text-center py-1 uppercase tracking-widest shadow-md z-20 relative">
                         ⚠️ Modalità Ospite: Dati non salvati nel cloud
@@ -246,7 +244,6 @@ const HomeModal: React.FC<HomeModalProps> = ({
                     <div className="flex justify-center mb-4">
                         <LargeLogoIcon />
                     </div>
-                    {/* Updated Greeting Logic */}
                     {!isGuest ? (
                         <h2 className="text-2xl md:text-3xl font-black text-white italic tracking-tighter uppercase mb-1 animate-fade-in">
                             Ciao, <span className="text-cyan-400">{userProfile?.name || 'Atleta'}</span>
@@ -262,7 +259,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
                             onClick={onOpenChangelog}
                             className="bg-slate-800 border border-slate-700 text-slate-400 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider hover:bg-slate-700 hover:text-white transition-colors cursor-pointer"
                          >
-                            v1.35
+                            v1.36
                         </button>
                         <span className={`border text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${trackCount > 0 ? 'bg-cyan-900/20 border-cyan-500/30 text-cyan-400' : 'bg-slate-800 border-slate-700 text-slate-500'}`}>
                             {trackCount} {trackCount === 1 ? 'Attività' : 'Attività'}
@@ -293,11 +290,6 @@ const HomeModal: React.FC<HomeModalProps> = ({
                         )}
                     </div>
                     
-                    {/* Timestamp for last update - VERIFICATION */}
-                    <div className="absolute bottom-1 right-2 text-[8px] text-slate-700 opacity-40 pointer-events-none">
-                        Rev: {LATEST_BUILD_TIME}
-                    </div>
-
                     <div className="flex gap-4">
                         {onManualCloudSave && !isGuest && (
                             <button onClick={onManualCloudSave} className="hover:text-green-400 transition-colors flex items-center gap-1" title="Sincronizza Cloud"><CloudUpIcon /> Cloud</button>
@@ -331,7 +323,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
                                             }} 
                                             className="block w-full text-left px-4 py-3 hover:bg-slate-700 text-slate-300 transition-colors"
                                         >
-                                            Backup
+                                            Salva Backup
                                         </button>
                                     </div>
                                 </>
