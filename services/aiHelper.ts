@@ -92,35 +92,34 @@ export const generateAiRating = async (
     let planContext = "Nessun allenamento specifico pianificato.";
     if (plannedWorkout) {
         planContext = `
-        ALLENAMENTO PIANIFICATO:
+        ALLENAMENTO PIANIFICATO DAL DIARIO:
         - Titolo: "${plannedWorkout.title}"
         - Tipo: ${plannedWorkout.activityType}
         - Istruzioni: "${plannedWorkout.description}"
         
-        IMPORTANTE: Se l'utente ha rispettato le istruzioni (es. fare lento quando richiesto lento), il voto deve essere ALTO (4-5), anche se il ritmo è lento. Se doveva fare veloce e ha fatto lento, voto basso.
+        REGOLE CRITICHE DI VALUTAZIONE:
+        - Se l'atleta doveva correre un 'Lento' ma è andato troppo forte (Cardio alto), il voto è BASSO (1-2) anche se la performance è veloce.
+        - Se era un 'Recupero' ed è stato rispettato il cardio basso -> 5 STELLE.
+        - Se erano 'Ripetute' e i picchi di velocità sono coerenti -> 5 STELLE.
+        - La fedeltà alla tipologia di sforzo è più importante della velocità pura.
         `;
     }
 
-    const prompt = `Sei un coach di corsa esperto. Valuta questa specifica sessione da 1 a 5 stelle.
+    const prompt = `Sei un coach di corsa esperto e severo. Valuta questa specifica sessione da 1 a 5 stelle.
 
-    DATI CORSA:
+    DATI CORSA ATTUALE:
     - Distanza: ${track.distance.toFixed(2)} km
     - Ritmo: ${paceStr}/km
-    - Tipo rilevato: ${track.activityType}
-    - FC Media: ${stats.avgHr ? Math.round(stats.avgHr) : 'N/D'}
+    - Tipo rilevato dai dati: ${track.activityType}
+    - FC Media: ${stats.avgHr ? Math.round(stats.avgHr) : 'N/D'} bpm
+    - Sforzo Percepito (RPE): ${track.rpe ?? 'Non inserito'} / 10
 
-    CONTESTO STORICO:
+    CONTEXT STORICO:
     ${historyContext}
-    (Se è la prima volta o un miglioramento rispetto alla media, premia l'impegno).
 
     ${planContext}
 
-    CRITERI DI VALUTAZIONE:
-    1. Se c'è un piano, la fedeltà al piano è la priorità assoluta.
-    2. Se non c'è piano, valuta il miglioramento rispetto allo storico (es. un principiante che corre i suoi primi 10k a 6:00/km merita 5 stelle, un esperto che di solito li corre a 4:00/km e oggi fa 6:00/km senza motivo apparente ne merita 3).
-    3. Sii generoso con i principianti (prima corsa = 5 stelle se completata).
-
-    Rispondi SOLO con un JSON: { "rating": number (1-5), "reason": "Motivazione breve in italiano (max 15 parole)" }`;
+    Rispondi SOLO con un JSON: { "rating": number (1-5), "reason": "Motivazione tecnica in italiano (max 15 parole)" }`;
 
     try {
         const ai = getGenAI();
