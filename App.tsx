@@ -33,7 +33,8 @@ import {
     saveTracksToDB, loadTracksFromDB, 
     saveProfileToDB, loadProfileFromDB, 
     savePlannedWorkoutsToDB, loadPlannedWorkoutsFromDB,
-    importAllData, exportAllData, syncTrackToCloud, deleteTrackFromCloud
+    importAllData, exportAllData, syncTrackToCloud, deleteTrackFromCloud,
+    deletePlannedWorkoutFromCloud
 } from './services/dbService';
 import { mergeTracks } from './services/trackEditorUtils';
 import { generateSmartTitle } from './services/titleGenerator';
@@ -337,6 +338,38 @@ const App: React.FC = () => {
         setViewingTrack(null);
     }, []);
 
+    // --- Diary Actions ---
+    const handleAddPlannedWorkout = async (w: PlannedWorkout) => {
+        const next = [w, ...plannedWorkouts];
+        setPlannedWorkouts(next);
+        await savePlannedWorkoutsToDB(next);
+        addToast("Allenamento aggiunto al diario.", "success");
+    };
+
+    const handleDeletePlannedWorkout = async (id: string) => {
+        const next = plannedWorkouts.filter(w => w.id !== id);
+        setPlannedWorkouts(next);
+        await savePlannedWorkoutsToDB(next);
+        if (!isGuest) await deletePlannedWorkoutFromCloud(id);
+        addToast("Allenamento rimosso.", "info");
+    };
+
+    const handleUpdatePlannedWorkout = async (updated: PlannedWorkout) => {
+        const next = plannedWorkouts.map(w => w.id === updated.id ? updated : w);
+        setPlannedWorkouts(next);
+        await savePlannedWorkoutsToDB(next);
+    };
+
+    const handleMassUpdatePlannedWorkouts = async (list: PlannedWorkout[]) => {
+        const idsToUpdate = new Set(list.map(l => l.id));
+        const next = plannedWorkouts.map(w => {
+            const upd = list.find(l => l.id === w.id);
+            return upd ? upd : w;
+        });
+        setPlannedWorkouts(next);
+        await savePlannedWorkoutsToDB(next);
+    };
+
     if (showSplash) return <SplashScreen onFinish={handleSplashFinish} />;
 
     return (
@@ -345,7 +378,7 @@ const App: React.FC = () => {
             {isDataLoading && (
                 <div className="fixed inset-0 z-[99999] bg-slate-950/80 flex flex-col items-center justify-center">
                     <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                    <p className="text-cyan-400 font-bold uppercase tracking-widest animate-pulse">Operazione in corso...</p>
+                    <p className="text-cyan-400 font-bold uppercase tracking-widest animate-pulse">Caricamento dati...</p>
                 </div>
             )}
 
@@ -435,11 +468,53 @@ const App: React.FC = () => {
             )}
 
             {showGuide && <GuideModal onClose={() => setShowGuide(false)} />}
-            {showExplorer && <ExplorerView tracks={tracks} onClose={() => setShowExplorer(false)} onSelectTrack={(id) => { resetNavigation(); setViewingTrack(tracks.find(t => t.id === id) || null); }} />}
+            
+            {showExplorer && (
+                <ExplorerView 
+                    tracks={tracks} 
+                    onClose={() => setShowExplorer(false)} 
+                    onSelectTrack={(id) => { resetNavigation(); setViewingTrack(tracks.find(t => t.id === id) || null); }} 
+                />
+            )}
+
+            {showDiary && (
+                <DiaryView 
+                    tracks={tracks}
+                    plannedWorkouts={plannedWorkouts}
+                    userProfile={userProfile}
+                    onClose={() => setShowDiary(false)}
+                    onSelectTrack={(id) => { resetNavigation(); setViewingTrack(tracks.find(t => t.id === id) || null); }}
+                    onAddPlannedWorkout={handleAddPlannedWorkout}
+                    onDeletePlannedWorkout={handleDeletePlannedWorkout}
+                    onUpdatePlannedWorkout={handleUpdatePlannedWorkout}
+                    onMassUpdatePlannedWorkouts={handleMassUpdatePlannedWorkouts}
+                />
+            )}
+
+            {showPerformance && (
+                <PerformanceAnalysisPanel 
+                    tracks={tracks}
+                    userProfile={userProfile}
+                    onClose={() => setShowPerformance(false)}
+                />
+            )}
+
+            {showSocial && userId && (
+                <SocialHub 
+                    onClose={() => setShowSocial(false)}
+                    currentUserId={userId}
+                />
+            )}
             
             {viewingTrack && (
                 <div className="fixed inset-0 z-[5000] bg-slate-900">
-                    <TrackDetailView track={viewingTrack} userProfile={userProfile} onExit={() => setViewingTrack(null)} />
+                    <TrackDetailView 
+                        track={viewingTrack} 
+                        userProfile={userProfile} 
+                        onExit={() => setViewingTrack(null)} 
+                        plannedWorkouts={plannedWorkouts}
+                        onAddPlannedWorkout={handleAddPlannedWorkout}
+                    />
                 </div>
             )}
         </div>
