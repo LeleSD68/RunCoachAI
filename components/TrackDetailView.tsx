@@ -66,6 +66,7 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = (props) => {
     const [yAxisMetrics, setYAxisMetrics] = useState<YAxisMetric[]>(['pace']);
     const [hoveredPoint, setHoveredPoint] = useState<TrackPoint | null>(null);
     const [isStravaUploading, setIsStravaUploading] = useState(false);
+    const [isRatingLoading, setIsRatingLoading] = useState(false);
 
     // Edit states for new fields
     const [localNotes, setLocalNotes] = useState(track.notes || '');
@@ -114,10 +115,25 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = (props) => {
         }, 1000);
     };
 
+    const handleGenerateAiRating = async () => {
+        if (onCheckAiAccess && !onCheckAiAccess()) return;
+        setIsRatingLoading(true);
+        try {
+            const workoutContext = track.linkedWorkout || plannedWorkouts.find(w => new Date(w.date).toDateString() === new Date(track.points[0].time).toDateString());
+            const result = await generateAiRating(track, allHistory, userProfile, workoutContext);
+            if (result) {
+                onUpdateTrackMetadata?.(track.id, { rating: result.rating, ratingReason: result.reason });
+            }
+        } catch (e) {
+            console.error("Rating generation error", e);
+        } finally {
+            setIsRatingLoading(false);
+        }
+    };
+
     const getRpeColor = (val: number, currentRpe: number) => {
         if (val > currentRpe) return 'bg-slate-800 text-slate-500 hover:bg-slate-700';
-        
-        // Gradient fill effect
+        // Fill gradient
         if (val <= 2) return 'bg-cyan-500 text-white shadow-[0_0_8px_rgba(6,182,212,0.4)]';
         if (val <= 4) return 'bg-green-500 text-white shadow-[0_0_8px_rgba(34,197,94,0.4)]';
         if (val <= 6) return 'bg-yellow-500 text-white shadow-[0_0_8px_rgba(234,179,8,0.4)]';
@@ -135,7 +151,17 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = (props) => {
                         <h2 className="text-sm sm:text-lg font-black truncate max-w-[150px] sm:max-w-md">{track.name}</h2>
                         <div className="flex items-center gap-2">
                             <span className="text-[10px] text-slate-500 uppercase font-bold">{new Date(track.points[0].time).toLocaleDateString()}</span>
-                            <RatingStars rating={track.rating} reason={track.ratingReason} size="xs" onDetailClick={() => track.id && onOpenReview?.(track.id)} />
+                            {track.rating ? (
+                                <RatingStars rating={track.rating} reason={track.ratingReason} size="xs" onDetailClick={() => track.id && onOpenReview?.(track.id)} />
+                            ) : (
+                                <button 
+                                    onClick={handleGenerateAiRating}
+                                    disabled={isRatingLoading}
+                                    className="text-[9px] font-black uppercase text-purple-400 bg-purple-900/20 px-2 py-0.5 rounded border border-purple-500/30 hover:bg-purple-900/40 transition-all disabled:opacity-50"
+                                >
+                                    {isRatingLoading ? 'Analisi...' : 'Genera Voto AI'}
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
