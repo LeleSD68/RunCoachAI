@@ -100,14 +100,12 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
         const personality = personalityPrompts[personalityKey] || personalityPrompts['pro_balanced'];
         const userName = userProfile.name || 'Atleta';
         
-        // Calcolo variabilità per capire se è ripetute/fartlek
         const validSplits = stats.splits.filter(s => s.distance > 0.5);
         const paces = validSplits.map(s => s.pace);
         const avgPaceCalc = paces.reduce((a,b)=>a+b,0) / (paces.length || 1);
         const variance = paces.reduce((a,b) => a + Math.pow(b - avgPaceCalc, 2), 0) / (paces.length || 1);
         const stdDev = Math.sqrt(variance);
         
-        const isVariable = stdDev > 0.25; 
         const splitsHeader = "Km | Passo | FC | Watt | Disl.\n---|---|---|---|---";
         const splitsRows = stats.splits.map(s => {
             return `${s.splitNumber} | ${formatPace(s.pace)} | ${s.avgHr ? Math.round(s.avgHr) : 'N/D'} | ${s.avgWatts ? Math.round(s.avgWatts) : 'N/D'} | +${Math.round(s.elevationGain)}`;
@@ -129,6 +127,19 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
         } else {
             workoutContext = "Nessun allenamento specifico trovato nel diario per questa data.";
         }
+
+        // AGGIUNTA NUOVI PARAMETRI DI FEEDBACK
+        const feedbackContext = `
+        FEEDBACK SOGGETTIVO DELL'ATLETA:
+        - Sforzo Percepito (RPE): ${track.rpe ?? 'Non inserito'} / 10
+        - Scarpe usate: ${track.shoe ?? 'Non specificato'}
+        - Note dell'atleta: "${track.notes ?? 'Nessuna nota inserita'}"
+        
+        REGOLE AGGIUNTIVE:
+        - Se RPE è alto ma i dati cardio sono bassi, indaga su stanchezza cronica o stress.
+        - Commenta le note dell'atleta se contengono indicazioni su dolori o meteo.
+        - Valuta se il voto dato rispecchia la percezione dell'atleta.
+        `;
 
         return `${personality}
         
@@ -152,6 +163,8 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
            - SE < 0.25 -> Probabile CORSA CONTINUA (Lento, Medio, Lungo).
            - Analizza in base alla tipologia dedotta.
 
+        ${feedbackContext}
+
         DATI MACRO:
         Dist: ${stats.totalDistance.toFixed(2)} km, Tempo: ${formatDuration(stats.movingDuration)}.
         Medie: Passo ${formatPace(stats.movingAvgPace)}/km, HR ${Math.round(stats.avgHr || 0)} bpm.
@@ -174,7 +187,6 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
                     setLatestSummary(lastModelMsg.text.split(':::SUGGESTIONS')[0]);
                 }
             } else {
-                // Initial welcome message depends on workout context
                 let initText = DEFAULT_WELCOME_MSG;
                 if (matchedWorkout && !track.linkedWorkout) {
                     initText = `Ciao ${userProfile.name || 'Atleta'}, ho visto che per oggi era previsto "${matchedWorkout.title}". Questa attività corrisponde al programma?`;
@@ -245,9 +257,7 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
         window.gpxApp?.trackApiRequest();
         onUpdateTrackMetadata?.(track.id, { hasChat: true });
 
-        // Logic hook: If confirming workout
         if (matchedWorkout && !track.linkedWorkout && (text.toLowerCase().includes('si') || text.toLowerCase().includes('sì') || text.toLowerCase().includes('certo'))) {
-             // Link the workout in local state/DB implicitly for next loads
              onUpdateTrackMetadata?.(track.id, { linkedWorkout: matchedWorkout });
         }
 
@@ -290,20 +300,14 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
 
     const handleStartAnalysis = () => {
         if (onCheckAiAccess && !onCheckAiAccess()) return;
-
-        // If we haven't started chatting yet (length <= 1 means only initial prompt or empty)
         if (messages.length <= 1) { 
-             // If there's a workout, we just trigger the user to answer the initial question if they haven't
              if (matchedWorkout && !track.linkedWorkout) {
-                 // Do nothing, let user answer the greeting question
              } else {
-                 // No workout or already linked, force detailed analysis
-                 performSendMessage("Analizza questa sessione nel dettaglio.");
+                 performSendMessage("Analizza questa sessione nel dettaglio, tenendo conto delle mie note e della percezione di sforzo.");
              }
         }
     };
 
-    // ... (rest of the component: Auto-start effect, Render functions, UI)
     const handleSaveToDiary = (content: string) => {
         if (!onAddPlannedWorkout) return;
         const cleanContent = content.split(':::SUGGESTIONS')[0].trim();
@@ -325,7 +329,6 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
         if (startOpen && !isOpen) {
             setTimeout(() => setIsOpen(true), 100);
         }
-        // Only auto-start analysis if we are NOT waiting for a workout confirmation
         if (startOpen && !hasAutoStartedRef.current && messages.length <= 1 && (!matchedWorkout || track.linkedWorkout)) {
             hasAutoStartedRef.current = true;
             setTimeout(() => handleStartAnalysis(), 600);
@@ -386,7 +389,6 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
                     )}
                 </>
             ) : isMinimized ? (
-                // Minimized State - A Floating Bubble in Sidebar
                 <div className="bg-slate-800 border border-purple-500/50 rounded-xl p-3 shadow-xl animate-fade-in cursor-pointer hover:bg-slate-750 transition-colors" onClick={() => setIsMinimized(false)}>
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -400,7 +402,6 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
                     </div>
                 </div>
             ) : (
-                // Full Screen Modal State
                 <div className="fixed inset-0 z-[10000] bg-slate-900 flex flex-col animate-fade-in">
                     <header className="flex items-center justify-between p-4 border-b border-slate-700 bg-slate-800 shadow-md flex-shrink-0">
                         <div className="flex items-center gap-2">
