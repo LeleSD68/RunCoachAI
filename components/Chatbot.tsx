@@ -124,7 +124,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
             
             return `
             - DATA: ${t.points[0].time.toLocaleDateString()}
-              Tipo: ${t.activityType || 'Generico'} | Dist: ${t.distance.toFixed(1)}km | Passo: ${stats.avgPace.toFixed(2)} min/km | FC: ${stats.avgHr ? Math.round(stats.avgHr) : 'N/A'}
+              Tipo: ${t.activityType || 'Generico'} | Dist: ${t.distance.toFixed(1)}km | Passo: ${stats.avgPace.toFixed(2)} min/km | FC: ${stats.avgHr ? Math.round(stats.avgHr) : 'N/D'}
               ${notes}
               ${aiReason}
               ${workoutLink}
