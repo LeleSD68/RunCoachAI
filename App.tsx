@@ -25,6 +25,7 @@ import PerformanceAnalysisPanel from './components/PerformanceAnalysisPanel';
 import SocialHub from './components/SocialHub';
 import SplashScreen from './components/SplashScreen';
 import LoginModal from './components/LoginModal';
+import MergeConfirmationModal from './components/MergeConfirmationModal';
 
 import { parseGpx } from './services/gpxService';
 import { parseTcx } from './services/tcxService';
@@ -61,6 +62,7 @@ const App: React.FC = () => {
     const [showDiary, setShowDiary] = useState(false);
     const [showPerformance, setShowPerformance] = useState(false);
     const [showSocial, setShowSocial] = useState(false);
+    const [showMergeConfirmation, setShowMergeConfirmation] = useState(false);
     
     const [viewingTrack, setViewingTrack] = useState<Track | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -86,7 +88,6 @@ const App: React.FC = () => {
                 try {
                     await handleStravaCallback(code);
                     addToast("Strava collegato correttamente!", "success");
-                    // Pulizia URL senza ricaricare la pagina
                     window.history.replaceState({}, document.title, window.location.pathname);
                     handleStravaAutoSync();
                 } catch (e: any) {
@@ -108,7 +109,6 @@ const App: React.FC = () => {
         try {
             const newTracks = await fetchRecentStravaActivities(30, afterTimestamp);
             if (newTracks.length > 0) {
-                // Filtriamo doppioni basandoci sull'id strava
                 const existingIds = new Set(tracks.map(t => t.id));
                 const filteredNew = newTracks.filter(t => !existingIds.has(t.id));
                 
@@ -205,6 +205,52 @@ const App: React.FC = () => {
         }
     };
 
+    const handleMergeSelected = () => {
+        if (raceSelectionIds.size < 2) return;
+        setShowMergeConfirmation(true);
+    };
+
+    const confirmMerge = async (deleteOriginals: boolean) => {
+        setShowMergeConfirmation(false);
+        setIsDataLoading(true);
+        try {
+            const tracksToMerge = tracks.filter(t => raceSelectionIds.has(t.id));
+            const merged = mergeTracks(tracksToMerge);
+            
+            let updatedTracks = [...tracks];
+            
+            if (deleteOriginals) {
+                updatedTracks = updatedTracks.filter(t => !raceSelectionIds.has(t.id));
+                if (!isGuest) {
+                    for (const id of Array.from(raceSelectionIds)) {
+                        await deleteTrackFromCloud(id);
+                    }
+                }
+            }
+            
+            updatedTracks = [merged, ...updatedTracks].sort((a, b) => 
+                new Date(b.points[0].time).getTime() - new Date(a.points[0].time).getTime()
+            );
+            
+            setTracks(updatedTracks);
+            await saveTracksToDB(updatedTracks);
+            
+            if (!isGuest) {
+                await syncTrackToCloud(merged);
+            }
+            
+            setRaceSelectionIds(new Set());
+            addToast("Tracce unite correttamente!", "success");
+            setViewingTrack(merged); // Mostriamo l'unione conclusa
+            
+        } catch (e) {
+            console.error(e);
+            addToast("Errore durante l'unione.", "error");
+        } finally {
+            setIsDataLoading(false);
+        }
+    };
+
     const handleToggleArchived = async (id: string) => {
         const trackToUpdate = tracks.find(t => t.id === id);
         if (!trackToUpdate) return;
@@ -261,7 +307,7 @@ const App: React.FC = () => {
     const handleFileUpload = (files: File[] | null) => {
         if (!files || files.length === 0) return;
         addToast("Analisi file in corso...", "info");
-        // Logica di parsing simulata per brevità qui
+        // Logica di parsing simulata...
     };
 
     const resetNavigation = useCallback(() => {
@@ -281,7 +327,7 @@ const App: React.FC = () => {
             {isDataLoading && (
                 <div className="fixed inset-0 z-[99999] bg-slate-950/80 flex flex-col items-center justify-center">
                     <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                    <p className="text-cyan-400 font-bold uppercase tracking-widest animate-pulse">Sincronizzazione in corso...</p>
+                    <p className="text-cyan-400 font-bold uppercase tracking-widest animate-pulse">Operazione in corso...</p>
                 </div>
             )}
 
@@ -313,6 +359,14 @@ const App: React.FC = () => {
 
             {showStravaConfig && <StravaConfigModal onClose={() => setShowStravaConfig(false)} />}
 
+            {showMergeConfirmation && (
+                <MergeConfirmationModal 
+                    selectedTracks={tracks.filter(t => raceSelectionIds.has(t.id))}
+                    onConfirm={confirmMerge}
+                    onCancel={() => setShowMergeConfirmation(false)}
+                />
+            )}
+
             {!showHome && !showAuthSelection && (
                 <div className="flex h-full relative">
                     <div className={`z-20 bg-slate-900 border-r border-slate-800 shrink-0 transition-all duration-300 ${isSidebarOpen ? 'w-80' : 'w-0 overflow-hidden border-none'}`}>
@@ -328,6 +382,7 @@ const App: React.FC = () => {
                             onDeselectAll={() => setRaceSelectionIds(new Set())}
                             onSelectAll={() => setRaceSelectionIds(new Set(tracks.map(t => t.id)))}
                             onStartRace={handleStartRace}
+                            onMergeSelected={handleMergeSelected}
                             hoveredTrackId={hoveredTrackId}
                             onTrackHoverStart={setHoveredTrackId}
                             onTrackHoverEnd={() => setHoveredTrackId(null)}
