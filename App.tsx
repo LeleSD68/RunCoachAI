@@ -64,6 +64,7 @@ const App: React.FC = () => {
     const [showPerformance, setShowPerformance] = useState(false);
     const [showSocial, setShowSocial] = useState(false);
     const [showMergeConfirmation, setShowMergeConfirmation] = useState(false);
+    const [showGlobalChat, setShowGlobalChat] = useState(false);
     
     const [viewingTrack, setViewingTrack] = useState<Track | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -262,24 +263,6 @@ const App: React.FC = () => {
         if (!isGuest) await syncTrackToCloud(updatedTrack);
     };
 
-    const handleUpdateTrackMetadata = async (id: string, metadata: Partial<Track>) => {
-        const updatedTracks = tracks.map(t => {
-            if (t.id === id) {
-                const updated = { ...t, ...metadata };
-                if (viewingTrack?.id === id) setViewingTrack(updated);
-                return updated;
-            }
-            return t;
-        });
-        setTracks(updatedTracks);
-        await saveTracksToDB(updatedTracks);
-        
-        const trackToSync = updatedTracks.find(t => t.id === id);
-        if (trackToSync && !isGuest) {
-            await syncTrackToCloud(trackToSync);
-        }
-    };
-
     const handleTrackClickFromMap = (id: string, isMultiSelect: boolean) => {
         setRaceSelectionIds(prev => {
             const next = new Set(prev);
@@ -469,6 +452,15 @@ const App: React.FC = () => {
                             raceRunners={null} runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
                             onTrackClick={handleTrackClickFromMap}
                         />
+                        
+                        {/* Floating AI Coach Button on Map */}
+                        <button 
+                            onClick={() => setShowGlobalChat(true)}
+                            className="absolute bottom-20 right-6 z-40 bg-purple-600 hover:bg-purple-500 text-white w-14 h-14 rounded-full shadow-[0_0_20px_rgba(147,51,234,0.4)] flex items-center justify-center transition-all active:scale-90 border border-purple-400/50 group"
+                        >
+                            <span className="text-2xl group-hover:scale-110 transition-transform">🧠</span>
+                        </button>
+
                         <NavigationDock 
                             onOpenSidebar={() => setIsSidebarOpen(true)} 
                             onCloseSidebar={() => setIsSidebarOpen(false)}
@@ -482,6 +474,19 @@ const App: React.FC = () => {
                             isSidebarOpen={isSidebarOpen}
                         />
                     </div>
+                </div>
+            )}
+
+            {showGlobalChat && (
+                <div className="fixed inset-0 z-[10000] bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center p-4">
+                    <Chatbot 
+                        onClose={() => setShowGlobalChat(false)}
+                        userProfile={userProfile}
+                        tracksToAnalyze={tracks}
+                        plannedWorkouts={plannedWorkouts}
+                        onAddPlannedWorkout={handleAddPlannedWorkout}
+                        isStandalone={true}
+                    />
                 </div>
             )}
 
@@ -506,6 +511,7 @@ const App: React.FC = () => {
                     onDeletePlannedWorkout={handleDeletePlannedWorkout}
                     onUpdatePlannedWorkout={handleUpdatePlannedWorkout}
                     onMassUpdatePlannedWorkouts={handleMassUpdatePlannedWorkouts}
+                    onOpenGlobalChat={() => { resetNavigation(); setShowGlobalChat(true); }}
                 />
             )}
 
