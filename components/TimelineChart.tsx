@@ -22,15 +22,6 @@ interface TimelineChartProps {
     userProfile?: UserProfile;
 }
 
-const getHrZone = (hr: number, maxHr: number) => {
-    const ratio = hr / maxHr;
-    if (ratio < 0.6) return { label: 'Z1', color: '#3b82f6' };
-    if (ratio < 0.7) return { label: 'Z2', color: '#22c55e' };
-    if (ratio < 0.8) return { label: 'Z3', color: '#eab308' };
-    if (ratio < 0.9) return { label: 'Z4', color: '#f97316' };
-    return { label: 'Z5', color: '#ef4444' };
-};
-
 const metricInfo: Record<string, { label: string, color: string, formatter: (v: number) => string, unit: string }> = {
     pace: { label: 'Ritmo', color: '#06b6d4', unit: 'min/km', formatter: (v) => {
         if (!isFinite(v) || v <= 0) return '--:--';
@@ -75,17 +66,23 @@ const TimelineChart: React.FC<TimelineChartProps> = ({
         return Math.max(0, Math.min(track.distance, (relativeX / width) * track.distance));
     }, [track.distance, width]);
 
+    // Badge logic: priorities animation over hover
     const activePoint = useMemo(() => {
-        if (hoveredPoint) return hoveredPoint;
-        if (animationProgress !== undefined && animationProgress > 0) return getTrackPointAtDistance(track, animationProgress);
-        return null;
-    }, [hoveredPoint, animationProgress, track]);
+        if (animationProgress !== undefined && (isAnimating || animationProgress > 0)) {
+            return getTrackPointAtDistance(track, animationProgress);
+        }
+        return hoveredPoint;
+    }, [hoveredPoint, animationProgress, isAnimating, track]);
 
     const currentValues = useMemo(() => {
         if (!activePoint) return null;
+        
         const idx = track.points.findIndex(pt => pt.cummulativeDistance >= activePoint.cummulativeDistance);
         const { speed, pace } = calculateSmoothedMetrics(track.points, idx === -1 ? 0 : idx, smoothingWindow);
-        return { pace, speed, elevation: activePoint.ele, hr: activePoint.hr, power: activePoint.power, dist: activePoint.cummulativeDistance };
+        
+        return {
+            pace, speed, elevation: activePoint.ele, hr: activePoint.hr, power: activePoint.power, dist: activePoint.cummulativeDistance
+        };
     }, [activePoint, track, smoothingWindow]);
 
     // Render logic for paths
@@ -108,7 +105,10 @@ const TimelineChart: React.FC<TimelineChartProps> = ({
             const maxV = Math.max(...vals);
             const vRange = maxV - minV || 1;
 
-            const pathData = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${height - ((p.y - minV) / vRange) * height}`).join(' ');
+            const pathData = points.map((p, i) => 
+                `${i === 0 ? 'M' : 'L'} ${p.x} ${height - ((p.y - minV) / vRange) * height}`
+            ).join(' ');
+
             return { metric, pathData, color: metricInfo[metric].color };
         });
     }, [track, yAxisMetrics, xScale, height, smoothingWindow]);
@@ -116,15 +116,14 @@ const TimelineChart: React.FC<TimelineChartProps> = ({
     return (
         <div className="w-full h-full relative select-none bg-slate-900/50 rounded-xl overflow-hidden border border-slate-700/50 shadow-inner">
             {currentValues && (
-                <div className="absolute top-2 left-10 right-2 flex flex-wrap gap-2 z-20 pointer-events-none">
+                <div className="absolute top-2 left-12 right-2 flex flex-wrap gap-2 z-20 pointer-events-none">
                     {yAxisMetrics.map(m => {
                         const val = (currentValues as any)[m];
                         if (val === undefined || val === null || val === 0) return null;
-                        const zone = m === 'hr' ? getHrZone(val, userProfile?.maxHr || 190) : null;
                         return (
-                            <div key={m} className="flex items-center gap-1.5 px-2 py-1 bg-slate-900/80 backdrop-blur border border-white/10 rounded shadow-xl animate-fade-in ring-1 ring-white/5">
-                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: zone ? zone.color : metricInfo[m].color }}></div>
-                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">{zone ? zone.label : metricInfo[m].label}:</span>
+                            <div key={m} className="flex items-center gap-1.5 px-2 py-1 bg-slate-900/80 backdrop-blur-sm border border-white/10 rounded shadow-xl animate-fade-in ring-1 ring-white/5">
+                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: metricInfo[m].color }}></div>
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">{metricInfo[m].label}:</span>
                                 <span className="text-xs font-mono font-bold text-white">{metricInfo[m].formatter(val)}</span>
                             </div>
                         );
@@ -136,26 +135,49 @@ const TimelineChart: React.FC<TimelineChartProps> = ({
             )}
 
             <svg
-                ref={svgRef} className="w-full h-full cursor-crosshair touch-none"
-                onMouseMove={(e) => { const d = getDistAtX(e.clientX); onChartHover(getTrackPointAtDistance(track, d)); }}
+                ref={svgRef}
+                className="w-full h-full cursor-crosshair touch-none"
+                onMouseMove={(e) => {
+                    const d = getDistAtX(e.clientX);
+                    onChartHover(getTrackPointAtDistance(track, d));
+                }}
                 onMouseLeave={() => onChartHover(null)}
             >
                 <g transform={`translate(${PADDING.left}, ${PADDING.top})`}>
+                    {/* Grid */}
                     {[0, 0.25, 0.5, 0.75, 1].map(r => (
                         <line key={r} x1={0} y1={r * height} x2={width} y2={r * height} stroke="#ffffff" strokeOpacity="0.05" strokeWidth="1" />
                     ))}
+
+                    {/* Selection Overlay */}
                     {(selection || highlightedRange) && (
                         <rect 
                             x={xScale(highlightedRange ? highlightedRange.startDistance : getDistAtX(Math.min(selection!.start, selection!.end)))}
-                            y={0} width={Math.abs(xScale(highlightedRange ? highlightedRange.endDistance - highlightedRange.startDistance : Math.abs(getDistAtX(selection!.end) - getDistAtX(selection!.start))))}
-                            height={height} fill="rgba(34, 211, 238, 0.1)" stroke="rgba(34, 211, 238, 0.4)" strokeWidth="1"
+                            y={0}
+                            width={Math.abs(xScale(highlightedRange ? highlightedRange.endDistance - highlightedRange.startDistance : Math.abs(getDistAtX(selection!.end) - getDistAtX(selection!.start))))}
+                            height={height}
+                            fill="rgba(34, 211, 238, 0.1)"
+                            stroke="rgba(34, 211, 238, 0.4)"
+                            strokeWidth="1"
                         />
                     )}
+
+                    {/* Paths */}
                     {metricPaths.map(p => (
                         <path key={p.metric} d={p.pathData} fill="none" stroke={p.color} strokeWidth="2.5" strokeLinejoin="round" className="drop-shadow-lg" />
                     ))}
+
+                    {/* Active Line (Hover or Animation) */}
                     {activePoint && (
-                        <line x1={xScale(activePoint.cummulativeDistance)} y1={0} x2={xScale(activePoint.cummulativeDistance)} y2={height} stroke="#fde047" strokeWidth="1.5" strokeDasharray="4" />
+                        <line 
+                            x1={xScale(activePoint.cummulativeDistance)} 
+                            y1={0} 
+                            x2={xScale(activePoint.cummulativeDistance)} 
+                            y2={height} 
+                            stroke="#fde047" 
+                            strokeWidth="1.5" 
+                            strokeDasharray="4" 
+                        />
                     )}
                 </g>
             </svg>
