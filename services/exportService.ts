@@ -13,7 +13,8 @@ const toISOStringWithMilliseconds = (date: Date) => {
     return `${y}-${m}-${d}T${h}:${min}:${s}.${ms}Z`;
 };
 
-const generateGpxContent = (track: Track): string => {
+// Added export keyword to make it accessible for Strava upload functionality in TrackDetailView
+export const generateGpxContent = (track: Track): string => {
     const trackPointsXml = track.points.map(p => {
         let extensionXml = '';
         const hasHr = p.hr !== undefined && p.hr !== null && p.hr > 0;
