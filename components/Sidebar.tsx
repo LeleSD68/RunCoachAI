@@ -19,6 +19,8 @@ interface SidebarProps {
     tracks: Track[];
     onFileUpload: (files: File[] | null) => void;
     visibleTrackIds: Set<string>;
+    focusedTrackId: string | null;
+    onFocusTrack: (id: string) => void;
     onToggleVisibility: (id: string) => void;
     raceSelectionIds: Set<string>;
     onToggleRaceSelection: (id: string) => void;
@@ -38,7 +40,7 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = (props) => {
     const { 
-        tracks, onFileUpload, visibleTrackIds, onToggleVisibility, 
+        tracks, onFileUpload, visibleTrackIds, focusedTrackId, onFocusTrack, onToggleVisibility, 
         raceSelectionIds, onToggleRaceSelection, onSelectAll, onDeselectAll, 
         onStartRace, onDeleteSelected, onViewDetails, 
         hoveredTrackId, onTrackHoverStart, onTrackHoverEnd,
@@ -58,7 +60,6 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
             return matchesSearch && matchesArchive;
         });
 
-        // Sorting
         list.sort((a, b) => {
             const timeA = new Date(a.points[0].time).getTime();
             const timeB = new Date(b.points[0].time).getTime();
@@ -109,7 +110,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
         <div className="flex flex-col h-full bg-slate-900 border-r border-slate-800 text-white overflow-hidden">
             <div className="p-3 border-b border-slate-800 shrink-0 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                   <h2 className="text-sm font-black text-cyan-400 uppercase tracking-tighter italic">RunCoach Explorer</h2>
+                   <h2 className="text-sm font-black text-cyan-400 uppercase tracking-tighter italic">Data Panel</h2>
                    <span className="text-[10px] bg-slate-800 px-1.5 rounded font-mono text-slate-500">{processedTracks.length}</span>
                 </div>
                 <button onClick={() => fileInputRef.current?.click()} className="bg-cyan-600/10 hover:bg-cyan-600/20 text-cyan-400 p-1.5 rounded transition-colors border border-cyan-500/30"><UploadIcon /></button>
@@ -127,7 +128,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                 <div className="grid grid-cols-2 gap-1 text-[10px]">
                     <div className="flex flex-col">
                         <label className="text-slate-500 font-bold uppercase text-[8px] mb-0.5">Raggruppa</label>
-                        <select value={grouping} onChange={e => setGrouping(e.target.value as GroupingType)} className="bg-slate-800 border border-slate-700 rounded p-1 outline-none">
+                        <select value={grouping} onChange={e => setGrouping(e.target.value as GroupingType)} className="bg-slate-800 border border-slate-700 rounded p-1 outline-none cursor-pointer">
                             <option value="none">Nessuno</option>
                             <option value="date">Mese</option>
                             <option value="distance">Distanza</option>
@@ -138,7 +139,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                     </div>
                     <div className="flex flex-col">
                         <label className="text-slate-500 font-bold uppercase text-[8px] mb-0.5">Ordina</label>
-                        <select value={sort} onChange={e => setSort(e.target.value as SortType)} className="bg-slate-800 border border-slate-700 rounded p-1 outline-none">
+                        <select value={sort} onChange={e => setSort(e.target.value as SortType)} className="bg-slate-800 border border-slate-700 rounded p-1 outline-none cursor-pointer">
                             <option value="date_desc">Data (Nuove)</option>
                             <option value="date_asc">Data (Vecchie)</option>
                             <option value="dist_desc">Distanza ↓</option>
@@ -168,47 +169,54 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                             {groupName} <span className="text-[8px] opacity-60 ml-1">({groupTracks.length})</span>
                         </div>
                         <div className="divide-y divide-slate-800/30">
-                            {groupTracks.map(track => (
-                                <div 
-                                    key={track.id} 
-                                    className={`flex items-center p-1.5 hover:bg-slate-800 transition-colors group relative ${hoveredTrackId === track.id ? 'bg-slate-800' : ''}`}
-                                    onMouseEnter={() => onTrackHoverStart(track.id)}
-                                    onMouseLeave={onTrackHoverEnd}
-                                >
-                                    <input 
-                                        type="checkbox" 
-                                        checked={raceSelectionIds.has(track.id)} 
-                                        onChange={(e) => { e.stopPropagation(); onToggleRaceSelection(track.id); }} 
-                                        className="mr-2 accent-cyan-500 w-3 h-3 flex-shrink-0" 
-                                    />
-                                    
-                                    {/* Mini Track Preview */}
-                                    <div className="w-10 h-8 bg-slate-950 rounded border border-slate-700 overflow-hidden mr-2 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity">
-                                        <TrackPreview points={track.points} color={track.color} className="w-full h-full" />
-                                    </div>
-
-                                    <div className="flex-grow min-w-0 cursor-pointer" onClick={() => onViewDetails(track.id)}>
-                                        <div className="flex justify-between items-center mb-0.5">
-                                            <span className="text-[11px] font-bold truncate pr-1 group-hover:text-cyan-400 transition-colors">{track.name}</span>
+                            {groupTracks.map(track => {
+                                const isFocused = focusedTrackId === track.id;
+                                return (
+                                    <div 
+                                        key={track.id} 
+                                        className={`flex items-center p-1.5 hover:bg-slate-800 transition-all group relative ${hoveredTrackId === track.id || isFocused ? 'bg-slate-800/80' : ''}`}
+                                        onMouseEnter={() => onTrackHoverStart(track.id)}
+                                        onMouseLeave={onTrackHoverEnd}
+                                    >
+                                        <input 
+                                            type="checkbox" 
+                                            checked={raceSelectionIds.has(track.id)} 
+                                            onChange={(e) => { e.stopPropagation(); onToggleRaceSelection(track.id); }} 
+                                            className="mr-2 accent-cyan-500 w-3 h-3 flex-shrink-0 cursor-pointer" 
+                                        />
+                                        
+                                        <div className="w-10 h-8 bg-slate-950 rounded border border-slate-700 overflow-hidden mr-2 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity">
+                                            <TrackPreview points={track.points} color={track.color} className="w-full h-full" />
                                         </div>
-                                        <div className="flex items-center text-[9px] text-slate-500 font-mono gap-2">
-                                            <span className="text-cyan-100/70">{track.distance.toFixed(1)}k</span>
-                                            <span className="w-px h-2 bg-slate-700"></span>
-                                            <span>{new Date(track.points[0].time).toLocaleDateString('it-IT', {day:'2-digit', month:'2-digit'})}</span>
-                                            {track.rating && <div className="ml-auto scale-75 origin-right"><RatingStars rating={track.rating} size="xs" /></div>}
-                                        </div>
-                                    </div>
 
-                                    <div className="flex items-center gap-1 ml-1 opacity-0 group-hover:opacity-100 transition-opacity absolute right-1 bg-slate-800 shadow-xl rounded px-1">
-                                        <button onClick={() => onToggleArchived(track.id)} className="p-1 text-slate-500 hover:text-white" title={track.isArchived ? "Ripristina" : "Archivia"}>
-                                            {track.isArchived ? <UploadIcon /> : <ArchiveBoxIcon />}
-                                        </button>
-                                        <button onClick={() => onToggleVisibility(track.id)} className={`p-1 ${visibleTrackIds.has(track.id) ? 'text-cyan-400' : 'text-slate-600'}`}>
-                                            {visibleTrackIds.has(track.id) ? <EyeIcon /> : <EyeSlashIcon />}
-                                        </button>
+                                        <div className="flex-grow min-w-0 cursor-pointer" onClick={() => onFocusTrack(track.id)}>
+                                            <div className="flex justify-between items-center mb-0.5">
+                                                <span className={`text-[11px] font-bold truncate pr-1 transition-colors ${isFocused ? 'text-cyan-400' : 'group-hover:text-cyan-400'}`}>{track.name}</span>
+                                            </div>
+                                            <div className="flex items-center text-[9px] text-slate-500 font-mono gap-2">
+                                                <span className={isFocused ? 'text-cyan-400' : 'text-cyan-100/70'}>{track.distance.toFixed(1)}k</span>
+                                                <span className="w-px h-2 bg-slate-700"></span>
+                                                <span>{new Date(track.points[0].time).toLocaleDateString('it-IT', {day:'2-digit', month:'2-digit'})}</span>
+                                                {track.rating && <div className="ml-auto scale-75 origin-right"><RatingStars rating={track.rating} size="xs" /></div>}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-1 ml-1 opacity-0 group-hover:opacity-100 transition-opacity absolute right-1 bg-slate-800 shadow-xl rounded px-1 z-20">
+                                            <button onClick={() => onViewDetails(track.id)} className="p-1 text-cyan-500 hover:text-white" title="Dettagli">
+                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" /><path fillRule="evenodd" d="M.664 10.59a1.651 1.651 0 0 1 0-1.186A10.004 10.004 0 0 1 10 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0 1 10 17c-4.257 0-7.893-2.66-9.336-6.41ZM14 10a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" clipRule="evenodd" /></svg>
+                                            </button>
+                                            <button onClick={() => onToggleArchived(track.id)} className="p-1 text-slate-500 hover:text-white" title={track.isArchived ? "Ripristina" : "Archivia"}>
+                                                {track.isArchived ? <UploadIcon /> : <ArchiveBoxIcon />}
+                                            </button>
+                                            <button onClick={() => onToggleVisibility(track.id)} className={`p-1 ${visibleTrackIds.has(track.id) ? 'text-cyan-400' : 'text-slate-600'}`}>
+                                                {visibleTrackIds.has(track.id) ? <EyeIcon /> : <EyeSlashIcon />}
+                                            </button>
+                                        </div>
+                                        
+                                        {isFocused && <div className="absolute left-0 top-0 bottom-0 w-1 bg-cyan-500 shadow-[0_0_8px_rgba(6,182,212,0.8)]"></div>}
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 ))}
