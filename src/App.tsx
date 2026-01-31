@@ -142,22 +142,30 @@ const App: React.FC = () => {
 
     // Unified Track Update Handler with Persistence
     const handleTrackUpdate = (id: string, meta: Partial<Track>) => {
+        // Update both the main list AND the currently viewed track (if matching)
+        // to ensure immediate UI feedback (like RPE/Shoes selector).
+        
+        let updatedTrack: Track | undefined;
+
         setTracks(prev => {
             const target = prev.find(t => t.id === id);
             if (!target) return prev;
             
-            const updatedTrack = { ...target, ...meta };
+            updatedTrack = { ...target, ...meta };
             
             // Persist to DB and Cloud
             if (!updatedTrack.isExternal) {
-                saveTracksToDB([updatedTrack]); // Local
+                saveTracksToDB([updatedTrack]); // Local (now supports upsert without clear)
                 if (!isGuest && userId) {
                     syncTrackToCloud(updatedTrack); // Cloud
                 }
             }
             
-            return prev.map(t => t.id === id ? updatedTrack : t);
+            return prev.map(t => t.id === id ? updatedTrack! : t);
         });
+
+        // Sync local viewing state if it's the one being edited
+        setViewingTrack(current => (current && current.id === id && updatedTrack) ? updatedTrack : current);
     };
 
     // --- INITIALIZATION ---
@@ -373,11 +381,22 @@ const App: React.FC = () => {
             if (newTracks.length > 0) {
                 const tracksWithUser = newTracks.map(t => ({ ...t, userId: userId || undefined }));
                 
+                // Update State
                 setTracks(prev => {
                     const updated = [...prev, ...tracksWithUser].sort((a, b) => b.points[0].time.getTime() - a.points[0].time.getTime());
-                    saveTracksToDB(updated); 
                     return updated;
                 });
+
+                // Save Local
+                await saveTracksToDB(tracksWithUser, { skipCloud: true }); 
+                
+                // Sync Cloud Explicitly
+                if (userId && !isGuest) {
+                    // Sync one by one or in batch if API supported batch
+                    for (const t of tracksWithUser) {
+                        await syncTrackToCloud(t);
+                    }
+                }
                 
                 addToast(`Importate ${newTracks.length} attività da Strava!`, "success");
             } 
