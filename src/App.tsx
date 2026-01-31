@@ -54,10 +54,20 @@ const WhistleFloatingIcon = () => (
     </svg>
 );
 
+// Hook for responsive checks
+const useIsMobile = () => {
+    const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth < 768);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+    return isMobile;
+};
+
 const App: React.FC = () => {
     // --- STATE DEFINITIONS ---
     const [tracks, setTracks] = useState<Track[]>([]);
-    // Removed redundant filteredTracks state for Sidebar - Sidebar handles its own filtering
     const [plannedWorkouts, setPlannedWorkouts] = useState<PlannedWorkout[]>([]);
     const [userProfile, setUserProfile] = useState<UserProfile>({});
     const [toasts, setToasts] = useState<Toast[]>([]);
@@ -96,6 +106,8 @@ const App: React.FC = () => {
     const [hoveredTrackId, setHoveredTrackId] = useState<string | null>(null);
     const [selectedPoint, setSelectedPoint] = useState<TrackPoint | null>(null);
     
+    const isMobileView = useIsMobile();
+
     // Auth State
     const [isGuest, setIsGuest] = useState(false);
     const [userId, setUserId] = useState<string | null>(null);
@@ -142,9 +154,6 @@ const App: React.FC = () => {
 
     // Unified Track Update Handler with Persistence
     const handleTrackUpdate = (id: string, meta: Partial<Track>) => {
-        // Update both the main list AND the currently viewed track (if matching)
-        // to ensure immediate UI feedback (like RPE/Shoes selector).
-        
         let updatedTrack: Track | undefined;
 
         setTracks(prev => {
@@ -155,7 +164,7 @@ const App: React.FC = () => {
             
             // Persist to DB and Cloud
             if (!updatedTrack.isExternal) {
-                saveTracksToDB([updatedTrack]); // Local (now supports upsert without clear)
+                saveTracksToDB([updatedTrack]); // Local
                 if (!isGuest && userId) {
                     syncTrackToCloud(updatedTrack); // Cloud
                 }
@@ -362,15 +371,11 @@ const App: React.FC = () => {
             if (fetchedTracks.length === 0) return;
 
             const newTracks = fetchedTracks.filter(newT => {
-                // Check if this ID is in the ignore/deleted list
                 if (userProfile.ignoredStravaIds?.includes(newT.id)) {
                     return false;
                 }
-
-                // Check against ALL existing tracks (even archived ones)
                 const alreadyExists = tracks.some(existingT => {
                     if (existingT.id === newT.id) return true;
-                    // Fuzzy match backup
                     const timeDiff = Math.abs(existingT.points[0].time.getTime() - newT.points[0].time.getTime());
                     const distDiff = Math.abs(existingT.distance - newT.distance);
                     return timeDiff < 60000 && distDiff < 0.1;
@@ -381,18 +386,14 @@ const App: React.FC = () => {
             if (newTracks.length > 0) {
                 const tracksWithUser = newTracks.map(t => ({ ...t, userId: userId || undefined }));
                 
-                // Update State
                 setTracks(prev => {
                     const updated = [...prev, ...tracksWithUser].sort((a, b) => b.points[0].time.getTime() - a.points[0].time.getTime());
                     return updated;
                 });
 
-                // Save Local
                 await saveTracksToDB(tracksWithUser, { skipCloud: true }); 
                 
-                // Sync Cloud Explicitly
                 if (userId && !isGuest) {
-                    // Sync one by one or in batch if API supported batch
                     for (const t of tracksWithUser) {
                         await syncTrackToCloud(t);
                     }
@@ -672,15 +673,18 @@ const App: React.FC = () => {
             )}
 
             {!showHome && !showAuthSelection && !showInitialChoice && (
-                <div className="flex h-full relative">
-                    {/* SIDEBAR */}
-                    {(isSidebarOpen || !isMobile()) && (
+                <div className={`flex h-full relative ${isMobileView ? 'flex-col' : 'flex-row'}`}>
+                    {/* SIDEBAR WRAPPER */}
+                    {(isSidebarOpen || !isMobileView) && (
                         <div className={`
-                            absolute md:relative z-20 h-full bg-slate-900 border-r border-slate-800 flex-shrink-0 transition-all duration-300
-                            ${isSidebarOpen ? 'w-80 translate-x-0' : 'w-0 -translate-x-full md:w-0 md:translate-x-0'}
+                            z-20 bg-slate-900 border-slate-800 flex-shrink-0 transition-all duration-300
+                            ${isMobileView
+                                ? 'w-full h-[70%] border-b relative order-1' // Mobile: Top 70%
+                                : `absolute md:relative h-full border-r ${isSidebarOpen ? 'w-80 translate-x-0' : 'w-0 -translate-x-full md:w-0 md:translate-x-0'}` // Desktop
+                            }
                         `}>
                             <Sidebar 
-                                tracks={tracks} // PASSING FULL TRACKS ARRAY NOW
+                                tracks={tracks}
                                 onFileUpload={handleFileUpload}
                                 visibleTrackIds={visibleTrackIds}
                                 onToggleVisibility={(id) => setVisibleTrackIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
@@ -708,7 +712,7 @@ const App: React.FC = () => {
                                 simulationSpeed={simulationSpeed}
                                 onSpeedChange={setSimulationSpeed}
                                 lapTimes={new Map()}
-                                sortOrder={'date_desc'} // Placeholder
+                                sortOrder={'date_desc'}
                                 onSortChange={() => {}}
                                 onDeleteTrack={(id) => {
                                     if (id.startsWith('strava-')) {
@@ -771,7 +775,7 @@ const App: React.FC = () => {
                                 onListViewModeChange={() => {}}
                                 onAiBulkRate={() => {}}
                                 onOpenReview={(id) => setAiReviewTrackId(id)}
-                                mobileRaceMode={isMobile()}
+                                mobileRaceMode={isMobileView}
                                 monthlyStats={{}}
                                 plannedWorkouts={plannedWorkouts}
                                 onOpenPlannedWorkout={(id) => { setSelectedWorkoutId(id); setShowDiary(true); }}
@@ -794,8 +798,14 @@ const App: React.FC = () => {
                         </div>
                     )}
 
-                    {/* MAP AREA */}
-                    <div className="flex-grow relative h-full bg-slate-900 overflow-hidden">
+                    {/* MAP WRAPPER */}
+                    <div className={`
+                        relative bg-slate-900 overflow-hidden
+                        ${isMobileView
+                            ? (isSidebarOpen ? 'w-full h-[30%] order-2 border-t border-slate-700' : 'w-full h-full order-1') // Mobile: 30% if sidebar open, else full
+                            : 'flex-grow h-full' // Desktop
+                        }
+                    `}>
                         <MapDisplay 
                             tracks={tracks}
                             visibleTrackIds={visibleTrackIds}
@@ -1050,8 +1060,5 @@ const App: React.FC = () => {
         </div>
     );
 };
-
-// Helper for Mobile check
-const isMobile = () => window.innerWidth < 768;
 
 export default App;
