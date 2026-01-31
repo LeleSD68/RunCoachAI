@@ -140,6 +140,26 @@ const App: React.FC = () => {
         return sorted[0].points[0].time;
     }, [tracks]);
 
+    // Unified Track Update Handler with Persistence
+    const handleTrackUpdate = (id: string, meta: Partial<Track>) => {
+        setTracks(prev => {
+            const target = prev.find(t => t.id === id);
+            if (!target) return prev;
+            
+            const updatedTrack = { ...target, ...meta };
+            
+            // Persist to DB and Cloud
+            if (!updatedTrack.isExternal) {
+                saveTracksToDB([updatedTrack]); // Local
+                if (!isGuest && userId) {
+                    syncTrackToCloud(updatedTrack); // Cloud
+                }
+            }
+            
+            return prev.map(t => t.id === id ? updatedTrack : t);
+        });
+    };
+
     // --- INITIALIZATION ---
 
     useEffect(() => {
@@ -672,17 +692,15 @@ const App: React.FC = () => {
                                 sortOrder={'date_desc'} // Placeholder
                                 onSortChange={() => {}}
                                 onDeleteTrack={(id) => {
-                                    // 1. Add to Ignore list if Strava
                                     if (id.startsWith('strava-')) {
                                         const updatedIgnored = [...(userProfile.ignoredStravaIds || []), id];
                                         const newProfile = { ...userProfile, ignoredStravaIds: updatedIgnored };
                                         setUserProfile(newProfile);
                                         saveProfileToDB(newProfile);
                                     }
-                                    
                                     const newTracks = tracks.filter(t => t.id !== id);
                                     setTracks(newTracks);
-                                    saveTracksToDB(newTracks); // Persist removal
+                                    saveTracksToDB(newTracks);
                                     deleteTrackFromCloud(id);
                                     addToast("Traccia eliminata.", "info");
                                 }}
@@ -696,13 +714,11 @@ const App: React.FC = () => {
                                         }
                                         deleteTrackFromCloud(id);
                                     });
-                                    
                                     if (addedToIgnore) {
                                         const newProfile = { ...userProfile, ignoredStravaIds: newIgnored };
                                         setUserProfile(newProfile);
                                         saveProfileToDB(newProfile);
                                     }
-
                                     const newTracks = tracks.filter(t => !raceSelectionIds.has(t.id));
                                     setTracks(newTracks);
                                     saveTracksToDB(newTracks);
@@ -728,9 +744,7 @@ const App: React.FC = () => {
                                 onExportBackup={handleExportBackup}
                                 onImportBackup={handleImportBackup}
                                 onCloseMobile={() => setIsSidebarOpen(false)}
-                                onUpdateTrackMetadata={(id, meta) => {
-                                    setTracks(prev => prev.map(t => t.id === id ? { ...t, ...meta } : t));
-                                }}
+                                onUpdateTrackMetadata={handleTrackUpdate}
                                 onRegenerateTitles={() => {}}
                                 onToggleExplorer={() => setShowExplorer(true)}
                                 showExplorer={showExplorer}
@@ -750,21 +764,12 @@ const App: React.FC = () => {
                                 onCompareSelected={() => setShowComparison(true)}
                                 userProfile={userProfile}
                                 onOpenSocial={() => setShowSocial(true)}
-                                onToggleArchived={(id) => {
-                                    const newTracks = tracks.map(t => t.id === id ? { ...t, isArchived: !t.isArchived } : t);
-                                    setTracks(newTracks);
-                                    // SAVE TO DB IMMEDIATELY TO PERSIST ARCHIVE STATE
-                                    saveTracksToDB(newTracks); 
-                                    if (userId && !isGuest) {
-                                        const track = newTracks.find(t => t.id === id);
-                                        if (track) syncTrackToCloud(track);
-                                    }
-                                }}
+                                onToggleArchived={(id) => handleTrackUpdate(id, { isArchived: !tracks.find(t => t.id === id)?.isArchived })}
                                 isGuest={isGuest}
                                 onlineCount={0} 
                                 unreadCount={0} 
                                 onTogglePrivacySelected={(isPublic) => {
-                                    setTracks(prev => prev.map(t => raceSelectionIds.has(t.id) ? { ...t, isPublic } : t));
+                                    raceSelectionIds.forEach(id => handleTrackUpdate(id, { isPublic }));
                                 }}
                             />
                         </div>
@@ -944,8 +949,7 @@ const App: React.FC = () => {
                         initialTracks={editingTracks} 
                         onExit={(updated) => {
                             if (updated) {
-                                setTracks(prev => prev.map(t => t.id === updated.id ? updated : t));
-                                saveTracksToDB([updated]); // Update just this one
+                                handleTrackUpdate(updated.id, updated);
                             }
                             setEditingTracks(null);
                         }}
@@ -963,19 +967,18 @@ const App: React.FC = () => {
                         onEdit={() => { setEditingTracks([viewingTrack]); setViewingTrack(null); }}
                         allHistory={tracks}
                         plannedWorkouts={plannedWorkouts}
-                        onUpdateTrackMetadata={(id, meta) => {
-                            setTracks(prev => prev.map(t => t.id === id ? { ...t, ...meta } : t));
-                        }}
+                        onUpdateTrackMetadata={handleTrackUpdate}
                         onAddPlannedWorkout={handleAddPlannedWorkout}
                         onCheckAiAccess={() => { if(limitReached) { setShowLoginModal(true); return false; } return true; }}
                         onLimitReached={() => setLimitReached(true)}
                         isGuest={isGuest}
+                        onOpenProfile={() => setShowProfile(true)}
                     />
                     {workoutToConfirm && (
                         <WorkoutConfirmationModal 
                             workout={workoutToConfirm}
                             onConfirm={() => {
-                                setTracks(prev => prev.map(t => t.id === viewingTrack.id ? { ...t, linkedWorkout: workoutToConfirm } : t));
+                                handleTrackUpdate(viewingTrack.id, { linkedWorkout: workoutToConfirm });
                                 // Also update workout to point to track
                                 const updatedW = { ...workoutToConfirm, completedTrackId: viewingTrack.id };
                                 handleUpdatePlannedWorkout(updatedW);
