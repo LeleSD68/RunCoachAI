@@ -253,6 +253,12 @@ export interface DirectMessage {
   createdAt: string;
 }
 
+// Added AIStudio interface definition to resolve type mismatch and missing type errors
+export interface AIStudio {
+  hasSelectedApiKey: () => Promise<boolean>;
+  openSelectKey: () => Promise<void>;
+}
+
 /**
  * Fix for: Property 'gpxApp' does not exist on type 'Window & typeof globalThis'.
  * Fix for: window.aistudio access.
@@ -263,7 +269,7 @@ declare global {
       addTokens: (count: number) => void;
       trackApiRequest: () => void;
     };
-    // Fix: All declarations of 'aistudio' must have identical modifiers and match the expected AIStudio type.
-    aistudio: AIStudio;
+    // Fix: Added readonly modifier to match the likely pre-configured environment declaration
+    readonly aistudio: AIStudio;
   }
 }
