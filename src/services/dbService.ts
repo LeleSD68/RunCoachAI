@@ -126,6 +126,12 @@ const deduplicateWorkouts = (workouts: PlannedWorkout[]): PlannedWorkout[] => {
     });
 };
 
+// --- HELPER ID VALIDATION ---
+const isStableId = (id: string) => {
+    // Allows UUIDs OR Strava IDs
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id) || id.startsWith('strava-');
+};
+
 // --- TRACKS ---
 export const saveTracksToDB = async (tracks: Track[], options: { skipCloud?: boolean } = {}): Promise<void> => {
   const db = await initDB();
@@ -146,8 +152,8 @@ export const saveTracksToDB = async (tracks: Track[], options: { skipCloud?: boo
           const validTracks = tracks.filter(t => !t.isExternal);
           for (const t of validTracks) {
               const payload = mapTrackToSupabase(t, session.user.id);
-              // Only upsert if it already has a UUID. New tracks are handled by syncTrackToCloud logic called explicitly
-              if (t.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)) {
+              // Upsert if ID is stable (UUID or Strava)
+              if (isStableId(t.id)) {
                  await supabase.from('tracks').upsert({ id: t.id, ...payload });
               }
           }
@@ -183,11 +189,11 @@ export const syncTrackToCloud = async (track: Track) => {
     if (!session || track.isExternal) return;
 
     const payload = mapTrackToSupabase(track, session.user.id);
-    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(track.id);
+    const stable = isStableId(track.id);
 
     try {
-        if (!isUUID) {
-            // INSERT: Rely on DB default uuid_generate_v4()
+        if (!stable) {
+            // INSERT: Rely on DB default uuid_generate_v4() because the local ID is temporary
             const { data, error } = await supabase.from('tracks').insert(payload).select().single();
             
             if (error) {
@@ -210,7 +216,7 @@ export const syncTrackToCloud = async (track: Track) => {
                 await updateWorkoutReferences(oldId, data.id);
             }
         } else {
-            // UPSERT
+            // UPSERT: We have a stable ID (UUID or Strava), preserve it.
             const { error } = await supabase.from('tracks').upsert({ id: track.id, ...payload });
             if (error) console.error("Cloud Upsert Error:", error);
         }
