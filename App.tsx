@@ -111,6 +111,22 @@ const App: React.FC = () => {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
+    // RESET FUNCTION FOR NAVIGATION
+    const resetNavigation = useCallback(() => {
+        setShowHome(false);
+        setShowExplorer(false);
+        setShowDiary(false);
+        setShowPerformance(false);
+        setShowSocial(false);
+        setShowGuide(false);
+        setShowProfile(false);
+        setShowChangelog(false);
+        setViewingTrack(null);
+        setEditingTracks(null);
+        setShowComparison(false);
+        setAiReviewTrackId(null);
+    }, []);
+
     const addToast = (message: string, type: Toast['type']) => {
         const id = Date.now();
         setToasts(prev => [...prev, { id, message, type }]);
@@ -139,10 +155,15 @@ const App: React.FC = () => {
     };
 
     const handleMergeSelection = () => {
-        if (raceSelectionIds.size < 2) {
+        const selectedCount = raceSelectionIds.size;
+        if (selectedCount < 2) {
             addToast("Seleziona almeno 2 tracce per unirle.", "info");
             return;
         }
+
+        const confirmMerge = window.confirm(`Vuoi unire queste ${selectedCount} attività in un'unica traccia continua? Questa operazione creerà una nuova attività sincronizzando le cronologie.`);
+        
+        if (!confirmMerge) return;
         
         const selectedTracksToMerge = tracks.filter(t => raceSelectionIds.has(t.id));
         const merged = mergeTracks(selectedTracksToMerge);
@@ -160,6 +181,8 @@ const App: React.FC = () => {
     const handleDeleteSelected = () => {
         const selectedIds = Array.from(raceSelectionIds);
         if (selectedIds.length === 0) return;
+
+        if (!window.confirm(`Sei sicuro di voler eliminare definitivamente queste ${selectedIds.length} attività?`)) return;
 
         const newTracks = tracks.filter(t => !raceSelectionIds.has(t.id));
         setTracks(newTracks);
@@ -283,7 +306,7 @@ const App: React.FC = () => {
         setIsGuest(false);
         setUserId(null);
         setTracks([]);
-        setShowHome(false);
+        resetNavigation();
         setShowAuthSelection(true);
     };
 
@@ -322,17 +345,17 @@ const App: React.FC = () => {
             {showHome && (
                 <HomeModal 
                     onClose={() => setShowHome(false)}
-                    onOpenDiary={() => setShowDiary(true)}
-                    onOpenExplorer={() => setShowExplorer(true)}
-                    onOpenHelp={() => setShowGuide(true)}
+                    onOpenDiary={() => { resetNavigation(); setShowDiary(true); }}
+                    onOpenExplorer={() => { resetNavigation(); setShowExplorer(true); }}
+                    onOpenHelp={() => { resetNavigation(); setShowGuide(true); }}
                     onImportBackup={handleImportBackup}
                     onExportBackup={exportAllData}
                     onUploadTracks={handleFileUpload}
                     trackCount={tracks.length}
                     plannedWorkouts={plannedWorkouts}
-                    onOpenWorkout={(id) => { setSelectedWorkoutId(id); setShowDiary(true); }}
-                    onOpenProfile={() => setShowProfile(true)}
-                    onOpenChangelog={() => setShowChangelog(true)}
+                    onOpenWorkout={(id) => { resetNavigation(); setSelectedWorkoutId(id); setShowDiary(true); }}
+                    onOpenProfile={() => { resetNavigation(); setShowProfile(true); }}
+                    onOpenChangelog={() => { resetNavigation(); setShowChangelog(true); }}
                     onEnterRaceMode={() => setShowRaceSetup(true)}
                     onLogout={handleLogout}
                     onLogin={() => setShowLoginModal(true)}
@@ -367,30 +390,30 @@ const App: React.FC = () => {
                             hoveredTrackId={hoveredTrackId}
                             onDeleteTrack={(id) => { const n = tracks.filter(t => t.id !== id); setTracks(n); saveTracksToDB(n); deleteTrackFromCloud(id); }}
                             onDeleteSelected={handleDeleteSelected}
-                            onViewDetails={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)}
+                            onViewDetails={(id) => { resetNavigation(); setViewingTrack(tracks.find(t => t.id === id) || null); }}
                             onUpdateTrackMetadata={handleTrackUpdate}
                             onToggleArchived={(id) => handleTrackUpdate(id, { isArchived: !tracks.find(t => t.id === id)?.isArchived })}
                             userProfile={userProfile}
                             isGuest={isGuest}
-                            onOpenHub={() => setShowHome(true)}
-                            onOpenDiary={() => setShowDiary(true)}
-                            onOpenExplorer={() => setShowExplorer(true)}
-                            onOpenSocial={() => setShowSocial(true)}
-                            onOpenPerformanceAnalysis={() => setShowPerformance(true)}
+                            onOpenHub={() => { resetNavigation(); setShowHome(true); }}
+                            onOpenDiary={() => { resetNavigation(); setShowDiary(true); }}
+                            onOpenExplorer={() => { resetNavigation(); setShowExplorer(true); }}
+                            onOpenSocial={() => { resetNavigation(); setShowSocial(true); }}
+                            onOpenPerformanceAnalysis={() => { resetNavigation(); setShowPerformance(true); }}
                             onUserLogin={() => setShowLoginModal(true)}
                             onUserLogout={handleLogout}
-                            onCompareSelected={() => setShowComparison(true)}
+                            onCompareSelected={() => { resetNavigation(); setShowComparison(true); }}
                             apiUsageStats={{ rpm: 0, daily: 0, limitRpm: 60, limitDaily: 1000, totalTokens: dailyTokenCount }}
-                            onOpenChangelog={() => setShowChangelog(true)}
-                            onOpenProfile={() => setShowProfile(true)}
-                            onOpenGuide={() => setShowGuide(true)}
+                            onOpenChangelog={() => { resetNavigation(); setShowChangelog(true); }}
+                            onOpenProfile={() => { resetNavigation(); setShowProfile(true); }}
+                            onOpenGuide={() => { resetNavigation(); setShowGuide(true); }}
                             onExportBackup={exportAllData}
                             onImportBackup={handleImportBackup}
                             onCloseMobile={() => setIsSidebarOpen(false)}
-                            onToggleExplorer={() => setShowExplorer(true)}
+                            onToggleExplorer={() => { resetNavigation(); setShowExplorer(true); }}
                             showExplorer={showExplorer}
                             plannedWorkouts={plannedWorkouts}
-                            onOpenPlannedWorkout={(id) => { setSelectedWorkoutId(id); setShowDiary(true); }}
+                            onOpenPlannedWorkout={(id) => { resetNavigation(); setSelectedWorkoutId(id); setShowDiary(true); }}
                         />
                     </div>
 
@@ -411,15 +434,15 @@ const App: React.FC = () => {
 
                         {!isRaceMode && (
                             <NavigationDock 
-                                onOpenSidebar={() => setIsSidebarOpen(true)}
-                                onCloseSidebar={() => setIsSidebarOpen(false)}
-                                onOpenExplorer={() => setShowExplorer(true)}
-                                onOpenDiary={() => setShowDiary(true)}
-                                onOpenPerformance={() => setShowPerformance(true)}
-                                onOpenGuide={() => setShowGuide(true)}
+                                onOpenSidebar={() => { resetNavigation(); setIsSidebarOpen(true); }}
+                                onCloseSidebar={() => { resetNavigation(); setIsSidebarOpen(false); }}
+                                onOpenExplorer={() => { resetNavigation(); setShowExplorer(true); }}
+                                onOpenDiary={() => { resetNavigation(); setShowDiary(true); }}
+                                onOpenPerformance={() => { resetNavigation(); setShowPerformance(true); }}
+                                onOpenGuide={() => { resetNavigation(); setShowGuide(true); }}
                                 onExportBackup={exportAllData}
-                                onOpenHub={() => setShowHome(true)}
-                                onOpenSocial={() => setShowSocial(true)}
+                                onOpenHub={() => { resetNavigation(); setShowHome(true); }}
+                                onOpenSocial={() => { resetNavigation(); setShowSocial(true); }}
                                 isSidebarOpen={isSidebarOpen}
                             />
                         )}
@@ -438,11 +461,11 @@ const App: React.FC = () => {
             {showProfile && <UserProfileModal onClose={() => setShowProfile(false)} onSave={(p) => { setUserProfile(p); saveProfileToDB(p); }} currentProfile={userProfile} tracks={tracks} onLogout={handleLogout} />}
             {showChangelog && <Changelog onClose={() => setShowChangelog(false)} />}
             {showGuide && <GuideModal onClose={() => setShowGuide(false)} />}
-            {showExplorer && <ExplorerView tracks={tracks} onClose={() => setShowExplorer(false)} onSelectTrack={(id) => { setViewingTrack(tracks.find(t => t.id === id) || null); setShowExplorer(false); }} />}
+            {showExplorer && <ExplorerView tracks={tracks} onClose={() => setShowExplorer(false)} onSelectTrack={(id) => { resetNavigation(); setViewingTrack(tracks.find(t => t.id === id) || null); }} />}
             {showDiary && (
                 <DiaryView 
                     tracks={tracks} plannedWorkouts={plannedWorkouts} userProfile={userProfile} 
-                    onClose={() => setShowDiary(false)} onSelectTrack={(id) => { setViewingTrack(tracks.find(t => t.id === id) || null); setShowDiary(false); }}
+                    onClose={() => setShowDiary(false)} onSelectTrack={(id) => { resetNavigation(); setViewingTrack(tracks.find(t => t.id === id) || null); }}
                     onDeletePlannedWorkout={deletePlannedWorkoutFromCloud} onAddPlannedWorkout={(w) => setPlannedWorkouts(p => [...p, w])}
                 />
             )}
@@ -454,7 +477,7 @@ const App: React.FC = () => {
                     <TrackDetailView 
                         track={viewingTrack} userProfile={userProfile} onExit={() => setViewingTrack(null)}
                         allHistory={tracks} plannedWorkouts={plannedWorkouts} 
-                        onUpdateTrackMetadata={handleTrackUpdate} onOpenProfile={() => setShowProfile(true)}
+                        onUpdateTrackMetadata={handleTrackUpdate} onOpenProfile={() => { resetNavigation(); setShowProfile(true); }}
                     />
                 </div>
             )}
