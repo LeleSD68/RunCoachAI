@@ -103,15 +103,19 @@ const App: React.FC = () => {
     const [isAnimationPlaying, setIsAnimationPlaying] = useState(false);
     
     const [dailyTokenCount, setDailyTokenCount] = useState(0);
+    const [isMobileView, setIsMobileView] = useState(window.innerWidth < 768);
 
-    const isMobileView = window.innerWidth < 768;
+    useEffect(() => {
+        const handleResize = () => setIsMobileView(window.innerWidth < 768);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     const addToast = (message: string, type: Toast['type']) => {
         const id = Date.now();
         setToasts(prev => [...prev, { id, message, type }]);
     };
 
-    // FIX: Aggiornamento immediato UI e persistenza
     const handleTrackUpdate = (id: string, meta: Partial<Track>) => {
         let updatedTrackObj: Track | undefined;
         setTracks(prev => {
@@ -129,13 +133,11 @@ const App: React.FC = () => {
             return next;
         });
 
-        // Aggiorna istantaneamente il modale se aperto
         if (viewingTrack && viewingTrack.id === id && updatedTrackObj) {
             setViewingTrack(updatedTrackObj);
         }
     };
 
-    // FIX: Logica unione file
     const handleMergeSelection = () => {
         if (raceSelectionIds.size < 2) {
             addToast("Seleziona almeno 2 tracce per unirle.", "info");
@@ -341,7 +343,12 @@ const App: React.FC = () => {
 
             {!showHome && !showAuthSelection && !showInitialChoice && (
                 <div className={`flex h-full relative ${isMobileView ? 'flex-col' : 'flex-row'}`}>
-                    <div className={`z-20 bg-slate-900 border-slate-800 flex-shrink-0 transition-all duration-300 ${isMobileView ? 'w-full h-[60%] border-b relative' : `absolute md:relative h-full border-r ${isSidebarOpen ? 'w-80 translate-x-0' : 'w-0 -translate-x-full md:w-0 md:translate-x-0'}`}`}>
+                    {/* Pannello Liste: Sopra su Mobile, Sinistra su Desktop */}
+                    <div className={`z-20 bg-slate-900 border-slate-800 flex-shrink-0 transition-all duration-500 ease-in-out ${
+                        isMobileView 
+                        ? `w-full ${isSidebarOpen ? 'h-[60vh] border-b' : 'h-0 overflow-hidden border-none'} relative` 
+                        : `absolute md:relative h-full border-r ${isSidebarOpen ? 'w-80 translate-x-0' : 'w-0 -translate-x-full md:w-0 md:translate-x-0'}`
+                    }`}>
                         <Sidebar 
                             tracks={tracks}
                             onFileUpload={handleFileUpload}
@@ -387,6 +394,7 @@ const App: React.FC = () => {
                         />
                     </div>
 
+                    {/* Mappa: Sotto su Mobile, Destra su Desktop */}
                     <div className="flex-grow relative h-full bg-slate-900">
                         <MapDisplay 
                             tracks={tracks}
