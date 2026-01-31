@@ -95,7 +95,7 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
         return plannedWorkouts.find(w => new Date(w.date).toDateString() === trackDate && !w.completedTrackId);
     }, [plannedWorkouts, track]);
 
-    const generateSystemInstruction = useCallback(() => {
+    const generateSystemInstruction = () => {
         const personalityKey = userProfile.aiPersonality || 'pro_balanced';
         const personality = personalityPrompts[personalityKey] || personalityPrompts['pro_balanced'];
         const userName = userProfile.name || 'Atleta';
@@ -174,7 +174,7 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
 
         STILE: Rispondi in ITALIANO. Sii tecnico ma sintetico (max 450 parole).
         `;
-    }, [stats, userProfile, track, matchedWorkout]);
+    };
 
     // Load messages and update summary
     useEffect(() => {
@@ -254,7 +254,8 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
         if (!text.trim() || isLoading) return;
         if (onCheckAiAccess && !onCheckAiAccess()) return;
 
-        window.gpxApp?.trackApiRequest();
+        // Fix for: Property 'gpxApp' does not exist on type 'Window & typeof globalThis'.
+        (window as any).gpxApp?.trackApiRequest();
         onUpdateTrackMetadata?.(track.id, { hasChat: true });
 
         if (matchedWorkout && !track.linkedWorkout && (text.toLowerCase().includes('si') || text.toLowerCase().includes('sì') || text.toLowerCase().includes('certo'))) {
@@ -285,7 +286,8 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
                         return next;
                     });
                 }
-                if (finalTokenCount > 0) window.gpxApp?.addTokens(finalTokenCount);
+                // Fix for: Property 'gpxApp' does not exist on type 'Window & typeof globalThis'.
+                if (finalTokenCount > 0) (window as any).gpxApp?.addTokens(finalTokenCount);
             }
         }).catch(e => {
             console.error(e);

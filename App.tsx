@@ -40,6 +40,7 @@ import { mergeTracks } from './services/trackEditorUtils';
 import { generateSmartTitle } from './services/titleGenerator';
 import { supabase } from './services/supabaseClient';
 import { fetchRecentStravaActivities, isStravaConnected, handleStravaCallback } from './services/stravaService';
+import { updatePresence } from './services/socialService';
 
 const App: React.FC = () => {
     const [tracks, setTracks] = useState<Track[]>([]);
@@ -79,6 +80,42 @@ const App: React.FC = () => {
         const id = Date.now();
         setToasts(prev => [...prev, { id, message, type }]);
     };
+
+    // Presence update
+    useEffect(() => {
+        if (!userId || isGuest) return;
+        updatePresence(userId);
+        const interval = setInterval(() => updatePresence(userId), 60000);
+        return () => clearInterval(interval);
+    }, [userId, isGuest]);
+
+    // Realtime Notifications
+    useEffect(() => {
+        if (!userId || isGuest) return;
+
+        const messageChannel = supabase.channel('global-notifications')
+            .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'direct_messages', filter: `receiver_id=eq.${userId}` },
+                async (payload) => {
+                    if (showSocial) return; // Se siamo già nel social hub non serve il toast
+                    const { data: sender } = await supabase.from('profiles').select('name').eq('id', payload.new.sender_id).single();
+                    addToast(`💬 Messaggio da ${sender?.name || 'un amico'}: "${payload.new.content.substring(0, 30)}..."`, 'info');
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'tracks', filter: 'is_public=eq.true' },
+                async (payload) => {
+                    if (payload.new.user_id === userId) return;
+                    const { data: friend } = await supabase.from('profiles').select('name').eq('id', payload.new.user_id).single();
+                    addToast(`🏃 ${friend?.name || 'Un amico'} ha condiviso una nuova corsa: ${payload.new.name}!`, 'success');
+                }
+            )
+            .subscribe();
+
+        return () => { supabase.removeChannel(messageChannel); };
+    }, [userId, isGuest, showSocial]);
 
     // --- Strava OAuth Interceptor ---
     useEffect(() => {
@@ -243,7 +280,7 @@ const App: React.FC = () => {
             
             setRaceSelectionIds(new Set());
             addToast("Tracce unite correttamente!", "success");
-            setViewingTrack(merged); // Mostriamo l'unione conclusa
+            setViewingTrack(merged); 
             
         } catch (e) {
             console.error(e);
@@ -263,7 +300,6 @@ const App: React.FC = () => {
         if (!isGuest) await syncTrackToCloud(updatedTrack);
     };
 
-    // Added handleUpdateTrackMetadata to fix 'Cannot find name' error and sync metadata changes
     const handleUpdateTrackMetadata = async (id: string, metadata: Partial<Track>) => {
         const trackToUpdate = tracks.find(t => t.id === id);
         if (!trackToUpdate) return;
@@ -272,7 +308,6 @@ const App: React.FC = () => {
         const updatedTracks = tracks.map(t => t.id === id ? updatedTrack : t);
         
         setTracks(updatedTracks);
-        // If we are currently viewing this track, update it in state to reflect changes in UI
         if (viewingTrack && viewingTrack.id === id) {
             setViewingTrack(updatedTrack);
         }
@@ -293,7 +328,6 @@ const App: React.FC = () => {
             }
             return next;
         });
-        // Se non è multi-select, zoomiamo anche sulla traccia per feedback
         if (!isMultiSelect) {
             setFocusedTrackId(id);
         }
@@ -345,7 +379,6 @@ const App: React.FC = () => {
     const handleFileUpload = (files: File[] | null) => {
         if (!files || files.length === 0) return;
         addToast("Analisi file in corso...", "info");
-        // Logica di parsing simulata...
     };
 
     const resetNavigation = useCallback(() => {
@@ -380,7 +413,6 @@ const App: React.FC = () => {
     };
 
     const handleMassUpdatePlannedWorkouts = async (list: PlannedWorkout[]) => {
-        const idsToUpdate = new Set(list.map(l => l.id));
         const next = plannedWorkouts.map(w => {
             const upd = list.find(l => l.id === w.id);
             return upd ? upd : w;
@@ -529,7 +561,6 @@ const App: React.FC = () => {
             )}
 
             {showChangelog && <Changelog onClose={() => setShowChangelog(false)} />}
-
             {showGuide && <GuideModal onClose={() => setShowGuide(false)} />}
             
             {showExplorer && (

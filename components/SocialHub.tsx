@@ -3,6 +3,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, FriendRequest, Track, DirectMessage } from '../types';
 import { searchUsers, sendFriendRequest, getFriendRequests, acceptFriendRequest, rejectFriendRequest, getFriends, getFriendsActivityFeed, sendDirectMessage, getDirectMessages } from '../services/socialService';
 import { supabase } from '../services/supabaseClient';
+import TrackPreview from './TrackPreview';
+import RatingStars from './RatingStars';
 
 interface SocialHubProps {
     onClose: () => void;
@@ -16,18 +18,14 @@ const SearchIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2
 const ChatBubbleIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M10 2c-2.236 0-4.43.18-6.57.524C1.993 2.755 1 4.014 1 5.426v5.148c0 1.413.993 2.67 2.43 2.902.848.137 1.705.248 2.57.331v3.443a.75.75 0 0 0 1.28.53l3.58-3.579a.78.78 0 0 1 .527-.224 41.202 41.202 0 0 0 5.183-.5c1.437-.232 2.43-1.49 2.43-2.903V5.426c0-1.413-.993-2.67-2.43-2.902A41.289 41.289 0 0 0 10 2Zm0 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM8 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm5 1a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd" /></svg>);
 const SendIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M3.105 2.289a.75.75 0 0 0-.826.95l1.414 4.949a.75.75 0 0 0 .95.95l4.95-1.414a.75.75 0 0 0-.95-.95l-3.539 1.01-1.01-3.54a.75.75 0 0 0-.95-.826ZM12.23 7.77a.75.75 0 0 0-1.06 0l-4.25 4.25a.75.75 0 0 0 0 1.06l4.25 4.25a.75.75 0 0 0 1.06-1.06l-3.72-3.72 3.72-3.72a.75.75 0 0 0 0-1.06ZM15.5 10a.75.75 0 0 1 .75-.75h.01a.75.75 0 0 1 0 1.5H16.25a.75.75 0 0 1-.75-.75Z" /></svg>);
 
-// Helper per formattare la data nei messaggi
 const getMessageDateLabel = (dateString: string) => {
     const date = new Date(dateString);
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
-
-    // Normalize times to midnight
     date.setHours(0,0,0,0);
     today.setHours(0,0,0,0);
     yesterday.setHours(0,0,0,0);
-
     if (date.getTime() === today.getTime()) return 'Oggi';
     if (date.getTime() === yesterday.getTime()) return 'Ieri';
     return date.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -44,7 +42,6 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
     const [message, setMessage] = useState('');
     const [sentRequests, setSentRequests] = useState<Set<string>>(new Set());
     
-    // Chat State
     const [activeChatFriend, setActiveChatFriend] = useState<UserProfile | null>(null);
     const [chatMessages, setChatMessages] = useState<DirectMessage[]>([]);
     const [newMessage, setNewMessage] = useState('');
@@ -55,92 +52,49 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
         loadData();
     }, [activeTab]);
 
-    // Auto-search debounce
     useEffect(() => {
         if (activeTab !== 'add') return;
         const timer = setTimeout(() => {
-            if (searchQuery.length >= 3) {
-                handleSearch();
-            } else if (searchQuery.length === 0) {
-                setSearchResults([]);
-            }
+            if (searchQuery.length >= 3) handleSearch();
+            else if (searchQuery.length === 0) setSearchResults([]);
         }, 500);
         return () => clearTimeout(timer);
     }, [searchQuery, activeTab]);
 
-    // Chat Polling & Realtime
     useEffect(() => {
         if (activeChatFriend) {
-            fetchChatMessages(); // Initial fetch
-            pollIntervalRef.current = window.setInterval(fetchChatMessages, 5000); // Poll every 5s as backup
-
-            // REALTIME SUBSCRIPTION FOR SOCIAL HUB CHAT
+            fetchChatMessages();
+            pollIntervalRef.current = window.setInterval(fetchChatMessages, 5000);
             const channel = supabase.channel(`hub-chat:${currentUserId}:${activeChatFriend.id}`)
-            .on(
-                'postgres_changes',
-                {
-                    event: 'INSERT',
-                    schema: 'public',
-                    table: 'direct_messages',
-                    filter: `receiver_id=eq.${currentUserId}` 
-                },
-                (payload) => {
-                    const newMsg = payload.new;
-                    // Check if message belongs to this specific chat session
-                    if (newMsg.sender_id === activeChatFriend.id) {
-                        setChatMessages(prev => {
-                            if (prev.some(m => m.id === newMsg.id)) return prev;
-                            const msgFormatted: DirectMessage = {
-                                id: newMsg.id,
-                                senderId: newMsg.sender_id,
-                                receiverId: newMsg.receiver_id,
-                                content: newMsg.content,
-                                createdAt: newMsg.created_at
-                            };
-                            return [...prev, msgFormatted];
-                        });
-                    }
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages', filter: `receiver_id=eq.${currentUserId}` }, (payload) => {
+                if (payload.new.sender_id === activeChatFriend.id) {
+                    setChatMessages(prev => prev.some(m => m.id === payload.new.id) ? prev : [...prev, { id: payload.new.id, senderId: payload.new.sender_id, receiverId: payload.new.receiver_id, content: payload.new.content, createdAt: payload.new.created_at }]);
                 }
-            )
-            .subscribe();
-
-            return () => { 
-                if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-                supabase.removeChannel(channel);
-            };
+            }).subscribe();
+            return () => { if (pollIntervalRef.current) clearInterval(pollIntervalRef.current); supabase.removeChannel(channel); };
         }
     }, [activeChatFriend, currentUserId]);
 
-    // Scroll to bottom on new messages
     useEffect(() => {
-        if (activeChatFriend) {
-            chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }
+        if (activeChatFriend) chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [chatMessages, activeChatFriend]);
 
     const loadData = async () => {
         setLoading(true);
         try {
             if (activeTab === 'friends') {
-                const f = await getFriends(currentUserId);
-                setFriends(f);
-                const r = await getFriendRequests(currentUserId);
-                setRequests(r);
+                setFriends(await getFriends(currentUserId));
+                setRequests(await getFriendRequests(currentUserId));
             } else if (activeTab === 'feed') {
-                const activity = await getFriendsActivityFeed(currentUserId);
-                setFeed(activity);
+                setFeed(await getFriendsActivityFeed(currentUserId));
             }
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setLoading(false);
-        }
+        } catch (e) {}
+        setLoading(false);
     };
 
     const fetchChatMessages = async () => {
-        if (!activeChatFriend || !activeChatFriend.id) return;
-        const msgs = await getDirectMessages(currentUserId, activeChatFriend.id);
-        setChatMessages(msgs);
+        if (!activeChatFriend?.id) return;
+        setChatMessages(await getDirectMessages(currentUserId, activeChatFriend.id));
     };
 
     const handleSearch = async () => {
@@ -148,10 +102,9 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
         setLoading(true);
         try {
             const results = await searchUsers(searchQuery);
-            // Filter out self and already friends (basic check, ideally backend handles this)
             const friendIds = new Set(friends.map(f => f.id));
             setSearchResults(results.filter(u => u.id !== currentUserId && u.id && !friendIds.has(u.id)));
-        } catch (e) { console.error(e); }
+        } catch (e) {}
         setLoading(false);
     };
 
@@ -167,48 +120,21 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
         }
     };
 
-    const handleAccept = async (reqId: string) => {
-        await acceptFriendRequest(reqId);
-        loadData();
-    };
-
-    const handleReject = async (reqId: string) => {
-        if(confirm("Vuoi rifiutare questa richiesta di amicizia?")) {
-            await rejectFriendRequest(reqId);
-            loadData();
-        }
-    };
-
-    const openChat = (friend: UserProfile) => {
-        setActiveChatFriend(friend);
-        setChatMessages([]);
-    };
+    const handleAccept = async (reqId: string) => { await acceptFriendRequest(reqId); loadData(); };
+    const handleReject = async (reqId: string) => { if(confirm("Vuoi rifiutare questa richiesta?")) { await rejectFriendRequest(reqId); loadData(); } };
+    const openChat = (friend: UserProfile) => { setActiveChatFriend(friend); setChatMessages([]); };
 
     const sendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newMessage.trim() || !activeChatFriend || !activeChatFriend.id) return;
-        
+        if (!newMessage.trim() || !activeChatFriend?.id) return;
         try {
-            // Optimistic update
-            const tempMsg: DirectMessage = {
-                id: 'temp-' + Date.now(),
-                senderId: currentUserId,
-                receiverId: activeChatFriend.id,
-                content: newMessage,
-                createdAt: new Date().toISOString()
-            };
+            const tempMsg: DirectMessage = { id: 'temp-' + Date.now(), senderId: currentUserId, receiverId: activeChatFriend.id, content: newMessage, createdAt: new Date().toISOString() };
             setChatMessages(prev => [...prev, tempMsg]);
-            
             await sendDirectMessage(currentUserId, activeChatFriend.id, newMessage);
             setNewMessage('');
-            // fetchChatMessages(); // No need to fetch immediately, Realtime/Optimistic handles it
-        } catch (e) {
-            console.error("Failed to send", e);
-            setMessage("Errore invio messaggio.");
-        }
+        } catch (e) { setMessage("Errore invio messaggio."); }
     };
 
-    // Group Messages Logic
     const groupedMessages = React.useMemo<Record<string, DirectMessage[]>>(() => {
         const groups: Record<string, DirectMessage[]> = {};
         chatMessages.forEach(msg => {
@@ -221,14 +147,12 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
 
     if (activeChatFriend) {
         return (
-            <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[9000] flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9000] flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
                 <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-lg h-[80vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
                     <header className="bg-slate-800 p-4 border-b border-slate-700 flex justify-between items-center shrink-0">
                         <div className="flex items-center gap-3">
                             <button onClick={() => setActiveChatFriend(null)} className="text-slate-400 hover:text-white mr-2">&larr;</button>
-                            <div className="w-8 h-8 bg-slate-700 rounded-full flex items-center justify-center text-white font-bold text-xs border border-slate-600">
-                                {activeChatFriend.name?.substring(0,1)}
-                            </div>
+                            <div className="w-8 h-8 bg-slate-700 rounded-full flex items-center justify-center text-white font-bold text-xs border border-slate-600">{activeChatFriend.name?.substring(0,1)}</div>
                             <div>
                                 <h3 className="font-bold text-white text-sm">{activeChatFriend.name}</h3>
                                 {activeChatFriend.isOnline && <p className="text-[10px] text-green-400">Online</p>}
@@ -236,26 +160,20 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
                         </div>
                         <button onClick={onClose} className="text-slate-400 hover:text-white text-xl">&times;</button>
                     </header>
-                    
                     <div className="flex-grow overflow-y-auto p-4 custom-scrollbar bg-slate-900/50 space-y-3">
                         {chatMessages.length === 0 && <div className="text-center text-slate-500 text-xs mt-10">Inizia la conversazione con {activeChatFriend.name}</div>}
-                        
-                        {Object.entries(groupedMessages).map(([dateLabel, messages]) => (
+                        {Object.entries(groupedMessages).map(([dateLabel, msgs]) => (
                             <div key={dateLabel} className="space-y-3">
                                 <div className="flex justify-center sticky top-0 z-10 py-2 pointer-events-none">
-                                    <span className="bg-slate-800/80 backdrop-blur-sm text-[10px] text-slate-400 px-3 py-1 rounded-full font-bold uppercase tracking-wider shadow-sm border border-slate-700/50">
-                                        {dateLabel}
-                                    </span>
+                                    <span className="bg-slate-800/80 backdrop-blur-sm text-[10px] text-slate-400 px-3 py-1 rounded-full font-bold uppercase tracking-wider border border-slate-700/50">{dateLabel}</span>
                                 </div>
-                                {messages.map(msg => {
+                                {msgs.map(msg => {
                                     const isMe = msg.senderId === currentUserId;
                                     return (
                                         <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                                             <div className={`max-w-[75%] p-3 rounded-2xl text-sm ${isMe ? 'bg-cyan-700 text-white rounded-br-none' : 'bg-slate-700 text-slate-200 rounded-bl-none'}`}>
                                                 <p>{msg.content}</p>
-                                                <p className={`text-[9px] mt-1 text-right ${isMe ? 'text-cyan-300' : 'text-slate-400'}`}>
-                                                    {new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                                </p>
+                                                <p className={`text-[9px] mt-1 text-right ${isMe ? 'text-cyan-300' : 'text-slate-400'}`}>{new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
                                             </div>
                                         </div>
                                     );
@@ -264,23 +182,9 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
                         ))}
                         <div ref={chatEndRef} />
                     </div>
-
                     <form onSubmit={sendMessage} className="p-3 bg-slate-800 border-t border-slate-700 flex gap-2 shrink-0">
-                        <input 
-                            type="text" 
-                            value={newMessage} 
-                            onChange={e => setNewMessage(e.target.value)} 
-                            placeholder="Scrivi un messaggio..."
-                            className="flex-grow bg-slate-900 border border-slate-600 rounded-xl px-4 py-2 text-sm text-white focus:border-cyan-500 outline-none transition-colors"
-                            autoFocus
-                        />
-                        <button 
-                            type="submit" 
-                            disabled={!newMessage.trim()}
-                            className="bg-cyan-600 hover:bg-cyan-500 text-white p-2.5 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            <SendIcon />
-                        </button>
+                        <input type="text" value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Scrivi un messaggio..." className="flex-grow bg-slate-900 border border-slate-600 rounded-xl px-4 py-2 text-sm text-white focus:border-cyan-500 outline-none" autoFocus />
+                        <button type="submit" disabled={!newMessage.trim()} className="bg-cyan-600 hover:bg-cyan-500 text-white p-2.5 rounded-xl"><SendIcon /></button>
                     </form>
                 </div>
             </div>
@@ -290,202 +194,80 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[9000] flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
             <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-2xl h-[80vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
-                
-                {/* Header */}
                 <div className="bg-slate-800 p-4 border-b border-slate-700 flex justify-between items-center shrink-0">
-                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                        <span className="text-cyan-400">⚡</span> Social Hub
-                    </h2>
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2"><span className="text-cyan-400">⚡</span> Social Hub</h2>
                     <button onClick={onClose} className="text-slate-400 hover:text-white text-2xl">&times;</button>
                 </div>
-
-                {/* Tabs */}
                 <div className="flex border-b border-slate-700 bg-slate-900/50 shrink-0">
-                    <button 
-                        onClick={() => setActiveTab('feed')}
-                        className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${activeTab === 'feed' ? 'text-cyan-400 border-b-2 border-cyan-400 bg-slate-800' : 'text-slate-500 hover:text-slate-300'}`}
-                    >
-                        <ActivityIcon /> Feed
-                    </button>
-                    <button 
-                        onClick={() => setActiveTab('friends')}
-                        className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${activeTab === 'friends' ? 'text-cyan-400 border-b-2 border-cyan-400 bg-slate-800' : 'text-slate-500 hover:text-slate-300'}`}
-                    >
-                        <UserIcon /> Amici {friends.length > 0 && `(${friends.length})`}
-                    </button>
-                    <button 
-                        onClick={() => setActiveTab('add')}
-                        className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${activeTab === 'add' ? 'text-cyan-400 border-b-2 border-cyan-400 bg-slate-800' : 'text-slate-500 hover:text-slate-300'}`}
-                    >
-                        <AddUserIcon /> Aggiungi
-                    </button>
+                    <button onClick={() => setActiveTab('feed')} className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${activeTab === 'feed' ? 'text-cyan-400 border-b-2 border-cyan-400 bg-slate-800' : 'text-slate-500 hover:text-slate-300'}`}><ActivityIcon /> Feed</button>
+                    <button onClick={() => setActiveTab('friends')} className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${activeTab === 'friends' ? 'text-cyan-400 border-b-2 border-cyan-400 bg-slate-800' : 'text-slate-500 hover:text-slate-300'}`}><UserIcon /> Amici {friends.length > 0 && `(${friends.length})`}</button>
+                    <button onClick={() => setActiveTab('add')} className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${activeTab === 'add' ? 'text-cyan-400 border-b-2 border-cyan-400 bg-slate-800' : 'text-slate-500 hover:text-slate-300'}`}><AddUserIcon /> Aggiungi</button>
                 </div>
-
-                {/* Content */}
                 <div className="flex-grow overflow-y-auto p-4 custom-scrollbar">
-                    {/* Feedback Message Overlay */}
-                    {message && (
-                        <div className="sticky top-0 z-10 bg-cyan-900/90 border border-cyan-500/50 text-cyan-200 p-3 rounded-lg mb-4 text-center text-sm font-bold animate-fade-in-down shadow-lg backdrop-blur-sm">
-                            {message}
-                        </div>
-                    )}
-
+                    {message && <div className="sticky top-0 z-10 bg-cyan-900/90 border border-cyan-500/50 text-cyan-200 p-3 rounded-lg mb-4 text-center text-sm font-bold shadow-lg backdrop-blur-sm animate-fade-in-down">{message}</div>}
                     {activeTab === 'feed' && (
-                        <div className="space-y-3">
+                        <div className="space-y-4">
                             {feed.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center h-64 text-slate-500">
-                                    <div className="text-4xl mb-3 opacity-30">📭</div>
-                                    <p>Il feed è vuoto.</p>
-                                    <p className="text-xs mt-1">Aggiungi amici per vedere le loro corse qui.</p>
-                                    <button onClick={() => setActiveTab('add')} className="mt-4 text-cyan-400 text-xs font-bold uppercase hover:underline">Trova Amici</button>
-                                </div>
+                                <div className="flex flex-col items-center justify-center h-64 text-slate-500"><div className="text-4xl mb-3 opacity-30">📭</div><p>Il feed è vuoto.</p><button onClick={() => setActiveTab('add')} className="mt-4 text-cyan-400 text-xs font-bold uppercase hover:underline">Trova Amici</button></div>
                             ) : (
                                 feed.map(track => (
-                                    <div key={track.id} className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 flex justify-between items-center hover:bg-slate-800 transition-colors">
-                                        <div>
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-cyan-500 flex items-center justify-center text-[10px] font-bold text-white uppercase shadow-sm">
-                                                    {track.userDisplayName?.substring(0,2)}
-                                                </div>
-                                                <span className="text-xs text-slate-300 font-bold uppercase">{track.userDisplayName}</span>
-                                                <span className="text-xs text-slate-500">• {new Date(track.points[0].time).toLocaleDateString()}</span>
+                                    <div key={track.id} className="bg-slate-800/80 border border-slate-700 rounded-2xl overflow-hidden shadow-lg hover:border-cyan-500/50 transition-all group">
+                                        <div className="flex p-4 gap-4">
+                                            <div className="w-32 h-24 bg-slate-950 rounded-xl border border-slate-700 overflow-hidden shrink-0 relative group-hover:border-cyan-500/30 transition-colors">
+                                                <TrackPreview points={track.points} color={track.color} className="w-full h-full object-cover" />
+                                                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/40 to-transparent"></div>
                                             </div>
-                                            <h3 className="font-bold text-white text-base">{track.name}</h3>
-                                            <div className="flex gap-3 mt-1 text-xs text-slate-400 font-mono">
-                                                <span className="flex items-center gap-1">📏 {track.distance.toFixed(2)} km</span>
-                                                <span className="flex items-center gap-1">⏱️ {(track.duration / 60000).toFixed(0)} min</span>
+                                            <div className="flex-grow min-w-0">
+                                                <div className="flex items-center gap-2 mb-1.5">
+                                                    <div className="w-6 h-6 rounded-full bg-slate-700 border border-slate-600 flex items-center justify-center text-[10px] font-black text-white">{track.userDisplayName?.substring(0,2)}</div>
+                                                    <span className="text-xs text-slate-300 font-bold uppercase truncate">{track.userDisplayName}</span>
+                                                    <span className="text-[10px] text-slate-500 font-mono ml-auto">{new Date(track.startTime || '').toLocaleDateString()}</span>
+                                                </div>
+                                                <h3 className="font-black text-white text-base leading-tight truncate group-hover:text-cyan-400 transition-colors">{track.name}</h3>
+                                                <div className="flex gap-4 mt-2">
+                                                    <div className="text-center">
+                                                        <span className="block text-[8px] text-slate-500 font-black uppercase">Distanza</span>
+                                                        <span className="text-xs font-mono font-bold text-white">{track.distance.toFixed(2)}k</span>
+                                                    </div>
+                                                    <div className="text-center">
+                                                        <span className="block text-[8px] text-slate-500 font-black uppercase">Passo</span>
+                                                        <span className="text-xs font-mono font-bold text-cyan-400">{(track.duration / 60000 / track.distance).toFixed(2)}</span>
+                                                    </div>
+                                                    {track.rating && <div className="ml-auto flex items-end pb-0.5"><RatingStars rating={track.rating} size="xs" /></div>}
+                                                </div>
                                             </div>
                                         </div>
-                                        <div className="text-2xl opacity-20 grayscale">👟</div>
                                     </div>
                                 ))
                             )}
                         </div>
                     )}
-
                     {activeTab === 'friends' && (
                         <div className="space-y-6">
                             {requests.length > 0 && (
-                                <div className="mb-6">
-                                    <h3 className="text-xs font-bold text-purple-400 uppercase tracking-widest mb-2 flex items-center gap-2">
-                                        <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></span>
-                                        Richieste in attesa
-                                    </h3>
+                                <div className="mb-6"><h3 className="text-xs font-bold text-purple-400 uppercase tracking-widest mb-2 flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></span>Richieste in attesa</h3>
                                     {requests.map(req => (
                                         <div key={req.id} className="bg-slate-800 border border-purple-500/30 p-3 rounded-lg flex justify-between items-center mb-2 shadow-sm">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 bg-purple-900/50 rounded-full flex items-center justify-center text-purple-300 font-bold text-xs border border-purple-500/20">
-                                                    {req.requester.name?.substring(0,2)}
-                                                </div>
-                                                <span className="text-white font-bold text-sm">{req.requester.name}</span>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <button onClick={() => handleAccept(req.id)} className="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-lg shadow-purple-900/20">Accetta</button>
-                                                <button onClick={() => handleReject(req.id)} className="bg-slate-700 hover:bg-red-500 text-slate-300 hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">Rifiuta</button>
-                                            </div>
+                                            <div className="flex items-center gap-3"><div className="w-8 h-8 bg-purple-900/50 rounded-full flex items-center justify-center text-purple-300 font-bold text-xs border border-purple-500/20">{req.requester.name?.substring(0,2)}</div><span className="text-white font-bold text-sm">{req.requester.name}</span></div>
+                                            <div className="flex gap-2"><button onClick={() => handleAccept(req.id)} className="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-lg">Accetta</button><button onClick={() => handleReject(req.id)} className="bg-slate-700 hover:bg-red-500 text-slate-300 hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">Rifiuta</button></div>
                                         </div>
                                     ))}
                                 </div>
                             )}
-
-                            <div>
-                                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">La tua Crew</h3>
-                                {friends.length === 0 ? (
-                                    <p className="text-slate-500 text-sm italic">Non hai ancora amici. Cerca qualcuno nella tab "Aggiungi"!</p>
-                                ) : (
+                            <div><h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">La tua Crew</h3>
+                                {friends.length === 0 ? (<p className="text-slate-500 text-sm italic">Cerca qualcuno nella tab "Aggiungi"!</p>) : (
                                     friends.map(friend => (
                                         <div key={friend.id} className="flex items-center justify-between p-3 bg-slate-800/30 rounded-lg border border-slate-700/50 mb-2">
-                                            <div className="flex items-center gap-3">
-                                                <div className="relative">
-                                                    <div className="w-9 h-9 bg-slate-700 rounded-full flex items-center justify-center text-slate-300 font-bold border border-slate-600">
-                                                        {friend.name?.substring(0,1)}
-                                                    </div>
-                                                    {friend.isOnline && (
-                                                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-slate-900 rounded-full shadow-lg shadow-green-500/50" title="Online adesso"></div>
-                                                    )}
-                                                </div>
-                                                <span className="text-slate-200 font-medium text-sm">{friend.name}</span>
-                                            </div>
-                                            
-                                            <div className="flex items-center gap-2">
-                                                {friend.isOnline ? (
-                                                    <span className="text-[10px] text-green-400 font-bold uppercase tracking-wider bg-green-900/20 px-2 py-0.5 rounded border border-green-500/20">Online</span>
-                                                ) : (
-                                                    <span className="text-[10px] text-slate-600 font-bold uppercase tracking-wider">Offline</span>
-                                                )}
-                                                <button 
-                                                    onClick={() => openChat(friend)}
-                                                    className="bg-slate-700 hover:bg-cyan-600 text-slate-300 hover:text-white p-2 rounded-lg transition-colors border border-slate-600"
-                                                    title="Messaggio Privato"
-                                                >
-                                                    <ChatBubbleIcon />
-                                                </button>
-                                            </div>
+                                            <div className="flex items-center gap-3"><div className="relative"><div className="w-9 h-9 bg-slate-700 rounded-full flex items-center justify-center text-slate-300 font-bold border border-slate-600">{friend.name?.substring(0,1)}</div>{friend.isOnline && <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-slate-900 rounded-full shadow-lg"></div>}</div><span className="text-slate-200 font-medium text-sm">{friend.name}</span></div>
+                                            <div className="flex items-center gap-2"><button onClick={() => openChat(friend)} className="bg-slate-700 hover:bg-cyan-600 text-slate-300 hover:text-white p-2 rounded-lg transition-colors border border-slate-600"><ChatBubbleIcon /></button></div>
                                         </div>
                                     ))
                                 )}
                             </div>
                         </div>
                     )}
-
                     {activeTab === 'add' && (
-                        <div className="h-full flex flex-col">
-                            <div className="relative mb-6 shrink-0">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                                    <SearchIcon />
-                                </div>
-                                <input 
-                                    type="text" 
-                                    placeholder="Cerca nome utente..." 
-                                    className="w-full bg-slate-800 border border-slate-600 rounded-xl pl-10 pr-4 py-3 text-white outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all"
-                                    value={searchQuery}
-                                    onChange={e => setSearchQuery(e.target.value)}
-                                    autoFocus
-                                />
-                                {loading && (
-                                    <div className="absolute inset-y-0 right-3 flex items-center">
-                                        <div className="w-4 h-4 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
-                                    </div>
-                                )}
-                            </div>
-                            
-                            <div className="flex-grow space-y-2">
-                                {searchResults.length === 0 && searchQuery.length > 0 && !loading && (
-                                    <p className="text-center text-slate-500 text-sm mt-4">Nessun utente trovato con questo nome.</p>
-                                )}
-                                
-                                {searchResults.length === 0 && searchQuery.length === 0 && (
-                                    <div className="text-center text-slate-600 text-sm mt-8">
-                                        <p>Inizia a scrivere per cercare runner nella community.</p>
-                                    </div>
-                                )}
-
-                                {searchResults.map(user => {
-                                    const isSent = user.id && sentRequests.has(user.id);
-                                    return (
-                                        <div key={user.id} className="flex justify-between items-center p-3 bg-slate-800 rounded-xl border border-slate-700 hover:border-slate-600 transition-all">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 bg-gradient-to-br from-slate-700 to-slate-600 rounded-full flex items-center justify-center text-white font-bold text-xs">
-                                                    {user.name?.substring(0,1)}
-                                                </div>
-                                                <span className="text-white font-bold text-sm">{user.name}</span>
-                                            </div>
-                                            <button 
-                                                onClick={() => user.id && handleSendRequest(user.id)}
-                                                disabled={isSent}
-                                                className={`text-xs px-4 py-2 rounded-lg font-bold transition-all ${
-                                                    isSent 
-                                                    ? 'bg-green-900/30 text-green-400 border border-green-500/30 cursor-default'
-                                                    : 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg active:scale-95'
-                                                }`}
-                                            >
-                                                {isSent ? 'Inviata ✓' : 'Invia Richiesta'}
-                                            </button>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
+                        <div className="h-full flex flex-col"><div className="relative mb-6 shrink-0"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400"><SearchIcon /></div><input type="text" placeholder="Cerca nome utente..." className="w-full bg-slate-800 border border-slate-600 rounded-xl pl-10 pr-4 py-3 text-white focus:border-cyan-500 transition-all" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} autoFocus />{loading && <div className="absolute inset-y-0 right-3 flex items-center"><div className="w-4 h-4 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin"></div></div>}</div><div className="flex-grow space-y-2">{searchResults.map(user => { const isSent = user.id && sentRequests.has(user.id); return (<div key={user.id} className="flex justify-between items-center p-3 bg-slate-800 rounded-xl border border-slate-700 hover:border-slate-600 transition-all"><div className="flex items-center gap-3"><div className="w-8 h-8 bg-gradient-to-br from-slate-700 to-slate-600 rounded-full flex items-center justify-center text-white font-bold text-xs">{user.name?.substring(0,1)}</div><span className="text-white font-bold text-sm">{user.name}</span></div><button onClick={() => user.id && handleSendRequest(user.id)} disabled={isSent} className={`text-xs px-4 py-2 rounded-lg font-bold transition-all ${isSent ? 'bg-green-900/30 text-green-400' : 'bg-cyan-600 hover:bg-cyan-500 text-white'}`}>{isSent ? 'Inviata ✓' : 'Invia Richiesta'}</button></div>); })}</div></div>
                     )}
                 </div>
             </div>

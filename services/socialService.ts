@@ -23,7 +23,6 @@ export const searchUsers = async (query: string): Promise<UserProfile[]> => {
 };
 
 export const sendFriendRequest = async (toUserId: string, currentUserId: string) => {
-    // Check if already friends or pending
     const { data: existing } = await supabase
         .from('friends')
         .select('*')
@@ -40,65 +39,41 @@ export const sendFriendRequest = async (toUserId: string, currentUserId: string)
 };
 
 export const getFriendRequests = async (currentUserId: string): Promise<FriendRequest[]> => {
-    // 1. Recupera le richieste pendenti (solo gli ID)
     const { data: requests, error } = await supabase
         .from('friends')
         .select('id, status, created_at, user_id_1')
         .eq('user_id_2', currentUserId)
         .eq('status', 'pending');
 
-    if (error) {
-        console.error("Error fetching friend requests:", error);
-        return [];
-    }
+    if (error || !requests) return [];
 
-    if (!requests || requests.length === 0) return [];
-
-    // 2. Recupera i profili di chi ha fatto la richiesta
     const requesterIds = requests.map((r: any) => r.user_id_1);
-    const { data: profiles, error: profilesError } = await supabase
+    const { data: profiles } = await supabase
         .from('profiles')
         .select('id, name, last_seen_at')
         .in('id', requesterIds);
-
-    if (profilesError) {
-        console.error("Error fetching requester profiles:", profilesError);
-        return [];
-    }
-
-    // 3. Unisci i dati
+        
     const profilesMap = new Map(profiles?.map((p: any) => [p.id, p]));
 
-    return requests.map((r: any) => {
-        const profile = profilesMap.get(r.user_id_1);
-        return {
-            id: r.id,
-            status: r.status,
-            createdAt: r.created_at,
-            requester: profile || { id: r.user_id_1, name: 'Utente sconosciuto' }
-        };
-    });
+    return requests.map((r: any) => ({
+        id: r.id,
+        status: r.status,
+        createdAt: r.created_at,
+        requester: profilesMap.get(r.user_id_1) || { id: r.user_id_1, name: 'Utente sconosciuto' }
+    }));
 };
 
 export const acceptFriendRequest = async (requestId: string) => {
-    const { error } = await supabase
-        .from('friends')
-        .update({ status: 'accepted' })
-        .eq('id', requestId);
+    const { error } = await supabase.from('friends').update({ status: 'accepted' }).eq('id', requestId);
     if (error) throw error;
 };
 
 export const rejectFriendRequest = async (requestId: string) => {
-    const { error } = await supabase
-        .from('friends')
-        .delete()
-        .eq('id', requestId);
+    const { error } = await supabase.from('friends').delete().eq('id', requestId);
     if (error) throw error;
 };
 
-// Exported for external use in App.tsx notification handling
 export const getFriends = async (currentUserId: string): Promise<UserProfile[]> => {
-    // Get confirmed friendships
     const { data, error } = await supabase
         .from('friends')
         .select('user_id_1, user_id_2')
@@ -106,72 +81,65 @@ export const getFriends = async (currentUserId: string): Promise<UserProfile[]> 
         .eq('status', 'accepted');
 
     if (error) return [];
-
     const friendIds = data.map((r: any) => r.user_id_1 === currentUserId ? r.user_id_2 : r.user_id_1);
-    
     if (friendIds.length === 0) return [];
 
-    const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, name, last_seen_at')
-        .in('id', friendIds);
-
+    const { data: profiles } = await supabase.from('profiles').select('id, name, last_seen_at').in('id', friendIds);
     return profiles?.map((p: any) => ({
         ...p,
-        isOnline: p.last_seen_at && (new Date().getTime() - new Date(p.last_seen_at).getTime() < 2 * 60 * 1000) // Online if seen in last 2 mins (stricter)
+        isOnline: p.last_seen_at && (new Date().getTime() - new Date(p.last_seen_at).getTime() < 2 * 60 * 1000)
     })) || [];
 };
 
 export const getFriendsActivityFeed = async (currentUserId: string): Promise<Track[]> => {
-    // Requires the RLS policy "Users can view own and friends tracks" to be active
-    // 1. Fetch tracks raw data
+    // Recuperiamo le tracce pubbliche (RLS gestisce l'amicizia se configurata, altrimenti filter esplicito)
     const { data: tracks, error } = await supabase
         .from('tracks')
-        .select('id, name, distance_km, duration_ms, start_time, activity_type, color, user_id')
-        .neq('user_id', currentUserId) // Don't show my own tracks in "Friends Feed"
-        .eq('is_public', true) // NEW: Only fetch tracks marked as public
+        .select('id, name, distance_km, duration_ms, start_time, activity_type, color, user_id, points_data, rating')
+        .neq('user_id', currentUserId)
+        .eq('is_public', true)
         .order('start_time', { ascending: false })
         .limit(20);
 
-    if (error) {
-        console.error("Feed error", error);
-        return [];
-    }
+    if (error || !tracks) return [];
 
-    if (!tracks || tracks.length === 0) return [];
-
-    // 2. Fetch profiles for these tracks
     const userIds = [...new Set(tracks.map((t: any) => t.user_id))];
-    const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, name')
-        .in('id', userIds);
-        
+    const { data: profiles } = await supabase.from('profiles').select('id, name').in('id', userIds);
     const profilesMap = new Map(profiles?.map((p: any) => [p.id, p.name]));
 
-    return tracks.map((t: any) => ({
-        id: t.id,
-        name: t.name,
-        distance: t.distance_km,
-        duration: t.duration_ms,
-        points: [{ time: new Date(t.start_time), lat: 0, lon: 0, ele: 0, cummulativeDistance: 0 }], // Minimal points for list
-        color: t.color || '#3b82f6',
-        activityType: t.activity_type,
-        userDisplayName: profilesMap.get(t.user_id) || 'Runner'
-    }));
+    return tracks.map((t: any) => {
+        let points = [];
+        try {
+            const allPoints = typeof t.points_data === 'string' ? JSON.parse(t.points_data) : t.points_data;
+            // Campionamento per l'anteprima (max 100 punti)
+            if (Array.isArray(allPoints)) {
+                const step = Math.max(1, Math.floor(allPoints.length / 100));
+                points = allPoints.filter((_, i) => i % step === 0).map(p => ({ ...p, time: new Date(p.time) }));
+            }
+        } catch (e) {}
+
+        return {
+            id: t.id,
+            name: t.name,
+            distance: t.distance_km,
+            duration: t.duration_ms,
+            points: points,
+            color: t.color || '#3b82f6',
+            activityType: t.activity_type,
+            rating: t.rating,
+            userDisplayName: profilesMap.get(t.user_id) || 'Runner',
+            userId: t.user_id,
+            startTime: t.start_time
+        };
+    });
 };
 
 export const sendDirectMessage = async (senderId: string, receiverId: string, content: string) => {
-    const { error } = await supabase.from('direct_messages').insert({
-        sender_id: senderId,
-        receiver_id: receiverId,
-        content: content
-    });
+    const { error } = await supabase.from('direct_messages').insert({ sender_id: senderId, receiver_id: receiverId, content: content });
     if (error) throw error;
 };
 
 export const getDirectMessages = async (currentUserId: string, friendId: string): Promise<DirectMessage[]> => {
-    // Fetch latest 50 messages by ordering desc, then reverse for display
     const { data, error } = await supabase
         .from('direct_messages')
         .select('id, sender_id, receiver_id, content, created_at')
@@ -179,12 +147,7 @@ export const getDirectMessages = async (currentUserId: string, friendId: string)
         .order('created_at', { ascending: false })
         .limit(50);
 
-    if (error) {
-        console.error("Chat fetch error", error);
-        return [];
-    }
-
-    // Reverse to show oldest first in the chat UI (chronological)
+    if (error) return [];
     return data.reverse().map((msg: any) => ({
         id: msg.id,
         senderId: msg.sender_id,

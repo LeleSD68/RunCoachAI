@@ -68,7 +68,8 @@ const AnimationSummary: React.FC<AnimationSummaryProps> = ({ trackStats, userPro
             
             const response = await retryWithPolicy(call);
             setAnalysis(response.text || '');
-            if (response.usageMetadata?.totalTokenCount) window.gpxApp?.addTokens(response.usageMetadata.totalTokenCount);
+            // Fix for: Property 'gpxApp' does not exist on type 'Window & typeof globalThis'.
+            if (response.usageMetadata?.totalTokenCount) (window as any).gpxApp?.addTokens(response.usageMetadata.totalTokenCount);
         } catch (e) {
             setError("Il coach AI è momentaneamente occupato.");
         } finally {

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Type } from '@google/genai';
 import { Track, Weather } from '../types';
@@ -60,7 +61,8 @@ const WeatherPanel: React.FC<{ track: Track }> = ({ track }) => {
             };
 
             const response = await retryWithPolicy(call);
-            window.gpxApp?.addTokens(response.usageMetadata?.totalTokenCount ?? 0);
+            // Fix for: Property 'gpxApp' does not exist on type 'Window & typeof globalThis'.
+            (window as any).gpxApp?.addTokens(response.usageMetadata?.totalTokenCount ?? 0);
             
             const jsonStr = (response.text || '').trim();
             const weatherData = JSON.parse(jsonStr);

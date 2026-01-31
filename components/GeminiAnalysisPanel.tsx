@@ -113,7 +113,8 @@ La tua analisi dettagliata:`;
             });
 
             const response: GenerateContentResponse = await retryWithBackoff(apiCall);
-            window.gpxApp?.addTokens(response.usageMetadata?.totalTokenCount ?? 0);
+            // Fix for: Property 'gpxApp' does not exist on type 'Window & typeof globalThis'.
+            (window as any).gpxApp?.addTokens(response.usageMetadata?.totalTokenCount ?? 0);
             setAnalysis(response.text || '');
         } catch (e) {
             setError('Impossibile ottenere l\'analisi dopo diversi tentativi. Riprova più tardi.');

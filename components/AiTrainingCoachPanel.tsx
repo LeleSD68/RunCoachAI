@@ -130,7 +130,8 @@ const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({
         setCollapsedCards(new Set());
         setShowConfig(false);
         
-        window.gpxApp?.trackApiRequest();
+        // Fix for: Property 'gpxApp' does not exist on type 'Window & typeof globalThis'.
+        (window as any).gpxApp?.trackApiRequest();
 
         try {
             const call = async () => {
@@ -257,7 +258,8 @@ const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({
             const response = await retryWithPolicy(call);
             const data = JSON.parse(response.text || '[]');
             setSuggestions(data);
-            window.gpxApp?.addTokens(response.usageMetadata?.totalTokenCount ?? 0);
+            // Fix for: Property 'gpxApp' does not exist on type 'Window & typeof globalThis'.
+            (window as any).gpxApp?.addTokens(response.usageMetadata?.totalTokenCount ?? 0);
         } catch (e) {
             console.error(e);
             setError("Impossibile contattare il Coach AI. Riprova più tardi.");

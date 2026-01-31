@@ -17,724 +17,148 @@ interface TimelineChartProps {
     highlightedRange?: { startDistance: number; endDistance: number } | null;
     selectedPoint?: TrackPoint | null;
     smoothingWindow?: number;
-    // Animation props
     animationProgress?: number;
     isAnimating?: boolean;
     userProfile?: UserProfile;
 }
 
-const metricInfo: Record<string, { label: string, color: string, formatter: (v: number) => string }> = {
-    pace: {
-        label: 'Ritmo',
-        color: '#06b6d4', // cyan-500
-        formatter: (pace) => {
-            if (!isFinite(pace) || pace <= 0) return '--:--';
-            const minutes = Math.floor(pace);
-            const seconds = Math.round((pace - minutes) * 60);
-            return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-        },
-    },
-    elevation: {
-        label: 'Altitudine',
-        color: '#22c55e', // green-500
-        formatter: (ele) => `${ele.toFixed(0)}m`,
-    },
-    speed: {
-        label: 'Velocità',
-        color: '#f97316', // orange-500
-        formatter: (speed) => `${speed.toFixed(1)}km/h`,
-    },
-    hr: {
-        label: 'FC',
-        color: '#ef4444', // red-500
-        formatter: (hr) => `${Math.round(hr)}`,
-    },
-    power: {
-        label: 'Potenza',
-        color: '#a855f7', // purple-500
-        formatter: (w) => `${Math.round(w)}W`,
-    },
-    cad: {
-        label: 'Passi',
-        color: '#e879f9', // pink-500
-        formatter: (cad) => `${Math.round(cad)}`,
-    },
-};
-
-const HR_ZONES = [
-    { name: 'Z1', min: 0, max: 0.6, color: 'rgba(59, 130, 246, 0.15)', stroke: 'rgba(59, 130, 246, 0.3)' }, // Blue
-    { name: 'Z2', min: 0.6, max: 0.7, color: 'rgba(34, 197, 94, 0.15)', stroke: 'rgba(34, 197, 94, 0.3)' }, // Green
-    { name: 'Z3', min: 0.7, max: 0.8, color: 'rgba(234, 179, 8, 0.15)', stroke: 'rgba(234, 179, 8, 0.3)' }, // Yellow
-    { name: 'Z4', min: 0.8, max: 0.9, color: 'rgba(249, 115, 22, 0.15)', stroke: 'rgba(249, 115, 22, 0.3)' }, // Orange
-    { name: 'Z5', min: 0.9, max: 1.5, color: 'rgba(239, 68, 68, 0.15)', stroke: 'rgba(239, 68, 68, 0.3)' }, // Red
-];
-
-const getZoneForHr = (hr: number, maxHr: number) => {
+const getHrZone = (hr: number, maxHr: number) => {
     const ratio = hr / maxHr;
-    if (ratio < 0.6) return 'Z1';
-    if (ratio < 0.7) return 'Z2';
-    if (ratio < 0.8) return 'Z3';
-    if (ratio < 0.9) return 'Z4';
-    return 'Z5';
+    if (ratio < 0.6) return { label: 'Z1', color: '#3b82f6' };
+    if (ratio < 0.7) return { label: 'Z2', color: '#22c55e' };
+    if (ratio < 0.8) return { label: 'Z3', color: '#eab308' };
+    if (ratio < 0.9) return { label: 'Z4', color: '#f97316' };
+    return { label: 'Z5', color: '#ef4444' };
 };
 
-const formatTimeRelative = (ms: number) => {
-    const totalSeconds = Math.floor(ms / 1000);
-    const h = Math.floor(totalSeconds / 3600);
-    const m = Math.floor((totalSeconds % 3600) / 60);
-    const s = totalSeconds % 60;
-    return `${h > 0 ? h + ':' : ''}${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+const metricInfo: Record<string, { label: string, color: string, formatter: (v: number) => string, unit: string }> = {
+    pace: { label: 'Ritmo', color: '#06b6d4', unit: 'min/km', formatter: (v) => {
+        if (!isFinite(v) || v <= 0) return '--:--';
+        const m = Math.floor(v);
+        const s = Math.round((v - m) * 60);
+        return `${m}:${s.toString().padStart(2, '0')}`;
+    }},
+    elevation: { label: 'Altitudine', color: '#10b981', unit: 'm', formatter: (v) => `${v.toFixed(0)}m` },
+    speed: { label: 'Velocità', color: '#f97316', unit: 'km/h', formatter: (v) => `${v.toFixed(1)} km/h` },
+    hr: { label: 'FC', color: '#ef4444', unit: 'bpm', formatter: (v) => `${Math.round(v)}` },
+    power: { label: 'Potenza', color: '#a855f7', unit: 'W', formatter: (v) => `${Math.round(v)}W` },
 };
-
-const PauseClockIcon: React.FC<{ x: number, y: number }> = ({ x, y }) => (
-    <g transform={`translate(${x - 8}, ${y})`}>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4 text-amber-400 opacity-80 drop-shadow-md">
-            <path fillRule="evenodd" d="M8 15A7 7 0 1 0 8 1a7 7 0 0 0 0 14Zm.75-10.25a.75.75 0 0 0-1.5 0v4.5c0 .414.336.75.75.75h4.5a.75.75 0 0 0 0-1.5h-3.75v-3.75Z" clipRule="evenodd" />
-        </svg>
-    </g>
-);
 
 const TimelineChart: React.FC<TimelineChartProps> = ({ 
     track, onSelectionChange, yAxisMetrics, onChartHover, hoveredPoint, 
-    showPauses, pauseSegments, highlightedRange, selectedPoint, smoothingWindow = 30,
+    showPauses, pauseSegments, highlightedRange, selectedPoint, smoothingWindow = 15,
     animationProgress, isAnimating, userProfile
 }) => {
     const svgRef = useRef<SVGSVGElement>(null);
     const [isDragging, setIsDragging] = useState(false);
-    const [isPanning, setIsPanning] = useState(false);
-    const [dragStart, setDragStart] = useState<{ x: number, viewRange: { min: number, max: number } } | null>(null);
     const [selection, setSelection] = useState<{ start: number; end: number } | null>(null);
-    const [viewRange, setViewRange] = useState({ min: 0, max: track.distance });
-    const [isTouchActive, setIsTouchActive] = useState(false);
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
     useEffect(() => {
-        // Reset view when track changes
-        setViewRange({ min: 0, max: track.distance });
-        setSelection(null);
-        if (onSelectionChange) onSelectionChange(null);
-    }, [track, onSelectionChange]);
-
-    useEffect(() => {
         if (!svgRef.current) return;
-        const observer = new ResizeObserver((entries) => {
-            for (const entry of entries) {
-                setDimensions({
-                    width: entry.contentRect.width,
-                    height: entry.contentRect.height
-                });
-            }
+        const obs = new ResizeObserver(entries => {
+            setDimensions({ width: entries[0].contentRect.width, height: entries[0].contentRect.height });
         });
-        observer.observe(svgRef.current);
-        return () => observer.disconnect();
+        obs.observe(svgRef.current);
+        return () => obs.disconnect();
     }, []);
 
-    const PADDING = { top: 10, right: 10, bottom: 25, left: 50 };
+    const PADDING = { top: 35, right: 20, bottom: 30, left: 50 };
+    const width = Math.max(0, dimensions.width - PADDING.left - PADDING.right);
+    const height = Math.max(0, dimensions.height - PADDING.top - PADDING.bottom);
 
-    const pointsWithAllData = useMemo(() => {
-        if (!track || track.points.length < 2) return [];
+    const xScale = useCallback((dist: number) => (dist / track.distance) * width, [track.distance, width]);
+    const getDistAtX = useCallback((x: number) => {
+        const svgRect = svgRef.current?.getBoundingClientRect();
+        if (!svgRect) return 0;
+        const relativeX = x - svgRect.left - PADDING.left;
+        return Math.max(0, Math.min(track.distance, (relativeX / width) * track.distance));
+    }, [track.distance, width]);
 
-        return track.points.map((p, i) => {
-            const values: { [key: string]: number | null } = {};
-            values.elevation = p.ele;
-            values.hr = p.hr ?? null;
-            values.cad = p.cad ?? null;
-            values.power = p.power ?? null;
-            
-            const { speed, pace } = calculateSmoothedMetrics(track.points, i, smoothingWindow);
-            values.speed = speed;
-            values.pace = pace > 0 ? pace : null;
-            
-            return { ...p, values };
-        });
-    }, [track, smoothingWindow]);
-
-    const metricDomains = useMemo(() => {
-        const domains: any = {};
-        if (pointsWithAllData.length < 2) return domains;
-
-        for (const metric of Object.keys(metricInfo) as string[]) {
-            const validValues = pointsWithAllData.map(p => p.values[metric]).filter((v): v is number => v !== null && v !== undefined && isFinite(v));
-            if (validValues.length > 0) {
-                let min = Math.min(...validValues);
-                let max = Math.max(...validValues);
-                if (metric === 'pace') max = Math.min(max, 20); 
-                if (metric === 'speed') min = Math.max(min, 0); 
-                
-                const range = max - min;
-                min = min - range * 0.05;
-                max = max + range * 0.05;
-                if (min === max) { min -= 1; max += 1; }
-
-                domains[metric] = { min, max };
-            }
-        }
-        return domains;
-    }, [pointsWithAllData]);
-
-
-    const { xScale, yScale, xAxisLabels, width, height, hoveredValues, hoveredX, selectedX, animationX, animationValues, hoveredRelativeTime } = useMemo(() => {
-        const svgWidth = dimensions.width;
-        const svgHeight = dimensions.height;
-        
-        const emptyState = { xScale: () => 0, yScale: () => 0, xAxisLabels: [], width:0, height: 0, hoveredValues: null, hoveredX: null, selectedX: null, animationX: null, animationValues: null, hoveredRelativeTime: null };
-        if (!track || track.points.length < 2 || svgWidth === 0 || svgHeight === 0) return emptyState;
-        
-        const width = svgWidth - PADDING.left - PADDING.right;
-        const height = svgHeight - PADDING.top - PADDING.bottom;
-        
-        const viewDistance = viewRange.max - viewRange.min;
-        const xScale = (d: number) => ((d - viewRange.min) / viewDistance) * width;
-        const yScale = (ratio: number) => height - (Math.max(0, Math.min(1, ratio)) * height);
-
-        const numXLabels = 5;
-        const xInterval = viewDistance / numXLabels;
-        const xAxisLabels = [];
-        for (let i = 0; i <= numXLabels; i++) {
-            const dist = viewRange.min + i * xInterval;
-            xAxisLabels.push({ value: `${dist.toFixed(dist < 1 ? 2 : 1)}km`, x: xScale(dist) });
-        }
-
-        const hoveredX = hoveredPoint ? xScale(hoveredPoint.cummulativeDistance) : null;
-        const selectedX = selectedPoint ? xScale(selectedPoint.cummulativeDistance) : null;
-        const animationX = animationProgress !== undefined ? xScale(animationProgress) : null;
-
-        let hoveredValues: { [key: string]: number | null } | null = null;
-        let hoveredRelativeTime: string | null = null;
-
-        if (hoveredPoint) {
-            const dataPoint = pointsWithAllData.find(p => p.time.getTime() === hoveredPoint.time.getTime());
-            if (dataPoint) {
-                hoveredValues = dataPoint.values;
-                hoveredRelativeTime = formatTimeRelative(dataPoint.time.getTime() - track.points[0].time.getTime());
-            }
-        }
-
-        // Calculate values for animation cursor
-        let animationValues: { [key: string]: number | null } | null = null;
-        if (animationProgress !== undefined) {
-            // Find closest point or interpolate
-            const p = getTrackPointAtDistance(track, animationProgress);
-            if (p) {
-               // Reuse smoothing logic by finding nearest index
-               const closestIdx = track.points.findIndex(tp => tp.time.getTime() >= p.time.getTime());
-               if (closestIdx !== -1) {
-                   const { pace } = calculateSmoothedMetrics(track.points, closestIdx, smoothingWindow);
-                   animationValues = {
-                       pace,
-                       hr: p.hr ?? null,
-                       elevation: p.ele
-                   };
-               }
-            }
-        }
-
-        return { xScale, yScale, xAxisLabels, width, height, hoveredValues, hoveredX, selectedX, animationX, animationValues, hoveredRelativeTime };
-    }, [track, PADDING, viewRange, pointsWithAllData, dimensions, hoveredPoint, selectedPoint, animationProgress, smoothingWindow]);
-
-    const getDistanceAtX = useCallback((clientX: number) => {
-        if (!svgRef.current) return 0;
-        const svgX = clientX - svgRef.current.getBoundingClientRect().left - PADDING.left;
-        const clampedX = Math.max(0, Math.min(svgX, width));
-        const viewDistance = viewRange.max - viewRange.min;
-        return (clampedX / width) * viewDistance + viewRange.min;
-    }, [width, viewRange, PADDING.left]);
-
-    // MOUSE EVENTS (Desktop)
-    const handleMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
-        if (e.shiftKey) {
-            setIsPanning(true);
-            setDragStart({ x: e.clientX, viewRange: { ...viewRange } });
-        } else if (onSelectionChange) {
-            setIsDragging(true);
-            const startPos = e.clientX;
-            setSelection({ start: startPos, end: startPos });
-        }
-    };
-    
-    const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-        if (isPanning && dragStart) {
-            const dx = e.clientX - dragStart.x;
-            const viewDistance = dragStart.viewRange.max - dragStart.viewRange.min;
-            const distancePerPixel = viewDistance / width;
-            const distanceDelta = dx * distancePerPixel;
-            
-            let newMin = dragStart.viewRange.min - distanceDelta;
-            let newMax = dragStart.viewRange.max - distanceDelta;
-
-            if (newMin < 0) {
-                newMax -= newMin;
-                newMin = 0;
-            }
-            if (newMax > track.distance) {
-                newMin -= (newMax - track.distance);
-                newMax = track.distance;
-            }
-            newMin = Math.max(0, newMin);
-            
-            setViewRange({ min: newMin, max: newMax });
-
-        } else if (isDragging) {
-            const currentX = e.clientX;
-            setSelection(s => s ? { ...s, end: currentX } : null);
-            
-            if (selection && onSelectionChange) {
-                const startDistance = getDistanceAtX(selection.start);
-                const endDistance = getDistanceAtX(currentX);
-                if (Math.abs(endDistance - startDistance) > 0.01) {
-                    onSelectionChange({
-                        startDistance: Math.min(startDistance, endDistance),
-                        endDistance: Math.max(startDistance, endDistance)
-                    });
-                }
-            }
-            const distance = getDistanceAtX(e.clientX);
-            const point = getTrackPointAtDistance(track, distance);
-            onChartHover(point);
-        } else {
-            const distance = getDistanceAtX(e.clientX);
-            const point = getTrackPointAtDistance(track, distance);
-            onChartHover(point);
-        }
-    };
-
-    const handleMouseUp = () => {
-        if (isDragging && selection && onSelectionChange) {
-             const startDistance = getDistanceAtX(selection.start);
-             const endDistance = getDistanceAtX(selection.end);
-             if (Math.abs(endDistance - startDistance) < 0.01) {
-                 onSelectionChange(null);
-             }
-             setSelection(null);
-        }
-        setIsDragging(false);
-        setIsPanning(false);
-        setDragStart(null);
-    };
-
-    const handleMouseLeave = () => {
-        if (isDragging) handleMouseUp();
-        onChartHover(null);
-    };
-
-    // TOUCH EVENTS (Mobile)
-    const handleTouchStart = (e: React.TouchEvent<SVGSVGElement>) => {
-        if (e.touches.length === 2) {
-            // Multi-touch for selection
-            setIsTouchActive(true);
-            onChartHover(null); 
-            e.preventDefault(); 
-            const t1 = e.touches[0].clientX;
-            const t2 = e.touches[1].clientX;
-            setSelection({ start: t1, end: t2 });
-            
-            const d1 = getDistanceAtX(t1);
-            const d2 = getDistanceAtX(t2);
-            onSelectionChange({ 
-                startDistance: Math.min(d1, d2), 
-                endDistance: Math.max(d1, d2) 
-            });
-        } else if (e.touches.length === 1) {
-            if (selection) {
-                setSelection(null);
-                onSelectionChange(null);
-            }
-            setIsTouchActive(false);
-            const distance = getDistanceAtX(e.touches[0].clientX);
-            const point = getTrackPointAtDistance(track, distance);
-            onChartHover(point);
-        }
-    };
-
-    const handleTouchMove = (e: React.TouchEvent<SVGSVGElement>) => {
-        if (e.touches.length === 2) {
-            setIsTouchActive(true);
-            e.preventDefault();
-            const t1 = e.touches[0].clientX;
-            const t2 = e.touches[1].clientX;
-            setSelection({ start: t1, end: t2 });
-            
-            const d1 = getDistanceAtX(t1);
-            const d2 = getDistanceAtX(t2);
-            onSelectionChange({ 
-                startDistance: Math.min(d1, d2), 
-                endDistance: Math.max(d1, d2) 
-            });
-        } else if (e.touches.length === 1) {
-            const distance = getDistanceAtX(e.touches[0].clientX);
-            const point = getTrackPointAtDistance(track, distance);
-            onChartHover(point);
-        }
-    };
-
-    const handleTouchEnd = (e: React.TouchEvent<SVGSVGElement>) => {
-        if (e.touches.length === 0) {
-            setIsTouchActive(false);
-            if (!selection) {
-                onChartHover(null);
-            }
-            setSelection(null);
-        }
-    };
-
-    const handleWheel = (e: React.WheelEvent<SVGSVGElement>) => {
-        e.preventDefault();
-        const zoomFactor = 1.15;
-        const delta = e.deltaY > 0 ? zoomFactor : 1 / zoomFactor;
-        
-        const mouseDistance = getDistanceAtX(e.clientX);
-        const currentRange = viewRange.max - viewRange.min;
-        let newRange = currentRange * delta;
-
-        if (newRange > track.distance) newRange = track.distance;
-        if (newRange < 0.01) newRange = 0.01;
-
-        const mouseRatio = (mouseDistance - viewRange.min) / currentRange;
-        
-        let newMin = mouseDistance - newRange * mouseRatio;
-        let newMax = newMin + newRange;
-
-        if (newMin < 0) {
-            newMin = 0;
-            newMax = newRange;
-        }
-        if (newMax > track.distance) {
-            newMax = track.distance;
-            newMin = newMax - newRange;
-        }
-
-        setViewRange({ min: newMin, max: newMax });
-    };
-
-    const resetZoom = () => {
-        setViewRange({ min: 0, max: track.distance });
-    };
-    
-    const displaySelection = useMemo(() => {
-        if (selection) {
-            const startX = xScale(getDistanceAtX(selection.start));
-            const endX = xScale(getDistanceAtX(selection.end));
-            return {
-                x: Math.min(startX, endX),
-                width: Math.abs(endX - startX),
-                color: 'rgba(255,255,255,0.2)',
-                stroke: 'rgba(255,255,255,0.5)'
-            };
-        } else if (highlightedRange) {
-            const startX = xScale(highlightedRange.startDistance);
-            const endX = xScale(highlightedRange.endDistance);
-            return {
-                x: Math.min(startX, endX),
-                width: Math.abs(endX - startX),
-                color: 'rgba(14, 165, 233, 0.2)',
-                stroke: 'rgba(14, 165, 233, 0.5)'
-            }
-        }
+    const activePoint = useMemo(() => {
+        if (hoveredPoint) return hoveredPoint;
+        if (animationProgress !== undefined && animationProgress > 0) return getTrackPointAtDistance(track, animationProgress);
         return null;
-    }, [selection, highlightedRange, xScale, getDistanceAtX]);
-    
-    // Determine Y coordinate for HR Zones if active
-    const hrZonesRects = useMemo(() => {
-        if (!yAxisMetrics.includes('hr') || !metricDomains['hr'] || !userProfile?.maxHr) return null;
-        
-        const maxHr = userProfile.maxHr;
-        const { min, max } = metricDomains['hr'];
-        const domainRange = max - min;
-        if (domainRange <= 0) return null;
+    }, [hoveredPoint, animationProgress, track]);
 
-        return HR_ZONES.map(zone => {
-            const zoneMinHr = maxHr * zone.min;
-            const zoneMaxHr = maxHr * zone.max;
+    const currentValues = useMemo(() => {
+        if (!activePoint) return null;
+        const idx = track.points.findIndex(pt => pt.cummulativeDistance >= activePoint.cummulativeDistance);
+        const { speed, pace } = calculateSmoothedMetrics(track.points, idx === -1 ? 0 : idx, smoothingWindow);
+        return { pace, speed, elevation: activePoint.ele, hr: activePoint.hr, power: activePoint.power, dist: activePoint.cummulativeDistance };
+    }, [activePoint, track, smoothingWindow]);
 
-            // Normalize to 0-1 chart space based on current view domain
-            const ratioMin = (zoneMinHr - min) / domainRange;
-            const ratioMax = (zoneMaxHr - min) / domainRange;
+    // Render logic for paths
+    const metricPaths = useMemo(() => {
+        return yAxisMetrics.map(metric => {
+            const points = track.points.map((p, i) => {
+                let val = 0;
+                if (metric === 'elevation') val = p.ele;
+                else if (metric === 'hr') val = p.hr || 0;
+                else if (metric === 'power') val = p.power || 0;
+                else {
+                    const m = calculateSmoothedMetrics(track.points, i, smoothingWindow);
+                    val = metric === 'speed' ? m.speed : m.pace;
+                }
+                return { x: xScale(p.cummulativeDistance), y: val };
+            });
 
-            // Clamp
-            const clampedMin = Math.max(0, Math.min(1, ratioMin));
-            const clampedMax = Math.max(0, Math.min(1, ratioMax));
+            const vals = points.map(p => p.y).filter(v => v > 0);
+            const minV = Math.min(...vals);
+            const maxV = Math.max(...vals);
+            const vRange = maxV - minV || 1;
 
-            // Convert to Y pixels
-            const yTop = yScale(clampedMax);
-            const yBottom = yScale(clampedMin);
-            const h = Math.abs(yBottom - yTop);
-
-            if (h < 1) return null; // Too small
-
-            return (
-                <g key={zone.name}>
-                    <rect 
-                        x={0} 
-                        y={yTop} 
-                        width={width} 
-                        height={h} 
-                        fill={zone.color} 
-                        stroke="none"
-                    />
-                    {h > 15 && (
-                        <text 
-                            x={width - 5} 
-                            y={yTop + h/2} 
-                            fill={zone.stroke} 
-                            textAnchor="end" 
-                            dominantBaseline="middle" 
-                            fontSize="9" 
-                            fontWeight="bold"
-                            opacity={0.8}
-                        >
-                            {zone.name}
-                        </text>
-                    )}
-                </g>
-            );
+            const pathData = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${height - ((p.y - minV) / vRange) * height}`).join(' ');
+            return { metric, pathData, color: metricInfo[metric].color };
         });
-    }, [yAxisMetrics, metricDomains, userProfile, yScale, width]);
-
-    const isZoomed = viewRange.min > 0 || viewRange.max < track.distance;
+    }, [track, yAxisMetrics, xScale, height, smoothingWindow]);
 
     return (
-        <div className="w-full h-full relative group select-none">
+        <div className="w-full h-full relative select-none bg-slate-900/50 rounded-xl overflow-hidden border border-slate-700/50 shadow-inner">
+            {currentValues && (
+                <div className="absolute top-2 left-10 right-2 flex flex-wrap gap-2 z-20 pointer-events-none">
+                    {yAxisMetrics.map(m => {
+                        const val = (currentValues as any)[m];
+                        if (val === undefined || val === null || val === 0) return null;
+                        const zone = m === 'hr' ? getHrZone(val, userProfile?.maxHr || 190) : null;
+                        return (
+                            <div key={m} className="flex items-center gap-1.5 px-2 py-1 bg-slate-900/80 backdrop-blur border border-white/10 rounded shadow-xl animate-fade-in ring-1 ring-white/5">
+                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: zone ? zone.color : metricInfo[m].color }}></div>
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">{zone ? zone.label : metricInfo[m].label}:</span>
+                                <span className="text-xs font-mono font-bold text-white">{metricInfo[m].formatter(val)}</span>
+                            </div>
+                        );
+                    })}
+                    <div className="ml-auto px-2 py-1 bg-cyan-950/40 rounded border border-cyan-500/30">
+                        <span className="text-[10px] font-black text-cyan-200 font-mono">{currentValues.dist.toFixed(2)} km</span>
+                    </div>
+                </div>
+            )}
+
             <svg
-                ref={svgRef}
-                className={`w-full h-full ${isPanning ? 'cursor-grabbing' : (onSelectionChange && isDragging ? 'cursor-ew-resize' : 'cursor-crosshair')}`}
-                style={{ touchAction: 'none' }}
-                onMouseDown={handleMouseDown}
-                onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseLeave}
-                onTouchStart={handleTouchStart}
-                onTouchMove={handleTouchMove}
-                onTouchEnd={handleTouchEnd}
-                onWheel={handleWheel}
+                ref={svgRef} className="w-full h-full cursor-crosshair touch-none"
+                onMouseMove={(e) => { const d = getDistAtX(e.clientX); onChartHover(getTrackPointAtDistance(track, d)); }}
+                onMouseLeave={() => onChartHover(null)}
             >
-                 <defs>
-                    <linearGradient id="grad-pace" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity="0.6" />
-                        <stop offset="95%" stopColor="#ef4444" stopOpacity="0.6" />
-                    </linearGradient>
-                    <linearGradient id="grad-speed" x1="0" y1="0" x2="0" y2="1">
-                         <stop offset="5%" stopColor="#10b981" stopOpacity="0.6" />
-                         <stop offset="95%" stopColor="#ef4444" stopOpacity="0.6" />
-                    </linearGradient>
-                    <linearGradient id="grad-elevation" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#f97316" stopOpacity="0.6" />
-                        <stop offset="95%" stopColor="#22c55e" stopOpacity="0.4" />
-                    </linearGradient>
-                    <linearGradient id="grad-hr" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#ef4444" stopOpacity="0.6" />
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity="0.4" />
-                    </linearGradient>
-                    <linearGradient id="grad-power" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#d946ef" stopOpacity="0.6" />
-                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity="0.4" />
-                    </linearGradient>
-                </defs>
-
                 <g transform={`translate(${PADDING.left}, ${PADDING.top})`}>
-                    
-                    {/* HR ZONES BACKGROUND */}
-                    {hrZonesRects}
-
-                    {[0, 0.25, 0.5, 0.75, 1].map(ratio => (
-                        <g key={`y-axis-${ratio}`}>
-                            <text x={-5} y={yScale(ratio)} textAnchor="end" dominantBaseline="middle" fill="#94a3b8" fontSize="10">{`${ratio * 100}%`}</text>
-                            <line x1={0} y1={yScale(ratio)} x2={width} y2={yScale(ratio)} stroke="#334155" strokeWidth="0.5" />
-                        </g>
+                    {[0, 0.25, 0.5, 0.75, 1].map(r => (
+                        <line key={r} x1={0} y1={r * height} x2={width} y2={r * height} stroke="#ffffff" strokeOpacity="0.05" strokeWidth="1" />
                     ))}
-
-                     {xAxisLabels.map(label => (
-                        <g key={`${label.value}-${label.x}`}>
-                            <text x={label.x} y={height + 15} textAnchor="middle" fill="#94a3b8" fontSize="10">{label.value}</text>
-                        </g>
-                    ))}
-                    
-                    {showPauses && pauseSegments.map((segment, i) => {
-                        const x = xScale(segment.startPoint.cummulativeDistance);
-                        const endX = xScale(segment.endPoint.cummulativeDistance);
-                        const segmentWidth = endX - x;
-                        if (segmentWidth <= 0 || x > width || endX < 0) return null;
-
-                        return (
-                            <rect
-                                key={`pause-${i}`}
-                                x={x}
-                                y={0}
-                                width={segmentWidth}
-                                height={height}
-                                fill="rgba(113, 113, 122, 0.3)"
-                                className="pointer-events-none"
-                            />
-                        );
-                    })}
-
-                    {displaySelection && (
-                        <rect
-                            x={displaySelection.x}
-                            y={0}
-                            width={displaySelection.width}
-                            height={height}
-                            fill={displaySelection.color}
-                            stroke={displaySelection.stroke}
-                            strokeWidth="1"
-                            className="pointer-events-none"
+                    {(selection || highlightedRange) && (
+                        <rect 
+                            x={xScale(highlightedRange ? highlightedRange.startDistance : getDistAtX(Math.min(selection!.start, selection!.end)))}
+                            y={0} width={Math.abs(xScale(highlightedRange ? highlightedRange.endDistance - highlightedRange.startDistance : Math.abs(getDistAtX(selection!.end) - getDistAtX(selection!.start))))}
+                            height={height} fill="rgba(34, 211, 238, 0.1)" stroke="rgba(34, 211, 238, 0.4)" strokeWidth="1"
                         />
                     )}
-
-                    {yAxisMetrics.map((metric, metricIndex) => {
-                        const domain = metricDomains[metric];
-                        if (!domain) return null;
-
-                        const domainRange = domain.max - domain.min;
-
-                        const linePoints = pointsWithAllData
-                            .map(p => {
-                                const value = p.values[metric];
-                                if (value === null || value === undefined) return null;
-                                let ratio = domainRange > 0 ? (value - domain.min) / domainRange : 0.5;
-                                if (metric === 'pace') ratio = 1 - ratio; 
-                                return { x: xScale(p.cummulativeDistance), y: yScale(ratio) };
-                            })
-                            .filter((pt): pt is {x: number, y: number} => pt !== null);
-
-                        if (linePoints.length < 2) return null;
-                        
-                        const linePath = linePoints.map(pt => `${pt.x},${pt.y}`).join(' ');
-                        const fillPath = `M${linePath} V${height} H${linePoints[0].x} Z`;
-                        const isPrimaryMetric = metricIndex === 0;
-
-                        return (
-                            <g key={metric}>
-                                {isPrimaryMetric && (
-                                    <path d={fillPath} fill={`url(#grad-${metric})`} />
-                                )}
-                                <path d={`M${linePath}`} fill="none" stroke={metricInfo[metric].color} strokeWidth="2" />
-                            </g>
-                        );
-                    })}
-
-                    {showPauses && pauseSegments.map((segment, i) => {
-                        const startX = xScale(segment.startPoint.cummulativeDistance);
-                        const endX = xScale(segment.endPoint.cummulativeDistance);
-                        const midX = (startX + endX) / 2;
-                        if (midX >= 0 && midX <= width) {
-                            return <PauseClockIcon key={`pause-icon-${i}`} x={midX} y={height - 18} />;
-                        }
-                        return null;
-                    })}
-                    
-                    {selectedX !== null && selectedPoint && selectedX >= 0 && selectedX <= width && (
-                         <line
-                            x1={selectedX} y1={0}
-                            x2={selectedX} y2={height}
-                            stroke="#67e8f9"
-                            strokeWidth="1.5"
-                            pointerEvents="none"
-                        />
-                    )}
-
-                    {/* ANIMATION REPLAY CURSOR */}
-                    {animationX !== null && isAnimating && animationX >= 0 && animationX <= width && (
-                        <g pointerEvents="none">
-                            <line 
-                                x1={animationX} y1={0}
-                                x2={animationX} y2={height}
-                                stroke="#f472b6" // Pink-400
-                                strokeWidth="2"
-                                strokeDasharray="4,2"
-                            />
-                            {/* Live Metrics Labels */}
-                            <g transform={`translate(${animationX}, 0)`}>
-                                {animationValues && (
-                                    <>
-                                        {/* Pace Label */}
-                                        <g transform="translate(5, 10)">
-                                            <rect x="0" y="0" width="70" height="16" rx="4" fill="#f472b6" />
-                                            <text x="35" y="11" textAnchor="middle" fontSize="10" fontWeight="bold" fill="white">
-                                                {animationValues.pace ? metricInfo['pace'].formatter(animationValues.pace) + '/km' : '--:--'}
-                                            </text>
-                                        </g>
-                                        {/* HR Label */}
-                                        {animationValues.hr && (
-                                            <g transform="translate(5, 30)">
-                                                <rect x="0" y="0" width="80" height="16" rx="4" fill="#ef4444" />
-                                                <text x="40" y="11" textAnchor="middle" fontSize="10" fontWeight="bold" fill="white">
-                                                    {Math.round(animationValues.hr)} bpm {userProfile?.maxHr ? `(${getZoneForHr(animationValues.hr, userProfile.maxHr)})` : ''}
-                                                </text>
-                                            </g>
-                                        )}
-                                    </>
-                                )}
-                            </g>
-                        </g>
-                    )}
-
-                    {/* Only show hover if not in multi-touch selection mode */}
-                    {hoveredX !== null && hoveredValues && hoveredPoint && !isDragging && !isPanning && !isTouchActive && hoveredX >= 0 && hoveredX <= width && (
-                        <g pointerEvents="none">
-                            <line
-                                x1={hoveredX} y1={0}
-                                x2={hoveredX} y2={height}
-                                stroke="#fde047"
-                                strokeWidth="1"
-                                strokeDasharray="3,3"
-                            />
-                            
-                            {/* Dynamic floating tooltip that adjusts position to stay visible */}
-                            <g transform={`translate(${hoveredX + 10 + 130 > width ? hoveredX - 140 : hoveredX + 10}, 5)`}>
-                                <rect 
-                                    x="0" y="0" width="130" height={36 + (['pace', 'elevation', 'speed', 'hr', 'power'].filter(m => yAxisMetrics.includes(m as any)).length * 14)} rx="6"
-                                    fill="rgba(15, 23, 42, 0.9)"
-                                    stroke="#475569"
-                                    strokeWidth="1"
-                                />
-                                <text x="8" y="16" fill="#f1f5f9" fontSize="10" fontWeight="bold">
-                                    {hoveredPoint.cummulativeDistance.toFixed(2)} km
-                                </text>
-                                <text x="8" y="28" fill="#94a3b8" fontSize="10" fontWeight="bold">
-                                    {hoveredRelativeTime}
-                                </text>
-                                {['pace', 'elevation', 'speed', 'hr', 'power'].filter(m => yAxisMetrics.includes(m as any)).map((metric, i) => {
-                                    const value = hoveredValues![metric];
-                                    if (value === null || value === undefined) return null;
-                                    const info = metricInfo[metric];
-                                    return (
-                                        <text key={metric} x="8" y={44 + i * 14} fill={info.color} fontSize="10" fontWeight="600">
-                                           {info.label}: <tspan fill="#fff">{info.formatter(value)}</tspan>
-                                        </text>
-                                    )
-                                })}
-                            </g>
-
-                             {yAxisMetrics.map(metric => {
-                                const domain = metricDomains[metric];
-                                if (!domain) return null;
-                                const value = hoveredValues![metric];
-                                if (value === null || value === undefined) return null;
-                                
-                                const domainRange = domain.max - domain.min;
-                                let ratio = domainRange > 0 ? (value - domain.min) / domainRange : 0.5;
-                                if (metric === 'pace') ratio = 1 - ratio;
-
-                                return <circle key={metric} cx={hoveredX} cy={yScale(ratio)} r="4" fill={metricInfo[metric].color} stroke="white" strokeWidth="1.5" />
-                             })}
-                        </g>
+                    {metricPaths.map(p => (
+                        <path key={p.metric} d={p.pathData} fill="none" stroke={p.color} strokeWidth="2.5" strokeLinejoin="round" className="drop-shadow-lg" />
+                    ))}
+                    {activePoint && (
+                        <line x1={xScale(activePoint.cummulativeDistance)} y1={0} x2={xScale(activePoint.cummulativeDistance)} y2={height} stroke="#fde047" strokeWidth="1.5" strokeDasharray="4" />
                     )}
                 </g>
             </svg>
-            
-            <div className="absolute bottom-0 right-2 text-[9px] text-slate-500 pointer-events-none uppercase font-bold tracking-widest flex items-center gap-2">
-                <span className="hidden sm:inline">Shift+Drag: Pan | Drag: Selezione</span>
-                <span className="sm:hidden">Usa 2 dita per selezionare</span>
-            </div>
-
-            {isZoomed && (
-                <button 
-                    onClick={resetZoom}
-                    className="absolute top-1 right-2 bg-slate-700/80 hover:bg-cyan-600 text-white text-[10px] font-bold py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity border border-slate-600"
-                >
-                    Reset Zoom
-                </button>
-            )}
         </div>
     );
 };

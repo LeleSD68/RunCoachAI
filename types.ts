@@ -1,4 +1,5 @@
 
+
 export type ActivityType = 'Lento' | 'Fartlek' | 'Ripetute' | 'Gara' | 'Lungo' | 'Altro' | 'Nota';
 
 export type AiPersonality = 'pro_balanced' | 'analytic' | 'strict';
@@ -9,9 +10,9 @@ export interface TrackPoint {
   ele: number;
   time: Date;
   cummulativeDistance: number;
-  hr?: number; // Heart rate in BPM
-  cad?: number; // Cadence in SPM (steps per minute)
-  power?: number; // Power in Watts
+  hr?: number; 
+  cad?: number; 
+  power?: number; 
 }
 
 export interface Track {
@@ -19,38 +20,30 @@ export interface Track {
   name: string;
   points: TrackPoint[];
   color: string;
-  distance: number; // in kilometers
-  duration: number; // in milliseconds
+  distance: number; 
+  duration: number; 
   groupId?: string;
-  // Nuovi campi metadata
   activityType?: ActivityType;
   isFavorite?: boolean;
-  isArchived?: boolean; // New field
-  isPublic?: boolean; // NEW: Controls visibility in friends feed
-  isExternal?: boolean; // Indicates if the track is a temporary external opponent (Ghost)
-  tags?: string[]; // New field
+  isArchived?: boolean; 
+  isPublic?: boolean; 
+  isExternal?: boolean; 
+  tags?: string[]; 
   folder?: string;
-  notes?: string; // Note specifiche per la corsa
-  shoe?: string; // Modello di scarpa usata
-  rpe?: number; // Rate of Perceived Exertion (0-10)
-  rating?: number; // Valutazione da 0 a 5 stelle
-  ratingReason?: string; // Motivazione della valutazione AI
-  hasChat?: boolean; // Indicates if there is an existing AI chat for this track
-  linkedWorkout?: { // Snapshot of the linked planned workout
+  notes?: string; 
+  shoe?: string; 
+  rpe?: number; 
+  rating?: number; 
+  ratingReason?: string; 
+  hasChat?: boolean; 
+  linkedWorkout?: { 
       title: string;
       description: string;
       activityType: ActivityType;
   };
-  userId?: string; // Owner ID for social features
-  userDisplayName?: string; // Owner Name for social features
-  startTime?: string; // ISO String
-}
-
-export interface MonthlyStats {
-    totalDistance: number;
-    totalDuration: number;
-    activityCount: number;
-    avgPace: number;
+  userId?: string; 
+  userDisplayName?: string; 
+  startTime?: string; 
 }
 
 export interface PlannedWorkout {
@@ -60,59 +53,47 @@ export interface PlannedWorkout {
     date: Date;
     activityType: ActivityType;
     isAiSuggested: boolean;
-    completedTrackId?: string; // ID della traccia che ha completato questo allenamento
+    completedTrackId?: string; 
 }
 
 export interface RaceRunner {
   trackId: string;
-  name: string; // Added name for display on map
+  name: string; 
   position: TrackPoint;
   color: string;
-  pace: number; // Ritmo attuale in min/km
-}
-
-export interface RaceResult {
-  rank: number;
-  trackId: string;
-  name: string;
-  color: string;
-  finishTime: number; // ms
-  avgSpeed: number; // km/h
-  distance: number; // km;
+  pace: number; 
 }
 
 export interface PauseSegment {
     startPoint: TrackPoint;
     endPoint: TrackPoint;
-    duration: number; // in seconds
+    duration: number; 
 }
 
 export interface MapDisplayProps {
   tracks: Track[];
   visibleTrackIds: Set<string>;
-  selectedTrackIds?: Set<string>; // New prop for highlighting
+  selectedTrackIds?: Set<string>;
   raceRunners: RaceRunner[] | null;
   hoveredTrackId: string | null;
   runnerSpeeds: Map<string, number>;
   selectionPoints?: TrackPoint[] | null;
-  hoveredPoint?: TrackPoint | null; // For editor hover
-  hoveredData?: Record<string, string> | null; // Formatted data for the hover cursor
-  pauseSegments?: PauseSegment[]; // For editor pause markers
+  hoveredPoint?: TrackPoint | null;
+  hoveredData?: Record<string, string> | null;
+  pauseSegments?: PauseSegment[];
   showPauses?: boolean;
-  onMapHover?: (point: TrackPoint | null) => void; // For editor map hover -> chart sync
-  onTrackHover?: (trackId: string | null) => void; // Callback for track hover synchronization
+  onMapHover?: (point: TrackPoint | null) => void;
+  onTrackHover?: (trackId: string | null) => void;
   onPauseClick?: (segment: PauseSegment) => void;
   mapGradientMetric?: 'none' | 'elevation' | 'pace' | 'speed' | 'hr' | 'hr_zones' | 'power';
   coloredPauseSegments?: PauseSegment[];
-  selectedPoint?: TrackPoint | null; // Point selected by clicking
-  onPointClick?: (point: TrackPoint | null) => void; // Callback for when a point is clicked on map
-  hoveredLegendValue?: number | null; // The value of the metric at the hovered point
-  onTrackClick?: (trackId: string, isMultiSelect?: boolean) => void; // Callback when a track is clicked, supports modifier keys
-
-  // Animation Props
+  selectedPoint?: TrackPoint | null;
+  onPointClick?: (point: TrackPoint | null) => void;
+  hoveredLegendValue?: number | null;
+  onTrackClick?: (trackId: string, isMultiSelect?: boolean) => void;
   animationTrack?: Track | null;
   animationProgress?: number;
-  animationPace?: number; // Real-time pace for animation cursor
+  animationPace?: number;
   onExitAnimation?: () => void;
   fastestSplitForAnimation?: Split | null;
   animationHighlight?: Split | null;
@@ -128,7 +109,6 @@ export interface MapDisplayProps {
   showSummaryMode?: boolean;
   theme?: 'dark' | 'light';
 }
-
 
 export interface Split {
     splitNumber: number;
@@ -161,27 +141,13 @@ export interface TrackStats {
     pauses: PauseSegment[];
 }
 
-export interface RaceHighlight {
-  title: string;
-  value: string;
-  trackName: string;
-  trackColor: string;
-}
-
 export interface ChatMessage {
   role: 'user' | 'model';
   text: string;
-  suggestedWorkout?: Omit<PlannedWorkout, 'id'>; // Deprecated: use suggestedWorkouts
-  suggestedWorkouts?: Omit<PlannedWorkout, 'id'>[]; // Support multiple suggestions
-  suggestedReplies?: string[]; // Quick replies suggestions
-  timestamp?: number; // Timestamp for message grouping
-}
-
-export interface Weather {
-  temperature: number;
-  windSpeed: number;
-  humidity: number;
-  condition: string;
+  suggestedWorkout?: Omit<PlannedWorkout, 'id'>;
+  suggestedWorkouts?: Omit<PlannedWorkout, 'id'>[]; 
+  suggestedReplies?: string[]; 
+  timestamp?: number; 
 }
 
 export interface AiSegment {
@@ -190,7 +156,6 @@ export interface AiSegment {
   description: string;
   startDistance: number;
   endDistance: number;
-  // Calculated stats for display
   distance: number;
   duration: number;
   pace: number;
@@ -199,59 +164,31 @@ export interface AiSegment {
 
 export type RunningGoal = 'none' | '5k' | '10k' | 'half_marathon' | 'marathon' | 'speed' | 'endurance' | 'weight_loss';
 
+// Fix Module '"../types"' has no exported member 'WeightEntry'
 export interface WeightEntry {
-    date: string; // ISO String
-    weight: number;
-}
-
-export interface StravaConfig {
-    clientId: string;
-    clientSecret: string;
+  date: string;
+  weight: number;
 }
 
 export interface UserProfile {
-  id?: string; // ID Database
+  id?: string;
   name?: string; 
   email?: string;
   age?: number;
   weight?: number;
-  height?: number; // in cm
-  weightHistory?: WeightEntry[]; // Historical weight data
+  height?: number; 
+  weightHistory?: WeightEntry[];
   gender?: 'M' | 'F' | 'Altro';
   maxHr?: number;
   restingHr?: number;
   goals?: RunningGoal[];
   aiPersonality?: AiPersonality;
-  personalNotes?: string; // Note generali (infortuni, etc)
-  shoes?: string[]; // Lista di scarpe possedute
+  personalNotes?: string; 
+  shoes?: string[]; 
   theme?: 'dark' | 'light';
-  lastSeenAt?: string; // ISO String for presence
-  isOnline?: boolean; // Derived state
-  stravaConfig?: StravaConfig; // NEW: Strava Credentials
-  ignoredStravaIds?: string[]; // NEW: Blacklist for deleted Strava tracks to prevent re-import
-}
-
-export interface FriendRequest {
-    id: string;
-    requester: UserProfile;
-    status: 'pending' | 'accepted';
-    createdAt: string;
-}
-
-export interface DirectMessage {
-    id: string;
-    senderId: string;
-    receiverId: string;
-    content: string;
-    createdAt: string;
-}
-
-export interface PersonalRecord {
-  distance: number; // in meters
-  time: number; // in milliseconds
-  trackId: string;
-  trackName: string;
-  date: string; // ISO string
+  // Fix Property 'isOnline' does not exist on type 'UserProfile' in SocialHub.tsx and MiniChat.tsx
+  isOnline?: boolean;
+  last_seen_at?: string;
 }
 
 export interface Toast {
@@ -260,32 +197,73 @@ export interface Toast {
   type: 'success' | 'error' | 'info';
 }
 
-// Added Commentary interface
-export interface Commentary {
-    time: number;
-    text: string;
-}
-
+// Fix Module '"../types"' has no exported member 'ApiUsageStats'
 export interface ApiUsageStats {
-    rpm: number;
-    daily: number;
-    limitRpm: number;
-    limitDaily: number;
-    totalTokens: number; // Added field for tracking tokens
+  rpm: number;
+  daily: number;
 }
 
-declare global {
-  interface AIStudio {
-    hasSelectedApiKey: () => Promise<boolean>;
-    openSelectKey: () => Promise<void>;
-  }
+// Fix Module '"./types"' has no exported member 'RaceResult'
+export interface RaceResult {
+  trackId: string;
+  name: string;
+  finishTime: number;
+  distance: number;
+  rank: number;
+}
 
+// Fix Module '"./types"' has no exported member 'Commentary'
+export interface Commentary {
+  id: string;
+  text: string;
+  timestamp: number;
+}
+
+// Fix Module '"../types"' has no exported member 'Weather'
+export interface Weather {
+  temperature: number;
+  windSpeed: number;
+  humidity: number;
+  condition: string;
+}
+
+// Fix Module '"../types"' has no exported member 'PersonalRecord'
+export interface PersonalRecord {
+  distance: number;
+  time: number;
+  trackId: string;
+  trackName: string;
+  date: string;
+}
+
+// Fix Module '"../types"' has no exported member 'FriendRequest'
+export interface FriendRequest {
+  id: string;
+  status: 'pending' | 'accepted';
+  createdAt: string;
+  requester: UserProfile;
+}
+
+// Fix Module '"../types"' has no exported member 'DirectMessage'
+export interface DirectMessage {
+  id: string;
+  senderId: string;
+  receiverId: string;
+  content: string;
+  createdAt: string;
+}
+
+/**
+ * Fix for: Property 'gpxApp' does not exist on type 'Window & typeof globalThis'.
+ * Fix for: window.aistudio access.
+ */
+declare global {
   interface Window {
     gpxApp?: {
       addTokens: (count: number) => void;
-      getDailyTokenCount: () => number; // Added for current daily token usage
-      trackApiRequest: () => void; // New method to count requests
+      trackApiRequest: () => void;
     };
-    aistudio?: AIStudio;
+    // Fix: All declarations of 'aistudio' must have identical modifiers and match the expected AIStudio type.
+    aistudio: AIStudio;
   }
 }

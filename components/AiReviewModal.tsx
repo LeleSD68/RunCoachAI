@@ -80,7 +80,8 @@ const AiReviewModal: React.FC<AiReviewModalProps> = ({ track, userProfile, onClo
                 const result = await retryWithPolicy(call);
 
                 setAnalysis(result.text || '');
-                if (result.usageMetadata?.totalTokenCount) window.gpxApp?.addTokens(result.usageMetadata.totalTokenCount);
+                // Fix for: Property 'gpxApp' does not exist on type 'Window & typeof globalThis'.
+                if (result.usageMetadata?.totalTokenCount) (window as any).gpxApp?.addTokens(result.usageMetadata.totalTokenCount);
             } catch (e) {
                 setAnalysis("Spiacente, non è stato possibile generare il resoconto dettagliato in questo momento.");
             } finally {

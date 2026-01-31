@@ -118,7 +118,8 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
     const handleSend = async (text: string) => {
         if (!text.trim() || isLoading) return;
         
-        window.gpxApp?.trackApiRequest();
+        // Fix for: Property 'gpxApp' does not exist on type 'Window & typeof globalThis'.
+        (window as any).gpxApp?.trackApiRequest();
         const userMsg = { role: 'user' as const, text, timestamp: Date.now() };
         setMessages(prev => [...prev, userMsg]);
         setInput('');

@@ -94,7 +94,8 @@ export const generateAiRating = async (
             }
         });
         
-        if (response.usageMetadata?.totalTokenCount) window.gpxApp?.addTokens(response.usageMetadata.totalTokenCount);
+        // Fix for: Property 'gpxApp' does not exist on type 'Window & typeof globalThis'.
+        if (response.usageMetadata?.totalTokenCount) (window as any).gpxApp?.addTokens(response.usageMetadata.totalTokenCount);
         return JSON.parse(response.text || '{}');
     } catch (e) {
         console.error("Rating generation error", e);

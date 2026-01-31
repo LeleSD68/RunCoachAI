@@ -86,7 +86,8 @@ ${track.points.filter((_, i) => i % Math.max(1, Math.floor(track.points.length /
             };
             
             const response = await retryWithPolicy(call);
-            window.gpxApp?.addTokens(response.usageMetadata?.totalTokenCount ?? 0);
+            // Fix for: Property 'gpxApp' does not exist on type 'Window & typeof globalThis'.
+            (window as any).gpxApp?.addTokens(response.usageMetadata?.totalTokenCount ?? 0);
             
             const jsonStr = (response.text || '').trim();
             const rawSegments = JSON.parse(jsonStr);
