@@ -261,6 +261,24 @@ const App: React.FC = () => {
         if (!isGuest) await syncTrackToCloud(updatedTrack);
     };
 
+    const handleTrackClickFromMap = (id: string, isMultiSelect: boolean) => {
+        setRaceSelectionIds(prev => {
+            const next = new Set(prev);
+            if (isMultiSelect) {
+                if (next.has(id)) next.delete(id);
+                else next.add(id);
+            } else {
+                next.clear();
+                next.add(id);
+            }
+            return next;
+        });
+        // Se non è multi-select, zoomiamo anche sulla traccia per feedback
+        if (!isMultiSelect) {
+            setFocusedTrackId(id);
+        }
+    };
+
     const handleStartRace = () => {
         setIsSidebarOpen(false);
         addToast("Pronto alla sfida!", "info");
@@ -394,8 +412,11 @@ const App: React.FC = () => {
                     </div>
                     <div className="flex-grow relative bg-slate-950">
                         <MapDisplay 
-                            tracks={tracks} visibleTrackIds={focusedTrackId ? new Set([focusedTrackId]) : visibleTrackIds}
-                            raceRunners={null} runnerSpeeds={new Map()} hoveredTrackId={null}
+                            tracks={tracks} 
+                            visibleTrackIds={focusedTrackId ? new Set([focusedTrackId]) : (raceSelectionIds.size > 0 ? raceSelectionIds : visibleTrackIds)}
+                            selectedTrackIds={raceSelectionIds}
+                            raceRunners={null} runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
+                            onTrackClick={handleTrackClickFromMap}
                         />
                         <NavigationDock 
                             onOpenSidebar={() => setIsSidebarOpen(true)} 
