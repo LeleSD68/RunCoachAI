@@ -32,12 +32,13 @@ interface TrackDetailViewProps {
     onCheckAiAccess?: () => boolean; 
     isGuest?: boolean;
     onLimitReached?: () => void;
+    onOpenProfile?: () => void; // New prop
 }
 
 const useIsMobile = () => {
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
     useEffect(() => {
-        const handleResize = () => setIsMobile(window.innerWidth < 768);
+        const handleResize = () => setIsMobile(window.innerWidth <768);
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
@@ -78,6 +79,7 @@ const SwapIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 
 const GlobeIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-1.5 0a6.5 6.5 0 1 1-11-4.69v.447a3.5 3.5 0 0 0 1.025 2.475L8.293 10 8 10.293a1 1 0 0 0 0 1.414l1.06 1.06a1.5 1.5 0 0 1 .44 1.061v.363a6.5 6.5 0 0 1-5.5-2.259V10a6.5 6.5 0 0 1 12.5 0Z" clipRule="evenodd" /><path fillRule="evenodd" d="M9 2.5a.5.5 0 0 1 .5-.5 1 1 0 0 1 1 1 .5.5 0 0 1-.5.5h-1ZM5.5 5a.5.5 0 0 1 .5-.5 1 1 0 0 1 1 1 .5.5 0 0 1-.5.5h-1ZM14.5 13a.5.5 0 0 1 .5-.5 1 1 0 0 1 1 1 .5.5 0 0 1-.5.5h-1ZM12.5 16a.5.5 0 0 1 .5-.5 1 1 0 0 1 1 1 .5.5 0 0 1-.5.5h-1Z" clipRule="evenodd" /></svg>);
 const LockIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M10 1a4.5 4.5 0 0 0-4.5 4.5V9H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-.5V5.5A4.5 4.5 0 0 0 10 1Zm3 8V5.5a3 3 0 1 0-6 0V9h6Z" clipRule="evenodd" /></svg>);
 const PencilIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="m2.695 14.762-1.262 3.155a.5.5 0 0 0 .65.65l3.155-1.262a4 4 0 0 0 1.343-.886L17.5 5.501a2.121 2.121 0 0 0-3-3L3.58 13.419a4 4 0 0 0-.885 1.343Z" /></svg>);
+const CogIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3"><path fillRule="evenodd" d="M7.84 1.804A1 1 0 0 1 8.82 1h2.36a1 1 0 0 1 .98.804l.331 1.652a6.993 6.993 0 0 1 1.929 1.115l1.598-.54a1 1 0 0 1 1.186.447l1.18 2.044a1 1 0 0 1-.205 1.251l-1.267 1.113a7.047 7.047 0 0 1 0 2.228l1.267 1.113a1 1 0 0 1 .206 1.25l-1.18 2.045a1 1 0 0 1 1.187-.447l1.598.54a6.993 6.993 0 0 1 7.51 3.456l.33-1.652ZM10 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" clipRule="evenodd" /></svg>);
 
 const formatDuration = (ms: number, compact = false) => {
     const totalSeconds = Math.floor(ms / 1000);
@@ -135,7 +137,7 @@ const RpeSelector = ({ value, onChange }: { value: number, onChange: (val: numbe
                         <button
                             key={num}
                             onClick={() => onChange(num)}
-                            className={`flex-1 rounded-md border ${bg} ${border} ${text} text-[10px] font-bold flex items-center justify-center transition-all active:scale-95 ${num === value ? 'ring-2 ring-white ring-opacity-50 z-10' : 'opacity-80 hover:opacity-100'}`}
+                            className={`flex-1 rounded-md border ${bg} ${border} ${text} text-[10px] font-bold flex items-center justify-center transition-all active:scale-95 ${num === value ? 'ring-2 ring-white ring-opacity-50 z-10 scale-110 shadow-lg' : 'opacity-80 hover:opacity-100 hover:bg-slate-600'}`}
                         >
                             {num}
                         </button>
@@ -151,7 +153,7 @@ const RpeSelector = ({ value, onChange }: { value: number, onChange: (val: numbe
     );
 };
 
-const TrackMetadataEditor = ({ track, userProfile, onUpdate }: { track: Track, userProfile: UserProfile, onUpdate?: (id: string, data: Partial<Track>) => void }) => {
+const TrackMetadataEditor = ({ track, userProfile, onUpdate, onOpenProfile }: { track: Track, userProfile: UserProfile, onUpdate?: (id: string, data: Partial<Track>) => void, onOpenProfile?: () => void }) => {
     const [notes, setNotes] = useState(track.notes || '');
     
     useEffect(() => {
@@ -168,11 +170,18 @@ const TrackMetadataEditor = ({ track, userProfile, onUpdate }: { track: Track, u
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                   <div className="flex items-center gap-2 mb-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 text-orange-400">
-                            <path fillRule="evenodd" d="M1 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H4a3 3 0 0 1-3-3V6Zm4 1.5a2 2 0 1 1 4 0 2 2 0 0 1-4 0Zm2 3a4 4 0 0 0-3.665 2.395.75.75 0 0 0 .416 1.002l.464.132a.75.75 0 0 0 .943-.496A2.5 2.5 0 0 1 7 12h6a2.5 2.5 0 0 1 2.342 1.533.75.75 0 0 0 .944.496l.463-.132a.75.75 0 0 0 .416-1.002A4 4 0 0 0 13 10.5H7Z" clipRule="evenodd" />
-                        </svg>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Scarpa</label>
+                   <div className="flex items-center justify-between mb-2">
+                       <div className="flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 text-orange-400">
+                                <path fillRule="evenodd" d="M1 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H4a3 3 0 0 1-3-3V6Zm4 1.5a2 2 0 1 1 4 0 2 2 0 0 1-4 0Zm2 3a4 4 0 0 0-3.665 2.395.75.75 0 0 0 .416 1.002l.464.132a.75.75 0 0 0 .943-.496A2.5 2.5 0 0 1 7 12h6a2.5 2.5 0 0 1 2.342 1.533.75.75 0 0 0 .944.496l.463-.132a.75.75 0 0 0 .416-1.002A4 4 0 0 0 13 10.5H7Z" clipRule="evenodd" />
+                            </svg>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Scarpa</label>
+                       </div>
+                       {onOpenProfile && (
+                           <button onClick={onOpenProfile} className="text-slate-500 hover:text-cyan-400 transition-colors" title="Gestisci Garage">
+                               <CogIcon />
+                           </button>
+                       )}
                    </div>
                    {userProfile.shoes && userProfile.shoes.length > 0 ? (
                        <select 
@@ -184,8 +193,9 @@ const TrackMetadataEditor = ({ track, userProfile, onUpdate }: { track: Track, u
                             {userProfile.shoes.map(s => <option key={s} value={s}>{s}</option>)}
                        </select>
                    ) : (
-                       <div className="text-[10px] text-slate-500 italic p-2 bg-slate-900 rounded border border-slate-700/50">
-                           Aggiungi le tue scarpe nel Profilo per selezionarle qui.
+                       <div className="text-[10px] text-slate-500 italic p-2 bg-slate-900 rounded border border-slate-700/50 flex justify-between items-center">
+                           <span>Nessuna scarpa.</span>
+                           {onOpenProfile && <button onClick={onOpenProfile} className="text-cyan-400 font-bold hover:underline">Aggiungi &rarr;</button>}
                        </div>
                    )}
                 </div>
@@ -225,13 +235,14 @@ const DataSection = React.memo(({
     handleSegmentSelect, 
     hasHrData,
     className,
-    disableScroll 
+    disableScroll,
+    onOpenProfile
 }: any) => {
     return (
         <div className={`bg-slate-900 p-4 space-y-6 ${disableScroll ? '' : 'h-full overflow-y-auto custom-scrollbar'} ${className}`}>
             <StatsPanel stats={stats} selectedSegment={selectedSegment} onSegmentSelect={handleSegmentSelect} />
 
-            <TrackMetadataEditor track={track} userProfile={userProfile} onUpdate={onUpdateTrackMetadata} />
+            <TrackMetadataEditor track={track} userProfile={userProfile} onUpdate={onUpdateTrackMetadata} onOpenProfile={onOpenProfile} />
 
             {hasHrData && <HeartRateZonePanel track={track} userProfile={userProfile} />}
             <PersonalRecordsPanel track={track} />
@@ -291,7 +302,7 @@ const SelectionStatsOverlay: React.FC<{ data: ExtendedStats, onClose: () => void
     );
 };
 
-const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, onExit, onEdit, allHistory = [], plannedWorkouts = [], onUpdateTrackMetadata, onAddPlannedWorkout, onStartAnimation, onOpenReview, autoOpenAi = false, onCheckAiAccess, isGuest = false, onLimitReached }) => {
+const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, onExit, onEdit, allHistory = [], plannedWorkouts = [], onUpdateTrackMetadata, onAddPlannedWorkout, onStartAnimation, onOpenReview, autoOpenAi = false, onCheckAiAccess, isGuest = false, onLimitReached, onOpenProfile }) => {
     if (!track) return null;
 
     const isMobile = useIsMobile();
@@ -754,6 +765,7 @@ const TrackDetailView: React.FC<TrackDetailViewProps> = ({ track, userProfile, o
                 handleSegmentSelect={handleSegmentSelect}
                 hasHrData={hasHrData}
                 disableScroll={mobileStackMode}
+                onOpenProfile={onOpenProfile}
             />; break;
             case 'map': content = MapSection; break;
             case 'chart': content = ChartSection; break;
