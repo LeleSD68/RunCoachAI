@@ -61,7 +61,9 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
         <div className="flex flex-col h-full bg-slate-900 border-r border-slate-800 text-white">
             <div className="p-4 border-b border-slate-800 shrink-0 flex items-center justify-between">
                 <h2 className="text-lg font-bold text-cyan-400">{showArchived ? 'Archivio' : 'Attività'}</h2>
-                <button onClick={() => fileInputRef.current?.click()} className="bg-slate-700 hover:bg-slate-600 p-2 rounded transition-colors"><UploadIcon /></button>
+                <Tooltip text="Carica GPX/TCX" subtext="Aggiungi nuove corse">
+                    <button onClick={() => fileInputRef.current?.click()} className="bg-slate-700 hover:bg-slate-600 p-2 rounded transition-colors"><UploadIcon /></button>
+                </Tooltip>
                 <input type="file" ref={fileInputRef} className="hidden" multiple accept=".gpx,.tcx" onChange={e => onFileUpload(e.target.files ? Array.from(e.target.files) : null)} />
             </div>
 
@@ -70,7 +72,9 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                 <div className="flex justify-between items-center text-xs">
                     <div className="flex gap-1">
                         <button onClick={() => setViewMode(viewMode === 'cards' ? 'list' : 'cards')} className="p-1.5 rounded border border-slate-700 hover:bg-slate-700"><RectangleStackIcon /></button>
-                        <button onClick={() => setShowArchived(!showArchived)} className={`p-1.5 rounded border transition-colors ${showArchived ? 'bg-amber-600 border-amber-500' : 'border-slate-700 hover:bg-slate-700'}`}><ArchiveBoxIcon /></button>
+                        <Tooltip text={showArchived ? "Torna alle Attività" : "Vedi Archivio"}>
+                            <button onClick={() => setShowArchived(!showArchived)} className={`p-1.5 rounded border transition-colors ${showArchived ? 'bg-amber-600 border-amber-500' : 'border-slate-700 hover:bg-slate-700'}`}><ArchiveBoxIcon /></button>
+                        </Tooltip>
                     </div>
                     <div className="flex gap-2 text-[10px]">
                         <button onClick={onSelectAll} className="text-cyan-400">Tutti</button>
@@ -81,12 +85,39 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                 {raceSelectionIds.size > 0 && (
                     <div className="flex flex-col gap-1 animate-fade-in">
                         <div className="flex gap-1">
-                            <button onClick={onStartRace} className="flex-grow bg-green-600 hover:bg-green-500 text-white text-xs font-bold py-2 rounded">Gara ({raceSelectionIds.size})</button>
+                            <Tooltip 
+                                text="Inizia Gara Virtuale" 
+                                subtext={`Simula sfida tra ${raceSelectionIds.size} corse`}
+                                helpText="I runner virtuali partiranno insieme seguendo i rispettivi tempi storici. Ottimo per confrontare i tuoi miglioramenti nel tempo."
+                            >
+                                <button onClick={onStartRace} className="flex-grow bg-green-600 hover:bg-green-500 text-white text-xs font-bold py-2 rounded px-4">Gara ({raceSelectionIds.size})</button>
+                            </Tooltip>
+                            
                             {raceSelectionIds.size >= 2 && onMergeSelected && (
-                                <button onClick={onMergeSelected} className="bg-cyan-700 hover:bg-cyan-600 text-cyan-100 px-3 rounded flex items-center justify-center shadow-lg" title="Unisci Tracce"><MergeTracksIcon /></button>
+                                <Tooltip 
+                                    text="Unisci Tracce" 
+                                    subtext="Crea un'unica attività continua"
+                                    helpText="Le tracce verranno incollate l'una dopo l'altra rispettando l'ordine cronologico. Utile se hai diviso un lungo in più registrazioni."
+                                >
+                                    <button onClick={onMergeSelected} className="bg-cyan-700 hover:bg-cyan-600 text-cyan-100 px-3 rounded flex items-center justify-center shadow-lg"><MergeTracksIcon /></button>
+                                </Tooltip>
                             )}
-                            <button onClick={onCompareSelected} className="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 rounded" title="Confronta"><CompareIcon /></button>
-                            <button onClick={onDeleteSelected} className="bg-red-900/50 hover:bg-red-900 text-red-200 px-3 rounded" title="Elimina"><TrashIcon /></button>
+
+                            <Tooltip 
+                                text="Confronta Dati" 
+                                subtext="Analisi comparativa tecnica"
+                                helpText="Apre una tabella dove puoi confrontare Ritmo, FC e Watt medi tra le sessioni selezionate."
+                            >
+                                <button onClick={onCompareSelected} className="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 rounded"><CompareIcon /></button>
+                            </Tooltip>
+
+                            <Tooltip 
+                                text="Elimina Selezionate" 
+                                subtext="Rimuove attività scelte"
+                                helpText="L'eliminazione è definitiva sia in locale che sul cloud. Usa con cautela."
+                            >
+                                <button onClick={onDeleteSelected} className="bg-red-900/50 hover:bg-red-900 text-red-200 px-3 rounded"><TrashIcon /></button>
+                            </Tooltip>
                         </div>
                     </div>
                 )}
