@@ -44,7 +44,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
         raceSelectionIds, onToggleRaceSelection, onSelectAll, onDeselectAll, 
         onStartRace, onDeleteSelected, onViewDetails, 
         hoveredTrackId, onTrackHoverStart, onTrackHoverEnd,
-        onToggleArchived, onMergeSelected, onCompareSelected
+        onToggleArchived, onMergeSelected
     } = props;
 
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -125,10 +125,10 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                 </div>
                 <div className="flex gap-1">
                     <Tooltip text="Seleziona Tutto">
-                        <button onClick={onSelectAll} className="p-1.5 rounded hover:bg-slate-800 text-[10px] font-bold text-slate-400">Tutti</button>
+                        <button onClick={onSelectAll} className="p-1.5 rounded hover:bg-slate-800 text-[10px] font-bold text-slate-400 uppercase">Tutti</button>
                     </Tooltip>
                     <Tooltip text="Deseleziona Tutto">
-                        <button onClick={onDeselectAll} className="p-1.5 rounded hover:bg-slate-800 text-[10px] font-bold text-slate-400">Nessuno</button>
+                        <button onClick={onDeselectAll} className="p-1.5 rounded hover:bg-slate-800 text-[10px] font-bold text-slate-400 uppercase">Nessuno</button>
                     </Tooltip>
                     <button onClick={() => fileInputRef.current?.click()} className="bg-cyan-600/10 hover:bg-cyan-600/20 text-cyan-400 p-1.5 rounded transition-colors border border-cyan-500/30 ml-1"><UploadIcon /></button>
                 </div>
