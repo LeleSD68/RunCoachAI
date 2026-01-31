@@ -41,6 +41,7 @@ import {
     savePlannedWorkoutsToDB, loadPlannedWorkoutsFromDB,
     importAllData, exportAllData, syncTrackToCloud, deleteTrackFromCloud, deletePlannedWorkoutFromCloud
 } from './services/dbService';
+import { mergeTracks } from './services/trackEditorUtils'; // Added import
 import { generateSmartTitle } from './services/titleGenerator';
 import { supabase } from './services/supabaseClient';
 import { fetchRecentStravaActivities, isStravaConnected } from './services/stravaService';
@@ -173,8 +174,30 @@ const App: React.FC = () => {
             return prev.map(t => t.id === id ? updatedTrack! : t);
         });
 
-        // Sync local viewing state if it's the one being edited
+        // Sync local viewing state if it's the one being edited/viewed
+        // CRITICAL FIX: Ensure RPE/Shoe/Archive changes reflect immediately in the Modal UI
         setViewingTrack(current => (current && current.id === id && updatedTrack) ? updatedTrack : current);
+    };
+
+    const handleMergeSelection = () => {
+        if (raceSelectionIds.size < 2) return;
+        
+        const tracksToMerge = tracks.filter(t => raceSelectionIds.has(t.id));
+        if (tracksToMerge.length < 2) return;
+        
+        const merged = mergeTracks(tracksToMerge);
+        
+        // Add to state and DB
+        setTracks(prev => [merged, ...prev]);
+        saveTracksToDB([merged]);
+        if (!isGuest && userId) syncTrackToCloud(merged);
+        
+        // Reset selection
+        setRaceSelectionIds(new Set());
+        addToast("Tracce unite con successo!", "success");
+        
+        // Optional: Open editor for the new track
+        setEditingTracks([merged]);
     };
 
     // --- INITIALIZATION ---
@@ -694,12 +717,7 @@ const App: React.FC = () => {
                                 onDeselectAll={() => setRaceSelectionIds(new Set())}
                                 onStartRace={() => setShowRaceSetup(true)}
                                 onGoToEditor={() => { if(raceSelectionIds.size === 1) setEditingTracks([tracks.find(t => t.id === Array.from(raceSelectionIds)[0])!]); }}
-                                onMergeSelected={() => {
-                                    if(raceSelectionIds.size > 1) {
-                                        const selected = tracks.filter(t => raceSelectionIds.has(t.id));
-                                        setEditingTracks(selected);
-                                    }
-                                }}
+                                onMergeSelected={handleMergeSelection} // Passed handler
                                 onPauseRace={() => setSimulationState('paused')}
                                 onResumeRace={() => setSimulationState('running')}
                                 onResetRace={() => { setSimulationTime(0); setSimulationState('idle'); }}
