@@ -21,7 +21,7 @@ interface TrackDetailViewProps {
     track: Track;
     userProfile: UserProfile;
     onExit: () => void;
-    onEdit?: () => void; // Restored prop
+    onEdit?: () => void; 
     allHistory?: Track[];
     plannedWorkouts?: PlannedWorkout[];
     onUpdateTrackMetadata?: (id: string, metadata: Partial<Track>) => void;
@@ -105,6 +105,52 @@ interface ExtendedStats {
     }
 }
 
+const RpeSelector = ({ value, onChange }: { value: number, onChange: (val: number) => void }) => {
+    return (
+        <div className="flex flex-col gap-2 mt-2">
+            <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 text-red-400">
+                        <path fillRule="evenodd" d="M13.5 4.938a7 7 0 1 1-9.006 1.737c.202-.257.596-.358.85-.21l.337.195a.75.75 0 0 1 .187 1.166 4.5 4.5 0 1 0 5.688-.893.75.75 0 0 1 1.134-.82l.36.208a.75.75 0 0 1 .17 1.15 2 2 0 1 0 2.516.01.75.75 0 0 1 1.15-.17l.208.36A.75.75 0 0 1 13.5 4.938Z" clipRule="evenodd" />
+                    </svg>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Sforzo (RPE)</label>
+                </div>
+                <span className={`text-xs font-bold ${value > 8 ? 'text-red-500' : value > 5 ? 'text-yellow-500' : 'text-green-500'}`}>{value}/10</span>
+            </div>
+            <div className="flex gap-1 h-8">
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(num => {
+                    let bg = 'bg-slate-700';
+                    let border = 'border-slate-600';
+                    let text = 'text-slate-400';
+                    
+                    if (num <= value) {
+                        text = 'text-white';
+                        if (num <= 3) { bg = 'bg-blue-500'; border = 'border-blue-400'; }
+                        else if (num <= 6) { bg = 'bg-green-500'; border = 'border-green-400'; }
+                        else if (num <= 8) { bg = 'bg-yellow-600'; border = 'border-yellow-500'; }
+                        else { bg = 'bg-red-600'; border = 'border-red-500'; }
+                    }
+
+                    return (
+                        <button
+                            key={num}
+                            onClick={() => onChange(num)}
+                            className={`flex-1 rounded-md border ${bg} ${border} ${text} text-[10px] font-bold flex items-center justify-center transition-all active:scale-95 ${num === value ? 'ring-2 ring-white ring-opacity-50 z-10' : 'opacity-80 hover:opacity-100'}`}
+                        >
+                            {num}
+                        </button>
+                    )
+                })}
+            </div>
+            <div className="flex justify-between text-[8px] text-slate-600 uppercase font-bold px-1">
+                <span>Relax</span>
+                <span>Medio</span>
+                <span>Max</span>
+            </div>
+        </div>
+    );
+};
+
 const TrackMetadataEditor = ({ track, userProfile, onUpdate }: { track: Track, userProfile: UserProfile, onUpdate?: (id: string, data: Partial<Track>) => void }) => {
     const [notes, setNotes] = useState(track.notes || '');
     
@@ -113,42 +159,52 @@ const TrackMetadataEditor = ({ track, userProfile, onUpdate }: { track: Track, u
     }, [track.id, track.notes]);
 
     return (
-        <div className="grid grid-cols-1 gap-3 p-3 bg-slate-800 rounded-lg border border-slate-700">
-            <div>
-               <div className="flex items-center gap-2 mb-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 text-orange-400">
-                        <path fillRule="evenodd" d="M1 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H4a3 3 0 0 1-3-3V6Zm4 1.5a2 2 0 1 1 4 0 2 2 0 0 1-4 0Zm2 3a4 4 0 0 0-3.665 2.395.75.75 0 0 0 .416 1.002l.464.132a.75.75 0 0 0 .943-.496A2.5 2.5 0 0 1 7 12h6a2.5 2.5 0 0 1 2.342 1.533.75.75 0 0 0 .944.496l.463-.132a.75.75 0 0 0 .416-1.002A4 4 0 0 0 13 10.5H7Z" clipRule="evenodd" />
-                    </svg>
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Scarpa</label>
-               </div>
-               {userProfile.shoes && userProfile.shoes.length > 0 ? (
-                   <select 
-                        value={track.shoe || ''} 
-                        onChange={(e) => onUpdate && onUpdate(track.id, { shoe: e.target.value })}
-                        className="w-full bg-slate-900 text-white text-xs border border-slate-600 rounded px-2 py-1.5 focus:border-cyan-500 outline-none"
-                   >
-                        <option value="">Seleziona scarpa...</option>
-                        {userProfile.shoes.map(s => <option key={s} value={s}>{s}</option>)}
-                   </select>
-               ) : (
-                   <div className="text-[10px] text-slate-500 italic px-1">Nessuna scarpa nel profilo.</div>
-               )}
-            </div>
+        <div className="flex flex-col gap-4 p-4 bg-slate-800 rounded-xl border border-slate-700 shadow-sm">
+            {/* RPE Selector */}
+            <RpeSelector 
+                value={track.rpe || 0} 
+                onChange={(val) => onUpdate && onUpdate(track.id, { rpe: val })} 
+            />
 
-            <div>
-                <div className="flex items-center gap-2 mb-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 text-cyan-400">
-                        <path fillRule="evenodd" d="M4.5 2A1.5 1.5 0 0 0 3 3.5v13A1.5 1.5 0 0 0 4.5 18h11a1.5 1.5 0 0 0 1.5-1.5V7.621a1.5 1.5 0 0 0-.44-1.06l-4.12-4.122A1.5 1.5 0 0 0 11.38 2H4.5Zm10 14.5h-9a.5.5 0 0 1-.5-.5v-13a.5.5 0 0 1 .5-.5H11v3.5A1.5 1.5 0 0 0 12.5 7H16v9a.5.5 0 0 1-.5.5ZM16 5.5l-3.5-3.5V5.5H16Z" clipRule="evenodd" />
-                    </svg>
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Note</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                   <div className="flex items-center gap-2 mb-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 text-orange-400">
+                            <path fillRule="evenodd" d="M1 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H4a3 3 0 0 1-3-3V6Zm4 1.5a2 2 0 1 1 4 0 2 2 0 0 1-4 0Zm2 3a4 4 0 0 0-3.665 2.395.75.75 0 0 0 .416 1.002l.464.132a.75.75 0 0 0 .943-.496A2.5 2.5 0 0 1 7 12h6a2.5 2.5 0 0 1 2.342 1.533.75.75 0 0 0 .944.496l.463-.132a.75.75 0 0 0 .416-1.002A4 4 0 0 0 13 10.5H7Z" clipRule="evenodd" />
+                        </svg>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Scarpa</label>
+                   </div>
+                   {userProfile.shoes && userProfile.shoes.length > 0 ? (
+                       <select 
+                            value={track.shoe || ''} 
+                            onChange={(e) => onUpdate && onUpdate(track.id, { shoe: e.target.value })}
+                            className="w-full bg-slate-900 text-white text-xs border border-slate-600 rounded-lg px-3 py-2 focus:border-cyan-500 outline-none appearance-none"
+                       >
+                            <option value="">-- Seleziona scarpa --</option>
+                            {userProfile.shoes.map(s => <option key={s} value={s}>{s}</option>)}
+                       </select>
+                   ) : (
+                       <div className="text-[10px] text-slate-500 italic p-2 bg-slate-900 rounded border border-slate-700/50">
+                           Aggiungi le tue scarpe nel Profilo per selezionarle qui.
+                       </div>
+                   )}
                 </div>
-                <textarea 
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    onBlur={() => { if(notes !== track.notes && onUpdate) onUpdate(track.id, { notes }) }}
-                    className="w-full bg-slate-900 text-white text-xs border border-slate-600 rounded px-2 py-1.5 focus:border-cyan-500 outline-none resize-none h-20 placeholder-slate-600"
-                    placeholder="Sensazioni, meteo, dettagli..."
-                />
+
+                <div>
+                    <div className="flex items-center gap-2 mb-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 text-cyan-400">
+                            <path fillRule="evenodd" d="M4.5 2A1.5 1.5 0 0 0 3 3.5v13A1.5 1.5 0 0 0 4.5 18h11a1.5 1.5 0 0 0 1.5-1.5V7.621a1.5 1.5 0 0 0-.44-1.06l-4.12-4.122A1.5 1.5 0 0 0 11.38 2H4.5Zm10 14.5h-9a.5.5 0 0 1-.5-.5v-13a.5.5 0 0 1 .5-.5H11v3.5A1.5 1.5 0 0 0 12.5 7H16v9a.5.5 0 0 1-.5.5ZM16 5.5l-3.5-3.5V5.5H16Z" clipRule="evenodd" />
+                        </svg>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Note</label>
+                    </div>
+                    <textarea 
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        onBlur={() => { if(notes !== track.notes && onUpdate) onUpdate(track.id, { notes }) }}
+                        className="w-full bg-slate-900 text-white text-xs border border-slate-600 rounded-lg px-3 py-2 focus:border-cyan-500 outline-none resize-none h-[38px] min-h-[38px] focus:h-24 transition-all placeholder-slate-600"
+                        placeholder="Clicca per scrivere..."
+                    />
+                </div>
             </div>
         </div>
     );
