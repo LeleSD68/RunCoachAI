@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Track, UserProfile, PlannedWorkout, Toast, ActivityType, RaceRunner, RaceResult, TrackStats, Commentary, TrackPoint } from './types';
 import Sidebar from './components/Sidebar';
@@ -361,7 +362,7 @@ const App: React.FC = () => {
         const next = [w, ...plannedWorkouts];
         setPlannedWorkouts(next);
         await savePlannedWorkoutsToDB(next);
-        addToast("Allenamento aggiunto al diario.", "success");
+        addToast("Allenamento registrato correttamente nel diario!", "success");
     };
 
     const handleDeletePlannedWorkout = async (id: string) => {
@@ -386,6 +387,12 @@ const App: React.FC = () => {
         });
         setPlannedWorkouts(next);
         await savePlannedWorkoutsToDB(next);
+    };
+
+    const handleSaveProfile = async (profile: UserProfile) => {
+        setUserProfile(profile);
+        await saveProfileToDB(profile);
+        addToast("Profilo aggiornato!", "success");
     };
 
     if (showSplash) return <SplashScreen onFinish={handleSplashFinish} />;
@@ -413,6 +420,8 @@ const App: React.FC = () => {
                     onImportBackup={handleImportBackup}
                     onExportBackup={handleExportBackup}
                     onUploadTracks={handleFileUpload}
+                    onOpenProfile={() => setShowProfile(true)}
+                    onOpenChangelog={() => setShowChangelog(true)}
                     trackCount={tracks.length}
                     userProfile={userProfile}
                 />
@@ -473,9 +482,10 @@ const App: React.FC = () => {
                         {/* Floating AI Coach Button on Map */}
                         <button 
                             onClick={() => setShowGlobalChat(true)}
-                            className="absolute bottom-20 right-6 z-40 bg-purple-600 hover:bg-purple-500 text-white w-14 h-14 rounded-full shadow-[0_0_20px_rgba(147,51,234,0.4)] flex items-center justify-center transition-all active:scale-90 border border-purple-400/50 group"
+                            className="absolute bottom-20 right-6 z-40 bg-purple-600 hover:bg-purple-500 text-white px-5 py-3 rounded-full shadow-[0_0_20px_rgba(147,51,234,0.4)] flex items-center justify-center gap-2 transition-all active:scale-90 border border-purple-400/50 group"
                         >
-                            <span className="text-2xl group-hover:scale-110 transition-transform">🧠</span>
+                            <span className="text-xl group-hover:scale-110 transition-transform">🧠</span>
+                            <span className="text-xs font-black uppercase tracking-widest hidden sm:inline">Coach AI</span>
                         </button>
 
                         <NavigationDock 
@@ -488,6 +498,7 @@ const App: React.FC = () => {
                             onOpenGuide={() => setShowGuide(true)}
                             onExportBackup={handleExportBackup}
                             onOpenSocial={() => setShowSocial(true)}
+                            onOpenProfile={() => setShowProfile(true)}
                             isSidebarOpen={isSidebarOpen}
                         />
                     </div>
@@ -506,6 +517,18 @@ const App: React.FC = () => {
                     />
                 </div>
             )}
+
+            {showProfile && (
+                <UserProfileModal 
+                    onClose={() => setShowProfile(false)} 
+                    onSave={handleSaveProfile} 
+                    currentProfile={userProfile} 
+                    tracks={tracks}
+                    onLogout={() => { setShowProfile(false); setUserId(null); setIsGuest(false); setShowAuthSelection(true); }}
+                />
+            )}
+
+            {showChangelog && <Changelog onClose={() => setShowChangelog(false)} />}
 
             {showGuide && <GuideModal onClose={() => setShowGuide(false)} />}
             
