@@ -52,6 +52,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
     const [showArchived, setShowArchived] = useState(false);
     const [grouping, setGrouping] = useState<GroupingType>('date');
     const [sort, setSort] = useState<SortType>('date_desc');
+    const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
     const processedTracks = useMemo(() => {
         let list = tracks.filter(t => {
@@ -106,14 +107,31 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
         return groups;
     }, [processedTracks, grouping]);
 
+    const toggleGroup = (groupName: string) => {
+        setCollapsedGroups(prev => {
+            const next = new Set(prev);
+            if (next.has(groupName)) next.delete(groupName);
+            else next.add(groupName);
+            return next;
+        });
+    };
+
     return (
         <div className="flex flex-col h-full bg-slate-900 border-r border-slate-800 text-white overflow-hidden">
             <div className="p-3 border-b border-slate-800 shrink-0 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                   <h2 className="text-sm font-black text-cyan-400 uppercase tracking-tighter italic">Data Panel</h2>
+                   <h2 className="text-sm font-black text-cyan-400 uppercase tracking-tighter italic">Le Mie Corse</h2>
                    <span className="text-[10px] bg-slate-800 px-1.5 rounded font-mono text-slate-500">{processedTracks.length}</span>
                 </div>
-                <button onClick={() => fileInputRef.current?.click()} className="bg-cyan-600/10 hover:bg-cyan-600/20 text-cyan-400 p-1.5 rounded transition-colors border border-cyan-500/30"><UploadIcon /></button>
+                <div className="flex gap-1">
+                    <Tooltip text="Seleziona Tutto">
+                        <button onClick={onSelectAll} className="p-1.5 rounded hover:bg-slate-800 text-[10px] font-bold text-slate-400">Tutti</button>
+                    </Tooltip>
+                    <Tooltip text="Deseleziona Tutto">
+                        <button onClick={onDeselectAll} className="p-1.5 rounded hover:bg-slate-800 text-[10px] font-bold text-slate-400">Nessuno</button>
+                    </Tooltip>
+                    <button onClick={() => fileInputRef.current?.click()} className="bg-cyan-600/10 hover:bg-cyan-600/20 text-cyan-400 p-1.5 rounded transition-colors border border-cyan-500/30 ml-1"><UploadIcon /></button>
+                </div>
                 <input type="file" ref={fileInputRef} className="hidden" multiple accept=".gpx,.tcx" onChange={e => onFileUpload(e.target.files ? Array.from(e.target.files) : null)} />
             </div>
 
@@ -157,69 +175,79 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                             <button onClick={onMergeSelected} className="bg-cyan-700 hover:bg-cyan-600 px-2 rounded"><MergeTracksIcon /></button>
                         )}
                         <button onClick={onDeleteSelected} className="bg-red-900/50 hover:bg-red-900 px-2 rounded"><TrashIcon /></button>
-                        <button onClick={onDeselectAll} className="text-[9px] text-slate-500 hover:text-white ml-auto px-2">Annulla</button>
                     </div>
                 )}
             </div>
 
             <div className="flex-grow overflow-y-auto custom-scrollbar">
-                {Object.entries(groupedData).map(([groupName, groupTracks]) => (
-                    <div key={groupName} className="mb-2">
-                        <div className="bg-slate-800/40 px-3 py-1 text-[9px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-700/50 sticky top-0 z-10 backdrop-blur-sm">
-                            {groupName} <span className="text-[8px] opacity-60 ml-1">({groupTracks.length})</span>
-                        </div>
-                        <div className="divide-y divide-slate-800/30">
-                            {groupTracks.map(track => {
-                                const isFocused = focusedTrackId === track.id;
-                                return (
-                                    <div 
-                                        key={track.id} 
-                                        className={`flex items-center p-1.5 hover:bg-slate-800 transition-all group relative ${hoveredTrackId === track.id || isFocused ? 'bg-slate-800/80' : ''}`}
-                                        onMouseEnter={() => onTrackHoverStart(track.id)}
-                                        onMouseLeave={onTrackHoverEnd}
-                                    >
-                                        <input 
-                                            type="checkbox" 
-                                            checked={raceSelectionIds.has(track.id)} 
-                                            onChange={(e) => { e.stopPropagation(); onToggleRaceSelection(track.id); }} 
-                                            className="mr-2 accent-cyan-500 w-3 h-3 flex-shrink-0 cursor-pointer" 
-                                        />
-                                        
-                                        <div className="w-10 h-8 bg-slate-950 rounded border border-slate-700 overflow-hidden mr-2 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity">
-                                            <TrackPreview points={track.points} color={track.color} className="w-full h-full" />
-                                        </div>
+                {Object.entries(groupedData).map(([groupName, groupTracks]) => {
+                    const isCollapsed = collapsedGroups.has(groupName);
+                    return (
+                        <div key={groupName} className="mb-1">
+                            <div 
+                                onClick={() => toggleGroup(groupName)}
+                                className="bg-slate-800/40 px-3 py-1.5 text-[9px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-700/50 sticky top-0 z-10 backdrop-blur-sm flex justify-between items-center cursor-pointer hover:bg-slate-800 transition-colors"
+                            >
+                                <div className="flex items-center gap-2">
+                                    <span className={`transition-transform duration-200 ${isCollapsed ? '-rotate-90' : ''}`}>▼</span>
+                                    {groupName} <span className="text-[8px] opacity-60 ml-1">({groupTracks.length})</span>
+                                </div>
+                            </div>
+                            {!isCollapsed && (
+                                <div className="divide-y divide-slate-800/30">
+                                    {groupTracks.map(track => {
+                                        const isFocused = focusedTrackId === track.id;
+                                        return (
+                                            <div 
+                                                key={track.id} 
+                                                className={`flex items-center p-1.5 hover:bg-slate-800 transition-all group relative ${hoveredTrackId === track.id || isFocused ? 'bg-slate-800/80' : ''}`}
+                                                onMouseEnter={() => onTrackHoverStart(track.id)}
+                                                onMouseLeave={onTrackHoverEnd}
+                                            >
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={raceSelectionIds.has(track.id)} 
+                                                    onChange={(e) => { e.stopPropagation(); onToggleRaceSelection(track.id); }} 
+                                                    className="mr-2 accent-cyan-500 w-3 h-3 flex-shrink-0 cursor-pointer" 
+                                                />
+                                                
+                                                <div className="w-10 h-8 bg-slate-950 rounded border border-slate-700 overflow-hidden mr-2 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity">
+                                                    <TrackPreview points={track.points} color={track.color} className="w-full h-full" />
+                                                </div>
 
-                                        <div className="flex-grow min-w-0 cursor-pointer" onClick={() => onFocusTrack(track.id)}>
-                                            <div className="flex justify-between items-center mb-0.5">
-                                                <span className={`text-[11px] font-bold truncate pr-1 transition-colors ${isFocused ? 'text-cyan-400' : 'group-hover:text-cyan-400'}`}>{track.name}</span>
-                                            </div>
-                                            <div className="flex items-center text-[9px] text-slate-500 font-mono gap-2">
-                                                <span className={isFocused ? 'text-cyan-400' : 'text-cyan-100/70'}>{track.distance.toFixed(1)}k</span>
-                                                <span className="w-px h-2 bg-slate-700"></span>
-                                                <span>{new Date(track.points[0].time).toLocaleDateString('it-IT', {day:'2-digit', month:'2-digit'})}</span>
-                                                {track.rating && <div className="ml-auto scale-75 origin-right"><RatingStars rating={track.rating} size="xs" /></div>}
-                                            </div>
-                                        </div>
+                                                <div className="flex-grow min-w-0 cursor-pointer" onClick={() => onFocusTrack(track.id)}>
+                                                    <div className="flex justify-between items-center mb-0.5">
+                                                        <span className={`text-[11px] font-bold truncate pr-1 transition-colors ${isFocused ? 'text-cyan-400' : 'group-hover:text-cyan-400'}`}>{track.name}</span>
+                                                    </div>
+                                                    <div className="flex items-center text-[9px] text-slate-500 font-mono gap-2">
+                                                        <span className={isFocused ? 'text-cyan-400' : 'text-cyan-100/70'}>{track.distance.toFixed(1)}k</span>
+                                                        <span className="w-px h-2 bg-slate-700"></span>
+                                                        <span>{new Date(track.points[0].time).toLocaleDateString('it-IT', {day:'2-digit', month:'2-digit'})}</span>
+                                                        {track.rating && <div className="ml-auto scale-75 origin-right"><RatingStars rating={track.rating} size="xs" /></div>}
+                                                    </div>
+                                                </div>
 
-                                        <div className="flex items-center gap-1 ml-1 opacity-0 group-hover:opacity-100 transition-opacity absolute right-1 bg-slate-800 shadow-xl rounded px-1 z-20">
-                                            <button onClick={() => onViewDetails(track.id)} className="p-1 text-cyan-500 hover:text-white" title="Dettagli">
-                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" /><path fillRule="evenodd" d="M.664 10.59a1.651 1.651 0 0 1 0-1.186A10.004 10.004 0 0 1 10 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0 1 10 17c-4.257 0-7.893-2.66-9.336-6.41ZM14 10a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" clipRule="evenodd" /></svg>
-                                            </button>
-                                            <button onClick={() => onToggleArchived(track.id)} className="p-1 text-slate-500 hover:text-white" title={track.isArchived ? "Ripristina" : "Archivia"}>
-                                                {track.isArchived ? <UploadIcon /> : <ArchiveBoxIcon />}
-                                            </button>
-                                            <button onClick={() => onToggleVisibility(track.id)} className={`p-1 ${visibleTrackIds.has(track.id) ? 'text-cyan-400' : 'text-slate-600'}`}>
-                                                {visibleTrackIds.has(track.id) ? <EyeIcon /> : <EyeSlashIcon />}
-                                            </button>
-                                        </div>
-                                        
-                                        {isFocused && <div className="absolute left-0 top-0 bottom-0 w-1 bg-cyan-500 shadow-[0_0_8px_rgba(6,182,212,0.8)]"></div>}
-                                    </div>
-                                );
-                            })}
+                                                <div className="flex items-center gap-1 ml-1 opacity-0 group-hover:opacity-100 transition-opacity absolute right-1 bg-slate-800 shadow-xl rounded px-1 z-20">
+                                                    <button onClick={() => onViewDetails(track.id)} className="p-1 text-cyan-500 hover:text-white" title="Dettagli">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" /><path fillRule="evenodd" d="M.664 10.59a1.651 1.651 0 0 1 0-1.186A10.004 10.004 0 0 1 10 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0 1 10 17c-4.257 0-7.893-2.66-9.336-6.41ZM14 10a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" clipRule="evenodd" /></svg>
+                                                    </button>
+                                                    <button onClick={() => onToggleArchived(track.id)} className="p-1 text-slate-500 hover:text-white" title={track.isArchived ? "Ripristina" : "Archivia"}>
+                                                        {track.isArchived ? <UploadIcon /> : <ArchiveBoxIcon />}
+                                                    </button>
+                                                    <button onClick={() => onToggleVisibility(track.id)} className={`p-1 ${visibleTrackIds.has(track.id) ? 'text-cyan-400' : 'text-slate-600'}`}>
+                                                        {visibleTrackIds.has(track.id) ? <EyeIcon /> : <EyeSlashIcon />}
+                                                    </button>
+                                                </div>
+                                                
+                                                {isFocused && <div className="absolute left-0 top-0 bottom-0 w-1 bg-cyan-500 shadow-[0_0_8px_rgba(6,182,212,0.8)]"></div>}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
         </div>
     );
