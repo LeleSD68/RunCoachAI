@@ -111,7 +111,6 @@ const App: React.FC = () => {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    // RESET FUNCTION FOR NAVIGATION
     const resetNavigation = useCallback(() => {
         setShowHome(false);
         setShowExplorer(false);
@@ -160,9 +159,7 @@ const App: React.FC = () => {
             addToast("Seleziona almeno 2 tracce per unirle.", "info");
             return;
         }
-
-        const confirmMerge = window.confirm(`Vuoi unire queste ${selectedCount} attività in un'unica traccia continua? Questa operazione creerà una nuova attività sincronizzando le cronologie.`);
-        
+        const confirmMerge = window.confirm(`Vuoi unire queste ${selectedCount} attività in un'unica traccia continua?`);
         if (!confirmMerge) return;
         
         const selectedTracksToMerge = tracks.filter(t => raceSelectionIds.has(t.id));
@@ -181,7 +178,6 @@ const App: React.FC = () => {
     const handleDeleteSelected = () => {
         const selectedIds = Array.from(raceSelectionIds);
         if (selectedIds.length === 0) return;
-
         if (!window.confirm(`Sei sicuro di voler eliminare definitivamente queste ${selectedIds.length} attività?`)) return;
 
         const newTracks = tracks.filter(t => !raceSelectionIds.has(t.id));
@@ -418,7 +414,7 @@ const App: React.FC = () => {
                     </div>
 
                     {/* Mappa: Sotto su Mobile, Destra su Desktop */}
-                    <div className="flex-grow relative h-full bg-slate-900">
+                    <div className="flex-grow relative h-full bg-slate-900 overflow-hidden">
                         <MapDisplay 
                             tracks={tracks}
                             visibleTrackIds={visibleTrackIds}
@@ -432,24 +428,27 @@ const App: React.FC = () => {
                             }}
                         />
 
+                        {/* NavigationDock posizionato in modo fisso rispetto all'area visuale */}
                         {!isRaceMode && (
-                            <NavigationDock 
-                                onOpenSidebar={() => { resetNavigation(); setIsSidebarOpen(true); }}
-                                onCloseSidebar={() => { resetNavigation(); setIsSidebarOpen(false); }}
-                                onOpenExplorer={() => { resetNavigation(); setShowExplorer(true); }}
-                                onOpenDiary={() => { resetNavigation(); setShowDiary(true); }}
-                                onOpenPerformance={() => { resetNavigation(); setShowPerformance(true); }}
-                                onOpenGuide={() => { resetNavigation(); setShowGuide(true); }}
-                                onExportBackup={exportAllData}
-                                onOpenHub={() => { resetNavigation(); setShowHome(true); }}
-                                onOpenSocial={() => { resetNavigation(); setShowSocial(true); }}
-                                isSidebarOpen={isSidebarOpen}
-                            />
+                            <div className="absolute bottom-0 left-0 w-full z-[1000]">
+                                <NavigationDock 
+                                    onOpenSidebar={() => { resetNavigation(); setIsSidebarOpen(true); }}
+                                    onCloseSidebar={() => { resetNavigation(); setIsSidebarOpen(false); }}
+                                    onOpenExplorer={() => { resetNavigation(); setShowExplorer(true); }}
+                                    onOpenDiary={() => { resetNavigation(); setShowDiary(true); }}
+                                    onOpenPerformance={() => { resetNavigation(); setShowPerformance(true); }}
+                                    onOpenGuide={() => { resetNavigation(); setShowGuide(true); }}
+                                    onExportBackup={exportAllData}
+                                    onOpenHub={() => { resetNavigation(); setShowHome(true); }}
+                                    onOpenSocial={() => { resetNavigation(); setShowSocial(true); }}
+                                    isSidebarOpen={isSidebarOpen}
+                                />
+                            </div>
                         )}
 
-                        <div className="absolute bottom-20 right-4 z-40">
+                        <div className="absolute bottom-24 right-4 z-40">
                             {!showChatbot ? (
-                                <button onClick={() => setShowChatbot(true)} className="bg-purple-600 p-3 rounded-full shadow-2xl border-2 border-purple-400">🤖</button>
+                                <button onClick={() => setShowChatbot(true)} className="bg-purple-600 p-3 rounded-full shadow-2xl border-2 border-purple-400 active:scale-95 transition-transform">🤖</button>
                             ) : (
                                 <Chatbot tracksToAnalyze={tracks} userProfile={userProfile} onClose={() => setShowChatbot(false)} isStandalone={true} onAddPlannedWorkout={setPlannedWorkouts as any} plannedWorkouts={plannedWorkouts} />
                             )}
@@ -461,11 +460,11 @@ const App: React.FC = () => {
             {showProfile && <UserProfileModal onClose={() => setShowProfile(false)} onSave={(p) => { setUserProfile(p); saveProfileToDB(p); }} currentProfile={userProfile} tracks={tracks} onLogout={handleLogout} />}
             {showChangelog && <Changelog onClose={() => setShowChangelog(false)} />}
             {showGuide && <GuideModal onClose={() => setShowGuide(false)} />}
-            {showExplorer && <ExplorerView tracks={tracks} onClose={() => setShowExplorer(false)} onSelectTrack={(id) => { resetNavigation(); setViewingTrack(tracks.find(t => t.id === id) || null); }} />}
+            {showExplorer && <ExplorerView tracks={tracks} onClose={() => setShowExplorer(false)} onSelectTrack={(id) => { resetNavigation(); setViewingTrack(tracks.find(t => t.id === id) || null); setShowExplorer(false); }} />}
             {showDiary && (
                 <DiaryView 
                     tracks={tracks} plannedWorkouts={plannedWorkouts} userProfile={userProfile} 
-                    onClose={() => setShowDiary(false)} onSelectTrack={(id) => { resetNavigation(); setViewingTrack(tracks.find(t => t.id === id) || null); }}
+                    onClose={() => setShowDiary(false)} onSelectTrack={(id) => { resetNavigation(); setViewingTrack(tracks.find(t => t.id === id) || null); setShowDiary(false); }}
                     onDeletePlannedWorkout={deletePlannedWorkoutFromCloud} onAddPlannedWorkout={(w) => setPlannedWorkouts(p => [...p, w])}
                 />
             )}
