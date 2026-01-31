@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Track, UserProfile, PlannedWorkout, Toast, ActivityType, RaceRunner, RaceResult, TrackStats, Commentary, TrackPoint } from './types';
 import Sidebar from './components/Sidebar';
@@ -259,6 +258,24 @@ const App: React.FC = () => {
         const updatedTrack = { ...trackToUpdate, isArchived: !trackToUpdate.isArchived };
         const updatedTracks = tracks.map(t => t.id === id ? updatedTrack : t);
         setTracks(updatedTracks);
+        await saveTracksToDB(updatedTracks);
+        if (!isGuest) await syncTrackToCloud(updatedTrack);
+    };
+
+    // Added handleUpdateTrackMetadata to fix 'Cannot find name' error and sync metadata changes
+    const handleUpdateTrackMetadata = async (id: string, metadata: Partial<Track>) => {
+        const trackToUpdate = tracks.find(t => t.id === id);
+        if (!trackToUpdate) return;
+        
+        const updatedTrack = { ...trackToUpdate, ...metadata };
+        const updatedTracks = tracks.map(t => t.id === id ? updatedTrack : t);
+        
+        setTracks(updatedTracks);
+        // If we are currently viewing this track, update it in state to reflect changes in UI
+        if (viewingTrack && viewingTrack.id === id) {
+            setViewingTrack(updatedTrack);
+        }
+        
         await saveTracksToDB(updatedTracks);
         if (!isGuest) await syncTrackToCloud(updatedTrack);
     };
