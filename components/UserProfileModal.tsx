@@ -1,11 +1,11 @@
 
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile, PersonalRecord, RunningGoal, AiPersonality, Track, WeightEntry, ApiUsage, CalendarPreference } from '../types';
 import { getStoredPRs, PR_DISTANCES } from '../services/prService';
 import Tooltip from './Tooltip';
 import GearManager from './GearManager';
 import { supabase } from '../services/supabaseClient';
+import { isStravaConnected } from '../services/stravaService';
 
 interface UserProfileModalProps {
     onClose: () => void;
@@ -46,10 +46,17 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
         autoAnalyzeEnabled: true, 
         googleCalendarSyncEnabled: false,
         calendarPreference: 'google',
+        stravaAutoSync: false,
         goals: [],
         shoes: [],
         ...currentProfile 
     });
+
+    const [stravaConnected, setStravaConnected] = useState(false);
+
+    useEffect(() => {
+        setStravaConnected(isStravaConnected());
+    }, []);
 
     const personalRecords = useMemo(() => getStoredPRs(), []);
 
@@ -93,7 +100,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
                     
                     {/* SECTION: SYNC & CALENDAR (NEW) */}
                     <section className="space-y-4">
-                        <h3 className="text-xs font-black text-blue-400 uppercase tracking-[0.2em] border-b border-blue-900/30 pb-2">Sincronizzazione Calendario</h3>
+                        <h3 className="text-xs font-black text-blue-400 uppercase tracking-[0.2em] border-b border-blue-900/30 pb-2">Sincronizzazione</h3>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className={`p-4 rounded-2xl border transition-all cursor-pointer ${profile.calendarPreference === 'google' ? 'bg-blue-600/10 border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.2)]' : 'bg-slate-800/50 border-slate-700'}`} onClick={() => setProfile({...profile, calendarPreference: 'google'})}>
                                 <div className="flex items-center gap-3 mb-2">
@@ -109,6 +116,26 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
                                 </div>
                                 <p className="text-[10px] text-slate-400 leading-tight">Esporta in formato iCal compatibile con Apple e Outlook.</p>
                             </div>
+                        </div>
+                        {/* Auto Sync Toggle */}
+                        <div className={`p-4 rounded-2xl border flex items-center justify-between transition-colors ${profile.stravaAutoSync ? 'bg-[#fc4c02]/10 border-[#fc4c02]/50' : 'bg-slate-800/50 border-slate-700'}`}>
+                            <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                    <span className="text-[#fc4c02] font-black text-sm uppercase">Sync Strava all'Avvio</span>
+                                </div>
+                                <p className="text-[10px] text-slate-400">Importa automaticamente le nuove corse quando apri l'app.</p>
+                                {!stravaConnected && <p className="text-[9px] text-red-400 font-bold mt-1">Richiede connessione Strava attiva.</p>}
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input 
+                                    type="checkbox" 
+                                    className="sr-only peer" 
+                                    checked={profile.stravaAutoSync} 
+                                    onChange={(e) => setProfile({...profile, stravaAutoSync: e.target.checked})} 
+                                    disabled={!stravaConnected}
+                                />
+                                <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[#fc4c02]/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#fc4c02]"></div>
+                            </label>
                         </div>
                     </section>
 

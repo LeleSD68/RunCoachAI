@@ -17,6 +17,7 @@ create table public.profiles (
   personal_notes text,
   shoes text[], -- Array di stringhe
   weight_history jsonb, -- Array di oggetti {date, weight}
+  strava_auto_sync boolean default false, -- NUOVO CAMPO
   updated_at timestamp with time zone default timezone('utc'::text, now())
 );
 
@@ -105,3 +106,6 @@ $$ language plpgsql security definer;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
+
+-- MIGRATION: SE LA TABELLA ESISTE GIA', ESEGUI SOLO QUESTO COMANDO NELLA CONSOLE SQL DI SUPABASE:
+-- alter table public.profiles add column if not exists strava_auto_sync boolean default false;

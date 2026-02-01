@@ -137,6 +137,7 @@ export const saveProfileToDB = async (profile: UserProfile, options: { skipCloud
         personal_notes: profile.personalNotes,
         shoes: profile.shoes || [],
         weight_history: profile.weightHistory || [],
+        strava_auto_sync: profile.stravaAutoSync, // New Field
         updated_at: new Date().toISOString()
       });
     }
@@ -162,7 +163,8 @@ export const loadProfileFromDB = async (forceLocal: boolean = false): Promise<Us
         aiPersonality: data.ai_personality,
         personalNotes: data.personal_notes,
         shoes: data.shoes,
-        weightHistory: data.weight_history
+        weightHistory: data.weight_history,
+        stravaAutoSync: data.strava_auto_sync
       };
       await saveProfileToDB(cloudProfile, { skipCloud: true });
       return cloudProfile;
@@ -213,7 +215,7 @@ export const loadPlannedWorkoutsFromDB = async (forceLocal: boolean = false): Pr
     if (data && !error) {
       const workouts = data.map((w: any) => ({
         id: w.id, title: w.title, description: w.description, date: new Date(w.date),
-        activityType: w.activity_type, isAiSuggested: w.is_ai_suggested, completedTrackId: w.completed_track_id
+        activity_type: w.activity_type, isAiSuggested: w.is_ai_suggested, completedTrackId: w.completed_track_id
       }));
       await savePlannedWorkoutsToDB(workouts, { skipCloud: true });
       return workouts;

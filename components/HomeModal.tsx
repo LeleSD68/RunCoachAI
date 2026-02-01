@@ -114,7 +114,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
                     <span className="text-[10px] text-purple-400 font-bold uppercase tracking-widest mt-1 opacity-60">Calendario & AI</span>
                 </button>
 
-                <button onClick={() => { onOpenExplorer(); onClose(); }} className="flex flex-col items-center justify-center p-4 md:p-6 bg-slate-700/20 hover:bg-slate-700/40 border-2 border-slate-600/40 hover:border-white/40 rounded-2xl transition-all group active:scale-95 shadow-lg min-h-[120px]">
+                <button onClick={() => { onOpenExplorer(); }} className="flex flex-col items-center justify-center p-4 md:p-6 bg-slate-700/20 hover:bg-slate-700/40 border-2 border-slate-600/40 hover:border-white/40 rounded-2xl transition-all group active:scale-95 shadow-lg min-h-[120px]">
                     <div className="text-3xl md:text-4xl mb-2 group-hover:scale-110 transition-transform">👁️</div>
                     <span className="text-sm md:text-lg font-black text-white uppercase tracking-tight">Archivio</span>
                     <span className="text-[10px] text-slate-400 group-hover:text-white font-bold uppercase tracking-widest mt-1 opacity-60">Esplora storico</span>
@@ -137,7 +137,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
     const AnalyzeMenu = () => (
         <div className="flex flex-col gap-4 animate-fade-in">
             <h3 className="text-lg font-black text-white uppercase tracking-tighter mb-2 border-b border-slate-700 pb-2">Analisi Attività</h3>
-            <button onClick={() => { onOpenExplorer(); onClose(); }} className="p-4 bg-slate-700/30 hover:bg-slate-700 border border-slate-600 rounded-xl text-left transition-all hover:border-cyan-500 group">
+            <button onClick={() => { onOpenExplorer(); }} className="p-4 bg-slate-700/30 hover:bg-slate-700 border border-slate-600 rounded-xl text-left transition-all hover:border-cyan-500 group">
                 <span className="block text-sm font-bold text-white group-hover:text-cyan-400 mb-1">📂 Corsa in Archivio</span>
                 <span className="text-xs text-slate-400">Scegli una corsa già caricata per vedere dettagli e statistiche.</span>
             </button>
@@ -162,7 +162,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
     const PlanMenu = () => (
         <div className="flex flex-col gap-4 animate-fade-in">
             <h3 className="text-lg font-black text-white uppercase tracking-tighter mb-2 border-b border-slate-700 pb-2">Diario & Allenamento</h3>
-            <button onClick={() => { onOpenDiary(); onClose(); }} className="p-4 bg-slate-700/30 hover:bg-slate-700 border border-slate-600 rounded-xl text-left transition-all hover:border-purple-500 group">
+            <button onClick={() => { onOpenDiary(); }} className="p-4 bg-slate-700/30 hover:bg-slate-700 border border-slate-600 rounded-xl text-left transition-all hover:border-purple-500 group">
                 <span className="block text-sm font-bold text-white group-hover:text-purple-400 mb-1">📅 Calendario Allenamenti</span>
                 <span className="text-xs text-slate-400">Gestisci i tuoi impegni e segui la scheda suggerita dal Coach AI.</span>
             </button>

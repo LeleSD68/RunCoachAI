@@ -37,7 +37,7 @@ import {
     deletePlannedWorkoutFromCloud
 } from './services/dbService';
 import { supabase } from './services/supabaseClient';
-import { handleStravaCallback } from './services/stravaService';
+import { handleStravaCallback, fetchRecentStravaActivities, isStravaConnected } from './services/stravaService';
 import { getTrackStateAtTime, mergeTracks } from './services/trackEditorUtils';
 import { getApiUsage, trackUsage, addTokensToUsage } from './services/usageService';
 import { parseGpx } from './services/gpxService';
@@ -272,6 +272,27 @@ const App: React.FC = () => {
         checkSession();
     };
 
+    const runAutoStravaSync = async (currentTracks: Track[]) => {
+        try {
+            // Check last 10 activities to catch up quickly without overwhelming
+            const newTracks = await fetchRecentStravaActivities(10);
+            if (newTracks.length === 0) return;
+
+            const uniqueNew = newTracks.filter(t => 
+                !isDuplicateTrack(t, currentTracks) && !isPreviouslyDeletedStravaTrack(t)
+            );
+            
+            if (uniqueNew.length > 0) {
+                const updated = [...uniqueNew, ...currentTracks];
+                setTracks(updated);
+                await saveTracksToDB(updated);
+                addToast(`Sincronizzazione Auto: importate ${uniqueNew.length} nuove corse.`, "success");
+            }
+        } catch (e) {
+            console.error("Auto sync failed", e);
+        }
+    };
+
     const checkSession = async () => {
         setIsDataLoading(true);
         try {
@@ -348,6 +369,13 @@ const App: React.FC = () => {
             }
 
             setPlannedWorkouts(uniqueWorkouts);
+
+            // AUTO SYNC STRAVA CHECK
+            if (loadedProfile?.stravaAutoSync && isStravaConnected()) {
+                // Run in background to not block UI
+                runAutoStravaSync(uniqueTracks);
+            }
+
         } catch (e) {
             addToast("Dati caricati localmente.", "info");
         }
