@@ -40,7 +40,7 @@ const LogoutIcon = () => (
 const UserIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-5.5-2.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0ZM10 12a5.99 5.99 0 0 0-4.793 2.39A9.916 9.916 0 0 0 10 18c2.695 0 5.145-1.075 6.99-2.825A5.99 5.99 0 0 0 10 12Z" clipRule="evenodd" /></svg>);
 const StravaIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-        <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.477 0 4.177 12.173h4.172" />
+        <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.599l2.836 5.598h4.172L10.477 0 4.177 12.173h4.172" />
     </svg>
 );
 
@@ -208,7 +208,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
                     <div className="flex justify-center mb-4"><LargeLogoIcon /></div>
                     <h2 className="text-2xl md:text-3xl font-black text-white italic tracking-tighter uppercase mb-1">Ciao, <span className="text-cyan-400">{userProfile?.name || 'Atleta'}</span></h2>
                     <div className="flex items-center justify-center gap-2 mt-2">
-                         <button onClick={onOpenChangelog} className="bg-slate-800 border border-slate-700 text-slate-400 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider hover:bg-slate-700 hover:text-white transition-colors">v1.36</button>
+                         <button onClick={onOpenChangelog} className="bg-slate-800 border border-slate-700 text-slate-400 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider hover:bg-slate-700 hover:text-white transition-colors">v1.37</button>
                         <span className={`border text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${trackCount > 0 ? 'bg-cyan-900/20 border-cyan-500/30 text-cyan-400' : 'bg-slate-800 border-slate-700 text-slate-500'}`}>{trackCount} {trackCount === 1 ? 'Attività' : 'Attività'}</span>
                     </div>
                 </header>
