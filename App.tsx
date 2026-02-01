@@ -38,6 +38,10 @@ import { supabase } from './services/supabaseClient';
 import { handleStravaCallback } from './services/stravaService';
 import { getTrackStateAtTime, mergeTracks } from './services/trackEditorUtils';
 import { getApiUsage, trackUsage, addTokensToUsage } from './services/usageService';
+import { parseGpx } from './services/gpxService';
+import { parseTcx } from './services/tcxService';
+import { generateSmartTitle } from './services/titleGenerator';
+import { isDuplicateTrack } from './services/trackUtils';
 
 const App: React.FC = () => {
     const [tracks, setTracks] = useState<Track[]>([]);
@@ -395,6 +399,53 @@ const App: React.FC = () => {
         addToast("Rimossa dal diario.", "info");
     };
 
+    const handleFileUpload = async (files: File[] | null) => {
+        if (!files) return;
+        setIsDataLoading(true);
+        let newCount = 0;
+        let skipCount = 0;
+        const newTracks: Track[] = [];
+
+        for (const file of files) {
+            const text = await file.text();
+            let parsed = null;
+            if (file.name.toLowerCase().endsWith('.gpx')) parsed = parseGpx(text, file.name);
+            else if (file.name.toLowerCase().endsWith('.tcx')) parsed = parseTcx(text, file.name);
+
+            if (parsed) {
+                const { title, activityType, folder } = generateSmartTitle(parsed.points, parsed.distance, parsed.name);
+                const tempTrack: Track = {
+                    id: crypto.randomUUID(),
+                    name: title,
+                    points: parsed.points,
+                    distance: parsed.distance,
+                    duration: parsed.duration,
+                    color: `hsl(${Math.random() * 360}, 70%, 60%)`,
+                    activityType,
+                    folder
+                };
+
+                if (!isDuplicateTrack(tempTrack, [...tracks, ...newTracks])) {
+                    newTracks.push(tempTrack);
+                    newCount++;
+                } else {
+                    skipCount++;
+                }
+            }
+        }
+
+        if (newCount > 0) {
+            const updated = [...newTracks, ...tracks];
+            setTracks(updated);
+            await saveTracksToDB(updated);
+            addToast(`Caricate ${newCount} nuove corse.`, "success");
+        }
+        if (skipCount > 0) {
+            addToast(`${skipCount} attività già presenti ignorate.`, "info");
+        }
+        setIsDataLoading(false);
+    };
+
     if (showSplash) return <SplashScreen onFinish={handleSplashFinish} />;
 
     return (
@@ -405,7 +456,7 @@ const App: React.FC = () => {
             {isDataLoading && (
                 <div className="fixed inset-0 z-[99999] bg-slate-950/80 flex flex-col items-center justify-center">
                     <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                    <p className="text-cyan-400 font-bold uppercase animate-pulse">Caricamento...</p>
+                    <p className="text-cyan-400 font-bold uppercase animate-pulse">Elaborazione...</p>
                 </div>
             )}
 
@@ -430,11 +481,25 @@ const App: React.FC = () => {
                         try {
                             const text = await f.text();
                             const data = JSON.parse(text);
-                            await importAllData(data); 
-                            await loadData(true); 
-                            addToast("Importazione completata!", "success"); 
+                            
+                            // DEDUPLICAZIONE BACKUP
+                            if (data.tracks) {
+                                const incoming = data.tracks.map((t: any) => ({
+                                    ...t,
+                                    points: t.points.map((p: any) => ({ ...p, time: new Date(p.time) }))
+                                }));
+                                
+                                const filteredTracks = incoming.filter((t: Track) => !isDuplicateTrack(t, tracks));
+                                const merged = [...filteredTracks, ...tracks];
+                                
+                                // Se abbiamo molti nuovi dati, importAllData pulisce tutto. 
+                                // Altrimenti, facciamo un merge intelligente.
+                                await importAllData({ ...data, tracks: merged }); 
+                                await loadData(true); 
+                                addToast(`Importate ${filteredTracks.length} nuove attività. ${incoming.length - filteredTracks.length} ignorate perché già presenti.`, "success"); 
+                            }
                         } catch (e) {
-                            addToast("Errore durante l'importazione.", "error");
+                            addToast("Errore durante l'importazione del backup.", "error");
                         } finally {
                             setIsDataLoading(false);
                         }
@@ -454,7 +519,7 @@ const App: React.FC = () => {
                             addToast("Errore backup.", "error");
                         }
                     }}
-                    onUploadTracks={() => {}}
+                    onUploadTracks={handleFileUpload}
                     onOpenProfile={() => toggleView('profile')}
                     onOpenChangelog={() => toggleView('profile')}
                     trackCount={tracks.length}
@@ -502,7 +567,7 @@ const App: React.FC = () => {
                                     onMergeSelected={handleMergeSelectedTracks}
                                     onToggleFavorite={handleToggleFavorite}
                                     onBulkGroup={handleBulkGroup}
-                                    onFileUpload={() => {}} onToggleArchived={async (id) => { const u = tracks.map(t => t.id === id ? {...t, isArchived: !t.isArchived} : t); setTracks(u); await saveTracksToDB(u); }}
+                                    onFileUpload={handleFileUpload} onToggleArchived={async (id) => { const u = tracks.map(t => t.id === id ? {...t, isArchived: !t.isArchived} : t); setTracks(u); await saveTracksToDB(u); }}
                                 />
                             </div>
                             <div className="bg-slate-950">
@@ -533,7 +598,7 @@ const App: React.FC = () => {
                                 onMergeSelected={handleMergeSelectedTracks}
                                 onToggleFavorite={handleToggleFavorite}
                                 onBulkGroup={handleBulkGroup}
-                                onFileUpload={() => {}} onToggleArchived={async (id) => { const u = tracks.map(t => t.id === id ? {...t, isArchived: !t.isArchived} : t); setTracks(u); await saveTracksToDB(u); }} onDeleteTrack={() => {}} onSelectAll={() => {}}
+                                onFileUpload={handleFileUpload} onToggleArchived={async (id) => { const u = tracks.map(t => t.id === id ? {...t, isArchived: !t.isArchived} : t); setTracks(u); await saveTracksToDB(u); }} onDeleteTrack={() => {}} onSelectAll={() => {}}
                              />
                         </div>
 
