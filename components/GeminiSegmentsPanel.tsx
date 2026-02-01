@@ -1,16 +1,17 @@
 
 import React, { useState, useCallback } from 'react';
 import { Type } from '@google/genai';
-import { Track, TrackStats, AiSegment } from '../types';
+import { Track, TrackStats, AiSegment, UserProfile } from '../types';
 import { calculateSegmentStats } from '../services/trackEditorUtils';
-import { getGenAI, retryWithPolicy } from '../services/aiHelper';
+import { getGenAI, retryWithPolicy, samplePointsForAi } from '../services/aiHelper';
 
 interface GeminiSegmentsPanelProps {
     track: Track;
     stats: TrackStats;
+    userProfile: UserProfile;
     onSegmentSelect: (segment: AiSegment | null) => void;
     selectedSegment: AiSegment | null;
-    onCheckAiAccess?: () => boolean; // New prop
+    onCheckAiAccess?: () => boolean; 
 }
 
 const formatDuration = (ms: number) => {
@@ -34,7 +35,7 @@ const SparklesIcon = () => (
     </svg>
 );
 
-const GeminiSegmentsPanel: React.FC<GeminiSegmentsPanelProps> = ({ track, stats, onSegmentSelect, selectedSegment, onCheckAiAccess }) => {
+const GeminiSegmentsPanel: React.FC<GeminiSegmentsPanelProps> = ({ track, stats, userProfile, onSegmentSelect, selectedSegment, onCheckAiAccess }) => {
     const [segments, setSegments] = useState<AiSegment[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
@@ -48,15 +49,13 @@ const GeminiSegmentsPanel: React.FC<GeminiSegmentsPanelProps> = ({ track, stats,
         setSegments([]);
         setWasAnalyzed(true);
 
-        const prompt = `Sei un esperto allenatore di corsa che analizza una traccia GPX. Identifica 3-5 segmenti interessanti dai dati della corsa forniti. Per ogni segmento, fornisci un titolo, una breve analisi e le distanze di inizio e fine in chilometri. I segmenti dovrebbero evidenziare le massime prestazioni, sfide significative o schemi degni di nota. Esempi includono "Chilometro più veloce", "Salita più dura", "Sforzo in negative split", "Andatura costante", "Spinta finale". Usa i dati della traccia forniti per rendere la tua analisi approfondita. Rispondi SOLO con un oggetto JSON che aderisca allo schema fornito.
+        // OPTIMIZATION: Sampling points to save tokens
+        const sampledPoints = samplePointsForAi(track.points, userProfile.powerSaveMode);
 
-Riepilogo dati traccia:
-- Distanza totale: ${track.distance.toFixed(2)} km
-- Tempo totale: ${formatDuration(track.duration * 1000)}
-- Dislivello positivo: ${Math.round(stats.elevationGain)} m
-- Numero di punti: ${track.points.length}
-- Esempio di dati dei punti (distanza in km, altitudine in m, frequenza cardiaca in bpm):
-${track.points.filter((_, i) => i % Math.max(1, Math.floor(track.points.length / 20)) === 0).map(p => `  - dist: ${p.cummulativeDistance.toFixed(2)}, ele: ${p.ele.toFixed(1)}, hr: ${p.hr ?? 'N/A'}`).join('\n')}
+        const prompt = `Sei un esperto allenatore di corsa. Identifica 3-5 segmenti interessanti dai dati forniti. Rispondi SOLO JSON array.
+        
+Dati traccia (${track.distance.toFixed(2)} km, +${Math.round(stats.elevationGain)}m):
+Punti campionati (distanza, quota, fc): ${JSON.stringify(sampledPoints)}
 `;
 
         try {
@@ -72,13 +71,12 @@ ${track.points.filter((_, i) => i % Math.max(1, Math.floor(track.points.length /
                             items: {
                                 type: Type.OBJECT,
                                 properties: {
-                                    title: { type: Type.STRING, description: "Un titolo breve e accattivante per il segmento (es. '🚀 Chilometro più veloce')." },
-                                    description: { type: Type.STRING, description: "Una breve e acuta analisi di questo segmento (1-2 frasi)." },
-                                    startDistance: { type: Type.NUMBER, description: "La distanza di inizio del segmento in chilometri." },
-                                    endDistance: { type: Type.NUMBER, description: "La distanza di fine del segmento in chilometri." },
+                                    title: { type: Type.STRING },
+                                    description: { type: Type.STRING },
+                                    startDistance: { type: Type.NUMBER },
+                                    endDistance: { type: Type.NUMBER },
                                 },
                                 required: ['title', 'description', 'startDistance', 'endDistance'],
-                                propertyOrdering: ["title", "description", "startDistance", "endDistance"]
                             }
                         },
                     },
@@ -86,8 +84,7 @@ ${track.points.filter((_, i) => i % Math.max(1, Math.floor(track.points.length /
             };
             
             const response = await retryWithPolicy(call);
-            // Fix for: Property 'gpxApp' does not exist on type 'Window & typeof globalThis'.
-            (window as any).gpxApp?.addTokens(response.usageMetadata?.totalTokenCount ?? 0);
+            if (response.usageMetadata?.totalTokenCount) window.gpxApp?.addTokens(response.usageMetadata.totalTokenCount);
             
             const jsonStr = (response.text || '').trim();
             const rawSegments = JSON.parse(jsonStr);
@@ -106,12 +103,12 @@ ${track.points.filter((_, i) => i % Math.max(1, Math.floor(track.points.length /
 
             setSegments(processedSegments);
         } catch (e) {
-            setError('Impossibile analizzare i segmenti dopo diversi tentativi. Riprova più tardi.');
+            setError('Impossibile analizzare i segmenti.');
             console.error(e);
         } finally {
             setIsLoading(false);
         }
-    }, [track, stats, onCheckAiAccess]);
+    }, [track, stats, onCheckAiAccess, userProfile.powerSaveMode]);
 
     const handleSegmentClick = (segment: AiSegment) => {
         if (selectedSegment && selectedSegment.title === segment.title && selectedSegment.startDistance === segment.startDistance) {

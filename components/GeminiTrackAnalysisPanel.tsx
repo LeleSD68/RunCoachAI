@@ -6,7 +6,7 @@ import { getHeartRateZoneInfo } from './HeartRateZonePanel';
 import FormattedAnalysis from './FormattedAnalysis';
 import { calculateTrackStats } from '../services/trackStatsService';
 import { loadChatFromDB, saveChatToDB } from '../services/dbService';
-import { getGenAI, retryWithPolicy, isAuthError, ensureApiKey } from '../services/aiHelper';
+import { getGenAI, retryWithPolicy, isAuthError, ensureApiKey, samplePointsForAi } from '../services/aiHelper';
 
 const personalityPrompts: Record<AiPersonality, string> = {
     'pro_balanced': "Sei un analista delle prestazioni d'élite. Sii chirurgico, diretto e basati esclusivamente sui numeri. Rispondi rigorosamente in ITALIANO.",
@@ -87,10 +87,8 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
     
     const CHAT_ID = `track-chat-${track.id}`;
 
-    // Calculate Planned Workout Context
     const matchedWorkout = React.useMemo(() => {
         if (!plannedWorkouts) return null;
-        // Check strict date match
         const trackDate = new Date(track.points[0].time).toDateString();
         return plannedWorkouts.find(w => new Date(w.date).toDateString() === trackDate && !w.completedTrackId);
     }, [plannedWorkouts, track]);
@@ -100,83 +98,44 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
         const personality = personalityPrompts[personalityKey] || personalityPrompts['pro_balanced'];
         const userName = userProfile.name || 'Atleta';
         
-        const validSplits = stats.splits.filter(s => s.distance > 0.5);
-        const paces = validSplits.map(s => s.pace);
-        const avgPaceCalc = paces.reduce((a,b)=>a+b,0) / (paces.length || 1);
-        const variance = paces.reduce((a,b) => a + Math.pow(b - avgPaceCalc, 2), 0) / (paces.length || 1);
-        const stdDev = Math.sqrt(variance);
-        
+        // Accurate pre-calculated data
         const splitsHeader = "Km | Passo | FC | Watt | Disl.\n---|---|---|---|---";
         const splitsRows = stats.splits.map(s => {
             return `${s.splitNumber} | ${formatPace(s.pace)} | ${s.avgHr ? Math.round(s.avgHr) : 'N/D'} | ${s.avgWatts ? Math.round(s.avgWatts) : 'N/D'} | +${Math.round(s.elevationGain)}`;
         }).join('\n');
         
-        const splitTable = `\nTABELLA PARZIALI:\n${splitsHeader}\n${splitsRows}\n`;
+        const splitTable = `\nTABELLA PARZIALI (PRECISA):\n${splitsHeader}\n${splitsRows}\n`;
         const hrZoneInfo = getHeartRateZoneInfo(track, userProfile);
         const hrDistribution = hrZoneInfo.zones.map(z => `- ${z.name}: ${z.percent.toFixed(0)}%`).join(', ');
         
+        // Sampling accurate enough for visual/micro-trend analysis (200 pts)
+        const sampledPoints = samplePointsForAi(track.points, userProfile.powerSaveMode);
+
         let workoutContext = "";
         if (matchedWorkout || track.linkedWorkout) {
             const w = track.linkedWorkout || matchedWorkout;
-            workoutContext = `
-            ALLENAMENTO PIANIFICATO NEL DIARIO:
-            - Titolo: "${w?.title}"
-            - Tipo: ${w?.activityType}
-            - Descrizione: "${w?.description}"
-            `;
-        } else {
-            workoutContext = "Nessun allenamento specifico trovato nel diario per questa data.";
+            workoutContext = `ALLENAMENTO PIANIFICATO: "${w?.title}" (${w?.activityType}). DESC: "${w?.description}"`;
         }
-
-        // AGGIUNTA NUOVI PARAMETRI DI FEEDBACK
-        const feedbackContext = `
-        FEEDBACK SOGGETTIVO DELL'ATLETA:
-        - Sforzo Percepito (RPE): ${track.rpe ?? 'Non inserito'} / 10
-        - Scarpe usate: ${track.shoe ?? 'Non specificato'}
-        - Note dell'atleta: "${track.notes ?? 'Nessuna nota inserita'}"
-        
-        REGOLE AGGIUNTIVE:
-        - Se RPE è alto ma i dati cardio sono bassi, indaga su stanchezza cronica o stress.
-        - Commenta le note dell'atleta se contengono indicazioni su dolori o meteo.
-        - Valuta se il voto dato rispecchia la percezione dell'atleta.
-        `;
 
         return `${personality}
         
-        PROTOCOLLO DI ANALISI RIGIDO:
-        1. **CHECK DIARIO**:
-           ${workoutContext}
-           
-           SE c'è un allenamento pianificato E l'utente NON ha ancora confermato:
-           - LA TUA PRIMA RISPOSTA DEVE ESSERE SOLO UNA DOMANDA: "Ciao ${userName}, per oggi era previsto '${matchedWorkout?.title || track.linkedWorkout?.title}'. Questa corsa corrisponde a quel programma?"
-           - NON ANALIZZARE NULLA FINCHÉ L'UTENTE NON RISPONDE SÌ O NO.
+        PROTOCOLLO DI ANALISI:
+        1. Confronta la sessione con l'obiettivo: ${workoutContext || "Corsa libera."}
+        2. Analizza i micro-trend dai punti campionati: ${JSON.stringify(sampledPoints)}
+        3. Valuta la tabella chilometrica per regolarità e sforzo.
         
-        2. **SE L'UTENTE CONFERMA (SÌ) o SE IL PROGRAMMA È GIÀ LINKATO**:
-           - Esegui un'analisi comparativa: "Hai rispettato i ritmi previsti?", "L'intensità è coerente col piano?".
-           - Se doveva essere un Lento ed è stato veloce -> Segnala errore.
-           - Se dovevano essere Ripetute -> Analizza i picchi nella Tabella Parziali.
-
-        3. **SE NON C'È PROGRAMMA o L'UTENTE DICE NO**:
-           - DEVI DEDURRE IL TIPO DI CORSA DAI DATI.
-           - Variabilità Passo (StdDev): ${stdDev.toFixed(2)}.
-           - SE > 0.25 -> Probabile FARTLEK o RIPETUTE o SCALATA. Cerca pattern ON/OFF nella tabella.
-           - SE < 0.25 -> Probabile CORSA CONTINUA (Lento, Medio, Lungo).
-           - Analizza in base alla tipologia dedotta.
-
-        ${feedbackContext}
-
-        DATI MACRO:
-        Dist: ${stats.totalDistance.toFixed(2)} km, Tempo: ${formatDuration(stats.movingDuration)}.
-        Medie: Passo ${formatPace(stats.movingAvgPace)}/km, HR ${Math.round(stats.avgHr || 0)} bpm.
+        DATI MACRO: Dist ${stats.totalDistance.toFixed(2)}km, Tempo ${formatDuration(stats.movingDuration)}.
         Zone Cardio: ${hrDistribution}.
+        Sforzo Percepito (RPE): ${track.rpe ?? 'N/D'}/10.
+        Scarpe: ${track.shoe ?? 'N/D'}.
+        Note: "${track.notes ?? ''}"
 
         ${splitTable}
 
-        STILE: Rispondi in ITALIANO. Sii tecnico ma sintetico (max 450 parole).
+        STILE: Rispondi in ITALIANO tecnico. Max 450 parole.
         `;
     };
 
-    // Load messages and update summary
     useEffect(() => {
         const initOrRestoreChat = async () => {
             const savedMessages = await loadChatFromDB(CHAT_ID);
@@ -187,33 +146,25 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
                     setLatestSummary(lastModelMsg.text.split(':::SUGGESTIONS')[0]);
                 }
             } else {
-                let initText = DEFAULT_WELCOME_MSG;
+                let initText = `Ciao ${userProfile.name || 'Atleta'}, analizzo subito questa corsa.`;
                 if (matchedWorkout && !track.linkedWorkout) {
-                    initText = `Ciao ${userProfile.name || 'Atleta'}, ho visto che per oggi era previsto "${matchedWorkout.title}". Questa attività corrisponde al programma?`;
-                } else {
-                    initText = `Ciao ${userProfile.name || 'Atleta'}, analizzo subito questa corsa.`;
+                    initText = `Ciao ${userProfile.name || 'Atleta'}, era previsto "${matchedWorkout.title}". È questa la sessione?`;
                 }
 
-                const initialMsg: ChatMessage = {
+                setMessages([{
                     role: 'model',
                     text: initText,
                     timestamp: Date.now(),
                     suggestedReplies: matchedWorkout && !track.linkedWorkout ? ["Sì, è questo", "No, corsa diversa"] : ["Analisi Generale", "Focus Cardio", "Efficienza"]
-                };
-                setMessages([initialMsg]);
+                }]);
             }
         };
         initOrRestoreChat();
     }, [CHAT_ID, matchedWorkout, track.linkedWorkout, userProfile.name]);
 
-    // Sync state to DB
     useEffect(() => {
         if (messages.length > 0) {
             saveChatToDB(CHAT_ID, messages).catch(console.error);
-            const lastModelMsg = [...messages].reverse().find(m => m.role === 'model');
-            if (lastModelMsg && lastModelMsg.text && !lastModelMsg.text.includes(DEFAULT_WELCOME_MSG)) {
-                setLatestSummary(lastModelMsg.text.split(':::SUGGESTIONS')[0]);
-            }
         }
         if (isOpen && !isMinimized) setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     }, [messages, CHAT_ID, isOpen, isMinimized]);
@@ -228,24 +179,7 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
                     history: messages.map(m => ({ role: m.role, parts: [{ text: m.text }] }))
                 });
             } catch (e: any) {
-                if (e.message === 'API_KEY_MISSING') console.warn("AI Init skipped");
-                else throw e;
-            }
-        }
-    };
-
-    const runWithRetry = async (action: () => Promise<void>) => {
-        try {
-            await action();
-        } catch (e: any) {
-            if (isAuthError(e) || e.message === 'API_KEY_MISSING') {
-                await ensureApiKey();
-                if (process.env.API_KEY) {
-                    initChat(true);
-                    await action();
-                }
-            } else {
-                throw e;
+                console.warn("AI Init failed", e);
             }
         }
     };
@@ -254,11 +188,10 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
         if (!text.trim() || isLoading) return;
         if (onCheckAiAccess && !onCheckAiAccess()) return;
 
-        // Fix for: Property 'gpxApp' does not exist on type 'Window & typeof globalThis'.
         (window as any).gpxApp?.trackApiRequest();
         onUpdateTrackMetadata?.(track.id, { hasChat: true });
 
-        if (matchedWorkout && !track.linkedWorkout && (text.toLowerCase().includes('si') || text.toLowerCase().includes('sì') || text.toLowerCase().includes('certo'))) {
+        if (matchedWorkout && !track.linkedWorkout && (text.toLowerCase().includes('si') || text.toLowerCase().includes('sì'))) {
              onUpdateTrackMetadata?.(track.id, { linkedWorkout: matchedWorkout });
         }
 
@@ -267,7 +200,7 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
         setMessages(prev => [...prev, { role: 'user', text: userMsg, timestamp: Date.now() }]);
         setIsLoading(true);
 
-        await runWithRetry(async () => {
+        await retryWithPolicy(async () => {
             initChat();
             if (chatSessionRef.current) {
                 const result = await chatSessionRef.current.sendMessageStream({ message: userMsg });
@@ -286,12 +219,10 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
                         return next;
                     });
                 }
-                // Fix for: Property 'gpxApp' does not exist on type 'Window & typeof globalThis'.
                 if (finalTokenCount > 0) (window as any).gpxApp?.addTokens(finalTokenCount);
             }
         }).catch(e => {
-            console.error(e);
-            setMessages(prev => [...prev, { role: 'model', text: "⚠️ Errore connessione AI. Riprova.", timestamp: Date.now() }]);
+            setMessages(prev => [...prev, { role: 'model', text: "⚠️ Connessione interrotta.", timestamp: Date.now() }]);
         }).finally(() => setIsLoading(false));
     };
 
@@ -300,23 +231,12 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
         performSendMessage(input);
     };
 
-    const handleStartAnalysis = () => {
-        if (onCheckAiAccess && !onCheckAiAccess()) return;
-        if (messages.length <= 1) { 
-             if (matchedWorkout && !track.linkedWorkout) {
-             } else {
-                 performSendMessage("Analizza questa sessione nel dettaglio, tenendo conto delle mie note e della percezione di sforzo.");
-             }
-        }
-    };
-
     const handleSaveToDiary = (content: string) => {
         if (!onAddPlannedWorkout) return;
-        const cleanContent = content.split(':::SUGGESTIONS')[0].trim();
         const note: PlannedWorkout = {
             id: `ai-analysis-${Date.now()}`,
             title: `Analisi AI: ${track.name}`,
-            description: cleanContent,
+            description: content.split(':::SUGGESTIONS')[0].trim(),
             date: track.points[0].time,
             activityType: 'Altro',
             isAiSuggested: true,
@@ -325,41 +245,6 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
         onAddPlannedWorkout(note);
         setIsSaved(true);
         setTimeout(() => setIsSaved(false), 2500);
-    };
-
-    useEffect(() => {
-        if (startOpen && !isOpen) {
-            setTimeout(() => setIsOpen(true), 100);
-        }
-        if (startOpen && !hasAutoStartedRef.current && messages.length <= 1 && (!matchedWorkout || track.linkedWorkout)) {
-            hasAutoStartedRef.current = true;
-            setTimeout(() => handleStartAnalysis(), 600);
-        }
-    }, [startOpen, messages.length, matchedWorkout, track.linkedWorkout]);
-
-    const renderMessage = (msg: ChatMessage, index: number) => {
-        const displayText = msg.text.split(':::SUGGESTIONS')[0];
-        return (
-            <div key={index} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} w-full`}>
-                <div className={`max-w-[95%] sm:max-w-[85%] p-3 rounded-2xl shadow-sm text-sm ${msg.role === 'user' ? 'bg-cyan-700 text-white rounded-tr-none' : 'bg-slate-700 text-slate-100 rounded-tl-none'}`}>
-                    <FormattedAnalysis text={displayText} />
-                    {msg.role === 'model' && onAddPlannedWorkout && displayText.length > 50 && (
-                        <div className="mt-2 pt-2 border-t border-slate-600/50 flex justify-end">
-                            <button onClick={() => handleSaveToDiary(displayText)} className="flex items-center gap-1 text-[10px] uppercase font-bold text-cyan-400 hover:text-cyan-300 transition-colors bg-slate-800/50 px-2 py-1 rounded">
-                                {isSaved ? <>✓ Salvato</> : <><SaveIcon /> Salva nel Diario</>}
-                            </button>
-                        </div>
-                    )}
-                </div>
-                {msg.role === 'model' && msg.suggestedReplies && msg.suggestedReplies.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-2 animate-fade-in-up">
-                        {msg.suggestedReplies.map((reply, i) => (
-                            <button key={i} onClick={() => performSendMessage(reply)} disabled={isLoading} className="bg-slate-800 border border-purple-500/30 text-purple-300 text-[10px] px-3 py-1.5 rounded-full hover:bg-purple-600 hover:text-white transition-all active:scale-95 shadow-sm font-semibold">{reply}</button>
-                        ))}
-                    </div>
-                )}
-            </div>
-        );
     };
 
     return (
@@ -371,7 +256,7 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
                             if(onCheckAiAccess && !onCheckAiAccess()) return;
                             setIsOpen(true); 
                             setIsMinimized(false);
-                            handleStartAnalysis(); 
+                            if (messages.length <= 1) performSendMessage("Analizza questa corsa.");
                         }}
                         className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 border border-purple-400/30"
                     >
@@ -379,54 +264,65 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
                         {messages.length > 1 ? 'Apri Chat Coach AI' : 'Avvia Analisi Coach AI'}
                     </button>
                     {latestSummary && (
-                        <div className="mt-3 bg-slate-800/60 p-4 rounded-xl border border-slate-700/50 cursor-pointer hover:bg-slate-800 transition-colors group relative overflow-hidden" onClick={() => { setIsOpen(true); setIsMinimized(false); }}>
+                        <div className="mt-3 bg-slate-800/60 p-4 rounded-xl border border-slate-700/50 cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => { setIsOpen(true); setIsMinimized(false); }}>
                             <div className="flex items-center gap-2 mb-2 text-[10px] font-black uppercase tracking-widest text-purple-400">
                                 <span>Verdetto Coach</span>
                                 <div className="h-px bg-purple-500/30 flex-grow"></div>
                             </div>
-                            <div className="text-sm text-slate-300 line-clamp-3 italic opacity-90 leading-relaxed group-hover:text-slate-200 transition-colors">
+                            <div className="text-sm text-slate-300 line-clamp-3 italic opacity-90">
                                 <FormattedAnalysis text={latestSummary} />
                             </div>
                         </div>
                     )}
                 </>
             ) : isMinimized ? (
-                <div className="bg-slate-800 border border-purple-500/50 rounded-xl p-3 shadow-xl animate-fade-in cursor-pointer hover:bg-slate-750 transition-colors" onClick={() => setIsMinimized(false)}>
+                <div className="bg-slate-800 border border-purple-500/50 rounded-xl p-3 shadow-xl cursor-pointer" onClick={() => setIsMinimized(false)}>
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <div className="bg-purple-600 p-1.5 rounded-lg animate-pulse"><SparklesIcon /></div>
-                            <div>
-                                <h3 className="font-bold text-white text-xs">Coach AI (Attivo)</h3>
-                                <p className="text-[9px] text-slate-400">Clicca per espandere</p>
-                            </div>
+                            <h3 className="font-bold text-white text-xs">Coach AI Attivo</h3>
                         </div>
                         <button onClick={(e) => { e.stopPropagation(); setIsOpen(false); }} className="text-slate-500 hover:text-white">&times;</button>
                     </div>
                 </div>
             ) : (
                 <div className="fixed inset-0 z-[10000] bg-slate-900 flex flex-col animate-fade-in">
-                    <header className="flex items-center justify-between p-4 border-b border-slate-700 bg-slate-800 shadow-md flex-shrink-0">
+                    <header className="flex items-center justify-between p-4 border-b border-slate-700 bg-slate-800 flex-shrink-0">
                         <div className="flex items-center gap-2">
                             <div className="bg-purple-600 p-1.5 rounded-lg"><SparklesIcon /></div>
-                            <div>
-                                <h3 className="font-black text-white uppercase tracking-tight text-sm">Analisi Corsa AI</h3>
-                                <p className="text-[10px] text-purple-400 font-bold">{userProfile.aiPersonality || 'Coach'}</p>
-                            </div>
+                            <h3 className="font-black text-white uppercase text-sm">Analisi Coach AI</h3>
                         </div>
                         <div className="flex items-center gap-2">
-                            <button onClick={() => setIsMinimized(true)} className="bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white p-2 rounded-lg transition-colors" title="Riduci a icona"><MinimizeIcon /></button>
-                            <button onClick={() => setIsOpen(false)} className="bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white px-3 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"><CloseIcon /> Chiudi</button>
+                            <button onClick={() => setIsMinimized(true)} className="bg-slate-700 p-2 rounded-lg text-white">_</button>
+                            <button onClick={() => setIsOpen(false)} className="bg-slate-700 px-3 py-2 rounded-lg text-xs font-bold text-white">Chiudi</button>
                         </div>
                     </header>
                     <div className="flex-grow overflow-y-auto p-4 space-y-4 custom-scrollbar bg-slate-900/50">
-                        {messages.map((msg, index) => renderMessage(msg, index))}
-                        {isLoading && <div className="flex items-center gap-2 text-slate-500 italic text-xs animate-pulse p-2"><div className="w-2 h-2 bg-purple-500 rounded-full"></div>AI sta analizzando i dati...</div>}
+                        {messages.map((msg, index) => (
+                            <div key={index} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} w-full`}>
+                                <div className={`max-w-[95%] p-3 rounded-2xl text-sm ${msg.role === 'user' ? 'bg-cyan-700 text-white rounded-tr-none' : 'bg-slate-700 text-slate-100 rounded-tl-none'}`}>
+                                    <FormattedAnalysis text={msg.text.split(':::SUGGESTIONS')[0]} />
+                                    {msg.role === 'model' && msg.text.length > 50 && (
+                                        <button onClick={() => handleSaveToDiary(msg.text)} className="mt-2 text-[10px] uppercase font-bold text-cyan-400 bg-slate-800/50 px-2 py-1 rounded">
+                                            {isSaved ? '✓ Salvato' : '+ Salva nel Diario'}
+                                        </button>
+                                    )}
+                                </div>
+                                {msg.role === 'model' && msg.suggestedReplies && (
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                        {msg.suggestedReplies.map((reply, i) => (
+                                            <button key={i} onClick={() => performSendMessage(reply)} className="bg-slate-800 border border-purple-500/30 text-purple-300 text-[10px] px-3 py-1.5 rounded-full font-semibold">{reply}</button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
                         <div ref={messagesEndRef} />
                     </div>
                     <div className="p-4 border-t border-slate-700 bg-slate-800 flex-shrink-0 safe-area-pb">
-                        <form onSubmit={handleSend} className="flex gap-2 items-center bg-slate-900 p-1.5 rounded-xl border border-slate-700 focus-within:border-purple-500 transition-colors">
-                            <input type="text" value={input} onChange={e => setInput(e.target.value)} placeholder="Rispondi al coach..." className="flex-grow bg-transparent p-2 text-sm text-white focus:outline-none placeholder-slate-500" disabled={isLoading} />
-                            <button type="submit" disabled={isLoading || !input.trim()} className="bg-purple-600 p-2 rounded-lg text-white hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"><SendIcon /></button>
+                        <form onSubmit={handleSend} className="flex gap-2 items-center bg-slate-900 p-1.5 rounded-xl border border-slate-700">
+                            <input type="text" value={input} onChange={e => setInput(e.target.value)} placeholder="Chiedi al coach..." className="flex-grow bg-transparent p-2 text-sm text-white outline-none" disabled={isLoading} />
+                            <button type="submit" disabled={isLoading || !input.trim()} className="bg-purple-600 p-2 rounded-lg text-white"><SendIcon /></button>
                         </form>
                     </div>
                 </div>

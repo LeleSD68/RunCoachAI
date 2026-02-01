@@ -121,7 +121,8 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
             </div>
 
             <div className="flex-grow overflow-y-auto custom-scrollbar">
-                {Object.entries(groupedData).map(([groupName, groupTracks]) => (
+                {/* Added explicit type cast to [string, Track[]][] to fix map on unknown type error */}
+                {(Object.entries(groupedData) as [string, Track[]][]).map(([groupName, groupTracks]) => (
                     <div key={groupName}>
                         <div className="bg-slate-800/40 px-3 py-1 text-[9px] font-black text-slate-500 uppercase border-b border-slate-800 sticky top-0 z-10 backdrop-blur">{groupName}</div>
                         {groupTracks.map(track => (

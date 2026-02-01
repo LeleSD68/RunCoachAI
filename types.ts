@@ -1,5 +1,4 @@
 
-
 export type ActivityType = 'Lento' | 'Fartlek' | 'Ripetute' | 'Gara' | 'Lungo' | 'Altro' | 'Nota';
 
 export type AiPersonality = 'pro_balanced' | 'analytic' | 'strict';
@@ -164,10 +163,15 @@ export interface AiSegment {
 
 export type RunningGoal = 'none' | '5k' | '10k' | 'half_marathon' | 'marathon' | 'speed' | 'endurance' | 'weight_loss';
 
-// Fix Module '"../types"' has no exported member 'WeightEntry'
 export interface WeightEntry {
   date: string;
   weight: number;
+}
+
+export interface ApiUsage {
+    requests: number;
+    tokens: number;
+    lastReset: string;
 }
 
 export interface UserProfile {
@@ -186,9 +190,11 @@ export interface UserProfile {
   personalNotes?: string; 
   shoes?: string[]; 
   theme?: 'dark' | 'light';
-  // Fix Property 'isOnline' does not exist on type 'UserProfile' in SocialHub.tsx and MiniChat.tsx
   isOnline?: boolean;
   last_seen_at?: string;
+  // Cost control settings
+  autoAnalyzeEnabled?: boolean;
+  powerSaveMode?: boolean;
 }
 
 export interface Toast {
@@ -197,13 +203,11 @@ export interface Toast {
   type: 'success' | 'error' | 'info';
 }
 
-// Fix Module '"../types"' has no exported member 'ApiUsageStats'
 export interface ApiUsageStats {
   rpm: number;
   daily: number;
 }
 
-// Fix Module '"./types"' has no exported member 'RaceResult'
 export interface RaceResult {
   trackId: string;
   name: string;
@@ -212,14 +216,12 @@ export interface RaceResult {
   rank: number;
 }
 
-// Fix Module '"./types"' has no exported member 'Commentary'
 export interface Commentary {
   id: string;
   text: string;
   timestamp: number;
 }
 
-// Fix Module '"../types"' has no exported member 'Weather'
 export interface Weather {
   temperature: number;
   windSpeed: number;
@@ -227,7 +229,6 @@ export interface Weather {
   condition: string;
 }
 
-// Fix Module '"../types"' has no exported member 'PersonalRecord'
 export interface PersonalRecord {
   distance: number;
   time: number;
@@ -236,7 +237,6 @@ export interface PersonalRecord {
   date: string;
 }
 
-// Fix Module '"../types"' has no exported member 'FriendRequest'
 export interface FriendRequest {
   id: string;
   status: 'pending' | 'accepted';
@@ -244,7 +244,6 @@ export interface FriendRequest {
   requester: UserProfile;
 }
 
-// Fix Module '"../types"' has no exported member 'DirectMessage'
 export interface DirectMessage {
   id: string;
   senderId: string;
@@ -253,23 +252,17 @@ export interface DirectMessage {
   createdAt: string;
 }
 
-// Added AIStudio interface definition to resolve type mismatch and missing type errors
 export interface AIStudio {
   hasSelectedApiKey: () => Promise<boolean>;
   openSelectKey: () => Promise<void>;
 }
 
-/**
- * Fix for: Property 'gpxApp' does not exist on type 'Window & typeof globalThis'.
- * Fix for: window.aistudio access.
- */
 declare global {
   interface Window {
     gpxApp?: {
       addTokens: (count: number) => void;
       trackApiRequest: () => void;
+      getUsage: () => ApiUsage;
     };
-    // Fix: removed declaration of 'aistudio' on Window to avoid conflicts with global types 
-    // already provided by the environment, satisfying identical modifiers and same type requirements.
   }
 }

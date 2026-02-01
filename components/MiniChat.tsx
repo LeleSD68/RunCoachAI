@@ -12,7 +12,7 @@ interface MiniChatProps {
 }
 
 const SendIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M3.105 2.289a.75.75 0 0 0-.826.95l1.414 4.949a.75.75 0 0 0 .95.95l4.95-1.414a.75.75 0 0 0-.95-.95l-3.539 1.01-1.01-3.54a.75.75 0 0 0-.95-.826ZM12.23 7.77a.75.75 0 0 0-1.06 0l-4.25 4.25a.75.75 0 0 0 0 1.06l4.25 4.25a.75.75 0 0 0 1.06-1.06l-3.72-3.72 3.72-3.72a.75.75 0 0 0 0-1.06ZM15.5 10a.75.75 0 0 1 .75-.75h.01a.75.75 0 0 1 0 1.5H16.25a.75.75 0 0 1-.75-.75Z" /></svg>);
-const CloseIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" /></svg>);
+const CloseIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" /></svg>);
 
 // Helper per formattare la data nei messaggi
 const getMessageDateLabel = (dateString: string) => {
@@ -153,7 +153,8 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose }) => 
             <div className="flex-grow overflow-y-auto p-3 bg-slate-900/95 space-y-3 custom-scrollbar">
                 {messages.length === 0 && <div className="text-center text-slate-500 text-xs mt-4">Inizia a chattare...</div>}
                 
-                {Object.entries(groupedMessages).map(([dateLabel, groupMsgs]) => (
+                {/* Added explicit type cast to [string, DirectMessage[]][] to fix map on unknown type error */}
+                {(Object.entries(groupedMessages) as [string, DirectMessage[]][]).map(([dateLabel, groupMsgs]) => (
                      <div key={dateLabel} className="space-y-2">
                         <div className="flex justify-center py-1">
                             <span className="bg-slate-800 text-[9px] text-slate-400 px-2 py-0.5 rounded-full font-bold uppercase border border-slate-700/50">

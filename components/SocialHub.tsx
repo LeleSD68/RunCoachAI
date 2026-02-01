@@ -162,7 +162,8 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
                     </header>
                     <div className="flex-grow overflow-y-auto p-4 custom-scrollbar bg-slate-900/50 space-y-3 pb-24">
                         {chatMessages.length === 0 && <div className="text-center text-slate-500 text-xs mt-10">Inizia la conversazione con {activeChatFriend.name}</div>}
-                        {Object.entries(groupedMessages).map(([dateLabel, msgs]) => (
+                        {/* Added explicit type cast to [string, DirectMessage[]][] to fix map on unknown type error */}
+                        {(Object.entries(groupedMessages) as [string, DirectMessage[]][]).map(([dateLabel, msgs]) => (
                             <div key={dateLabel} className="space-y-3">
                                 <div className="flex justify-center sticky top-0 z-10 py-2 pointer-events-none">
                                     <span className="bg-slate-800/80 backdrop-blur-sm text-[10px] text-slate-400 px-3 py-1 rounded-full font-bold uppercase tracking-wider border border-slate-700/50">{dateLabel}</span>

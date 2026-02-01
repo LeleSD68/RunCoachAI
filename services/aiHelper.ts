@@ -1,11 +1,56 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { Track, UserProfile, PlannedWorkout } from '../types';
+import { Track, UserProfile, PlannedWorkout, TrackPoint } from '../types';
 import { calculateTrackStats } from './trackStatsService';
 
 export const getGenAI = () => {
     if (!process.env.API_KEY) throw new Error("API_KEY_MISSING");
     return new GoogleGenAI({ apiKey: process.env.API_KEY });
+};
+
+/**
+ * Campiona i punti in modo intelligente per risparmiare token senza perdere il "carattere" della corsa.
+ * 200 punti sono sufficienti per descrivere accuratamente anche un allenamento di ripetute su 21km.
+ */
+export const samplePointsForAi = (points: TrackPoint[], isEcoMode: boolean = false): any[] => {
+    // Portiamo il limite a 200 per la modalità standard (risultato professionale)
+    // e 80 per la modalità Eco (risultato comunque accettabile)
+    const maxPoints = isEcoMode ? 80 : 200;
+    
+    if (points.length <= maxPoints) return points.map(p => ({
+        d: parseFloat(p.cummulativeDistance.toFixed(3)),
+        e: Math.round(p.ele),
+        h: p.hr || 0,
+        s: p.power || 0 // Usiamo s per saving/power se presente
+    }));
+
+    const step = points.length / maxPoints;
+    const sampled = [];
+    
+    // Includiamo sempre il primo e l'ultimo punto
+    sampled.push({
+        d: parseFloat(points[0].cummulativeDistance.toFixed(3)),
+        e: Math.round(points[0].ele),
+        h: points[0].hr || 0
+    });
+
+    for (let i = 1; i < maxPoints - 1; i++) {
+        const idx = Math.floor(i * step);
+        const p = points[idx];
+        sampled.push({
+            d: parseFloat(p.cummulativeDistance.toFixed(3)),
+            e: Math.round(p.ele),
+            h: p.hr || 0
+        });
+    }
+
+    sampled.push({
+        d: parseFloat(points[points.length - 1].cummulativeDistance.toFixed(3)),
+        e: Math.round(points[points.length - 1].ele),
+        h: points[points.length - 1].hr || 0
+    });
+
+    return sampled;
 };
 
 export const isAuthError = (e: any): boolean => {
@@ -44,37 +89,20 @@ export const generateAiRating = async (
     plannedWorkout?: { title: string; description: string; activityType: string }
 ): Promise<{ rating: number; reason: string } | null> => {
     
+    if (userProfile.autoAnalyzeEnabled === false) return null;
+
     const stats = calculateTrackStats(track);
     const paceStr = formatPace(stats.movingAvgPace);
     
-    let planContext = "Nessun allenamento specifico pianificato nel diario.";
+    let planContext = "Nessun allenamento specifico pianificato.";
     if (plannedWorkout) {
-        planContext = `
-        ALLENAMENTO PIANIFICATO DAL DIARIO:
-        - Titolo: "${plannedWorkout.title}"
-        - Obiettivo Dichiarato: ${plannedWorkout.activityType}
-        - Istruzioni: "${plannedWorkout.description}"
-        
-        REGOLE DI VALUTAZIONE (MERITOCRATICHE):
-        - Se era un 'Lento' o 'Recupero' ma l'atleta ha corso forte (FC alta/Passo veloce) -> IL VOTO DEVE ESSERE BASSO (1-2 stelle) per mancata disciplina fisiologica.
-        - Se era un 'Lungo' ed è stato costante -> 5 stelle.
-        - Se erano 'Ripetute' e i ritmi sono corretti -> 5 stelle.
-        - Premia la coerenza con l'obiettivo, non la velocità fine a se stessa.
-        `;
+        planContext = `OBIETTIVO DIARIO: "${plannedWorkout.title}" (${plannedWorkout.activityType}).`;
     }
 
-    const prompt = `Sei un Head Coach di corsa severo. Valuta questa sessione da 1 a 5 stelle.
-
-    DATI REALI:
-    - Distanza: ${track.distance.toFixed(2)} km
-    - Passo Medio: ${paceStr}/km
-    - FC Media: ${stats.avgHr ? Math.round(stats.avgHr) : 'N/D'} bpm (FC Max: ${stats.maxHr ?? 'N/D'})
-    - Sforzo Percepito (RPE): ${track.rpe ?? 'N/D'} / 10
-    - Note Atleta: "${track.notes || 'Nessuna'}"
-
+    const prompt = `Sei un Head Coach. Valuta questa sessione da 1 a 5 stelle.
+    DATI: ${track.distance.toFixed(2)} km, Passo: ${paceStr}/km, HR: ${stats.avgHr ? Math.round(stats.avgHr) : 'N/D'} bpm. RPE: ${track.rpe ?? 'N/D'}.
     ${planContext}
-
-    Rispondi SOLO con un JSON: { "rating": number (1-5), "reason": "Motivazione tecnica brevissima (max 12 parole)" }`;
+    Rispondi SOLO JSON: { "rating": number, "reason": "max 12 parole" }`;
 
     try {
         const ai = getGenAI();
@@ -94,11 +122,9 @@ export const generateAiRating = async (
             }
         });
         
-        // Fix for: Property 'gpxApp' does not exist on type 'Window & typeof globalThis'.
-        if (response.usageMetadata?.totalTokenCount) (window as any).gpxApp?.addTokens(response.usageMetadata.totalTokenCount);
+        if (response.usageMetadata?.totalTokenCount) window.gpxApp?.addTokens(response.usageMetadata.totalTokenCount);
         return JSON.parse(response.text || '{}');
     } catch (e) {
-        console.error("Rating generation error", e);
         return null;
     }
 };

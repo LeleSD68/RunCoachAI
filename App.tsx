@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Track, UserProfile, PlannedWorkout, Toast, ActivityType, RaceRunner, RaceResult, TrackStats, Commentary, TrackPoint } from './types';
+import { Track, UserProfile, PlannedWorkout, Toast, ActivityType, RaceRunner, RaceResult, TrackStats, Commentary, TrackPoint, ApiUsage } from './types';
 import Sidebar from './components/Sidebar';
 import MapDisplay from './components/MapDisplay';
 import TrackEditor from './components/TrackEditor';
@@ -33,15 +33,16 @@ import {
     importAllData, exportAllData, syncTrackToCloud, deleteTrackFromCloud
 } from './services/dbService';
 import { supabase } from './services/supabaseClient';
-import { fetchRecentStravaActivities, isStravaConnected, handleStravaCallback } from './services/stravaService';
-import { updatePresence } from './services/socialService';
+import { handleStravaCallback } from './services/stravaService';
 import { getTrackStateAtTime } from './services/trackEditorUtils';
+import { getApiUsage, trackUsage, addTokensToUsage } from './services/usageService';
 
 const App: React.FC = () => {
     const [tracks, setTracks] = useState<Track[]>([]);
     const [plannedWorkouts, setPlannedWorkouts] = useState<PlannedWorkout[]>([]);
-    const [userProfile, setUserProfile] = useState<UserProfile>({});
+    const [userProfile, setUserProfile] = useState<UserProfile>({ autoAnalyzeEnabled: true });
     const [toasts, setToasts] = useState<Toast[]>([]);
+    const [usage, setUsage] = useState<ApiUsage>({ requests: 0, tokens: 0, lastReset: '' });
     
     const [showSplash, setShowSplash] = useState(true);
     const [isDataLoading, setIsDataLoading] = useState(false); 
@@ -68,14 +69,22 @@ const App: React.FC = () => {
     const [hoveredTrackId, setHoveredTrackId] = useState<string | null>(null);
     const [showGlobalChat, setShowGlobalChat] = useState(false);
 
-    // RACE SIMULATION STATE
-    const [raceState, setRaceState] = useState<'idle' | 'running' | 'paused' | 'finished'>('idle');
-    const [raceTime, setRaceTime] = useState(0);
-    const [raceSpeed, setRaceSpeed] = useState(10);
-    const [raceRunners, setRaceRunners] = useState<RaceRunner[] | null>(null);
-    const [raceResults, setRaceResults] = useState<RaceResult[] | null>(null);
-    const [raceGaps, setRaceGaps] = useState<Map<string, number | undefined>>(new Map());
-    const raceIntervalRef = useRef<number | null>(null);
+    // Initial usage load
+    useEffect(() => {
+        setUsage(getApiUsage());
+        
+        window.gpxApp = {
+            addTokens: (count: number) => {
+                const u = addTokensToUsage(count);
+                setUsage(u);
+            },
+            trackApiRequest: () => {
+                const u = trackUsage(0);
+                setUsage(u);
+            },
+            getUsage: () => getApiUsage()
+        };
+    }, []);
 
     const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
     useEffect(() => {
@@ -174,7 +183,7 @@ const App: React.FC = () => {
     const loadData = async (forceLocal = false) => {
         try {
             const loadedProfile = await loadProfileFromDB(forceLocal);
-            if (loadedProfile) setUserProfile(loadedProfile);
+            if (loadedProfile) setUserProfile(prev => ({ ...prev, ...loadedProfile }));
             const loadedTracks = await loadTracksFromDB(forceLocal);
             setTracks(loadedTracks);
             const loadedWorkouts = await loadPlannedWorkoutsFromDB(forceLocal);
@@ -184,7 +193,15 @@ const App: React.FC = () => {
         }
     };
 
-    // RACE SIMULATION LOGIC
+    // RACE SIMULATION STATE
+    const [raceState, setRaceState] = useState<'idle' | 'running' | 'paused' | 'finished'>('idle');
+    const [raceTime, setRaceTime] = useState(0);
+    const [raceSpeed, setRaceSpeed] = useState(10);
+    const [raceRunners, setRaceRunners] = useState<RaceRunner[] | null>(null);
+    const [raceResults, setRaceResults] = useState<RaceResult[] | null>(null);
+    const [raceGaps, setRaceGaps] = useState<Map<string, number | undefined>>(new Map());
+    const raceIntervalRef = useRef<number | null>(null);
+
     const startRace = () => {
         const selected = tracks.filter(t => raceSelectionIds.has(t.id));
         if (selected.length < 1) return;
@@ -211,7 +228,6 @@ const App: React.FC = () => {
                     
                     let allFinished = true;
                     const newRunners: RaceRunner[] = [];
-                    const tempResults: RaceResult[] = [];
                     const currentGaps = new Map<string, number>();
 
                     selected.forEach(t => {
@@ -226,7 +242,6 @@ const App: React.FC = () => {
                             });
                             if (state.point.cummulativeDistance < t.distance) allFinished = false;
                         } else {
-                            // Finished
                             const lastPoint = t.points[t.points.length-1];
                             newRunners.push({
                                 trackId: t.id, name: t.name, position: lastPoint, color: t.color, pace: 0
@@ -234,7 +249,6 @@ const App: React.FC = () => {
                         }
                     });
 
-                    // Update ranks/gaps
                     const sorted = [...newRunners].sort((a,b) => b.position.cummulativeDistance - a.position.cummulativeDistance);
                     const leaderDist = sorted[0].position.cummulativeDistance;
                     sorted.forEach((r, idx) => {
@@ -326,16 +340,23 @@ const App: React.FC = () => {
                 />
             )}
 
-            {/* Layout Principale Responsivo */}
+            {showProfile && (
+                <UserProfileModal 
+                    onClose={() => setShowProfile(false)} 
+                    onSave={async (p) => { setUserProfile(p); await saveProfileToDB(p); addToast("Profilo salvato!", "success"); }} 
+                    currentProfile={userProfile} 
+                    tracks={tracks}
+                />
+            )}
+
             {!showHome && !showAuthSelection && (
                 <>
-                    {/* BARRA LATERALE (LISTA + DOCK SU DESKTOP) */}
                     {isSidebarOpen && (
                         <aside className="hidden lg:flex flex-col w-80 bg-slate-900 border-r border-slate-800 shrink-0">
                             <div className="flex-grow overflow-hidden">
                                 <Sidebar 
                                     tracks={tracks} 
-                                    visibleTrackIds={raceSelectionIds} // Visibilità pilotata dai checkbox
+                                    visibleTrackIds={raceSelectionIds} 
                                     onFocusTrack={setFocusedTrackId} 
                                     focusedTrackId={focusedTrackId}
                                     raceSelectionIds={raceSelectionIds} 
@@ -361,9 +382,7 @@ const App: React.FC = () => {
                         </aside>
                     )}
 
-                    {/* AREA MAPPA / MOBILE DOCK */}
                     <main className="flex-grow relative bg-slate-950 flex flex-col min-w-0">
-                        {/* Mobile Sidebar (Sovrapposta) */}
                         <div className={`lg:hidden fixed inset-x-0 top-0 z-[4500] bg-slate-900 transition-transform ${isSidebarOpen ? 'translate-y-0 h-2/3' : '-translate-y-full h-0'}`}>
                              <Sidebar 
                                 tracks={tracks} visibleTrackIds={raceSelectionIds}
@@ -385,7 +404,6 @@ const App: React.FC = () => {
                             hoveredTrackId={hoveredTrackId}
                         />
 
-                        {/* Race Overlays */}
                         {raceState !== 'idle' && (
                             <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[4600]">
                                 <RaceControls 
@@ -406,7 +424,6 @@ const App: React.FC = () => {
                             <span className="text-xl">🧠</span>
                         </button>
 
-                        {/* Mobile Dock */}
                         <div className="lg:hidden">
                             <NavigationDock 
                                 onOpenSidebar={() => setIsSidebarOpen(!isSidebarOpen)} onCloseSidebar={() => setIsSidebarOpen(false)}
@@ -421,7 +438,6 @@ const App: React.FC = () => {
                 </>
             )}
 
-            {/* MODALI A TUTTO SCHERMO */}
             {viewingTrack && (
                 <div className="fixed inset-0 z-[10000] bg-slate-900">
                     <TrackDetailView 
@@ -447,6 +463,7 @@ const App: React.FC = () => {
             {showChangelog && <Changelog onClose={() => setShowChangelog(false)} />}
             {showGuide && <GuideModal onClose={() => setShowGuide(false)} />}
             {raceResults && <RaceSummary results={raceResults} racerStats={new Map()} onClose={() => setRaceResults(null)} userProfile={userProfile} tracks={tracks} />}
+            {showGlobalChat && <div className="fixed inset-0 z-[12000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"><Chatbot onClose={() => setShowGlobalChat(false)} userProfile={userProfile} tracksToAnalyze={tracks} plannedWorkouts={plannedWorkouts} onAddPlannedWorkout={handleAddPlannedWorkout} isStandalone={true} /></div>}
         </div>
     );
 };
