@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Track, UserProfile, PlannedWorkout, Toast, ActivityType, RaceRunner, RaceResult, TrackStats, Commentary, TrackPoint, ApiUsage } from './types';
 import Sidebar from './components/Sidebar';
@@ -46,7 +45,8 @@ import { generateSmartTitle } from './services/titleGenerator';
 import { isDuplicateTrack, markStravaTrackAsDeleted, isPreviouslyDeletedStravaTrack, getTrackFingerprint } from './services/trackUtils';
 import { getFriendsActivityFeed } from './services/socialService';
 
-const LAYOUT_PREFS_KEY = 'runcoach_layout_prefs';
+// Changed key to reset layout preferences for the new vertical order
+const LAYOUT_PREFS_KEY = 'runcoach_layout_prefs_v3';
 
 const App: React.FC = () => {
     const [tracks, setTracks] = useState<Track[]>([]);
@@ -84,8 +84,8 @@ const App: React.FC = () => {
     const [showRaceSetup, setShowRaceSetup] = useState(false);
     const [friendTracks, setFriendTracks] = useState<Track[]>([]);
 
-    // Layout Preferences
-    const [layoutPrefs, setLayoutPrefs] = useState<{ desktopSidebar: number, mobileMapRatio: number }>({ desktopSidebar: 320, mobileMapRatio: 0.4 });
+    // Layout Preferences - Default mobile list ratio 0.7 (70% List / 30% Map)
+    const [layoutPrefs, setLayoutPrefs] = useState<{ desktopSidebar: number, mobileListRatio: number }>({ desktopSidebar: 320, mobileListRatio: 0.7 });
 
     useEffect(() => {
         const stored = localStorage.getItem(LAYOUT_PREFS_KEY);
@@ -94,7 +94,7 @@ const App: React.FC = () => {
         }
     }, []);
 
-    const saveLayoutPrefs = (newPrefs: Partial<{ desktopSidebar: number, mobileMapRatio: number }>) => {
+    const saveLayoutPrefs = (newPrefs: Partial<{ desktopSidebar: number, mobileListRatio: number }>) => {
         const updated = { ...layoutPrefs, ...newPrefs };
         setLayoutPrefs(updated);
         localStorage.setItem(LAYOUT_PREFS_KEY, JSON.stringify(updated));
@@ -323,7 +323,8 @@ const App: React.FC = () => {
             pace: 0
         })));
         setShowRaceSetup(false);
-        if (!isDesktop) setIsSidebarOpen(false);
+        // NOTE: We don't force setIsSidebarOpen(false) here anymore because the render logic
+        // now handles the full-screen switch based on raceState.
     };
 
     useEffect(() => {
@@ -552,10 +553,12 @@ const App: React.FC = () => {
             saveLayoutPrefs({ desktopSidebar: size });
             setFitBoundsCounter(c => c + 1);
         } else {
-            saveLayoutPrefs({ mobileMapRatio: ratio });
+            saveLayoutPrefs({ mobileListRatio: ratio });
             setFitBoundsCounter(c => c + 1);
         }
     };
+
+    const isRacing = raceState !== 'idle';
 
     if (showSplash) return <SplashScreen onFinish={handleSplashFinish} />;
 
@@ -640,132 +643,146 @@ const App: React.FC = () => {
 
             {!showHome && !showAuthSelection && (
                 <div className="flex-grow flex flex-col lg:flex-row overflow-hidden relative">
-                    {/* UNIVERSAL RESIZABLE LAYOUT */}
-                    <ResizablePanel
-                        direction={isDesktop ? 'horizontal' : 'vertical'}
-                        initialSize={isDesktop ? layoutPrefs.desktopSidebar : undefined}
-                        initialSizeRatio={isDesktop ? undefined : layoutPrefs.mobileMapRatio}
-                        minSize={250} // Min px for sidebar desktop or map mobile
-                        onResizeEnd={handleResizeEnd}
-                        className="w-full h-full"
-                    >
-                        {/* PANEL 1: SIDEBAR (Desktop) OR MAP (Mobile) */}
-                        {isDesktop ? (
-                            // DESKTOP: LEFT PANEL IS SIDEBAR
-                            <aside className="h-full bg-slate-900 border-r border-slate-800 flex flex-col w-full">
-                                {isSidebarOpen ? (
+                    {/* CONDITIONAL LAYOUT: FULL MAP IF RACING, RESIZABLE IF IDLE */}
+                    {isRacing ? (
+                        // RACING LAYOUT (FULL SCREEN MAP)
+                        <div className="w-full h-full relative bg-slate-900">
+                            <MapDisplay 
+                                tracks={tracks} visibleTrackIds={mapVisibleIds} raceRunners={raceRunners}
+                                isAnimationPlaying={raceState === 'running'} fitBoundsCounter={fitBoundsCounter}
+                                runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
+                            />
+                            {/* RACE OVERLAYS */}
+                            <div className={`absolute left-1/2 -translate-x-1/2 z-[4600] ${isDesktop ? 'top-4' : 'top-14'}`}>
+                                <RaceControls 
+                                    simulationState={raceState} simulationTime={raceTime} simulationSpeed={raceSpeed}
+                                    onPause={() => setRaceState('paused')} onResume={() => setRaceState('running')}
+                                    onStop={() => { setRaceState('idle'); setRaceRunners(null); }}
+                                    onSpeedChange={setRaceSpeed}
+                                />
+                            </div>
+                            {raceRunners && isDesktop && (
+                                <div className="absolute top-4 right-4 z-[4600]">
+                                    <RaceLeaderboard racers={tracks.filter(t => raceSelectionIds.has(t.id))} gaps={raceGaps} ranks={new Map()} />
+                                </div>
+                            )}
+                            {/* Minimal Navigation Dock or just Stop Button above handles exit. 
+                                We show dock on mobile as a fallback to navigate away if user gets stuck,
+                                but visually integrated. 
+                            */}
+                            <div className="absolute bottom-0 w-full z-[2000] bg-slate-900/90 backdrop-blur pb-safe border-t border-slate-800">
+                                <NavigationDock 
+                                    onOpenSidebar={() => setRaceState('idle')} onCloseSidebar={() => {}}
+                                    onOpenExplorer={() => toggleView('explorer')} onOpenDiary={() => toggleView('diary')}
+                                    onOpenPerformance={() => toggleView('performance')} onOpenHub={() => toggleView('hub')}
+                                    onOpenSocial={() => toggleView('social')} onOpenProfile={() => toggleView('profile')}
+                                    onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}} isSidebarOpen={false}
+                                />
+                            </div>
+                        </div>
+                    ) : (
+                        // STANDARD LAYOUT (RESIZABLE)
+                        <ResizablePanel
+                            direction={isDesktop ? 'horizontal' : 'vertical'}
+                            initialSize={isDesktop ? layoutPrefs.desktopSidebar : undefined}
+                            initialSizeRatio={isDesktop ? undefined : layoutPrefs.mobileListRatio}
+                            minSize={250} 
+                            onResizeEnd={handleResizeEnd}
+                            className="w-full h-full"
+                        >
+                            {/* PANEL 1: SIDEBAR (Desktop) OR LIST (Mobile - Top) */}
+                            {isDesktop ? (
+                                // DESKTOP: LEFT PANEL IS SIDEBAR
+                                <aside className="h-full bg-slate-900 border-r border-slate-800 flex flex-col w-full">
+                                    {isSidebarOpen ? (
+                                        <>
+                                            <div className="flex-grow overflow-hidden">
+                                                <Sidebar 
+                                                    tracks={tracks} visibleTrackIds={mapVisibleIds} 
+                                                    onFocusTrack={setFocusedTrackId} focusedTrackId={focusedTrackId}
+                                                    raceSelectionIds={raceSelectionIds} 
+                                                    onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
+                                                    onDeselectAll={() => setRaceSelectionIds(new Set())}
+                                                    onSelectAll={() => setRaceSelectionIds(new Set(tracks.filter(t => !t.isArchived).map(t => t.id)))}
+                                                    onStartRace={openRaceSetup}
+                                                    onViewDetails={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)}
+                                                    onEditTrack={(id) => setEditingTrack(tracks.find(t => t.id === id) || null)}
+                                                    onDeleteTrack={async (id) => { 
+                                                        const track = tracks.find(t => t.id === id); if (track) markStravaTrackAsDeleted(track);
+                                                        const u = tracks.filter(t => t.id !== id); setTracks(u); await saveTracksToDB(u); await deleteTrackFromCloud(id); 
+                                                    }}
+                                                    onBulkArchive={handleBulkArchive} onDeleteSelected={handleBulkDelete} onMergeSelected={handleMergeSelectedTracks} onToggleFavorite={handleToggleFavorite} onBulkGroup={handleBulkGroup} onFileUpload={handleFileUpload} onToggleArchived={async (id) => { const u = tracks.map(t => t.id === id ? {...t, isArchived: !t.isArchived} : t); setTracks(u); await saveTracksToDB(u); }}
+                                                />
+                                            </div>
+                                            <div className="bg-slate-950 shrink-0">
+                                                <NavigationDock 
+                                                    onOpenSidebar={() => setIsSidebarOpen(true)} onCloseSidebar={() => setIsSidebarOpen(false)}
+                                                    onOpenExplorer={() => toggleView('explorer')} onOpenDiary={() => toggleView('diary')}
+                                                    onOpenPerformance={() => toggleView('performance')} onOpenHub={() => toggleView('hub')}
+                                                    onOpenSocial={() => toggleView('social')} onOpenProfile={() => toggleView('profile')}
+                                                    onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}} isSidebarOpen={isSidebarOpen}
+                                                />
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className="h-full flex items-center justify-center bg-slate-900">
+                                            <button onClick={() => setIsSidebarOpen(true)} className="p-4 text-slate-500 hover:text-white transform rotate-90 whitespace-nowrap font-bold uppercase tracking-widest text-xs">Apri Sidebar</button>
+                                        </div>
+                                    )}
+                                </aside>
+                            ) : (
+                                // MOBILE: TOP PANEL IS LIST
+                                <div className="flex-grow overflow-hidden bg-slate-900 border-b border-slate-800">
+                                     <Sidebar 
+                                        tracks={tracks} visibleTrackIds={mapVisibleIds} focusedTrackId={focusedTrackId} raceSelectionIds={raceSelectionIds}
+                                        onFocusTrack={setFocusedTrackId} onDeselectAll={() => setRaceSelectionIds(new Set())}
+                                        onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
+                                        onStartRace={openRaceSetup}
+                                        onViewDetails={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)}
+                                        onEditTrack={(id) => setEditingTrack(tracks.find(t => t.id === id) || null)}
+                                        onBulkArchive={handleBulkArchive} onDeleteSelected={handleBulkDelete} onMergeSelected={handleMergeSelectedTracks} onToggleFavorite={handleToggleFavorite} onBulkGroup={handleBulkGroup} onFileUpload={handleFileUpload} onToggleArchived={async (id) => { const u = tracks.map(t => t.id === id ? {...t, isArchived: !t.isArchived} : t); setTracks(u); await saveTracksToDB(u); }} onDeleteTrack={() => {}} onSelectAll={() => {}}
+                                     />
+                                </div>
+                            )}
+
+                            {/* PANEL 2: MAP (Desktop) OR MAP+DOCK (Mobile) */}
+                            <div className="h-full w-full relative bg-slate-950 flex flex-col overflow-hidden">
+                                {isDesktop ? (
+                                    // DESKTOP: RIGHT PANEL IS MAP
                                     <>
-                                        <div className="flex-grow overflow-hidden">
-                                            <Sidebar 
-                                                tracks={tracks} visibleTrackIds={mapVisibleIds} 
-                                                onFocusTrack={setFocusedTrackId} focusedTrackId={focusedTrackId}
-                                                raceSelectionIds={raceSelectionIds} 
-                                                onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
-                                                onDeselectAll={() => setRaceSelectionIds(new Set())}
-                                                onSelectAll={() => setRaceSelectionIds(new Set(tracks.filter(t => !t.isArchived).map(t => t.id)))}
-                                                onStartRace={openRaceSetup}
-                                                onViewDetails={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)}
-                                                onEditTrack={(id) => setEditingTrack(tracks.find(t => t.id === id) || null)}
-                                                onDeleteTrack={async (id) => { 
-                                                    const track = tracks.find(t => t.id === id); if (track) markStravaTrackAsDeleted(track);
-                                                    const u = tracks.filter(t => t.id !== id); setTracks(u); await saveTracksToDB(u); await deleteTrackFromCloud(id); 
-                                                }}
-                                                onBulkArchive={handleBulkArchive} onDeleteSelected={handleBulkDelete} onMergeSelected={handleMergeSelectedTracks} onToggleFavorite={handleToggleFavorite} onBulkGroup={handleBulkGroup} onFileUpload={handleFileUpload} onToggleArchived={async (id) => { const u = tracks.map(t => t.id === id ? {...t, isArchived: !t.isArchived} : t); setTracks(u); await saveTracksToDB(u); }}
+                                        <MapDisplay 
+                                            tracks={tracks} visibleTrackIds={mapVisibleIds} raceRunners={raceRunners}
+                                            isAnimationPlaying={false} fitBoundsCounter={fitBoundsCounter}
+                                            runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
+                                        />
+                                        <button onClick={() => setShowGlobalChat(true)} className="fixed bottom-24 right-4 z-[4000] bg-purple-600 hover:bg-purple-500 text-white p-3 rounded-full shadow-2xl active:scale-90">
+                                            <span className="text-xl">🧠</span>
+                                        </button>
+                                    </>
+                                ) : (
+                                    // MOBILE: BOTTOM PANEL IS MAP + DOCK
+                                    <>
+                                        <div className="flex-grow relative bg-slate-900">
+                                            <MapDisplay 
+                                                tracks={tracks} visibleTrackIds={mapVisibleIds} raceRunners={raceRunners}
+                                                isAnimationPlaying={false} fitBoundsCounter={fitBoundsCounter}
+                                                runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
                                             />
                                         </div>
-                                        <div className="bg-slate-950 shrink-0">
+                                        <div className="bg-slate-950 pb-safe border-t border-slate-800 shrink-0">
                                             <NavigationDock 
-                                                onOpenSidebar={() => setIsSidebarOpen(true)} onCloseSidebar={() => setIsSidebarOpen(false)}
+                                                onOpenSidebar={() => {}} onCloseSidebar={() => {}}
                                                 onOpenExplorer={() => toggleView('explorer')} onOpenDiary={() => toggleView('diary')}
                                                 onOpenPerformance={() => toggleView('performance')} onOpenHub={() => toggleView('hub')}
                                                 onOpenSocial={() => toggleView('social')} onOpenProfile={() => toggleView('profile')}
-                                                onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}} isSidebarOpen={isSidebarOpen}
+                                                onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}} isSidebarOpen={true}
                                             />
                                         </div>
                                     </>
-                                ) : (
-                                    <div className="h-full flex items-center justify-center bg-slate-900">
-                                        <button onClick={() => setIsSidebarOpen(true)} className="p-4 text-slate-500 hover:text-white transform rotate-90 whitespace-nowrap font-bold uppercase tracking-widest text-xs">Apri Sidebar</button>
-                                    </div>
-                                )}
-                            </aside>
-                        ) : (
-                            // MOBILE: TOP PANEL IS MAP
-                            <div className="h-full w-full relative bg-slate-900 border-b border-slate-800">
-                                <MapDisplay 
-                                    tracks={tracks} visibleTrackIds={mapVisibleIds} raceRunners={raceRunners}
-                                    isAnimationPlaying={raceState === 'running'} fitBoundsCounter={fitBoundsCounter}
-                                    runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
-                                />
-                                {raceState !== 'idle' && (
-                                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[1000]">
-                                        <RaceControls 
-                                            simulationState={raceState} simulationTime={raceTime} simulationSpeed={raceSpeed}
-                                            onPause={() => setRaceState('paused')} onResume={() => setRaceState('running')}
-                                            onStop={() => { setRaceState('idle'); setRaceRunners(null); }}
-                                            onSpeedChange={setRaceSpeed}
-                                        />
-                                    </div>
                                 )}
                             </div>
-                        )}
-
-                        {/* PANEL 2: MAP (Desktop) OR SIDEBAR (Mobile) */}
-                        <div className="h-full w-full relative bg-slate-950 flex flex-col overflow-hidden">
-                            {isDesktop ? (
-                                // DESKTOP: RIGHT PANEL IS MAP
-                                <>
-                                    <MapDisplay 
-                                        tracks={tracks} visibleTrackIds={mapVisibleIds} raceRunners={raceRunners}
-                                        isAnimationPlaying={raceState === 'running'} fitBoundsCounter={fitBoundsCounter}
-                                        runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
-                                    />
-                                    {raceState !== 'idle' && (
-                                        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[4600]">
-                                            <RaceControls 
-                                                simulationState={raceState} simulationTime={raceTime} simulationSpeed={raceSpeed}
-                                                onPause={() => setRaceState('paused')} onResume={() => setRaceState('running')}
-                                                onStop={() => { setRaceState('idle'); setRaceRunners(null); }}
-                                                onSpeedChange={setRaceSpeed}
-                                            />
-                                        </div>
-                                    )}
-                                    {raceRunners && (
-                                         <div className="absolute top-4 right-4 z-[4600] hidden md:block">
-                                            <RaceLeaderboard racers={tracks.filter(t => raceSelectionIds.has(t.id))} gaps={raceGaps} ranks={new Map()} />
-                                         </div>
-                                    )}
-                                    <button onClick={() => setShowGlobalChat(true)} className="fixed bottom-24 right-4 z-[4000] bg-purple-600 hover:bg-purple-500 text-white p-3 rounded-full shadow-2xl active:scale-90">
-                                        <span className="text-xl">🧠</span>
-                                    </button>
-                                </>
-                            ) : (
-                                // MOBILE: BOTTOM PANEL IS LIST + DOCK
-                                <>
-                                    <div className="flex-grow overflow-hidden">
-                                         <Sidebar 
-                                            tracks={tracks} visibleTrackIds={mapVisibleIds} focusedTrackId={focusedTrackId} raceSelectionIds={raceSelectionIds}
-                                            onFocusTrack={setFocusedTrackId} onDeselectAll={() => setRaceSelectionIds(new Set())}
-                                            onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
-                                            onStartRace={openRaceSetup}
-                                            onViewDetails={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)}
-                                            onEditTrack={(id) => setEditingTrack(tracks.find(t => t.id === id) || null)}
-                                            onBulkArchive={handleBulkArchive} onDeleteSelected={handleBulkDelete} onMergeSelected={handleMergeSelectedTracks} onToggleFavorite={handleToggleFavorite} onBulkGroup={handleBulkGroup} onFileUpload={handleFileUpload} onToggleArchived={async (id) => { const u = tracks.map(t => t.id === id ? {...t, isArchived: !t.isArchived} : t); setTracks(u); await saveTracksToDB(u); }} onDeleteTrack={() => {}} onSelectAll={() => {}}
-                                         />
-                                    </div>
-                                    <div className="bg-slate-950 pb-safe border-t border-slate-800 shrink-0">
-                                        <NavigationDock 
-                                            onOpenSidebar={() => {}} onCloseSidebar={() => {}}
-                                            onOpenExplorer={() => toggleView('explorer')} onOpenDiary={() => toggleView('diary')}
-                                            onOpenPerformance={() => toggleView('performance')} onOpenHub={() => toggleView('hub')}
-                                            onOpenSocial={() => toggleView('social')} onOpenProfile={() => toggleView('profile')}
-                                            onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}} isSidebarOpen={true}
-                                        />
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                    </ResizablePanel>
+                        </ResizablePanel>
+                    )}
                 </div>
             )}
 
