@@ -27,6 +27,7 @@ import RaceLeaderboard from './components/RacePaceBar';
 import RaceSummary from './components/RaceSummary';
 import ReminderNotification from './components/ReminderNotification';
 import RaceSetupModal from './components/RaceSetupModal';
+import ResizablePanel from './components/ResizablePanel';
 
 import { 
     saveTracksToDB, loadTracksFromDB, 
@@ -44,6 +45,8 @@ import { parseTcx } from './services/tcxService';
 import { generateSmartTitle } from './services/titleGenerator';
 import { isDuplicateTrack, markStravaTrackAsDeleted, isPreviouslyDeletedStravaTrack, getTrackFingerprint } from './services/trackUtils';
 import { getFriendsActivityFeed } from './services/socialService';
+
+const LAYOUT_PREFS_KEY = 'runcoach_layout_prefs';
 
 const App: React.FC = () => {
     const [tracks, setTracks] = useState<Track[]>([]);
@@ -80,6 +83,22 @@ const App: React.FC = () => {
     const [fitBoundsCounter, setFitBoundsCounter] = useState(0);
     const [showRaceSetup, setShowRaceSetup] = useState(false);
     const [friendTracks, setFriendTracks] = useState<Track[]>([]);
+
+    // Layout Preferences
+    const [layoutPrefs, setLayoutPrefs] = useState<{ desktopSidebar: number, mobileMapRatio: number }>({ desktopSidebar: 320, mobileMapRatio: 0.4 });
+
+    useEffect(() => {
+        const stored = localStorage.getItem(LAYOUT_PREFS_KEY);
+        if (stored) {
+            try { setLayoutPrefs(JSON.parse(stored)); } catch(e) {}
+        }
+    }, []);
+
+    const saveLayoutPrefs = (newPrefs: Partial<{ desktopSidebar: number, mobileMapRatio: number }>) => {
+        const updated = { ...layoutPrefs, ...newPrefs };
+        setLayoutPrefs(updated);
+        localStorage.setItem(LAYOUT_PREFS_KEY, JSON.stringify(updated));
+    };
 
     const mapVisibleIds = useMemo(() => {
         if (raceSelectionIds.size === 0) {
@@ -528,6 +547,16 @@ const App: React.FC = () => {
         setFitBoundsCounter(c => c + 1);
     };
 
+    const handleResizeEnd = (size: number, ratio: number) => {
+        if (isDesktop) {
+            saveLayoutPrefs({ desktopSidebar: size });
+            setFitBoundsCounter(c => c + 1);
+        } else {
+            saveLayoutPrefs({ mobileMapRatio: ratio });
+            setFitBoundsCounter(c => c + 1);
+        }
+    };
+
     if (showSplash) return <SplashScreen onFinish={handleSplashFinish} />;
 
     return (
@@ -611,112 +640,65 @@ const App: React.FC = () => {
 
             {!showHome && !showAuthSelection && (
                 <div className="flex-grow flex flex-col lg:flex-row overflow-hidden relative">
-                    {/* DESKTOP SIDEBAR */}
-                    {isDesktop && isSidebarOpen && (
-                        <aside className="w-80 bg-slate-900 border-r border-slate-800 shrink-0 flex flex-col">
-                            <div className="flex-grow overflow-hidden">
-                                <Sidebar 
-                                    tracks={tracks} visibleTrackIds={mapVisibleIds} 
-                                    onFocusTrack={setFocusedTrackId} focusedTrackId={focusedTrackId}
-                                    raceSelectionIds={raceSelectionIds} 
-                                    onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
-                                    onDeselectAll={() => setRaceSelectionIds(new Set())}
-                                    onSelectAll={() => setRaceSelectionIds(new Set(tracks.filter(t => !t.isArchived).map(t => t.id)))}
-                                    onStartRace={openRaceSetup}
-                                    onViewDetails={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)}
-                                    onEditTrack={(id) => setEditingTrack(tracks.find(t => t.id === id) || null)}
-                                    onDeleteTrack={async (id) => { 
-                                        const track = tracks.find(t => t.id === id); if (track) markStravaTrackAsDeleted(track);
-                                        const u = tracks.filter(t => t.id !== id); setTracks(u); await saveTracksToDB(u); await deleteTrackFromCloud(id); 
-                                    }}
-                                    onBulkArchive={handleBulkArchive} onDeleteSelected={handleBulkDelete} onMergeSelected={handleMergeSelectedTracks} onToggleFavorite={handleToggleFavorite} onBulkGroup={handleBulkGroup} onFileUpload={handleFileUpload} onToggleArchived={async (id) => { const u = tracks.map(t => t.id === id ? {...t, isArchived: !t.isArchived} : t); setTracks(u); await saveTracksToDB(u); }}
-                                />
-                            </div>
-                            <div className="bg-slate-950">
-                                <NavigationDock 
-                                    onOpenSidebar={() => setIsSidebarOpen(true)} onCloseSidebar={() => setIsSidebarOpen(false)}
-                                    onOpenExplorer={() => toggleView('explorer')} onOpenDiary={() => toggleView('diary')}
-                                    onOpenPerformance={() => toggleView('performance')} onOpenHub={() => toggleView('hub')}
-                                    onOpenSocial={() => toggleView('social')} onOpenProfile={() => toggleView('profile')}
-                                    onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}} isSidebarOpen={isSidebarOpen}
-                                />
-                            </div>
-                        </aside>
-                    )}
-
-                    <main className="flex-grow flex flex-col relative bg-slate-950 min-w-0">
-                        {/* MOBILE LAYOUT OPTIMIZED */}
-                        {!isDesktop ? (
-                            <div className="flex flex-col h-full w-full overflow-hidden relative">
-                                {/* MAP TAKES PRIORITY SPACE */}
-                                <div className="flex-grow relative bg-slate-900 z-0">
-                                    <MapDisplay 
-                                        tracks={tracks} visibleTrackIds={mapVisibleIds} raceRunners={raceRunners}
-                                        isAnimationPlaying={raceState === 'running'} fitBoundsCounter={fitBoundsCounter}
-                                        runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
-                                    />
-                                    {raceState !== 'idle' && (
-                                        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000]">
-                                            <RaceControls 
-                                                simulationState={raceState} simulationTime={raceTime} simulationSpeed={raceSpeed}
-                                                onPause={() => setRaceState('paused')} onResume={() => setRaceState('running')}
-                                                onStop={() => { setRaceState('idle'); setRaceRunners(null); }}
-                                                onSpeedChange={setRaceSpeed}
-                                            />
-                                        </div>
-                                    )}
-                                </div>
-                                
-                                {/* LIST AREA - FIXED HEIGHT AT BOTTOM IF NOT RACING, OR COLLAPSIBLE */}
-                                {raceState === 'idle' && (
-                                    <div className="h-[45vh] bg-slate-900 border-t border-slate-800 z-10 flex flex-col shadow-[0_-5px_20px_rgba(0,0,0,0.5)]">
+                    {/* UNIVERSAL RESIZABLE LAYOUT */}
+                    <ResizablePanel
+                        direction={isDesktop ? 'horizontal' : 'vertical'}
+                        initialSize={isDesktop ? layoutPrefs.desktopSidebar : undefined}
+                        initialSizeRatio={isDesktop ? undefined : layoutPrefs.mobileMapRatio}
+                        minSize={250} // Min px for sidebar desktop or map mobile
+                        onResizeEnd={handleResizeEnd}
+                        className="w-full h-full"
+                    >
+                        {/* PANEL 1: SIDEBAR (Desktop) OR MAP (Mobile) */}
+                        {isDesktop ? (
+                            // DESKTOP: LEFT PANEL IS SIDEBAR
+                            <aside className="h-full bg-slate-900 border-r border-slate-800 flex flex-col w-full">
+                                {isSidebarOpen ? (
+                                    <>
                                         <div className="flex-grow overflow-hidden">
-                                             <Sidebar 
-                                                tracks={tracks} visibleTrackIds={mapVisibleIds} focusedTrackId={focusedTrackId} raceSelectionIds={raceSelectionIds}
-                                                onFocusTrack={setFocusedTrackId} onDeselectAll={() => setRaceSelectionIds(new Set())}
+                                            <Sidebar 
+                                                tracks={tracks} visibleTrackIds={mapVisibleIds} 
+                                                onFocusTrack={setFocusedTrackId} focusedTrackId={focusedTrackId}
+                                                raceSelectionIds={raceSelectionIds} 
                                                 onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
+                                                onDeselectAll={() => setRaceSelectionIds(new Set())}
+                                                onSelectAll={() => setRaceSelectionIds(new Set(tracks.filter(t => !t.isArchived).map(t => t.id)))}
                                                 onStartRace={openRaceSetup}
                                                 onViewDetails={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)}
                                                 onEditTrack={(id) => setEditingTrack(tracks.find(t => t.id === id) || null)}
-                                                onBulkArchive={handleBulkArchive} onDeleteSelected={handleBulkDelete} onMergeSelected={handleMergeSelectedTracks} onToggleFavorite={handleToggleFavorite} onBulkGroup={handleBulkGroup} onFileUpload={handleFileUpload} onToggleArchived={async (id) => { const u = tracks.map(t => t.id === id ? {...t, isArchived: !t.isArchived} : t); setTracks(u); await saveTracksToDB(u); }} onDeleteTrack={() => {}} onSelectAll={() => {}}
-                                             />
+                                                onDeleteTrack={async (id) => { 
+                                                    const track = tracks.find(t => t.id === id); if (track) markStravaTrackAsDeleted(track);
+                                                    const u = tracks.filter(t => t.id !== id); setTracks(u); await saveTracksToDB(u); await deleteTrackFromCloud(id); 
+                                                }}
+                                                onBulkArchive={handleBulkArchive} onDeleteSelected={handleBulkDelete} onMergeSelected={handleMergeSelectedTracks} onToggleFavorite={handleToggleFavorite} onBulkGroup={handleBulkGroup} onFileUpload={handleFileUpload} onToggleArchived={async (id) => { const u = tracks.map(t => t.id === id ? {...t, isArchived: !t.isArchived} : t); setTracks(u); await saveTracksToDB(u); }}
+                                            />
                                         </div>
-                                        {/* DOCK INSIDE CONTAINER TO AVOID OVERLAP */}
-                                        <div className="bg-slate-950 border-t border-slate-800 pb-safe">
+                                        <div className="bg-slate-950 shrink-0">
                                             <NavigationDock 
-                                                onOpenSidebar={() => {}} onCloseSidebar={() => {}}
+                                                onOpenSidebar={() => setIsSidebarOpen(true)} onCloseSidebar={() => setIsSidebarOpen(false)}
                                                 onOpenExplorer={() => toggleView('explorer')} onOpenDiary={() => toggleView('diary')}
                                                 onOpenPerformance={() => toggleView('performance')} onOpenHub={() => toggleView('hub')}
                                                 onOpenSocial={() => toggleView('social')} onOpenProfile={() => toggleView('profile')}
-                                                onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}} isSidebarOpen={true}
+                                                onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}} isSidebarOpen={isSidebarOpen}
                                             />
                                         </div>
+                                    </>
+                                ) : (
+                                    <div className="h-full flex items-center justify-center bg-slate-900">
+                                        <button onClick={() => setIsSidebarOpen(true)} className="p-4 text-slate-500 hover:text-white transform rotate-90 whitespace-nowrap font-bold uppercase tracking-widest text-xs">Apri Sidebar</button>
                                     </div>
                                 )}
-                                
-                                {/* DOCK ONLY IF RACING (OVERLAY) OR HANDLED ABOVE */}
-                                {raceState !== 'idle' && (
-                                     <div className="absolute bottom-0 w-full z-[2000] bg-slate-900/90 backdrop-blur pb-safe border-t border-slate-800">
-                                        <NavigationDock 
-                                            onOpenSidebar={() => setRaceState('idle')} onCloseSidebar={() => {}}
-                                            onOpenExplorer={() => toggleView('explorer')} onOpenDiary={() => toggleView('diary')}
-                                            onOpenPerformance={() => toggleView('performance')} onOpenHub={() => toggleView('hub')}
-                                            onOpenSocial={() => toggleView('social')} onOpenProfile={() => toggleView('profile')}
-                                            onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}} isSidebarOpen={false}
-                                        />
-                                    </div>
-                                )}
-                            </div>
+                            </aside>
                         ) : (
-                            /* DESKTOP MAIN AREA (MAP ONLY) */
-                            <>
+                            // MOBILE: TOP PANEL IS MAP
+                            <div className="h-full w-full relative bg-slate-900 border-b border-slate-800">
                                 <MapDisplay 
                                     tracks={tracks} visibleTrackIds={mapVisibleIds} raceRunners={raceRunners}
                                     isAnimationPlaying={raceState === 'running'} fitBoundsCounter={fitBoundsCounter}
                                     runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
                                 />
                                 {raceState !== 'idle' && (
-                                    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[4600]">
+                                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[1000]">
                                         <RaceControls 
                                             simulationState={raceState} simulationTime={raceTime} simulationSpeed={raceSpeed}
                                             onPause={() => setRaceState('paused')} onResume={() => setRaceState('running')}
@@ -725,17 +707,65 @@ const App: React.FC = () => {
                                         />
                                     </div>
                                 )}
-                                {raceRunners && (
-                                     <div className="absolute top-4 right-4 z-[4600] hidden md:block">
-                                        <RaceLeaderboard racers={tracks.filter(t => raceSelectionIds.has(t.id))} gaps={raceGaps} ranks={new Map()} />
-                                     </div>
-                                )}
-                                <button onClick={() => setShowGlobalChat(true)} className="fixed bottom-24 right-4 z-[4000] bg-purple-600 hover:bg-purple-500 text-white p-3 rounded-full shadow-2xl active:scale-90">
-                                    <span className="text-xl">🧠</span>
-                                </button>
-                            </>
+                            </div>
                         )}
-                    </main>
+
+                        {/* PANEL 2: MAP (Desktop) OR SIDEBAR (Mobile) */}
+                        <div className="h-full w-full relative bg-slate-950 flex flex-col overflow-hidden">
+                            {isDesktop ? (
+                                // DESKTOP: RIGHT PANEL IS MAP
+                                <>
+                                    <MapDisplay 
+                                        tracks={tracks} visibleTrackIds={mapVisibleIds} raceRunners={raceRunners}
+                                        isAnimationPlaying={raceState === 'running'} fitBoundsCounter={fitBoundsCounter}
+                                        runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
+                                    />
+                                    {raceState !== 'idle' && (
+                                        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[4600]">
+                                            <RaceControls 
+                                                simulationState={raceState} simulationTime={raceTime} simulationSpeed={raceSpeed}
+                                                onPause={() => setRaceState('paused')} onResume={() => setRaceState('running')}
+                                                onStop={() => { setRaceState('idle'); setRaceRunners(null); }}
+                                                onSpeedChange={setRaceSpeed}
+                                            />
+                                        </div>
+                                    )}
+                                    {raceRunners && (
+                                         <div className="absolute top-4 right-4 z-[4600] hidden md:block">
+                                            <RaceLeaderboard racers={tracks.filter(t => raceSelectionIds.has(t.id))} gaps={raceGaps} ranks={new Map()} />
+                                         </div>
+                                    )}
+                                    <button onClick={() => setShowGlobalChat(true)} className="fixed bottom-24 right-4 z-[4000] bg-purple-600 hover:bg-purple-500 text-white p-3 rounded-full shadow-2xl active:scale-90">
+                                        <span className="text-xl">🧠</span>
+                                    </button>
+                                </>
+                            ) : (
+                                // MOBILE: BOTTOM PANEL IS LIST + DOCK
+                                <>
+                                    <div className="flex-grow overflow-hidden">
+                                         <Sidebar 
+                                            tracks={tracks} visibleTrackIds={mapVisibleIds} focusedTrackId={focusedTrackId} raceSelectionIds={raceSelectionIds}
+                                            onFocusTrack={setFocusedTrackId} onDeselectAll={() => setRaceSelectionIds(new Set())}
+                                            onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
+                                            onStartRace={openRaceSetup}
+                                            onViewDetails={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)}
+                                            onEditTrack={(id) => setEditingTrack(tracks.find(t => t.id === id) || null)}
+                                            onBulkArchive={handleBulkArchive} onDeleteSelected={handleBulkDelete} onMergeSelected={handleMergeSelectedTracks} onToggleFavorite={handleToggleFavorite} onBulkGroup={handleBulkGroup} onFileUpload={handleFileUpload} onToggleArchived={async (id) => { const u = tracks.map(t => t.id === id ? {...t, isArchived: !t.isArchived} : t); setTracks(u); await saveTracksToDB(u); }} onDeleteTrack={() => {}} onSelectAll={() => {}}
+                                         />
+                                    </div>
+                                    <div className="bg-slate-950 pb-safe border-t border-slate-800 shrink-0">
+                                        <NavigationDock 
+                                            onOpenSidebar={() => {}} onCloseSidebar={() => {}}
+                                            onOpenExplorer={() => toggleView('explorer')} onOpenDiary={() => toggleView('diary')}
+                                            onOpenPerformance={() => toggleView('performance')} onOpenHub={() => toggleView('hub')}
+                                            onOpenSocial={() => toggleView('social')} onOpenProfile={() => toggleView('profile')}
+                                            onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}} isSidebarOpen={true}
+                                        />
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </ResizablePanel>
                 </div>
             )}
 
@@ -750,7 +780,6 @@ const App: React.FC = () => {
                     onConfirm={startRaceAnimation}
                     onCancel={() => setShowRaceSetup(false)}
                     onRemoveTrack={(id) => {
-                        // Se rimuovi un ghost, forse vuoi eliminarlo dalla lista principale se è temporaneo
                         if (id.startsWith('ghost-')) {
                             setTracks(prev => prev.filter(t => t.id !== id));
                         }
