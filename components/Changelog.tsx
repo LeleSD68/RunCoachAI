@@ -7,6 +7,16 @@ interface ChangelogProps {
 
 const changelogData = [
     {
+        version: 'v1.41',
+        date: '2026-01-30',
+        changes: [
+            '⚡ **Social Hub 2.0**: Nuova interfaccia feed compatta. Clicca su un\'attività per aprire la "Scheda Atleta" con mappa grande, statistiche dettagliate e reazioni rapide.',
+            '📊 **Explorer Pro**: Aggiunto ordinamento colonne, selettore metriche personalizzabile (Cadenza, Passi, Calorie) e layout responsivo migliorato.',
+            '🛠️ **Fix Editor**: Risolto un bug che impediva il salvataggio del nome traccia dopo le modifiche geometriche.',
+            '🦶 **Nuove Metriche**: Stima dei passi totali e cadenza media visibili direttamente nella tabella dati.'
+        ]
+    },
+    {
         version: 'v1.40',
         date: '2026-01-29',
         changes: [
