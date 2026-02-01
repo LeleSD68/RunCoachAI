@@ -208,7 +208,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
                     <div className="flex justify-center mb-4"><LargeLogoIcon /></div>
                     <h2 className="text-2xl md:text-3xl font-black text-white italic tracking-tighter uppercase mb-1">Ciao, <span className="text-cyan-400">{userProfile?.name || 'Atleta'}</span></h2>
                     <div className="flex items-center justify-center gap-2 mt-2">
-                         <button onClick={onOpenChangelog} className="bg-slate-800 border border-slate-700 text-slate-400 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider hover:bg-slate-700 hover:text-white transition-colors">v1.39</button>
+                         <button onClick={onOpenChangelog} className="bg-slate-800 border border-slate-700 text-slate-400 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider hover:bg-slate-700 hover:text-white transition-colors">v1.40</button>
                         <span className={`border text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${trackCount > 0 ? 'bg-cyan-900/20 border-cyan-500/30 text-cyan-400' : 'bg-slate-800 border-slate-700 text-slate-500'}`}>{trackCount} {trackCount === 1 ? 'Attività' : 'Attività'}</span>
                     </div>
                 </header>
