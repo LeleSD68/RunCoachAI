@@ -1,3 +1,4 @@
+
 import type { Track } from '../types';
 
 // Haversine formula to calculate distance between two lat/lon points in kilometers
@@ -11,13 +12,30 @@ const haversineDistance = (p1: {lat: number, lon: number}, p2: {lat: number, lon
       Math.cos(p2.lat * (Math.PI / 180)) *
       Math.sin(dLon / 2) *
       Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const c = 2 * Math.atan2(sqrt(a), sqrt(1 - a));
   return R * c;
 };
+
+function sqrt(x: number) { return Math.sqrt(x); }
 
 const START_END_TOLERANCE_KM = 0.1; // 100 meters
 const INTERMEDIATE_POINT_TOLERANCE_KM = 0.2; // 200 meters for shape comparison
 const DISTANCE_TOLERANCE_PERCENT = 0.02; // 2%
+
+// Genera una stringa univoca per una traccia basata su dati fisici
+export const getTrackFingerprint = (track: Track): string => {
+    if (!track.points || track.points.length === 0) return track.id;
+    const startTime = new Date(track.points[0].time).getTime();
+    // Arrotondiamo distanza (metri) e durata (secondi) per gestire piccole fluttuazioni di parsing
+    const roundedDist = Math.round(track.distance * 1000); 
+    const roundedDur = Math.round(track.duration / 1000);
+    return `${startTime}_${roundedDist}_${roundedDur}`;
+};
+
+export const isDuplicateTrack = (track: Track, existingTracks: Track[]): boolean => {
+    const fingerprint = getTrackFingerprint(track);
+    return existingTracks.some(t => getTrackFingerprint(t) === fingerprint);
+};
 
 // Helper function to get coordinates at a specific distance along a track
 const getPointAtDistance = (track: Track, targetDistance: number): { lat: number, lon: number } | null => {
