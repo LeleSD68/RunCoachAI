@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useMemo } from 'react';
-import { Track, UserProfile, PlannedWorkout, ApiUsageStats, ActivityType } from '../types';
+import { Track } from '../types';
 import Tooltip from './Tooltip';
 import RatingStars from './RatingStars';
 import TrackPreview from './TrackPreview';
@@ -11,6 +11,9 @@ const TrashIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20
 const ArchiveBoxIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M2 3a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3Z" /><path fillRule="evenodd" d="M13 9a1 1 0 1 0 0 2h-6a1 1 0 1 0 0-2h6ZM2.75 7A.75.75 0 0 0 2 7.75v8.5c0 .69.56 1.25 1.25 1.25h13.5c.69 0 1.25-.56 1.25-1.25v-8.5A.75.75 0 0 0 17.25 7H2.75Z" clipRule="evenodd" /></svg>);
 const MergeIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M3.75 3a.75.75 0 0 0-1.5 0v4a6.5 6.5 0 0 0 6.5 6.5h4.19l-1.72 1.72a.75.75 0 1 0 1.06 1.06l3-3a.75.75 0 0 0 0-1.06l-3-3a.75.75 0 1 0-1.06 1.06l1.72 1.72H8.75A5 5 0 0 1 3.75 7V3Z" clipRule="evenodd" /></svg>);
 const FolderIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M2 4.75A2.75 2.75 0 0 1 4.75 2h3.185a.75.75 0 0 1 .53.22l2.25 2.25a.75.75 0 0 0 .53.22h4.005A2.75 2.75 0 0 1 18 7.64v7.61a2.75 2.75 0 0 1-2.75 2.75H4.75A2.75 2.75 0 0 1 2 15.25V4.75Z" /></svg>);
+const FlagIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M3.5 2A1.5 1.5 0 0 0 2 3.5V15a3 3 0 1 0 6 0V3.5A1.5 1.5 0 0 0 6.5 2h-3Zm11.753 3.29a1 1 0 0 0-1.242-.92l-4.215.91a4.5 4.5 0 0 1-1.796 0l-.603-.13a3 3 0 0 0-3.627 2.112l-.028.113c-.308 1.23.473 2.453 1.726 2.657l.012.002.493.08a4.5 4.5 0 0 1 1.93 5.432l.06-.239c.29-1.157 1.492-1.874 2.645-1.577l4.331 1.116a1 1 0 0 0 1.229-1.233l-.915-8.325Z" clipRule="evenodd" /></svg>);
+const CloseIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" /></svg>);
+
 const StarIcon = ({ filled }: { filled: boolean }) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill={filled ? "#fbbf24" : "currentColor"} className={`w-4 h-4 ${filled ? 'text-amber-400' : 'text-slate-500 hover:text-amber-300'}`}>
         <path fillRule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401Z" clipRule="evenodd" />
@@ -200,18 +203,46 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                 ))}
             </div>
 
+            {/* COMPACT TOOLBAR */}
             {raceSelectionIds.size > 0 && (
-                <div className="p-3 border-t border-slate-800 bg-slate-950 shrink-0">
-                    <div className="grid grid-cols-2 gap-2 mb-2">
-                        <button onClick={onStartRace} className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 text-white text-[10px] font-black uppercase py-2.5 rounded shadow-lg active:scale-95"><span>🏁</span> Gara</button>
-                        <button onClick={() => setShowMergeConfirm(true)} className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black uppercase py-2.5 rounded shadow-lg active:scale-95"><MergeIcon /> Unisci</button>
+                <div className="p-2 border-t border-slate-800 bg-slate-950 shrink-0 flex items-center justify-between gap-2 shadow-[0_-5px_15px_rgba(0,0,0,0.5)] z-20">
+                    <div className="flex gap-1 items-center">
+                        <Tooltip text="Gara Virtuale" position="top">
+                            <button onClick={onStartRace} className="flex items-center gap-2 bg-green-600 hover:bg-green-500 text-white text-[10px] font-black uppercase px-3 py-2 rounded-lg shadow active:scale-95 transition-all">
+                                <FlagIcon /> <span className="hidden sm:inline">Gara</span>
+                            </button>
+                        </Tooltip>
+                        <Tooltip text="Unisci Tracce" position="top">
+                            <button onClick={() => setShowMergeConfirm(true)} className="p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg shadow active:scale-95 transition-all">
+                                <MergeIcon />
+                            </button>
+                        </Tooltip>
+                        <div className="h-6 w-px bg-slate-800 mx-1"></div>
+                        <div className="text-[9px] font-mono text-slate-500 font-bold">{raceSelectionIds.size} sel.</div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 mb-2">
-                        <button onClick={handleBulkGroupClick} className="flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-500 text-white text-[10px] font-black uppercase py-2.5 rounded shadow-lg active:scale-95"><FolderIcon /> Cartella</button>
-                        <button onClick={onBulkArchive} className="flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-500 text-white text-[10px] font-black uppercase py-2.5 rounded shadow-lg active:scale-95"><ArchiveBoxIcon /> Archivia</button>
+
+                    <div className="flex gap-1">
+                        <Tooltip text="Sposta in Cartella" position="top">
+                            <button onClick={handleBulkGroupClick} className="p-2 bg-slate-800 hover:bg-purple-600 text-slate-400 hover:text-white rounded-lg border border-slate-700 transition-all active:scale-95">
+                                <FolderIcon />
+                            </button>
+                        </Tooltip>
+                        <Tooltip text="Archivia Selezionati" position="top">
+                            <button onClick={onBulkArchive} className="p-2 bg-slate-800 hover:bg-amber-600 text-slate-400 hover:text-white rounded-lg border border-slate-700 transition-all active:scale-95">
+                                <ArchiveBoxIcon />
+                            </button>
+                        </Tooltip>
+                        <Tooltip text="Elimina Selezionati" position="top">
+                            <button onClick={() => { if(confirm(`Eliminare ${raceSelectionIds.size} corse?`)) onDeleteSelected(); }} className="p-2 bg-slate-800 hover:bg-red-600 text-slate-400 hover:text-white rounded-lg border border-slate-700 transition-all active:scale-95">
+                                <TrashIcon />
+                            </button>
+                        </Tooltip>
+                        <Tooltip text="Deseleziona Tutto" position="top">
+                            <button onClick={onDeselectAll} className="p-2 text-slate-500 hover:text-white transition-colors">
+                                <CloseIcon />
+                            </button>
+                        </Tooltip>
                     </div>
-                    <button onClick={() => { if(confirm(`Eliminare ${raceSelectionIds.size} corse?`)) onDeleteSelected(); }} className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-500 text-white text-[10px] font-black uppercase py-2 rounded shadow-lg active:scale-95"><TrashIcon /> Elimina ({raceSelectionIds.size})</button>
-                    <button onClick={onDeselectAll} className="w-full mt-2 text-[9px] font-black text-slate-600 uppercase hover:text-slate-400 py-1">Annulla Selezione</button>
                 </div>
             )}
 
