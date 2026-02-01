@@ -66,12 +66,12 @@ const NavigationDock: React.FC<NavigationDockProps> = ({
     onOpenSidebar, onCloseSidebar, onOpenExplorer, onOpenDiary, onOpenPerformance, onOpenHub, isSidebarOpen, onOpenSocial, onOpenProfile, onlineCount = 0, unreadCount = 0
 }) => {
     return (
-        <div className="fixed bottom-0 md:bottom-4 left-0 w-full z-[11000] flex justify-center pointer-events-none pb-safe">
-            <div className="flex justify-around items-center w-full md:w-auto p-1.5 md:p-2 bg-slate-950/90 md:bg-slate-900/90 backdrop-blur-2xl md:rounded-2xl border-t md:border border-slate-800 pointer-events-auto shadow-2xl md:px-6">
+        <div className="w-full bg-slate-900 border-t border-slate-800">
+            <div className="flex justify-around items-center w-full py-2">
                 <Tooltip text="Home" subtext="Menu" position="top">
                     <button 
                         onClick={onOpenHub} 
-                        className="p-3 md:p-3 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-cyan-400 transition-all active:scale-95"
+                        className="p-3 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-cyan-400 transition-all active:scale-95"
                     >
                         <HomeIcon />
                     </button>
@@ -80,7 +80,7 @@ const NavigationDock: React.FC<NavigationDockProps> = ({
                 <Tooltip text="Mappa" subtext="Visuale Piena" position="top">
                     <button 
                         onClick={onCloseSidebar} 
-                        className={`p-3 md:p-3 rounded-xl hover:bg-slate-800 transition-all active:scale-95 ${!isSidebarOpen ? 'text-white bg-slate-800 ring-1 ring-white/10' : 'text-slate-400 hover:text-white'}`}
+                        className={`p-3 rounded-lg hover:bg-slate-800 transition-all active:scale-95 ${!isSidebarOpen ? 'text-white bg-slate-800 ring-1 ring-white/10' : 'text-slate-400 hover:text-white'}`}
                     >
                         <MapIcon />
                     </button>
@@ -89,28 +89,28 @@ const NavigationDock: React.FC<NavigationDockProps> = ({
                 <Tooltip text="Attività" subtext="Lista Corse" position="top">
                     <button 
                         onClick={onOpenSidebar} 
-                        className={`p-3 md:p-3 rounded-xl hover:bg-slate-800 transition-all active:scale-95 ${isSidebarOpen ? 'text-white bg-slate-800 ring-1 ring-white/10' : 'text-slate-400 hover:text-white'}`}
+                        className={`p-3 rounded-lg hover:bg-slate-800 transition-all active:scale-95 ${isSidebarOpen ? 'text-white bg-slate-800 ring-1 ring-white/10' : 'text-slate-400 hover:text-white'}`}
                     >
                         <ListIcon />
                     </button>
                 </Tooltip>
 
-                <div className="w-px h-6 bg-slate-800 mx-1 md:mx-2 hidden md:block"></div>
+                <div className="w-px h-6 bg-slate-800 mx-1"></div>
 
                 <Tooltip text="Diario" subtext="Calendario" position="top">
-                    <button onClick={onOpenDiary} className="p-3 md:p-3 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-purple-400 transition-all active:scale-95">
+                    <button onClick={onOpenDiary} className="p-3 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-purple-400 transition-all active:scale-95">
                         <DiaryIcon />
                     </button>
                 </Tooltip>
                 
                 <Tooltip text="Performance" subtext="Analisi Dati" position="top">
-                    <button onClick={onOpenPerformance} className="p-3 md:p-3 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-green-400 transition-all active:scale-95">
+                    <button onClick={onOpenPerformance} className="p-3 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-green-400 transition-all active:scale-95">
                         <ChartIcon />
                     </button>
                 </Tooltip>
 
                 <Tooltip text="Social" subtext="Crew" position="top">
-                    <button onClick={onOpenSocial} className="p-3 md:p-3 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-pink-400 transition-all active:scale-95 relative">
+                    <button onClick={onOpenSocial} className="p-3 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-pink-400 transition-all active:scale-95 relative">
                         <UserGroupIcon />
                         {onlineCount > 0 && (
                             <span className="absolute top-1 right-1 bg-green-500 text-slate-900 text-[8px] font-black w-3.5 h-3.5 flex items-center justify-center rounded-full border border-slate-950">{onlineCount}</span>
@@ -119,7 +119,7 @@ const NavigationDock: React.FC<NavigationDockProps> = ({
                 </Tooltip>
                 
                 <Tooltip text="Esplora" subtext="Tabella" position="top">
-                    <button onClick={onOpenExplorer} className="p-3 md:p-3 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-amber-400 transition-all active:scale-95">
+                    <button onClick={onOpenExplorer} className="p-3 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-amber-400 transition-all active:scale-95">
                         <GridIcon />
                     </button>
                 </Tooltip>

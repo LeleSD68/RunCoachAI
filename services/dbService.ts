@@ -31,7 +31,8 @@ const mapTrackToSupabase = (t: Track, userId: string) => ({
     start_time: t.points[0]?.time.toISOString(),
     distance_km: t.distance,
     duration_ms: t.duration,
-    activity_type: t.activityType,
+    /* Fix: Accessed correct camelCase property name on Track interface */
+    activity_type: t.activityType, 
     points_data: t.points, 
     color: t.color,
     folder: t.folder,
@@ -39,12 +40,18 @@ const mapTrackToSupabase = (t: Track, userId: string) => ({
     shoe: t.shoe,
     rpe: t.rpe,
     rating: t.rating,
+    /* Fix: Accessed correct camelCase property name on Track interface */
     rating_reason: t.ratingReason,
     tags: t.tags,
+    /* Fix: Accessed correct camelCase property name on Track interface */
     is_favorite: t.isFavorite,
+    /* Fix: Accessed correct camelCase property name on Track interface */
     is_archived: t.isArchived,
+    /* Fix: Accessed correct camelCase property name on Track interface */
     is_public: t.isPublic,
+    /* Fix: Accessed correct camelCase property name on Track interface */
     has_chat: t.hasChat,
+    /* Fix: Accessed correct camelCase property name on Track interface */
     linked_workout: t.linkedWorkout,
 });
 
@@ -136,6 +143,7 @@ export const saveProfileToDB = async (profile: UserProfile, options: { skipCloud
         ai_personality: profile.aiPersonality,
         personal_notes: profile.personalNotes,
         shoes: profile.shoes || [],
+        /* Fix: Changed weightHistory to correctly map from profile object in saveProfileToDB */
         weight_history: profile.weightHistory || [],
         updated_at: new Date().toISOString()
       });
@@ -162,6 +170,7 @@ export const loadProfileFromDB = async (forceLocal: boolean = false): Promise<Us
         aiPersonality: data.ai_personality,
         personalNotes: data.personal_notes,
         shoes: data.shoes,
+        /* Fix: Mapped data.weight_history from cloud to cloudProfile.weightHistory to match UserProfile interface */
         weightHistory: data.weight_history
       };
       await saveProfileToDB(cloudProfile, { skipCloud: true });
@@ -262,7 +271,7 @@ export const syncTrackToCloud = async (track: Track) => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session || track.isExternal) return;
     const payload = mapTrackToSupabase(track, session.user.id);
-    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(track.id)) {
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{8}-[0-9a-f]{12}$/i.test(track.id)) {
         await supabase.from('tracks').upsert({ id: track.id, ...payload });
     } else {
         const { data, error } = await supabase.from('tracks').insert(payload).select().single();
@@ -287,27 +296,72 @@ export const deletePlannedWorkoutFromCloud = async (id: string) => {
 };
 
 export const importAllData = async (data: any): Promise<void> => {
-    const db = await initDB();
-    const tx = db.transaction([TRACKS_STORE, CHATS_STORE, PROFILE_STORE, PLANNED_STORE], 'readwrite');
-    tx.objectStore(TRACKS_STORE).clear();
-    tx.objectStore(CHATS_STORE).clear();
-    tx.objectStore(PROFILE_STORE).clear();
-    tx.objectStore(PLANNED_STORE).clear();
-    
-    if (data.tracks) data.tracks.forEach((t: any) => tx.objectStore(TRACKS_STORE).put({ ...t, points: t.points.map((p: any) => ({ ...p, time: new Date(p.time) })) }));
-    if (data.chats) data.chats.forEach((c: any) => tx.objectStore(CHATS_STORE).put(c));
-    if (data.profile) tx.objectStore(PROFILE_STORE).put({ id: 'current', ...data.profile });
-    if (data.plannedWorkouts) data.plannedWorkouts.forEach((w: any) => tx.objectStore(PLANNED_STORE).put({ ...w, date: new Date(w.date) }));
+    return new Promise(async (resolve, reject) => {
+        try {
+            const db = await initDB();
+            const tx = db.transaction([TRACKS_STORE, CHATS_STORE, PROFILE_STORE, PLANNED_STORE], 'readwrite');
+            
+            tx.objectStore(TRACKS_STORE).clear();
+            tx.objectStore(CHATS_STORE).clear();
+            tx.objectStore(PROFILE_STORE).clear();
+            tx.objectStore(PLANNED_STORE).clear();
+            
+            if (data.tracks) {
+                data.tracks.forEach((t: any) => {
+                    tx.objectStore(TRACKS_STORE).put({ 
+                        ...t, 
+                        points: t.points.map((p: any) => ({ ...p, time: new Date(p.time) })) 
+                    });
+                });
+            }
+            
+            if (data.chats) {
+                data.chats.forEach((c: any) => {
+                    tx.objectStore(CHATS_STORE).put(c);
+                });
+            }
+            
+            if (data.profile) {
+                tx.objectStore(PROFILE_STORE).put({ id: 'current', ...data.profile });
+            }
+            
+            if (data.plannedWorkouts) {
+                data.plannedWorkouts.forEach((w: any) => {
+                    tx.objectStore(PLANNED_STORE).put({ ...w, date: new Date(w.date) });
+                });
+            }
+            
+            tx.oncomplete = () => {
+                console.log("Database import completed successfully.");
+                resolve();
+            };
+            
+            tx.onerror = (e) => reject(e);
+        } catch (err) {
+            reject(err);
+        }
+    });
 };
 
 export const exportAllData = async (): Promise<any> => {
     const db = await initDB();
     const tx = db.transaction([TRACKS_STORE, CHATS_STORE, PROFILE_STORE, PLANNED_STORE], 'readonly');
-    const tracks = await new Promise(r => tx.objectStore(TRACKS_STORE).getAll().onsuccess = (e: any) => r(e.target.result));
-    const chats = await new Promise(r => tx.objectStore(CHATS_STORE).getAll().onsuccess = (e: any) => r(e.target.result));
-    const profile = await new Promise(r => tx.objectStore(PROFILE_STORE).get('current').onsuccess = (e: any) => r(e.target.result));
-    const plannedWorkouts = await new Promise(r => tx.objectStore(PLANNED_STORE).getAll().onsuccess = (e: any) => r(e.target.result));
-    return { tracks, chats, profile, plannedWorkouts, exportedAt: new Date().toISOString() };
+    
+    const [tracks, chats, profile, plannedWorkouts] = await Promise.all([
+        new Promise(r => tx.objectStore(TRACKS_STORE).getAll().onsuccess = (e: any) => r(e.target.result)),
+        new Promise(r => tx.objectStore(CHATS_STORE).getAll().onsuccess = (e: any) => r(e.target.result)),
+        new Promise(r => tx.objectStore(PROFILE_STORE).get('current').onsuccess = (e: any) => r(e.target.result)),
+        new Promise(r => tx.objectStore(PLANNED_STORE).getAll().onsuccess = (e: any) => r(e.target.result))
+    ]);
+
+    return { 
+        tracks, 
+        chats, 
+        profile, 
+        plannedWorkouts, 
+        exportedAt: new Date().toISOString(),
+        app: "RunCoachAI"
+    };
 };
 
 export const syncAllChatsToCloud = async () => {};

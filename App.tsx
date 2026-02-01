@@ -25,16 +25,18 @@ import SplashScreen from './components/SplashScreen';
 import RaceControls from './components/RaceControls';
 import RaceLeaderboard from './components/RacePaceBar';
 import RaceSummary from './components/RaceSummary';
+import ReminderNotification from './components/ReminderNotification';
 
 import { 
     saveTracksToDB, loadTracksFromDB, 
     saveProfileToDB, loadProfileFromDB, 
     savePlannedWorkoutsToDB, loadPlannedWorkoutsFromDB,
-    importAllData, exportAllData, syncTrackToCloud, deleteTrackFromCloud
+    importAllData, exportAllData, syncTrackToCloud, deleteTrackFromCloud,
+    deletePlannedWorkoutFromCloud
 } from './services/dbService';
 import { supabase } from './services/supabaseClient';
 import { handleStravaCallback } from './services/stravaService';
-import { getTrackStateAtTime } from './services/trackEditorUtils';
+import { getTrackStateAtTime, mergeTracks } from './services/trackEditorUtils';
 import { getApiUsage, trackUsage, addTokensToUsage } from './services/usageService';
 
 const App: React.FC = () => {
@@ -61,6 +63,7 @@ const App: React.FC = () => {
     const [showStravaSyncOptions, setShowStravaSyncOptions] = useState(false);
     
     const [viewingTrack, setViewingTrack] = useState<Track | null>(null);
+    const [editingTrack, setEditingTrack] = useState<Track | null>(null); // Stato per editor
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [focusedTrackId, setFocusedTrackId] = useState<string | null>(null);
     const [isGuest, setIsGuest] = useState(false);
@@ -69,11 +72,27 @@ const App: React.FC = () => {
     const [hoveredTrackId, setHoveredTrackId] = useState<string | null>(null);
     const [showGlobalChat, setShowGlobalChat] = useState(false);
 
+    // DETERMINA COSA MOSTRARE IN MAPPA
+    const mapVisibleIds = useMemo(() => {
+        if (raceSelectionIds.size === 0) {
+            return new Set(tracks.filter(t => !t.isArchived).map(t => t.id));
+        }
+        return raceSelectionIds;
+    }, [tracks, raceSelectionIds]);
+
+    // Notifiche Impegni
+    const todayEntries = useMemo(() => {
+        const today = new Date().toDateString();
+        return plannedWorkouts.filter(w => 
+            new Date(w.date).toDateString() === today && 
+            (w.entryType === 'commitment' || w.entryType === 'note')
+        );
+    }, [plannedWorkouts]);
+
     // Initial usage load
     useEffect(() => {
         setUsage(getApiUsage());
-        
-        window.gpxApp = {
+        (window as any).gpxApp = {
             addTokens: (count: number) => {
                 const u = addTokensToUsage(count);
                 setUsage(u);
@@ -116,13 +135,26 @@ const App: React.FC = () => {
         setShowProfile(false);
         setShowGuide(false);
         setShowChangelog(false);
-        setViewingTrack(null);
         setShowGlobalChat(false);
+        setViewingTrack(null);
+        setEditingTrack(null);
+        setIsSidebarOpen(false); 
     }, []);
 
     const toggleView = (view: 'diary' | 'explorer' | 'performance' | 'social' | 'hub' | 'profile' | 'guide') => {
-        const isOpen = { diary: showDiary, explorer: showExplorer, performance: showPerformance, social: showSocial, hub: showHome, profile: showProfile, guide: showGuide }[view];
+        const currentStates = {
+            diary: showDiary,
+            explorer: showExplorer,
+            performance: showPerformance,
+            social: showSocial,
+            hub: showHome,
+            profile: showProfile,
+            guide: showGuide
+        };
+        
+        const isOpen = currentStates[view];
         resetNavigation();
+        
         if (!isOpen) {
             switch(view) {
                 case 'diary': setShowDiary(true); break;
@@ -133,6 +165,8 @@ const App: React.FC = () => {
                 case 'profile': setShowProfile(true); break;
                 case 'guide': setShowGuide(true); break;
             }
+        } else if (view === 'hub') {
+            if (isDesktop) setIsSidebarOpen(true);
         }
     };
 
@@ -220,7 +254,7 @@ const App: React.FC = () => {
 
     useEffect(() => {
         if (raceState === 'running') {
-            const step = 200; // ms
+            const step = 200; 
             raceIntervalRef.current = window.setInterval(() => {
                 setRaceTime(prev => {
                     const next = prev + (step * raceSpeed);
@@ -251,7 +285,7 @@ const App: React.FC = () => {
 
                     const sorted = [...newRunners].sort((a,b) => b.position.cummulativeDistance - a.position.cummulativeDistance);
                     const leaderDist = sorted[0].position.cummulativeDistance;
-                    sorted.forEach((r, idx) => {
+                    sorted.forEach((r) => {
                         currentGaps.set(r.trackId, (leaderDist - r.position.cummulativeDistance) * 1000);
                     });
 
@@ -286,6 +320,47 @@ const App: React.FC = () => {
         await saveTracksToDB(updatedTracks);
     };
 
+    const handleBulkDelete = async () => {
+        const idsToDelete = Array.from(raceSelectionIds);
+        const next = tracks.filter(t => !raceSelectionIds.has(t.id));
+        setTracks(next);
+        setRaceSelectionIds(new Set());
+        await saveTracksToDB(next);
+        for (const id of idsToDelete) {
+            await deleteTrackFromCloud(id);
+        }
+        addToast(`${idsToDelete.length} corse eliminate.`, "info");
+    };
+
+    const handleBulkArchive = async () => {
+        const next = tracks.map(t => raceSelectionIds.has(t.id) ? { ...t, isArchived: true } : t);
+        setTracks(next);
+        setRaceSelectionIds(new Set());
+        await saveTracksToDB(next);
+        addToast(`${raceSelectionIds.size} corse archiviate.`, "success");
+    };
+
+    const handleMergeSelectedTracks = async (deleteOriginals: boolean) => {
+        const selected = tracks.filter(t => raceSelectionIds.has(t.id));
+        if (selected.length < 2) return;
+
+        const merged = mergeTracks(selected);
+        let nextTracks = [merged, ...tracks];
+        const idsToRemove = Array.from(raceSelectionIds);
+
+        if (deleteOriginals) {
+            nextTracks = nextTracks.filter(t => !raceSelectionIds.has(t.id) || t.id === merged.id);
+            for (const id of idsToRemove) {
+                await deleteTrackFromCloud(id);
+            }
+        }
+
+        setTracks(nextTracks);
+        setRaceSelectionIds(new Set([merged.id]));
+        await saveTracksToDB(nextTracks);
+        addToast("Tracce unite con successo!", "success");
+    };
+
     const handleAddPlannedWorkout = async (w: PlannedWorkout) => {
         const next = [w, ...plannedWorkouts];
         setPlannedWorkouts(next);
@@ -293,12 +368,28 @@ const App: React.FC = () => {
         addToast("Salvato nel diario!", "success");
     };
 
+    const handleUpdatePlannedWorkout = async (w: PlannedWorkout) => {
+        const next = plannedWorkouts.map(item => item.id === w.id ? w : item);
+        setPlannedWorkouts(next);
+        await savePlannedWorkoutsToDB(next);
+        addToast("Voce aggiornata!", "success");
+    };
+
+    const handleDeletePlannedWorkout = async (id: string) => {
+        const next = plannedWorkouts.filter(w => w.id !== id);
+        setPlannedWorkouts(next);
+        await savePlannedWorkoutsToDB(next);
+        await deletePlannedWorkoutFromCloud(id);
+        addToast("Rimossa dal diario.", "info");
+    };
+
     if (showSplash) return <SplashScreen onFinish={handleSplashFinish} />;
 
     return (
         <div className="h-screen w-screen flex flex-col lg:flex-row overflow-hidden bg-slate-950 text-white font-sans">
             <ToastContainer toasts={toasts} setToasts={setToasts} />
-            
+            <ReminderNotification entries={todayEntries} />
+
             {isDataLoading && (
                 <div className="fixed inset-0 z-[99999] bg-slate-950/80 flex flex-col items-center justify-center">
                     <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mb-4"></div>
@@ -317,13 +408,40 @@ const App: React.FC = () => {
             
             {showHome && (
                 <HomeModal 
-                    onClose={() => setShowHome(false)}
+                    onClose={() => toggleView('hub')}
                     onOpenDiary={() => toggleView('diary')}
                     onOpenExplorer={() => toggleView('explorer')}
                     onOpenHelp={() => toggleView('guide')}
                     onOpenStravaConfig={() => setShowStravaSyncOptions(true)}
-                    onImportBackup={async (f) => { await importAllData(f); await loadData(); addToast("Importato!", "success"); }}
-                    onExportBackup={async () => { const d = await exportAllData(); const b = new Blob([JSON.stringify(d)], {type:'application/json'}); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href=u; a.download='backup.json'; a.click(); }}
+                    onImportBackup={async (f) => { 
+                        setIsDataLoading(true);
+                        try {
+                            const text = await f.text();
+                            const data = JSON.parse(text);
+                            await importAllData(data); 
+                            await loadData(true); 
+                            addToast("Importazione completata!", "success"); 
+                        } catch (e) {
+                            addToast("Errore durante l'importazione.", "error");
+                        } finally {
+                            setIsDataLoading(false);
+                        }
+                    }}
+                    onExportBackup={async () => { 
+                        try {
+                            const d = await exportAllData(); 
+                            const b = new Blob([JSON.stringify(d, null, 2)], {type:'application/json'}); 
+                            const u = URL.createObjectURL(b); 
+                            const a = document.createElement('a'); 
+                            a.href=u; 
+                            a.download=`RunCoachAI_Backup_${new Date().toISOString().split('T')[0]}.json`; 
+                            a.click(); 
+                            URL.revokeObjectURL(u);
+                            addToast("Backup salvato!", "success");
+                        } catch (e) {
+                            addToast("Errore backup.", "error");
+                        }
+                    }}
                     onUploadTracks={() => {}}
                     onOpenProfile={() => toggleView('profile')}
                     onOpenChangelog={() => toggleView('profile')}
@@ -342,7 +460,7 @@ const App: React.FC = () => {
 
             {showProfile && (
                 <UserProfileModal 
-                    onClose={() => setShowProfile(false)} 
+                    onClose={() => toggleView('profile')} 
                     onSave={async (p) => { setUserProfile(p); await saveProfileToDB(p); addToast("Profilo salvato!", "success"); }} 
                     currentProfile={userProfile} 
                     tracks={tracks}
@@ -356,20 +474,24 @@ const App: React.FC = () => {
                             <div className="flex-grow overflow-hidden">
                                 <Sidebar 
                                     tracks={tracks} 
-                                    visibleTrackIds={raceSelectionIds} 
+                                    visibleTrackIds={mapVisibleIds} 
                                     onFocusTrack={setFocusedTrackId} 
                                     focusedTrackId={focusedTrackId}
                                     raceSelectionIds={raceSelectionIds} 
                                     onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
                                     onDeselectAll={() => setRaceSelectionIds(new Set())}
-                                    onSelectAll={() => setRaceSelectionIds(new Set(tracks.map(t => t.id)))}
+                                    onSelectAll={() => setRaceSelectionIds(new Set(tracks.filter(t => !t.isArchived).map(t => t.id)))}
                                     onStartRace={startRace}
                                     onViewDetails={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)}
-                                    onDeleteTrack={async (id) => { const u = tracks.filter(t => t.id !== id); setTracks(u); await saveTracksToDB(u); }}
-                                    onFileUpload={() => {}} onDeleteSelected={() => {}} onToggleArchived={() => {}}
+                                    onEditTrack={(id) => setEditingTrack(tracks.find(t => t.id === id) || null)}
+                                    onDeleteTrack={async (id) => { const u = tracks.filter(t => t.id !== id); setTracks(u); await saveTracksToDB(u); await deleteTrackFromCloud(id); }}
+                                    onBulkArchive={handleBulkArchive}
+                                    onDeleteSelected={handleBulkDelete}
+                                    onMergeSelected={handleMergeSelectedTracks}
+                                    onFileUpload={() => {}} onToggleArchived={async (id) => { const u = tracks.map(t => t.id === id ? {...t, isArchived: !t.isArchived} : t); setTracks(u); await saveTracksToDB(u); }}
                                 />
                             </div>
-                            <div className="p-2 border-t border-slate-800 bg-slate-950">
+                            <div className="bg-slate-950">
                                 <NavigationDock 
                                     onOpenSidebar={() => setIsSidebarOpen(true)} onCloseSidebar={() => setIsSidebarOpen(false)}
                                     onOpenExplorer={() => toggleView('explorer')} onOpenDiary={() => toggleView('diary')}
@@ -385,19 +507,23 @@ const App: React.FC = () => {
                     <main className="flex-grow relative bg-slate-950 flex flex-col min-w-0">
                         <div className={`lg:hidden fixed inset-x-0 top-0 z-[4500] bg-slate-900 transition-transform ${isSidebarOpen ? 'translate-y-0 h-2/3' : '-translate-y-full h-0'}`}>
                              <Sidebar 
-                                tracks={tracks} visibleTrackIds={raceSelectionIds}
+                                tracks={tracks} visibleTrackIds={mapVisibleIds}
                                 focusedTrackId={focusedTrackId} raceSelectionIds={raceSelectionIds}
                                 onFocusTrack={setFocusedTrackId} onDeselectAll={() => setRaceSelectionIds(new Set())}
                                 onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
                                 onStartRace={() => { setIsSidebarOpen(false); startRace(); }}
                                 onViewDetails={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)}
-                                onFileUpload={() => {}} onDeleteSelected={() => {}} onToggleArchived={() => {}} onDeleteTrack={() => {}} onSelectAll={() => {}}
+                                onEditTrack={(id) => { setIsSidebarOpen(false); setEditingTrack(tracks.find(t => t.id === id) || null); }}
+                                onBulkArchive={handleBulkArchive}
+                                onDeleteSelected={handleBulkDelete}
+                                onMergeSelected={handleMergeSelectedTracks}
+                                onFileUpload={() => {}} onToggleArchived={async (id) => { const u = tracks.map(t => t.id === id ? {...t, isArchived: !t.isArchived} : t); setTracks(u); await saveTracksToDB(u); }} onDeleteTrack={() => {}} onSelectAll={() => {}}
                              />
                         </div>
 
                         <MapDisplay 
                             tracks={tracks} 
-                            visibleTrackIds={raceSelectionIds}
+                            visibleTrackIds={mapVisibleIds}
                             raceRunners={raceRunners}
                             fitBoundsCounter={0}
                             runnerSpeeds={new Map()}
@@ -424,22 +550,24 @@ const App: React.FC = () => {
                             <span className="text-xl">🧠</span>
                         </button>
 
-                        <div className="lg:hidden">
-                            <NavigationDock 
-                                onOpenSidebar={() => setIsSidebarOpen(!isSidebarOpen)} onCloseSidebar={() => setIsSidebarOpen(false)}
-                                onOpenExplorer={() => toggleView('explorer')} onOpenDiary={() => toggleView('diary')}
-                                onOpenPerformance={() => toggleView('performance')} onOpenHub={() => toggleView('hub')}
-                                onOpenSocial={() => toggleView('social')} onOpenProfile={() => toggleView('profile')}
-                                onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}}
-                                isSidebarOpen={isSidebarOpen}
-                            />
+                        <div className="lg:hidden fixed bottom-0 left-0 w-full z-[11000] pointer-events-none pb-safe">
+                            <div className="pointer-events-auto">
+                                <NavigationDock 
+                                    onOpenSidebar={() => setIsSidebarOpen(!isSidebarOpen)} onCloseSidebar={() => setIsSidebarOpen(false)}
+                                    onOpenExplorer={() => toggleView('explorer')} onOpenDiary={() => toggleView('diary')}
+                                    onOpenPerformance={() => toggleView('performance')} onOpenHub={() => toggleView('hub')}
+                                    onOpenSocial={() => toggleView('social')} onOpenProfile={() => toggleView('profile')}
+                                    onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}}
+                                    isSidebarOpen={isSidebarOpen}
+                                />
+                            </div>
                         </div>
                     </main>
                 </>
             )}
 
             {viewingTrack && (
-                <div className="fixed inset-0 z-[10000] bg-slate-900">
+                <div className="fixed inset-0 z-[12000] bg-slate-900">
                     <TrackDetailView 
                         track={viewingTrack} userProfile={userProfile} onExit={() => setViewingTrack(null)} 
                         plannedWorkouts={plannedWorkouts} onAddPlannedWorkout={handleAddPlannedWorkout} 
@@ -448,20 +576,61 @@ const App: React.FC = () => {
                 </div>
             )}
 
+            {editingTrack && (
+                <div className="fixed inset-0 z-[12000] bg-slate-900">
+                    <TrackEditor 
+                        initialTracks={[editingTrack]} 
+                        addToast={addToast}
+                        onExit={async (updated) => { 
+                            if (updated) {
+                                const u = tracks.map(t => t.id === updated.id ? updated : t);
+                                setTracks(u);
+                                await saveTracksToDB(u);
+                            }
+                            setEditingTrack(null); 
+                        }} 
+                    />
+                </div>
+            )}
+
             {showDiary && (
-                <div className="fixed inset-0 z-[9000] bg-slate-900">
-                    <DiaryView tracks={tracks} plannedWorkouts={plannedWorkouts} userProfile={userProfile} onClose={() => setShowDiary(false)} onSelectTrack={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)} onAddPlannedWorkout={handleAddPlannedWorkout} onCheckAiAccess={onCheckAiAccess} />
-                    <div className="fixed bottom-0 left-0 w-full z-[11000] bg-slate-900/80 backdrop-blur">
-                        <NavigationDock onOpenSidebar={() => {}} onCloseSidebar={() => {}} onOpenExplorer={() => toggleView('explorer')} onOpenDiary={() => toggleView('diary')} onOpenPerformance={() => toggleView('performance')} onOpenHub={() => toggleView('hub')} onOpenSocial={() => toggleView('social')} onOpenProfile={() => toggleView('profile')} onOpenGuide={() => {}} onExportBackup={() => {}} isSidebarOpen={false} />
+                <div className="fixed inset-0 z-[9000] bg-slate-900 flex flex-col">
+                    <div className="flex-grow overflow-hidden">
+                        <DiaryView 
+                            tracks={tracks} 
+                            plannedWorkouts={plannedWorkouts} 
+                            userProfile={userProfile} 
+                            onClose={() => toggleView('diary')} 
+                            onSelectTrack={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)} 
+                            onAddPlannedWorkout={handleAddPlannedWorkout} 
+                            onUpdatePlannedWorkout={handleUpdatePlannedWorkout}
+                            onDeletePlannedWorkout={handleDeletePlannedWorkout}
+                            onCheckAiAccess={onCheckAiAccess} 
+                        />
+                    </div>
+                    <div className="shrink-0 bg-slate-950 pb-safe">
+                        <NavigationDock 
+                            onOpenSidebar={() => {}} 
+                            onCloseSidebar={() => {}} 
+                            onOpenExplorer={() => toggleView('explorer')} 
+                            onOpenDiary={() => toggleView('diary')} 
+                            onOpenPerformance={() => toggleView('performance')} 
+                            onOpenHub={() => toggleView('hub')} 
+                            onOpenSocial={() => toggleView('social')} 
+                            onOpenProfile={() => toggleView('profile')} 
+                            onOpenGuide={() => {}} 
+                            onExportBackup={() => {}} 
+                            isSidebarOpen={false} 
+                        />
                     </div>
                 </div>
             )}
 
-            {showExplorer && <ExplorerView tracks={tracks} onClose={() => setShowExplorer(false)} onSelectTrack={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)} />}
-            {showPerformance && <PerformanceAnalysisPanel tracks={tracks} userProfile={userProfile} onClose={() => setShowPerformance(false)} />}
-            {showSocial && userId && <SocialHub onClose={() => setShowSocial(false)} currentUserId={userId} />}
+            {showExplorer && <ExplorerView tracks={tracks} onClose={() => toggleView('explorer')} onSelectTrack={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)} />}
+            {showPerformance && <PerformanceAnalysisPanel tracks={tracks} userProfile={userProfile} onClose={() => toggleView('performance')} />}
+            {showSocial && userId && <SocialHub onClose={() => toggleView('social')} currentUserId={userId} />}
             {showChangelog && <Changelog onClose={() => setShowChangelog(false)} />}
-            {showGuide && <GuideModal onClose={() => setShowGuide(false)} />}
+            {showGuide && <GuideModal onClose={() => toggleView('guide')} />}
             {raceResults && <RaceSummary results={raceResults} racerStats={new Map()} onClose={() => setRaceResults(null)} userProfile={userProfile} tracks={tracks} />}
             {showGlobalChat && <div className="fixed inset-0 z-[12000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"><Chatbot onClose={() => setShowGlobalChat(false)} userProfile={userProfile} tracksToAnalyze={tracks} plannedWorkouts={plannedWorkouts} onAddPlannedWorkout={handleAddPlannedWorkout} isStandalone={true} /></div>}
         </div>

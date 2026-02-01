@@ -35,6 +35,15 @@ const metricInfo: Record<string, { label: string, color: string, formatter: (v: 
     power: { label: 'Potenza', color: '#a855f7', unit: 'W', formatter: (v) => `${Math.round(v)}W` },
 };
 
+const getHrZoneLabel = (hr: number, maxHr: number) => {
+    const ratio = hr / maxHr;
+    if (ratio < 0.6) return { name: 'Z1', color: 'bg-blue-500' };
+    if (ratio < 0.7) return { name: 'Z2', color: 'bg-green-500' };
+    if (ratio < 0.8) return { name: 'Z3', color: 'bg-yellow-500' };
+    if (ratio < 0.9) return { name: 'Z4', color: 'bg-orange-500' };
+    return { name: 'Z5', color: 'bg-red-500' };
+};
+
 const TimelineChart: React.FC<TimelineChartProps> = ({ 
     track, onSelectionChange, yAxisMetrics, onChartHover, hoveredPoint, 
     showPauses, pauseSegments, highlightedRange, selectedPoint, smoothingWindow = 15,
@@ -42,7 +51,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({
 }) => {
     const svgRef = useRef<SVGSVGElement>(null);
     const [isDragging, setIsDragging] = useState(false);
-    const [selection, setSelection] = useState<{ start: number; end: number } | null>(null);
+    const [dragRange, setDragRange] = useState<{ start: number; end: number } | null>(null);
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
     useEffect(() => {
@@ -54,7 +63,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({
         return () => obs.disconnect();
     }, []);
 
-    const PADDING = { top: 35, right: 20, bottom: 30, left: 50 };
+    const PADDING = { top: 35, right: 20, bottom: 20, left: 45 };
     const width = Math.max(0, dimensions.width - PADDING.left - PADDING.right);
     const height = Math.max(0, dimensions.height - PADDING.top - PADDING.bottom);
 
@@ -66,7 +75,6 @@ const TimelineChart: React.FC<TimelineChartProps> = ({
         return Math.max(0, Math.min(track.distance, (relativeX / width) * track.distance));
     }, [track.distance, width]);
 
-    // Badge logic: priorities animation over hover
     const activePoint = useMemo(() => {
         if (animationProgress !== undefined && (isAnimating || animationProgress > 0)) {
             return getTrackPointAtDistance(track, animationProgress);
@@ -76,16 +84,13 @@ const TimelineChart: React.FC<TimelineChartProps> = ({
 
     const currentValues = useMemo(() => {
         if (!activePoint) return null;
-        
         const idx = track.points.findIndex(pt => pt.cummulativeDistance >= activePoint.cummulativeDistance);
         const { speed, pace } = calculateSmoothedMetrics(track.points, idx === -1 ? 0 : idx, smoothingWindow);
-        
         return {
             pace, speed, elevation: activePoint.ele, hr: activePoint.hr, power: activePoint.power, dist: activePoint.cummulativeDistance
         };
     }, [activePoint, track, smoothingWindow]);
 
-    // Render logic for paths
     const metricPaths = useMemo(() => {
         return yAxisMetrics.map(metric => {
             const points = track.points.map((p, i) => {
@@ -113,23 +118,65 @@ const TimelineChart: React.FC<TimelineChartProps> = ({
         });
     }, [track, yAxisMetrics, xScale, height, smoothingWindow]);
 
+    // GESTIONE SELEZIONE (Mouse & Touch)
+    const handleStart = (clientX: number) => {
+        const d = getDistAtX(clientX);
+        setDragRange({ start: d, end: d });
+        setIsDragging(true);
+        onSelectionChange(null);
+    };
+
+    const handleMove = (clientX: number) => {
+        const d = getDistAtX(clientX);
+        if (isDragging && dragRange) {
+            setDragRange(prev => ({ ...prev!, end: d }));
+            onSelectionChange({ 
+                startDistance: Math.min(dragRange.start, d), 
+                endDistance: Math.max(dragRange.start, d) 
+            });
+        }
+        onChartHover(getTrackPointAtDistance(track, d));
+    };
+
+    const handleEnd = () => {
+        setIsDragging(false);
+    };
+
+    const handleTouchStart = (e: React.TouchEvent) => {
+        if (e.touches.length === 2) {
+            // Garmin style: due dita definiscono subito il range
+            const d1 = getDistAtX(e.touches[0].clientX);
+            const d2 = getDistAtX(e.touches[1].clientX);
+            const range = { startDistance: Math.min(d1, d2), endDistance: Math.max(d1, d2) };
+            onSelectionChange(range);
+            setDragRange({ start: range.startDistance, end: range.endDistance });
+        } else if (e.touches.length === 1) {
+            handleStart(e.touches[0].clientX);
+        }
+    };
+
     return (
-        <div className="w-full h-full relative select-none bg-slate-900/50 rounded-xl overflow-hidden border border-slate-700/50 shadow-inner">
+        <div className="w-full h-full relative select-none bg-slate-900/50 rounded-xl overflow-hidden border border-slate-700/50 shadow-inner group/chart">
             {currentValues && (
-                <div className="absolute top-2 left-12 right-2 flex flex-wrap gap-2 z-20 pointer-events-none">
+                <div className="absolute top-1 left-12 right-2 flex flex-wrap gap-1 z-20 pointer-events-none">
                     {yAxisMetrics.map(m => {
                         const val = (currentValues as any)[m];
                         if (val === undefined || val === null || val === 0) return null;
+                        const hrZone = m === 'hr' && userProfile?.maxHr ? getHrZoneLabel(val, userProfile.maxHr) : null;
+                        
                         return (
-                            <div key={m} className="flex items-center gap-1.5 px-2 py-1 bg-slate-900/80 backdrop-blur-sm border border-white/10 rounded shadow-xl animate-fade-in ring-1 ring-white/5">
-                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: metricInfo[m].color }}></div>
-                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">{metricInfo[m].label}:</span>
-                                <span className="text-xs font-mono font-bold text-white">{metricInfo[m].formatter(val)}</span>
+                            <div key={m} className="flex items-center gap-1 px-1.5 py-0.5 bg-slate-900/80 backdrop-blur-sm border border-white/10 rounded shadow-lg animate-fade-in ring-1 ring-white/5">
+                                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: metricInfo[m].color }}></div>
+                                <span className="text-[7px] font-black text-slate-400 uppercase tracking-tighter">{metricInfo[m].label}:</span>
+                                <span className="text-[10px] font-mono font-bold text-white">
+                                    {metricInfo[m].formatter(val)}
+                                    {hrZone && <span className={`ml-1 px-1 rounded ${hrZone.color} text-[7px] font-black`}>{hrZone.name}</span>}
+                                </span>
                             </div>
                         );
                     })}
-                    <div className="ml-auto px-2 py-1 bg-cyan-950/40 rounded border border-cyan-500/30">
-                        <span className="text-[10px] font-black text-cyan-200 font-mono">{currentValues.dist.toFixed(2)} km</span>
+                    <div className="ml-auto px-1.5 py-0.5 bg-cyan-950/40 rounded border border-cyan-500/30">
+                        <span className="text-[8px] font-black text-cyan-200 font-mono">{currentValues.dist.toFixed(2)} km</span>
                     </div>
                 </div>
             )}
@@ -137,37 +184,35 @@ const TimelineChart: React.FC<TimelineChartProps> = ({
             <svg
                 ref={svgRef}
                 className="w-full h-full cursor-crosshair touch-none"
-                onMouseMove={(e) => {
-                    const d = getDistAtX(e.clientX);
-                    onChartHover(getTrackPointAtDistance(track, d));
-                }}
-                onMouseLeave={() => onChartHover(null)}
+                onMouseDown={(e) => handleStart(e.clientX)}
+                onMouseMove={(e) => handleMove(e.clientX)}
+                onMouseUp={handleEnd}
+                onMouseLeave={() => { handleEnd(); onChartHover(null); }}
+                onTouchStart={handleTouchStart}
+                onTouchMove={(e) => handleMove(e.touches[0].clientX)}
+                onTouchEnd={handleEnd}
             >
                 <g transform={`translate(${PADDING.left}, ${PADDING.top})`}>
-                    {/* Grid */}
                     {[0, 0.25, 0.5, 0.75, 1].map(r => (
                         <line key={r} x1={0} y1={r * height} x2={width} y2={r * height} stroke="#ffffff" strokeOpacity="0.05" strokeWidth="1" />
                     ))}
 
-                    {/* Selection Overlay */}
-                    {(selection || highlightedRange) && (
+                    {dragRange && (
                         <rect 
-                            x={xScale(highlightedRange ? highlightedRange.startDistance : getDistAtX(Math.min(selection!.start, selection!.end)))}
+                            x={xScale(Math.min(dragRange.start, dragRange.end))}
                             y={0}
-                            width={Math.abs(xScale(highlightedRange ? highlightedRange.endDistance - highlightedRange.startDistance : Math.abs(getDistAtX(selection!.end) - getDistAtX(selection!.start))))}
+                            width={Math.abs(xScale(dragRange.end) - xScale(dragRange.start))}
                             height={height}
-                            fill="rgba(34, 211, 238, 0.1)"
-                            stroke="rgba(34, 211, 238, 0.4)"
+                            fill="rgba(34, 211, 238, 0.15)"
+                            stroke="rgba(34, 211, 238, 0.5)"
                             strokeWidth="1"
                         />
                     )}
 
-                    {/* Paths */}
                     {metricPaths.map(p => (
-                        <path key={p.metric} d={p.pathData} fill="none" stroke={p.color} strokeWidth="2.5" strokeLinejoin="round" className="drop-shadow-lg" />
+                        <path key={p.metric} d={p.pathData} fill="none" stroke={p.color} strokeWidth="2" strokeLinejoin="round" className="drop-shadow-lg opacity-80" />
                     ))}
 
-                    {/* Active Line (Hover or Animation) */}
                     {activePoint && (
                         <line 
                             x1={xScale(activePoint.cummulativeDistance)} 

@@ -122,7 +122,8 @@ export const generateAiRating = async (
             }
         });
         
-        if (response.usageMetadata?.totalTokenCount) window.gpxApp?.addTokens(response.usageMetadata.totalTokenCount);
+        // Fixed: Cast window to any when calling addTokens to resolve TypeScript error
+        if (response.usageMetadata?.totalTokenCount) (window as any).gpxApp?.addTokens(response.usageMetadata.totalTokenCount);
         return JSON.parse(response.text || '{}');
     } catch (e) {
         return null;

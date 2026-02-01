@@ -1,10 +1,11 @@
 
 import React, { useMemo } from 'react';
-import { Track, UserProfile } from '../types';
+import { Track, UserProfile, TrackPoint } from '../types';
 
 interface HeartRateZonePanelProps {
     track: Track;
     userProfile: UserProfile;
+    onZoneSelect?: (points: (TrackPoint & { highlightColor: string })[] | null) => void;
 }
 
 const formatDuration = (ms: number) => {
@@ -13,32 +14,35 @@ const formatDuration = (ms: number) => {
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
     const seconds = totalSeconds % 60;
-    const result = `${hours > 0 ? hours + ':' : ''}${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    return result;
+    return `${hours > 0 ? hours + ':' : ''}${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 };
 
-
-interface ZoneInfo {
+// Fix: Exporting ZoneInfo interface for use in other components
+export interface ZoneInfo {
     name: string;
+    threshold: number;
+    color: string;
     range: string;
     duration: number;
     percent: number;
-    color: string;
+    min: number;
 }
 
+// Fix: Extracting heart rate zone calculation logic to be shared with other components (like Coach AI)
+// This resolves the error in GeminiTrackAnalysisPanel.tsx where this function was imported but not exported.
 export const getHeartRateZoneInfo = (track: Track, userProfile: UserProfile): { zones: ZoneInfo[], maxHrUsed: number } => {
     const maxHrFromTrack = Math.max(...track.points.map(p => p.hr || 0));
     const maxHrFromProfile = userProfile.maxHr || (userProfile.age ? 220 - userProfile.age : null);
     const maxHrUsed = maxHrFromProfile || maxHrFromTrack;
 
-    if (maxHrUsed === 0) return { zones: [], maxHrUsed: 0 };
+    if (!maxHrUsed || maxHrUsed === 0) return { zones: [], maxHrUsed: 0 };
 
-    const zones = [
-        { name: 'Z1 Molto leggero', threshold: 0.6, color: '#3b82f6' },
-        { name: 'Z2 Leggero', threshold: 0.7, color: '#22c55e' },
-        { name: 'Z3 Moderato', threshold: 0.8, color: '#eab308' },
-        { name: 'Z4 Difficile', threshold: 0.9, color: '#f97316' },
-        { name: 'Z5 Massimo', threshold: 1.0, color: '#ef4444' },
+    const zonesDef = [
+        { name: 'Z1 Molto leggero', threshold: 0.6, color: '#3b82f6', min: 0 },
+        { name: 'Z2 Leggero', threshold: 0.7, color: '#22c55e', min: 0.6 },
+        { name: 'Z3 Moderato', threshold: 0.8, color: '#eab308', min: 0.7 },
+        { name: 'Z4 Difficile', threshold: 0.9, color: '#f97316', min: 0.8 },
+        { name: 'Z5 Massimo', threshold: 1.0, color: '#ef4444', min: 0.9 },
     ];
 
     const zoneDurations = Array(5).fill(0);
@@ -53,65 +57,83 @@ export const getHeartRateZoneInfo = (track: Track, userProfile: UserProfile): { 
             const duration = p2.time.getTime() - p1.time.getTime();
             totalHrDuration += duration;
 
-            if (ratio < zones[0].threshold) zoneDurations[0] += duration;
-            else if (ratio < zones[1].threshold) zoneDurations[1] += duration;
-            else if (ratio < zones[2].threshold) zoneDurations[2] += duration;
-            else if (ratio < zones[3].threshold) zoneDurations[3] += duration;
+            if (ratio < zonesDef[0].threshold) zoneDurations[0] += duration;
+            else if (ratio < zonesDef[1].threshold) zoneDurations[1] += duration;
+            else if (ratio < zonesDef[2].threshold) zoneDurations[2] += duration;
+            else if (ratio < zonesDef[3].threshold) zoneDurations[3] += duration;
             else zoneDurations[4] += duration;
         }
     }
 
-    let lastThreshold = 0;
-    const zoneDetails: ZoneInfo[] = zones.map((zone, i) => {
-        const lowerBound = Math.round(lastThreshold * maxHrUsed);
-        const upperBound = Math.round(zone.threshold * maxHrUsed);
-        lastThreshold = zone.threshold;
-        return {
-            ...zone,
-            range: `${lowerBound}-${upperBound} bpm`,
-            duration: zoneDurations[i],
-            percent: totalHrDuration > 0 ? (zoneDurations[i] / totalHrDuration) * 100 : 0,
-        };
-    });
+    const details = zonesDef.map((z, i) => ({
+        ...z,
+        range: `${Math.round(z.min * maxHrUsed)}-${Math.round(z.threshold * maxHrUsed)} bpm`,
+        duration: zoneDurations[i],
+        percent: totalHrDuration > 0 ? (zoneDurations[i] / totalHrDuration) * 100 : 0,
+    }));
     
-    return { zones: zoneDetails, maxHrUsed };
+    return { zones: details, maxHrUsed };
 };
 
-
-const HeartRateZonePanel: React.FC<HeartRateZonePanelProps> = ({ track, userProfile }) => {
+const HeartRateZonePanel: React.FC<HeartRateZonePanelProps> = ({ track, userProfile, onZoneSelect }) => {
+    // Fix: Refactored component to use the newly exported getHeartRateZoneInfo function
     const { zones, maxHrUsed } = useMemo(() => getHeartRateZoneInfo(track, userProfile), [track, userProfile]);
 
-    if (zones.length === 0) {
-        return null; // Don't render if no HR data or max HR can be determined
-    }
+    const handleZoneClick = (zone: any) => {
+        if (!onZoneSelect) return;
+        
+        // Trova tutti i tratti di punti che appartengono a questa zona
+        const pointsInZone: (TrackPoint & { highlightColor: string })[] = [];
+        for (let i = 1; i < track.points.length; i++) {
+            const p = track.points[i];
+            const ratio = (p.hr || 0) / maxHrUsed;
+            
+            // Verifica se il punto è nella zona selezionata
+            const isInZone = i > 0 && ratio >= zone.min && ratio < zone.threshold;
+            if (isInZone) {
+                pointsInZone.push({ ...p, highlightColor: zone.color });
+            }
+        }
+        
+        if (pointsInZone.length === 0) {
+            onZoneSelect(null);
+        } else {
+            onZoneSelect(pointsInZone);
+        }
+    };
+
+    if (zones.length === 0) return null;
 
     return (
-        <div className="mt-6">
-            <h3 className="text-lg font-semibold text-slate-200 mb-2 border-t border-slate-700 pt-4">Zone di Frequenza Cardiaca</h3>
-            <p className="text-xs text-slate-500 mb-3">Calcolato utilizzando una FC massima di {maxHrUsed} bpm.</p>
-            <div className="space-y-2">
-                {zones.map(zone => (
-                    <div key={zone.name} className="grid grid-cols-10 gap-x-3 items-center text-sm">
-                        <div className="col-span-3">
-                            <p className="text-slate-300 truncate font-semibold">{zone.name}</p>
-                            <p className="text-xs text-slate-400">{zone.range}</p>
-                        </div>
-                        <div className="col-span-5">
-                             <div className="w-full bg-slate-700 rounded-full h-4">
-                                <div 
-                                    className="h-4 rounded-full" 
-                                    style={{ width: `${zone.percent}%`, backgroundColor: zone.color }}
-                                    title={`${zone.percent.toFixed(1)}%`}
-                                ></div>
-                            </div>
-                        </div>
-                        <div className="col-span-2 text-right">
-                             <p className="font-mono text-slate-200">{formatDuration(zone.duration)}</p>
-                             <p className="text-xs text-slate-400">{zone.percent.toFixed(1)}%</p>
+        <div className="space-y-2">
+            <p className="text-[9px] text-slate-500 mb-2 italic">Calcolato su max {maxHrUsed} bpm. Tocca una zona per vederla in mappa.</p>
+            {zones.map(zone => (
+                <div 
+                    key={zone.name} 
+                    onClick={() => handleZoneClick(zone)}
+                    className="grid grid-cols-12 gap-x-2 items-center text-[10px] cursor-pointer group hover:bg-slate-800/50 p-1 rounded transition-colors"
+                >
+                    <div className="col-span-4">
+                        <p className="text-slate-300 truncate font-bold group-hover:text-white">{zone.name}</p>
+                        <p className="text-[8px] text-slate-500 font-mono">{zone.range}</p>
+                    </div>
+                    <div className="col-span-5">
+                         <div className="w-full bg-slate-800 rounded-full h-2 shadow-inner">
+                            <div className="h-2 rounded-full transition-all duration-700" style={{ width: `${zone.percent}%`, backgroundColor: zone.color }}></div>
                         </div>
                     </div>
-                ))}
-            </div>
+                    <div className="col-span-3 text-right">
+                         <p className="font-mono text-slate-200 font-bold">{formatDuration(zone.duration)}</p>
+                         <p className="text-[8px] text-slate-500 font-black">{zone.percent.toFixed(1)}%</p>
+                    </div>
+                </div>
+            ))}
+            <button 
+                onClick={() => onZoneSelect?.(null)}
+                className="w-full mt-2 text-[8px] font-black text-slate-600 uppercase hover:text-slate-400 py-1"
+            >
+                Reset Highlight Mappa
+            </button>
         </div>
     );
 };

@@ -1,7 +1,12 @@
 
-export type ActivityType = 'Lento' | 'Fartlek' | 'Ripetute' | 'Gara' | 'Lungo' | 'Altro' | 'Nota';
+
+export type ActivityType = 'Lento' | 'Fartlek' | 'Ripetute' | 'Gara' | 'Lungo' | 'Altro' | 'Nota' | 'Impegno' | 'Recupero';
+
+export type DiaryEntryType = 'workout' | 'note' | 'commitment';
 
 export type AiPersonality = 'pro_balanced' | 'analytic' | 'strict';
+
+export type CalendarPreference = 'google' | 'apple';
 
 export interface TrackPoint {
   lat: number;
@@ -12,6 +17,13 @@ export interface TrackPoint {
   hr?: number; 
   cad?: number; 
   power?: number; 
+}
+
+// Added PauseSegment interface used in TrackStats
+export interface PauseSegment {
+  startPoint: TrackPoint;
+  endPoint: TrackPoint;
+  duration: number; // in seconds
 }
 
 export interface Track {
@@ -53,125 +65,10 @@ export interface PlannedWorkout {
     activityType: ActivityType;
     isAiSuggested: boolean;
     completedTrackId?: string; 
-}
-
-export interface RaceRunner {
-  trackId: string;
-  name: string; 
-  position: TrackPoint;
-  color: string;
-  pace: number; 
-}
-
-export interface PauseSegment {
-    startPoint: TrackPoint;
-    endPoint: TrackPoint;
-    duration: number; 
-}
-
-export interface MapDisplayProps {
-  tracks: Track[];
-  visibleTrackIds: Set<string>;
-  selectedTrackIds?: Set<string>;
-  raceRunners: RaceRunner[] | null;
-  hoveredTrackId: string | null;
-  runnerSpeeds: Map<string, number>;
-  selectionPoints?: TrackPoint[] | null;
-  hoveredPoint?: TrackPoint | null;
-  hoveredData?: Record<string, string> | null;
-  pauseSegments?: PauseSegment[];
-  showPauses?: boolean;
-  onMapHover?: (point: TrackPoint | null) => void;
-  onTrackHover?: (trackId: string | null) => void;
-  onPauseClick?: (segment: PauseSegment) => void;
-  mapGradientMetric?: 'none' | 'elevation' | 'pace' | 'speed' | 'hr' | 'hr_zones' | 'power';
-  coloredPauseSegments?: PauseSegment[];
-  selectedPoint?: TrackPoint | null;
-  onPointClick?: (point: TrackPoint | null) => void;
-  hoveredLegendValue?: number | null;
-  onTrackClick?: (trackId: string, isMultiSelect?: boolean) => void;
-  animationTrack?: Track | null;
-  animationProgress?: number;
-  animationPace?: number;
-  onExitAnimation?: () => void;
-  fastestSplitForAnimation?: Split | null;
-  animationHighlight?: Split | null;
-  animationKmHighlight?: Split | null;
-  isAnimationPlaying?: boolean;
-  onToggleAnimationPlay?: () => void;
-  onAnimationProgressChange?: (progress: number) => void;
-  animationTrackStats?: TrackStats | null;
-  animationSpeed?: number;
-  onAnimationSpeedChange?: (speed: number) => void;
-  fitBoundsCounter?: number;
-  aiSegmentHighlight?: AiSegment | null;
-  showSummaryMode?: boolean;
-  theme?: 'dark' | 'light';
-}
-
-export interface Split {
-    splitNumber: number;
-    distance: number;
-    duration: number;
-    pace: number;
-    elevationGain: number;
-    elevationLoss: number;
-    avgHr: number | null;
-    avgWatts: number | null;
-    isFastest: boolean;
-    isSlowest: boolean;
-}
-
-export interface TrackStats {
-    totalDistance: number;
-    totalDuration: number;
-    movingDuration: number;
-    elevationGain: number;
-    elevationLoss: number;
-    avgPace: number;
-    movingAvgPace: number;
-    maxSpeed: number;
-    avgSpeed: number;
-    avgHr: number | null;
-    maxHr: number | null;
-    minHr: number | null;
-    avgWatts: number | null;
-    splits: Split[];
-    pauses: PauseSegment[];
-}
-
-export interface ChatMessage {
-  role: 'user' | 'model';
-  text: string;
-  suggestedWorkout?: Omit<PlannedWorkout, 'id'>;
-  suggestedWorkouts?: Omit<PlannedWorkout, 'id'>[]; 
-  suggestedReplies?: string[]; 
-  timestamp?: number; 
-}
-
-export interface AiSegment {
-  type: 'ai';
-  title: string;
-  description: string;
-  startDistance: number;
-  endDistance: number;
-  distance: number;
-  duration: number;
-  pace: number;
-  elevationGain: number;
-}
-
-export type RunningGoal = 'none' | '5k' | '10k' | 'half_marathon' | 'marathon' | 'speed' | 'endurance' | 'weight_loss';
-
-export interface WeightEntry {
-  date: string;
-  weight: number;
-}
-
-export interface ApiUsage {
-    requests: number;
-    tokens: number;
-    lastReset: string;
+    entryType?: DiaryEntryType; // 'workout', 'note', 'commitment'
+    startTime?: string; // HH:mm
+    endTime?: string; // HH:mm
+    isGoogleSynced?: boolean;
 }
 
 export interface UserProfile {
@@ -181,7 +78,6 @@ export interface UserProfile {
   age?: number;
   weight?: number;
   height?: number; 
-  weightHistory?: WeightEntry[];
   gender?: 'M' | 'F' | 'Altro';
   maxHr?: number;
   restingHr?: number;
@@ -189,13 +85,16 @@ export interface UserProfile {
   aiPersonality?: AiPersonality;
   personalNotes?: string; 
   shoes?: string[]; 
-  theme?: 'dark' | 'light';
-  isOnline?: boolean;
-  last_seen_at?: string;
-  // Cost control settings
   autoAnalyzeEnabled?: boolean;
+  googleCalendarSyncEnabled?: boolean;
+  calendarPreference?: CalendarPreference; // 'google' | 'apple'
+  weightHistory?: {date: string, weight: number}[];
   powerSaveMode?: boolean;
+  /* Added isOnline to fix type errors in SocialHub and MiniChat */
+  isOnline?: boolean;
 }
+
+export type RunningGoal = 'none' | '5k' | '10k' | 'half_marathon' | 'marathon' | 'speed' | 'endurance' | 'weight_loss';
 
 export interface Toast {
   id: number;
@@ -203,9 +102,10 @@ export interface Toast {
   type: 'success' | 'error' | 'info';
 }
 
-export interface ApiUsageStats {
-  rpm: number;
-  daily: number;
+export interface ApiUsage {
+    requests: number;
+    tokens: number;
+    lastReset: string;
 }
 
 export interface RaceResult {
@@ -216,17 +116,55 @@ export interface RaceResult {
   rank: number;
 }
 
-export interface Commentary {
-  id: string;
-  text: string;
-  timestamp: number;
+// Added missing types to fix module export errors
+export interface Split {
+  splitNumber: number;
+  distance: number;
+  duration: number;
+  pace: number;
+  elevationGain: number;
+  elevationLoss: number;
+  avgHr: number | null;
+  avgWatts: number | null;
+  isFastest?: boolean;
+  isSlowest?: boolean;
 }
 
-export interface Weather {
-  temperature: number;
-  windSpeed: number;
-  humidity: number;
-  condition: string;
+export interface TrackStats {
+  totalDistance: number;
+  totalDuration: number;
+  movingDuration: number;
+  elevationGain: number;
+  elevationLoss: number;
+  avgPace: number;
+  movingAvgPace: number;
+  maxSpeed: number;
+  avgSpeed: number;
+  avgHr: number | null;
+  maxHr: number | null;
+  minHr: number | null;
+  avgWatts: number | null;
+  splits: Split[];
+  pauses: PauseSegment[];
+}
+
+export interface AiSegment extends Partial<TrackStats> {
+  type: 'ai';
+  title: string;
+  description: string;
+  startDistance: number;
+  endDistance: number;
+  distance: number;
+  duration: number;
+  elevationGain: number;
+  pace: number;
+}
+
+export interface ApiUsageStats extends ApiUsage {}
+
+export interface Commentary {
+  text: string;
+  timestamp: number;
 }
 
 export interface PersonalRecord {
@@ -237,9 +175,21 @@ export interface PersonalRecord {
   date: string;
 }
 
+export interface WeightEntry {
+  date: string;
+  weight: number;
+}
+
+export interface ChatMessage {
+  role: 'user' | 'model';
+  text: string;
+  timestamp: number;
+  suggestedReplies?: string[];
+}
+
 export interface FriendRequest {
   id: string;
-  status: 'pending' | 'accepted';
+  status: 'pending' | 'accepted' | 'rejected';
   createdAt: string;
   requester: UserProfile;
 }
@@ -252,17 +202,65 @@ export interface DirectMessage {
   createdAt: string;
 }
 
-export interface AIStudio {
-  hasSelectedApiKey: () => Promise<boolean>;
-  openSelectKey: () => Promise<void>;
+export interface Weather {
+  temperature: number;
+  windSpeed: number;
+  humidity: number;
+  condition: string;
 }
 
+// Added RaceRunner interface for race simulations
+export interface RaceRunner {
+  trackId: string;
+  name: string;
+  position: TrackPoint;
+  color: string;
+  pace: number;
+}
+
+// Added MapDisplayProps interface for the map component
+export interface MapDisplayProps {
+    tracks: Track[];
+    visibleTrackIds: Set<string>;
+    selectedTrackIds?: Set<string>;
+    raceRunners: RaceRunner[] | null;
+    hoveredTrackId: string | null;
+    runnerSpeeds: Map<string, number>;
+    hoveredPoint?: TrackPoint | null;
+    mapGradientMetric?: string;
+    animationTrack?: Track | null;
+    animationProgress?: number;
+    isAnimationPlaying?: boolean;
+    fitBoundsCounter?: number;
+    selectionPoints?: TrackPoint[] | null;
+    pauseSegments?: PauseSegment[];
+    showPauses?: boolean;
+    onMapHover?: (point: TrackPoint | null) => void;
+    onPauseClick?: (segment: PauseSegment) => void;
+    coloredPauseSegments?: PauseSegment[];
+    onExitAnimation?: () => void;
+    fastestSplitForAnimation?: any;
+    animationHighlight?: any;
+    selectedPoint?: TrackPoint | null;
+    onPointClick?: (point: TrackPoint | null) => void;
+    hoveredLegendValue?: number | null;
+}
+
+// Global declaration to handle gpxApp and aistudio window properties
 declare global {
+  /* Fix: Moved AIStudio inside global to resolve type identity mismatch errors and made window.aistudio optional */
+  interface AIStudio {
+    hasSelectedApiKey: () => Promise<boolean>;
+    openSelectKey: () => Promise<void>;
+  }
+
   interface Window {
     gpxApp?: {
       addTokens: (count: number) => void;
       trackApiRequest: () => void;
       getUsage: () => ApiUsage;
     };
+    /* Fix: ensure identical modifiers (optional) and same type identity as existing global declarations */
+    aistudio?: AIStudio;
   }
 }

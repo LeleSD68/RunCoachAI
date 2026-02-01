@@ -1,4 +1,6 @@
 
+
+
 import React, { useState, useCallback } from 'react';
 import { Type } from '@google/genai';
 import { Track, TrackStats, AiSegment, UserProfile } from '../types';
@@ -84,13 +86,18 @@ Punti campionati (distanza, quota, fc): ${JSON.stringify(sampledPoints)}
             };
             
             const response = await retryWithPolicy(call);
-            if (response.usageMetadata?.totalTokenCount) window.gpxApp?.addTokens(response.usageMetadata.totalTokenCount);
+            // Fixed: Cast window to any when calling addTokens to resolve TypeScript error
+            if (response.usageMetadata?.totalTokenCount) (window as any).gpxApp?.addTokens(response.usageMetadata.totalTokenCount);
             
             const jsonStr = (response.text || '').trim();
             const rawSegments = JSON.parse(jsonStr);
 
             const processedSegments: AiSegment[] = rawSegments.map((s: any) => {
                 const segmentStats = calculateSegmentStats(track, s.startDistance, s.endDistance);
+                /**
+                 * Fix: Added explicit type cast to AiSegment. The updated interface now includes 
+                 * properties from segmentStats (distance, duration, etc.) used in the component.
+                 */
                 return {
                     type: 'ai',
                     title: s.title,
@@ -98,7 +105,7 @@ Punti campionati (distanza, quota, fc): ${JSON.stringify(sampledPoints)}
                     startDistance: s.startDistance,
                     endDistance: s.endDistance,
                     ...segmentStats
-                };
+                } as AiSegment;
             }).filter((s: AiSegment) => s.distance > 0);
 
             setSegments(processedSegments);
