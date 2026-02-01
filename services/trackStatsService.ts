@@ -1,4 +1,5 @@
 
+
 import { Track, TrackPoint, PauseSegment, TrackStats, Split, UserProfile } from '../types';
 import { findPauses } from './trackEditorUtils';
 import { calculateElevationStats, smoothTrackPoints, calculateSmoothedMetrics } from './dataProcessingService';
@@ -77,7 +78,7 @@ export const calculateTrackStats = (track: Track, smoothingWindow: number = 0): 
         return {
             totalDistance: 0, totalDuration: 0, movingDuration: 0,
             elevationGain: 0, elevationLoss: 0, avgPace: 0, movingAvgPace: 0,
-            maxSpeed: 0, avgSpeed: 0, avgHr: null, maxHr: null, minHr: null, avgWatts: null, splits: [], pauses: []
+            maxSpeed: 0, avgSpeed: 0, avgHr: null, maxHr: null, minHr: null, avgWatts: null, avgCadence: null, splits: [], pauses: []
         };
     }
     
@@ -97,6 +98,7 @@ export const calculateTrackStats = (track: Track, smoothingWindow: number = 0): 
     let maxSpeed = 0;
     const heartRates: number[] = [];
     const watts: number[] = [];
+    const cadences: number[] = [];
 
     // 4. Velocità massima ricalcolata con smoothing
     for (let i = 1; i < pointsToProcess.length; i++) {
@@ -106,6 +108,7 @@ export const calculateTrackStats = (track: Track, smoothingWindow: number = 0): 
         }
         if (pointsToProcess[i].hr) heartRates.push(pointsToProcess[i].hr!);
         if (pointsToProcess[i].power) watts.push(pointsToProcess[i].power!);
+        if (pointsToProcess[i].cad) cadences.push(pointsToProcess[i].cad!);
     }
 
     const avgPace = track.distance > 0 ? (track.duration / 1000 / 60) / track.distance : 0;
@@ -117,6 +120,9 @@ export const calculateTrackStats = (track: Track, smoothingWindow: number = 0): 
     
     const validWatts = watts.filter(w => w > 0);
     const avgWatts = validWatts.length > 0 ? Math.round(validWatts.reduce((a, b) => a + b, 0) / validWatts.length) : null;
+
+    const validCadences = cadences.filter(c => c > 0);
+    const avgCadence = validCadences.length > 0 ? Math.round(validCadences.reduce((a, b) => a + b, 0) / validCadences.length) : null;
 
     const splits = calculateSplits(pointsToProcess, track.distance, smoothingWindow);
 
@@ -134,6 +140,7 @@ export const calculateTrackStats = (track: Track, smoothingWindow: number = 0): 
         maxHr: validHeartRates.length > 0 ? Math.max(...validHeartRates) : null,
         minHr: validHeartRates.length > 0 ? Math.min(...validHeartRates) : null,
         avgWatts,
+        avgCadence,
         splits,
         pauses,
     };
