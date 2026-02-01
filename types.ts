@@ -86,6 +86,7 @@ export interface UserProfile {
   autoAnalyzeEnabled?: boolean;
   googleCalendarSyncEnabled?: boolean;
   calendarPreference?: CalendarPreference;
+  stravaAutoSync?: boolean;
   weightHistory?: {date: string, weight: number}[];
   powerSaveMode?: boolean;
   isOnline?: boolean;
