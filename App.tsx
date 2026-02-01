@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Track, UserProfile, PlannedWorkout, Toast, ActivityType, RaceRunner, RaceResult, TrackStats, Commentary, TrackPoint, ApiUsage } from './types';
 import Sidebar from './components/Sidebar';
@@ -45,8 +46,8 @@ import { generateSmartTitle } from './services/titleGenerator';
 import { isDuplicateTrack, markStravaTrackAsDeleted, isPreviouslyDeletedStravaTrack, getTrackFingerprint } from './services/trackUtils';
 import { getFriendsActivityFeed } from './services/socialService';
 
-// Changed key to reset layout preferences for the new vertical order
-const LAYOUT_PREFS_KEY = 'runcoach_layout_prefs_v3';
+// Changed key to reset layout preferences for the fix
+const LAYOUT_PREFS_KEY = 'runcoach_layout_prefs_v4';
 
 const App: React.FC = () => {
     const [tracks, setTracks] = useState<Track[]>([]);
@@ -323,8 +324,6 @@ const App: React.FC = () => {
             pace: 0
         })));
         setShowRaceSetup(false);
-        // NOTE: We don't force setIsSidebarOpen(false) here anymore because the render logic
-        // now handles the full-screen switch based on raceState.
     };
 
     useEffect(() => {
@@ -683,7 +682,7 @@ const App: React.FC = () => {
                     ) : (
                         // STANDARD LAYOUT (RESIZABLE)
                         <ResizablePanel
-                            direction={isDesktop ? 'horizontal' : 'vertical'}
+                            direction={isDesktop ? 'vertical' : 'horizontal'}
                             initialSize={isDesktop ? layoutPrefs.desktopSidebar : undefined}
                             initialSizeRatio={isDesktop ? undefined : layoutPrefs.mobileListRatio}
                             minSize={250} 
