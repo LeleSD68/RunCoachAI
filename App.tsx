@@ -46,8 +46,8 @@ import { generateSmartTitle } from './services/titleGenerator';
 import { isDuplicateTrack, markStravaTrackAsDeleted, isPreviouslyDeletedStravaTrack, getTrackFingerprint } from './services/trackUtils';
 import { getFriendsActivityFeed } from './services/socialService';
 
-// Changed key to reset layout preferences for the fix
-const LAYOUT_PREFS_KEY = 'runcoach_layout_prefs_v4';
+// Changed key to reset layout preferences for the fix v5
+const LAYOUT_PREFS_KEY = 'runcoach_layout_prefs_v5';
 
 const App: React.FC = () => {
     const [tracks, setTracks] = useState<Track[]>([]);
@@ -103,6 +103,8 @@ const App: React.FC = () => {
 
     const mapVisibleIds = useMemo(() => {
         if (raceSelectionIds.size === 0) {
+            // Filter out ghosts from default view if needed, but usually we want to see them if they exist in state
+            // However, ghosts are usually temporary.
             return new Set(tracks.filter(t => !t.isArchived).map(t => t.id));
         }
         return raceSelectionIds;
@@ -269,8 +271,37 @@ const App: React.FC = () => {
             }
 
             setTracks(uniqueTracks);
+            
+            // WORKOUT DEDUPLICATION
             const loadedWorkouts = await loadPlannedWorkoutsFromDB(forceLocal);
-            setPlannedWorkouts(loadedWorkouts);
+            const uniqueWorkouts: PlannedWorkout[] = [];
+            const seenWorkoutKeys = new Set<string>();
+            let workoutDuplicates = 0;
+            const duplicateIdsToDelete: string[] = [];
+
+            loadedWorkouts.forEach(w => {
+                // Key composite: Date + Title + Type
+                const d = new Date(w.date);
+                const dateStr = d.toDateString();
+                const key = `${dateStr}|${w.title.trim().toLowerCase()}|${w.activityType}`;
+                
+                if (seenWorkoutKeys.has(key)) {
+                    workoutDuplicates++;
+                    duplicateIdsToDelete.push(w.id);
+                } else {
+                    seenWorkoutKeys.add(key);
+                    uniqueWorkouts.push(w);
+                }
+            });
+
+            if (workoutDuplicates > 0) {
+                await savePlannedWorkoutsToDB(uniqueWorkouts);
+                // Clean cloud duplicates in background
+                duplicateIdsToDelete.forEach(id => deletePlannedWorkoutFromCloud(id));
+                addToast(`Rimossi ${workoutDuplicates} allenamenti doppi.`, "info");
+            }
+
+            setPlannedWorkouts(uniqueWorkouts);
         } catch (e) {
             addToast("Dati caricati localmente.", "info");
         }
@@ -410,24 +441,26 @@ const App: React.FC = () => {
             ...friendTrack,
             id: `ghost-${Date.now()}-${friendTrack.id}`, 
             name: `Ghost: ${friendTrack.userDisplayName || 'Amico'}`,
-            isExternal: true,
+            isExternal: true, // IMPORTANT: Marked as external so it won't be saved to DB/Sidebar
             color: '#a855f7',
         };
 
+        // We add to state so it renders on map/race setup, BUT we do NOT call saveTracksToDB.
+        // It will be ephemeral.
         setTracks(prev => [ghostTrack, ...prev]);
         setRaceSelectionIds(prev => {
             const next = new Set(prev);
             next.add(ghostTrack.id);
             return next;
         });
-        addToast(`Aggiunto ${ghostTrack.name} alla gara!`, "success");
+        addToast(`Aggiunto ${ghostTrack.name} alla griglia di partenza!`, "success");
     };
 
     const handleChallengeGhost = (friendTrack: Track) => {
         handleAddGhost(friendTrack);
         setShowSocial(false);
-        setIsSidebarOpen(true);
-        setFitBoundsCounter(c => c + 1);
+        // Don't auto open sidebar, just let user go to race setup
+        openRaceSetup();
     };
 
     const handleBulkDelete = async () => {
@@ -682,7 +715,7 @@ const App: React.FC = () => {
                     ) : (
                         // STANDARD LAYOUT (RESIZABLE)
                         <ResizablePanel
-                            direction={isDesktop ? 'vertical' : 'horizontal'}
+                            direction={isDesktop ? 'horizontal' : 'vertical'}
                             initialSize={isDesktop ? layoutPrefs.desktopSidebar : undefined}
                             initialSizeRatio={isDesktop ? undefined : layoutPrefs.mobileListRatio}
                             minSize={250} 
@@ -697,7 +730,8 @@ const App: React.FC = () => {
                                         <>
                                             <div className="flex-grow overflow-hidden">
                                                 <Sidebar 
-                                                    tracks={tracks} visibleTrackIds={mapVisibleIds} 
+                                                    tracks={tracks.filter(t => !t.isExternal)} 
+                                                    visibleTrackIds={mapVisibleIds} 
                                                     onFocusTrack={setFocusedTrackId} focusedTrackId={focusedTrackId}
                                                     raceSelectionIds={raceSelectionIds} 
                                                     onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
@@ -733,7 +767,8 @@ const App: React.FC = () => {
                                 // MOBILE: TOP PANEL IS LIST
                                 <div className="flex-grow overflow-hidden bg-slate-900 border-b border-slate-800">
                                      <Sidebar 
-                                        tracks={tracks} visibleTrackIds={mapVisibleIds} focusedTrackId={focusedTrackId} raceSelectionIds={raceSelectionIds}
+                                        tracks={tracks.filter(t => !t.isExternal)} 
+                                        visibleTrackIds={mapVisibleIds} focusedTrackId={focusedTrackId} raceSelectionIds={raceSelectionIds}
                                         onFocusTrack={setFocusedTrackId} onDeselectAll={() => setRaceSelectionIds(new Set())}
                                         onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
                                         onStartRace={openRaceSetup}
