@@ -7,6 +7,15 @@ interface ChangelogProps {
 
 const changelogData = [
     {
+        version: 'v1.40',
+        date: '2026-01-29',
+        changes: [
+            '🗺️ **Mappa Pulita**: Le tracce "Ghost" (sfidanti esterni) ora sono visibili sulla mappa SOLO durante la configurazione o l\'esecuzione di una gara. Nella vista normale, vedrai solo le tue corse.',
+            '👻 **Gestione Migliorata**: I file GPX caricati come avversari non intasano più la visualizzazione predefinita.',
+            '🧹 **Bugfix**: Corretta la persistenza visiva delle tracce temporanee dopo aver deselezionato tutto.'
+        ]
+    },
+    {
         version: 'v1.39',
         date: '2026-01-29',
         changes: [
