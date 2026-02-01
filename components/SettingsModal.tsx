@@ -1,7 +1,9 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { UserProfile } from '../types';
 import { isStravaConnected } from '../services/stravaService';
+import { cleanUpRemoteDuplicates } from '../services/dbService';
+import { supabase } from '../services/supabaseClient';
 
 interface SettingsModalProps {
     onClose: () => void;
@@ -11,6 +13,26 @@ interface SettingsModalProps {
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, userProfile, onUpdateProfile }) => {
     const stravaConnected = isStravaConnected();
+    const [isCleaning, setIsCleaning] = useState(false);
+    const [cleanupResult, setCleanupResult] = useState<string | null>(null);
+
+    const handleCleanup = async () => {
+        setIsCleaning(true);
+        setCleanupResult(null);
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.user?.id) {
+                const count = await cleanUpRemoteDuplicates(session.user.id);
+                setCleanupResult(`Rimossi ${count} duplicati dal Cloud.`);
+            } else {
+                setCleanupResult("Devi essere loggato per pulire il cloud.");
+            }
+        } catch (e) {
+            setCleanupResult("Errore durante la pulizia.");
+        } finally {
+            setIsCleaning(false);
+        }
+    };
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[9000] p-4 animate-fade-in" onClick={onClose}>
@@ -65,6 +87,24 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, userProfile, onU
                                 />
                                 <div className="w-11 h-6 bg-slate-950 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#fc4c02]"></div>
                             </label>
+                        </div>
+                    </section>
+
+                    {/* MAINTENANCE */}
+                    <section className="space-y-3">
+                        <h3 className="text-xs font-black text-red-400 uppercase tracking-widest border-b border-red-900/30 pb-2">Manutenzione Database</h3>
+                        <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-3">
+                            <p className="text-[10px] text-slate-400">Se l'avvio è lento, prova a rimuovere le copie multiple delle stesse attività dal database remoto.</p>
+                            <button 
+                                onClick={handleCleanup}
+                                disabled={isCleaning}
+                                className="w-full py-3 bg-red-900/20 hover:bg-red-900/40 text-red-400 border border-red-900/50 rounded-lg text-xs font-black uppercase tracking-widest transition-all"
+                            >
+                                {isCleaning ? 'Pulizia in corso...' : '🗑️ Pulisci Duplicati Cloud'}
+                            </button>
+                            {cleanupResult && (
+                                <p className="text-center text-xs font-bold text-green-400 animate-pulse">{cleanupResult}</p>
+                            )}
                         </div>
                     </section>
 
