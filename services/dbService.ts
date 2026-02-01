@@ -360,3 +360,40 @@ export const exportAllData = async (): Promise<any> => {
 };
 
 export const syncAllChatsToCloud = async () => {};
+
+export const cleanUpRemoteDuplicates = async (userId: string): Promise<number> => {
+    if (!isSupabaseConfigured() || !userId) return 0;
+
+    // Fetch light metadata ONLY (not full points)
+    const { data, error } = await supabase
+        .from('tracks')
+        .select('id, start_time, distance_km, duration_ms')
+        .eq('user_id', userId);
+
+    if (error || !data) throw new Error("Failed to fetch tracks for cleanup");
+
+    const fingerprints = new Set<string>();
+    const idsToDelete: string[] = [];
+
+    data.forEach((t: any) => {
+        // Fingerprint: Time + Distance (rounded) + Duration (rounded)
+        const time = new Date(t.start_time).getTime();
+        const dist = Math.round(Number(t.distance_km) * 1000); // meters
+        const dur = Math.round(Number(t.duration_ms) / 1000); // seconds
+        
+        const fp = `${time}_${dist}_${dur}`;
+        
+        if (fingerprints.has(fp)) {
+            idsToDelete.push(t.id);
+        } else {
+            fingerprints.add(fp);
+        }
+    });
+
+    if (idsToDelete.length > 0) {
+        const { error: delError } = await supabase.from('tracks').delete().in('id', idsToDelete);
+        if (delError) throw delError;
+    }
+
+    return idsToDelete.length;
+};
