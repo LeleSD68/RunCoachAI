@@ -446,6 +446,40 @@ const App: React.FC = () => {
         setIsDataLoading(false);
     };
 
+    const handleStravaImportFinished = async (newTracksFromStrava: Track[]) => {
+        if (newTracksFromStrava.length === 0) {
+            addToast("Nessuna nuova attività importata da Strava.", "info");
+            return;
+        }
+
+        setIsDataLoading(true);
+        let importedCount = 0;
+        let skippedCount = 0;
+        const toAdd: Track[] = [];
+
+        for (const track of newTracksFromStrava) {
+            if (!isDuplicateTrack(track, tracks)) {
+                toAdd.push(track);
+                importedCount++;
+            } else {
+                skippedCount++;
+            }
+        }
+
+        if (importedCount > 0) {
+            const updated = [...toAdd, ...tracks];
+            setTracks(updated);
+            await saveTracksToDB(updated);
+            addToast(`Importate con successo ${importedCount} corse da Strava.`, "success");
+        }
+
+        if (skippedCount > 0) {
+            addToast(`${skippedCount} attività Strava ignorate perché già presenti.`, "info");
+        }
+        
+        setIsDataLoading(false);
+    };
+
     if (showSplash) return <SplashScreen onFinish={handleSplashFinish} />;
 
     return (
@@ -530,7 +564,7 @@ const App: React.FC = () => {
             {showStravaSyncOptions && (
                 <StravaSyncModal 
                     onClose={() => setShowStravaSyncOptions(false)} 
-                    onSync={() => { setShowStravaSyncOptions(false); }} 
+                    onImportFinished={handleStravaImportFinished} 
                     lastSyncDate={tracks.length > 0 ? new Date(tracks[0].points[0].time) : null} 
                 />
             )}
