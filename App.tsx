@@ -26,6 +26,7 @@ import RaceControls from './components/RaceControls';
 import RaceLeaderboard from './components/RacePaceBar';
 import RaceSummary from './components/RaceSummary';
 import ReminderNotification from './components/ReminderNotification';
+import RaceSetupModal from './components/RaceSetupModal';
 
 import { 
     saveTracksToDB, loadTracksFromDB, 
@@ -42,6 +43,7 @@ import { parseGpx } from './services/gpxService';
 import { parseTcx } from './services/tcxService';
 import { generateSmartTitle } from './services/titleGenerator';
 import { isDuplicateTrack, markStravaTrackAsDeleted, isPreviouslyDeletedStravaTrack, getTrackFingerprint } from './services/trackUtils';
+import { getFriendsActivityFeed } from './services/socialService';
 
 const App: React.FC = () => {
     const [tracks, setTracks] = useState<Track[]>([]);
@@ -76,6 +78,8 @@ const App: React.FC = () => {
     const [hoveredTrackId, setHoveredTrackId] = useState<string | null>(null);
     const [showGlobalChat, setShowGlobalChat] = useState(false);
     const [fitBoundsCounter, setFitBoundsCounter] = useState(0);
+    const [showRaceSetup, setShowRaceSetup] = useState(false);
+    const [friendTracks, setFriendTracks] = useState<Track[]>([]);
 
     const mapVisibleIds = useMemo(() => {
         if (raceSelectionIds.size === 0) {
@@ -112,7 +116,6 @@ const App: React.FC = () => {
         const handleResize = () => {
             const desk = window.innerWidth >= 1024;
             setIsDesktop(desk);
-            // Trigger map refit when layout changes
             setFitBoundsCounter(c => c + 1);
         };
         window.addEventListener('resize', handleResize);
@@ -145,7 +148,6 @@ const App: React.FC = () => {
         setShowGlobalChat(false);
         setViewingTrack(null);
         setEditingTrack(null);
-        // On mobile, navigation usually closes the sidebar list unless it's the home
     }, []);
 
     const toggleView = (view: 'diary' | 'explorer' | 'performance' | 'social' | 'hub' | 'profile' | 'guide') => {
@@ -227,8 +229,6 @@ const App: React.FC = () => {
             if (loadedProfile) setUserProfile(prev => ({ ...prev, ...loadedProfile }));
             
             const loadedTracks = await loadTracksFromDB(forceLocal);
-            
-            // DEDUPLICAZIONE AUTOMATICA DURANTE IL CARICAMENTO
             const uniqueTracks: Track[] = [];
             const seenFingerprints = new Set<string>();
             let duplicatesFound = 0;
@@ -244,13 +244,11 @@ const App: React.FC = () => {
             });
 
             if (duplicatesFound > 0) {
-                console.log(`Filtrati ${duplicatesFound} tracciati duplicati.`);
-                // Aggiorniamo il DB locale per rimuovere i duplicati se necessario
-                // saveTracksToDB(uniqueTracks);
+                addToast(`Rimossi ${duplicatesFound} file duplicati dal database.`, "info");
+                await saveTracksToDB(uniqueTracks);
             }
 
             setTracks(uniqueTracks);
-
             const loadedWorkouts = await loadPlannedWorkoutsFromDB(forceLocal);
             setPlannedWorkouts(loadedWorkouts);
         } catch (e) {
@@ -265,14 +263,35 @@ const App: React.FC = () => {
     const [raceResults, setRaceResults] = useState<RaceResult[] | null>(null);
     const [raceGaps, setRaceGaps] = useState<Map<string, number | undefined>>(new Map());
     
-    // ANIMAZIONE GARA OTTIMIZZATA
     const raceLastTimeRef = useRef<number | null>(null);
     const raceTimeRef = useRef(0);
 
-    const startRace = () => {
+    const openRaceSetup = async () => {
+        if (raceSelectionIds.size < 1 && tracks.length > 0) {
+            addToast("Seleziona almeno una corsa per iniziare.", "info");
+            return;
+        }
+        setShowRaceSetup(true);
+        // Load Friend Tracks for selection
+        if (userId) {
+            try {
+                const feed = await getFriendsActivityFeed(userId);
+                setFriendTracks(feed);
+            } catch (e) {
+                console.warn("Could not load friend tracks for race setup", e);
+            }
+        }
+    };
+
+    const startRaceAnimation = (renamedMap: Record<string, string>) => {
         const selected = tracks.filter(t => raceSelectionIds.has(t.id));
         if (selected.length < 1) return;
         
+        // Apply names
+        selected.forEach(t => {
+            if (renamedMap[t.id]) t.name = renamedMap[t.id];
+        });
+
         setRaceResults(null);
         raceTimeRef.current = 0;
         setRaceTime(0);
@@ -284,7 +303,7 @@ const App: React.FC = () => {
             color: t.color,
             pace: 0
         })));
-        // On mobile, close list to see the race
+        setShowRaceSetup(false);
         if (!isDesktop) setIsSidebarOpen(false);
     };
 
@@ -367,26 +386,26 @@ const App: React.FC = () => {
         await saveTracksToDB(updatedTracks);
     };
 
-    const handleChallengeGhost = (friendTrack: Track) => {
+    const handleAddGhost = (friendTrack: Track) => {
         const ghostTrack: Track = {
             ...friendTrack,
-            id: `ghost-friend-${friendTrack.id}`,
+            id: `ghost-${Date.now()}-${friendTrack.id}`, // Unique ID for every add to allow multiple ghosts of same track if needed
             name: `Ghost: ${friendTrack.userDisplayName || 'Amico'}`,
             isExternal: true,
             color: '#a855f7',
         };
 
-        if (!tracks.some(t => t.id === ghostTrack.id)) {
-            setTracks(prev => [ghostTrack, ...prev]);
-            addToast(`Corsa di ${friendTrack.userDisplayName} aggiunta come Ghost!`, "success");
-        }
-
+        setTracks(prev => [ghostTrack, ...prev]);
         setRaceSelectionIds(prev => {
             const next = new Set(prev);
             next.add(ghostTrack.id);
             return next;
         });
+        addToast(`Aggiunto ${ghostTrack.name} alla gara!`, "success");
+    };
 
+    const handleChallengeGhost = (friendTrack: Track) => {
+        handleAddGhost(friendTrack);
         setShowSocial(false);
         setIsSidebarOpen(true);
         setFitBoundsCounter(c => c + 1);
@@ -567,6 +586,7 @@ const App: React.FC = () => {
                     onUploadTracks={handleFileUpload}
                     onOpenProfile={() => toggleView('profile')}
                     onOpenChangelog={() => toggleView('profile')}
+                    onEnterRaceMode={openRaceSetup}
                     trackCount={tracks.length}
                     userProfile={userProfile}
                 />
@@ -602,7 +622,7 @@ const App: React.FC = () => {
                                     onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
                                     onDeselectAll={() => setRaceSelectionIds(new Set())}
                                     onSelectAll={() => setRaceSelectionIds(new Set(tracks.filter(t => !t.isArchived).map(t => t.id)))}
-                                    onStartRace={startRace}
+                                    onStartRace={openRaceSetup}
                                     onViewDetails={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)}
                                     onEditTrack={(id) => setEditingTrack(tracks.find(t => t.id === id) || null)}
                                     onDeleteTrack={async (id) => { 
@@ -654,7 +674,7 @@ const App: React.FC = () => {
                                             tracks={tracks} visibleTrackIds={mapVisibleIds} focusedTrackId={focusedTrackId} raceSelectionIds={raceSelectionIds}
                                             onFocusTrack={setFocusedTrackId} onDeselectAll={() => setRaceSelectionIds(new Set())}
                                             onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
-                                            onStartRace={startRace}
+                                            onStartRace={openRaceSetup}
                                             onViewDetails={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)}
                                             onEditTrack={(id) => setEditingTrack(tracks.find(t => t.id === id) || null)}
                                             onBulkArchive={handleBulkArchive} onDeleteSelected={handleBulkDelete} onMergeSelected={handleMergeSelectedTracks} onToggleFavorite={handleToggleFavorite} onBulkGroup={handleBulkGroup} onFileUpload={handleFileUpload} onToggleArchived={async (id) => { const u = tracks.map(t => t.id === id ? {...t, isArchived: !t.isArchived} : t); setTracks(u); await saveTracksToDB(u); }} onDeleteTrack={() => {}} onSelectAll={() => {}}
@@ -701,6 +721,25 @@ const App: React.FC = () => {
                         )}
                     </main>
                 </div>
+            )}
+
+            {showRaceSetup && (
+                <RaceSetupModal 
+                    tracks={tracks}
+                    initialSelection={raceSelectionIds}
+                    onSelectionChange={setRaceSelectionIds}
+                    friendTracks={friendTracks}
+                    onAddGhostFromFeed={handleAddGhost}
+                    onAddOpponent={(files) => handleFileUpload(files)}
+                    onConfirm={startRaceAnimation}
+                    onCancel={() => setShowRaceSetup(false)}
+                    onRemoveTrack={(id) => {
+                        // Se rimuovi un ghost, forse vuoi eliminarlo dalla lista principale se è temporaneo
+                        if (id.startsWith('ghost-')) {
+                            setTracks(prev => prev.filter(t => t.id !== id));
+                        }
+                    }}
+                />
             )}
 
             {viewingTrack && (
