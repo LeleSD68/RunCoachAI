@@ -1,4 +1,5 @@
 
+
 export type ActivityType = 'Lento' | 'Fartlek' | 'Ripetute' | 'Gara' | 'Lungo' | 'Altro' | 'Nota' | 'Impegno' | 'Recupero';
 
 export type DiaryEntryType = 'workout' | 'note' | 'commitment';
@@ -155,6 +156,7 @@ export interface TrackStats {
   maxHr: number | null;
   minHr: number | null;
   avgWatts: number | null;
+  avgCadence: number | null;
   splits: Split[];
   pauses: PauseSegment[];
 }
