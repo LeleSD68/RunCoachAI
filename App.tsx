@@ -901,43 +901,124 @@ const App: React.FC = () => {
                             )}
                         </div>
                     ) : (
-                        // STANDARD LAYOUT (RESIZABLE)
-                        <ResizablePanel
-                            direction={isDesktop ? 'vertical' : 'horizontal'}
-                            initialSize={isDesktop ? layoutPrefs.desktopSidebar : undefined}
-                            initialSizeRatio={isDesktop ? undefined : layoutPrefs.mobileListRatio}
-                            minSize={250} 
-                            onResizeEnd={handleResizeEnd}
-                            className="w-full h-full"
-                        >
-                            {/* PANEL 1: SIDEBAR (Desktop) OR LIST (Mobile - Top) */}
-                            {isDesktop ? (
-                                // DESKTOP: LEFT PANEL IS SIDEBAR
-                                <aside className="h-full bg-slate-900 border-r border-slate-800 flex flex-col w-full">
-                                    {isSidebarOpen ? (
+                        // IDLE LAYOUT
+                        (!isDesktop && !isSidebarOpen) ? (
+                            // MOBILE FULL SCREEN MAP
+                            <div className="w-full h-full flex flex-col bg-slate-950 relative">
+                                <div className="flex-grow relative bg-slate-900">
+                                    <MapDisplay 
+                                        tracks={tracks} visibleTrackIds={mapVisibleIds} raceRunners={raceRunners}
+                                        isAnimationPlaying={false} fitBoundsCounter={fitBoundsCounter}
+                                        runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
+                                    />
+                                </div>
+                                <div className="bg-slate-950 pb-safe border-t border-slate-800 shrink-0">
+                                    <NavigationDock 
+                                        onOpenSidebar={() => setIsSidebarOpen(true)} 
+                                        onCloseSidebar={() => setIsSidebarOpen(false)}
+                                        onOpenExplorer={() => toggleView('explorer')} onOpenDiary={() => toggleView('diary')}
+                                        onOpenPerformance={() => toggleView('performance')} onOpenHub={() => toggleView('hub')}
+                                        onOpenSocial={() => toggleView('social')} onOpenProfile={() => toggleView('profile')}
+                                        onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}} 
+                                        isSidebarOpen={isSidebarOpen}
+                                    />
+                                </div>
+                            </div>
+                        ) : (
+                            // STANDARD LAYOUT (RESIZABLE) - Desktop or Mobile Split
+                            <ResizablePanel
+                                direction={isDesktop ? 'vertical' : 'horizontal'}
+                                initialSize={isDesktop ? layoutPrefs.desktopSidebar : undefined}
+                                initialSizeRatio={isDesktop ? undefined : layoutPrefs.mobileListRatio}
+                                minSize={250} 
+                                onResizeEnd={handleResizeEnd}
+                                className="w-full h-full"
+                            >
+                                {/* PANEL 1: SIDEBAR (Desktop) OR LIST (Mobile - Top) */}
+                                {isDesktop ? (
+                                    // DESKTOP: LEFT PANEL IS SIDEBAR
+                                    <aside className="h-full bg-slate-900 border-r border-slate-800 flex flex-col w-full">
+                                        {isSidebarOpen ? (
+                                            <>
+                                                <div className="flex-grow overflow-hidden">
+                                                    <Sidebar 
+                                                        tracks={tracks.filter(t => !t.isExternal)} 
+                                                        visibleTrackIds={mapVisibleIds} 
+                                                        onFocusTrack={setFocusedTrackId} focusedTrackId={focusedTrackId}
+                                                        raceSelectionIds={raceSelectionIds} 
+                                                        onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
+                                                        onDeselectAll={() => setRaceSelectionIds(new Set())}
+                                                        onSelectAll={() => setRaceSelectionIds(new Set(tracks.filter(t => !t.isArchived).map(t => t.id)))}
+                                                        onStartRace={openRaceSetup}
+                                                        onViewDetails={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)}
+                                                        onEditTrack={(id) => setEditingTrack(tracks.find(t => t.id === id) || null)}
+                                                        onDeleteTrack={async (id) => { 
+                                                            const track = tracks.find(t => t.id === id); if (track) markStravaTrackAsDeleted(track);
+                                                            const u = tracks.filter(t => t.id !== id); setTracks(u); await saveTracksToDB(u); await deleteTrackFromCloud(id); 
+                                                        }}
+                                                        onBulkArchive={handleBulkArchive} onDeleteSelected={handleBulkDelete} onMergeSelected={handleMergeSelectedTracks} onToggleFavorite={handleToggleFavorite} onBulkGroup={handleBulkGroup} onFileUpload={handleFileUpload} onToggleArchived={async (id) => { const u = tracks.map(t => t.id === id ? {...t, isArchived: !t.isArchived} : t); setTracks(u); await saveTracksToDB(u); }}
+                                                    />
+                                                </div>
+                                                <div className="bg-slate-950 shrink-0">
+                                                    <NavigationDock 
+                                                        onOpenSidebar={() => setIsSidebarOpen(true)} onCloseSidebar={() => setIsSidebarOpen(false)}
+                                                        onOpenExplorer={() => toggleView('explorer')} onOpenDiary={() => toggleView('diary')}
+                                                        onOpenPerformance={() => toggleView('performance')} onOpenHub={() => toggleView('hub')}
+                                                        onOpenSocial={() => toggleView('social')} onOpenProfile={() => toggleView('profile')}
+                                                        onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}} isSidebarOpen={isSidebarOpen}
+                                                    />
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div className="h-full flex items-center justify-center bg-slate-900">
+                                                <button onClick={() => setIsSidebarOpen(true)} className="p-4 text-slate-500 hover:text-white transform rotate-90 whitespace-nowrap font-bold uppercase tracking-widest text-xs">Apri Sidebar</button>
+                                            </div>
+                                        )}
+                                    </aside>
+                                ) : (
+                                    // MOBILE: TOP PANEL IS LIST
+                                    <div className="flex-grow overflow-hidden bg-slate-900 border-b border-slate-800 w-full h-full relative">
+                                         <Sidebar 
+                                            tracks={tracks.filter(t => !t.isExternal)} 
+                                            visibleTrackIds={mapVisibleIds} focusedTrackId={focusedTrackId} raceSelectionIds={raceSelectionIds}
+                                            onFocusTrack={setFocusedTrackId} onDeselectAll={() => setRaceSelectionIds(new Set())}
+                                            onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
+                                            onStartRace={openRaceSetup}
+                                            onViewDetails={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)}
+                                            onEditTrack={(id) => setEditingTrack(tracks.find(t => t.id === id) || null)}
+                                            onBulkArchive={handleBulkArchive} onDeleteSelected={handleBulkDelete} onMergeSelected={handleMergeSelectedTracks} onToggleFavorite={handleToggleFavorite} onBulkGroup={handleBulkGroup} onFileUpload={handleFileUpload} onToggleArchived={async (id) => { const u = tracks.map(t => t.id === id ? {...t, isArchived: !t.isArchived} : t); setTracks(u); await saveTracksToDB(u); }} onDeleteTrack={() => {}} onSelectAll={() => {}}
+                                         />
+                                    </div>
+                                )}
+
+                                {/* PANEL 2: MAP (Desktop) OR MAP+DOCK (Mobile) */}
+                                <div className="h-full w-full relative bg-slate-950 flex flex-col overflow-hidden">
+                                    {isDesktop ? (
+                                        // DESKTOP: RIGHT PANEL IS MAP
                                         <>
-                                            <div className="flex-grow overflow-hidden">
-                                                <Sidebar 
-                                                    tracks={tracks.filter(t => !t.isExternal)} 
-                                                    visibleTrackIds={mapVisibleIds} 
-                                                    onFocusTrack={setFocusedTrackId} focusedTrackId={focusedTrackId}
-                                                    raceSelectionIds={raceSelectionIds} 
-                                                    onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
-                                                    onDeselectAll={() => setRaceSelectionIds(new Set())}
-                                                    onSelectAll={() => setRaceSelectionIds(new Set(tracks.filter(t => !t.isArchived).map(t => t.id)))}
-                                                    onStartRace={openRaceSetup}
-                                                    onViewDetails={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)}
-                                                    onEditTrack={(id) => setEditingTrack(tracks.find(t => t.id === id) || null)}
-                                                    onDeleteTrack={async (id) => { 
-                                                        const track = tracks.find(t => t.id === id); if (track) markStravaTrackAsDeleted(track);
-                                                        const u = tracks.filter(t => t.id !== id); setTracks(u); await saveTracksToDB(u); await deleteTrackFromCloud(id); 
-                                                    }}
-                                                    onBulkArchive={handleBulkArchive} onDeleteSelected={handleBulkDelete} onMergeSelected={handleMergeSelectedTracks} onToggleFavorite={handleToggleFavorite} onBulkGroup={handleBulkGroup} onFileUpload={handleFileUpload} onToggleArchived={async (id) => { const u = tracks.map(t => t.id === id ? {...t, isArchived: !t.isArchived} : t); setTracks(u); await saveTracksToDB(u); }}
+                                            <MapDisplay 
+                                                tracks={tracks} visibleTrackIds={mapVisibleIds} raceRunners={raceRunners}
+                                                isAnimationPlaying={false} fitBoundsCounter={fitBoundsCounter}
+                                                runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
+                                            />
+                                            <button onClick={() => setShowGlobalChat(true)} className="fixed bottom-24 right-4 z-[4000] bg-purple-600 hover:bg-purple-500 text-white p-3 rounded-full shadow-2xl active:scale-90">
+                                                <span className="text-xl">🧠</span>
+                                            </button>
+                                        </>
+                                    ) : (
+                                        // MOBILE: BOTTOM PANEL IS MAP + DOCK
+                                        <>
+                                            <div className="flex-grow relative bg-slate-900">
+                                                <MapDisplay 
+                                                    tracks={tracks} visibleTrackIds={mapVisibleIds} raceRunners={raceRunners}
+                                                    isAnimationPlaying={false} fitBoundsCounter={fitBoundsCounter}
+                                                    runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
                                                 />
                                             </div>
-                                            <div className="bg-slate-950 shrink-0">
+                                            <div className="bg-slate-950 pb-safe border-t border-slate-800 shrink-0">
                                                 <NavigationDock 
-                                                    onOpenSidebar={() => setIsSidebarOpen(true)} onCloseSidebar={() => setIsSidebarOpen(false)}
+                                                    onOpenSidebar={() => setIsSidebarOpen(true)} 
+                                                    onCloseSidebar={() => setIsSidebarOpen(false)}
                                                     onOpenExplorer={() => toggleView('explorer')} onOpenDiary={() => toggleView('diary')}
                                                     onOpenPerformance={() => toggleView('performance')} onOpenHub={() => toggleView('hub')}
                                                     onOpenSocial={() => toggleView('social')} onOpenProfile={() => toggleView('profile')}
@@ -945,65 +1026,10 @@ const App: React.FC = () => {
                                                 />
                                             </div>
                                         </>
-                                    ) : (
-                                        <div className="h-full flex items-center justify-center bg-slate-900">
-                                            <button onClick={() => setIsSidebarOpen(true)} className="p-4 text-slate-500 hover:text-white transform rotate-90 whitespace-nowrap font-bold uppercase tracking-widest text-xs">Apri Sidebar</button>
-                                        </div>
                                     )}
-                                </aside>
-                            ) : (
-                                // MOBILE: TOP PANEL IS LIST
-                                <div className="flex-grow overflow-hidden bg-slate-900 border-b border-slate-800 w-full h-full relative">
-                                     <Sidebar 
-                                        tracks={tracks.filter(t => !t.isExternal)} 
-                                        visibleTrackIds={mapVisibleIds} focusedTrackId={focusedTrackId} raceSelectionIds={raceSelectionIds}
-                                        onFocusTrack={setFocusedTrackId} onDeselectAll={() => setRaceSelectionIds(new Set())}
-                                        onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
-                                        onStartRace={openRaceSetup}
-                                        onViewDetails={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)}
-                                        onEditTrack={(id) => setEditingTrack(tracks.find(t => t.id === id) || null)}
-                                        onBulkArchive={handleBulkArchive} onDeleteSelected={handleBulkDelete} onMergeSelected={handleMergeSelectedTracks} onToggleFavorite={handleToggleFavorite} onBulkGroup={handleBulkGroup} onFileUpload={handleFileUpload} onToggleArchived={async (id) => { const u = tracks.map(t => t.id === id ? {...t, isArchived: !t.isArchived} : t); setTracks(u); await saveTracksToDB(u); }} onDeleteTrack={() => {}} onSelectAll={() => {}}
-                                     />
                                 </div>
-                            )}
-
-                            {/* PANEL 2: MAP (Desktop) OR MAP+DOCK (Mobile) */}
-                            <div className="h-full w-full relative bg-slate-950 flex flex-col overflow-hidden">
-                                {isDesktop ? (
-                                    // DESKTOP: RIGHT PANEL IS MAP
-                                    <>
-                                        <MapDisplay 
-                                            tracks={tracks} visibleTrackIds={mapVisibleIds} raceRunners={raceRunners}
-                                            isAnimationPlaying={false} fitBoundsCounter={fitBoundsCounter}
-                                            runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
-                                        />
-                                        <button onClick={() => setShowGlobalChat(true)} className="fixed bottom-24 right-4 z-[4000] bg-purple-600 hover:bg-purple-500 text-white p-3 rounded-full shadow-2xl active:scale-90">
-                                            <span className="text-xl">🧠</span>
-                                        </button>
-                                    </>
-                                ) : (
-                                    // MOBILE: BOTTOM PANEL IS MAP + DOCK
-                                    <>
-                                        <div className="flex-grow relative bg-slate-900">
-                                            <MapDisplay 
-                                                tracks={tracks} visibleTrackIds={mapVisibleIds} raceRunners={raceRunners}
-                                                isAnimationPlaying={false} fitBoundsCounter={fitBoundsCounter}
-                                                runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
-                                            />
-                                        </div>
-                                        <div className="bg-slate-950 pb-safe border-t border-slate-800 shrink-0">
-                                            <NavigationDock 
-                                                onOpenSidebar={() => {}} onCloseSidebar={() => {}}
-                                                onOpenExplorer={() => toggleView('explorer')} onOpenDiary={() => toggleView('diary')}
-                                                onOpenPerformance={() => toggleView('performance')} onOpenHub={() => toggleView('hub')}
-                                                onOpenSocial={() => toggleView('social')} onOpenProfile={() => toggleView('profile')}
-                                                onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}} isSidebarOpen={true}
-                                            />
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-                        </ResizablePanel>
+                            </ResizablePanel>
+                        )
                     )}
                 </div>
             )}
