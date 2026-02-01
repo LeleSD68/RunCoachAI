@@ -13,6 +13,13 @@ const MAP_STYLES = {
     satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
 };
 
+const styleLabels: Record<keyof typeof MAP_STYLES, string> = {
+    dark: 'Scur.',
+    silver: 'Silv.',
+    street: 'Str.',
+    satellite: 'Sat.'
+};
+
 const formatPace = (pace: number) => {
     if (!isFinite(pace) || pace <= 0) return '--:--';
     const m = Math.floor(pace);
@@ -212,6 +219,12 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
     }
   }, [animationProgress, animationTrack, isAnimationPlaying, raceRunners]);
 
+  const handleCycleStyle = () => {
+    const styles: (keyof typeof MAP_STYLES)[] = ['dark', 'street', 'silver', 'satellite'];
+    const nextIndex = (styles.indexOf(currentStyle) + 1) % styles.length;
+    setCurrentStyle(styles[nextIndex]);
+  };
+
   return (
     <div className="flex flex-col h-full w-full bg-slate-900 overflow-hidden relative">
       <div className="absolute top-2 left-2 right-2 flex items-center justify-between z-[1001] gap-1 overflow-x-auto no-scrollbar pointer-events-none">
@@ -233,8 +246,8 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
         </div>
 
         <div className="flex items-center gap-1 bg-slate-900/90 backdrop-blur-sm p-1 rounded-xl border border-white/10 shadow-2xl pointer-events-auto">
-             <button onClick={()=>setCurrentStyle(currentStyle==='dark'?'street':'dark')} className="px-2 py-1 rounded-lg text-[9px] font-black uppercase text-slate-300">
-                {currentStyle==='dark'?'Mappa':'Scur.'}
+             <button onClick={handleCycleStyle} className="px-2 py-1 rounded-lg text-[9px] font-black uppercase text-slate-300 hover:text-white transition-colors">
+                {styleLabels[currentStyle]}
              </button>
         </div>
       </div>
