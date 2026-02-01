@@ -46,8 +46,8 @@ import { generateSmartTitle } from './services/titleGenerator';
 import { isDuplicateTrack, markStravaTrackAsDeleted, isPreviouslyDeletedStravaTrack, getTrackFingerprint } from './services/trackUtils';
 import { getFriendsActivityFeed } from './services/socialService';
 
-// Changed key to reset layout preferences for the fix v5
-const LAYOUT_PREFS_KEY = 'runcoach_layout_prefs_v5';
+// Changed key to reset layout preferences for the layout fix v6
+const LAYOUT_PREFS_KEY = 'runcoach_layout_prefs_v6';
 
 const App: React.FC = () => {
     const [tracks, setTracks] = useState<Track[]>([]);
@@ -715,7 +715,7 @@ const App: React.FC = () => {
                     ) : (
                         // STANDARD LAYOUT (RESIZABLE)
                         <ResizablePanel
-                            direction={isDesktop ? 'horizontal' : 'vertical'}
+                            direction={isDesktop ? 'vertical' : 'horizontal'}
                             initialSize={isDesktop ? layoutPrefs.desktopSidebar : undefined}
                             initialSizeRatio={isDesktop ? undefined : layoutPrefs.mobileListRatio}
                             minSize={250} 
