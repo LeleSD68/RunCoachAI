@@ -41,7 +41,7 @@ import { getApiUsage, trackUsage, addTokensToUsage } from './services/usageServi
 import { parseGpx } from './services/gpxService';
 import { parseTcx } from './services/tcxService';
 import { generateSmartTitle } from './services/titleGenerator';
-import { isDuplicateTrack } from './services/trackUtils';
+import { isDuplicateTrack, markStravaTrackAsDeleted, isPreviouslyDeletedStravaTrack } from './services/trackUtils';
 
 const App: React.FC = () => {
     const [tracks, setTracks] = useState<Track[]>([]);
@@ -322,6 +322,11 @@ const App: React.FC = () => {
 
     const handleBulkDelete = async () => {
         const idsToDelete = Array.from(raceSelectionIds);
+        const tracksToDelete = tracks.filter(t => raceSelectionIds.has(t.id));
+        
+        // Memorizza impronte Strava cancellate
+        tracksToDelete.forEach(t => markStravaTrackAsDeleted(t));
+        
         const next = tracks.filter(t => !raceSelectionIds.has(t.id));
         setTracks(next);
         setRaceSelectionIds(new Set());
@@ -455,14 +460,17 @@ const App: React.FC = () => {
         setIsDataLoading(true);
         let importedCount = 0;
         let skippedCount = 0;
+        let previouslyDeletedCount = 0;
         const toAdd: Track[] = [];
 
         for (const track of newTracksFromStrava) {
-            if (!isDuplicateTrack(track, tracks)) {
+            if (isDuplicateTrack(track, tracks)) {
+                skippedCount++;
+            } else if (isPreviouslyDeletedStravaTrack(track)) {
+                previouslyDeletedCount++;
+            } else {
                 toAdd.push(track);
                 importedCount++;
-            } else {
-                skippedCount++;
             }
         }
 
@@ -475,6 +483,10 @@ const App: React.FC = () => {
 
         if (skippedCount > 0) {
             addToast(`${skippedCount} attività Strava ignorate perché già presenti.`, "info");
+        }
+        
+        if (previouslyDeletedCount > 0) {
+            addToast(`${previouslyDeletedCount} attività Strava ignorate perché eliminate in passato.`, "info");
         }
         
         setIsDataLoading(false);
@@ -595,7 +607,14 @@ const App: React.FC = () => {
                                     onStartRace={startRace}
                                     onViewDetails={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)}
                                     onEditTrack={(id) => setEditingTrack(tracks.find(t => t.id === id) || null)}
-                                    onDeleteTrack={async (id) => { const u = tracks.filter(t => t.id !== id); setTracks(u); await saveTracksToDB(u); await deleteTrackFromCloud(id); }}
+                                    onDeleteTrack={async (id) => { 
+                                        const track = tracks.find(t => t.id === id);
+                                        if (track) markStravaTrackAsDeleted(track);
+                                        const u = tracks.filter(t => t.id !== id); 
+                                        setTracks(u); 
+                                        await saveTracksToDB(u); 
+                                        await deleteTrackFromCloud(id); 
+                                    }}
                                     onBulkArchive={handleBulkArchive}
                                     onDeleteSelected={handleBulkDelete}
                                     onMergeSelected={handleMergeSelectedTracks}

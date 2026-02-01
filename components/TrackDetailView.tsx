@@ -44,6 +44,7 @@ const TrackDetailView: React.FC<{
     const [hoveredPoint, setHoveredPoint] = useState<TrackPoint | null>(null);
     const [selectedRange, setSelectedRange] = useState<{ startDistance: number; endDistance: number } | null>(null);
     const [highlightedSegments, setHighlightedSegments] = useState<TrackPoint[] | null>(null);
+    const [mapMetric, setMapMetric] = useState<string>('none');
     const [sections, setSections] = useState<SectionState>({
         stats: true, records: true, zones: true, metadata: true, aiAnalysis: true, aiSegments: true
     });
@@ -63,6 +64,7 @@ const TrackDetailView: React.FC<{
         return () => clearTimeout(timer);
     }, []);
 
+    // Gestione animazione con ripresa dal punto corrente
     useEffect(() => {
         let frame: number;
         let last: number;
@@ -72,14 +74,21 @@ const TrackDetailView: React.FC<{
                 const kmPerMs = (1 / 60000) * animSpeed;
                 setProgress(prev => {
                     const next = prev + kmPerMs * delta;
-                    if (next >= track.distance) { setIsAnimating(false); return track.distance; }
+                    if (next >= track.distance) { 
+                        setIsAnimating(false); 
+                        return track.distance; 
+                    }
                     return next;
                 });
             }
             last = time;
             if (isAnimating) frame = requestAnimationFrame(animate);
         };
-        if (isAnimating) frame = requestAnimationFrame(animate);
+        if (isAnimating) {
+            // Se l'animazione parte ed eravamo alla fine, ricomincia da 0
+            if (progress >= track.distance) setProgress(0);
+            frame = requestAnimationFrame(animate);
+        }
         return () => cancelAnimationFrame(frame);
     }, [isAnimating, animSpeed, track.distance]);
 
@@ -139,7 +148,7 @@ const TrackDetailView: React.FC<{
                     <div className="p-4 space-y-4 animate-fade-in">
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <label className="text-[9px] font-black text-slate-500 block mb-1">RPE (1-10)</label>
+                                <label className="text-[9px] font-black text-slate-500 block mb-1 uppercase">Sforzo (RPE 1-10)</label>
                                 <select 
                                     value={track.rpe || ''} 
                                     onChange={(e) => onUpdateTrackMetadata?.(track.id, { rpe: parseInt(e.target.value) })}
@@ -150,7 +159,7 @@ const TrackDetailView: React.FC<{
                                 </select>
                             </div>
                             <div>
-                                <label className="text-[9px] font-black text-slate-500 block mb-1">Scarpa</label>
+                                <label className="text-[9px] font-black text-slate-500 block mb-1 uppercase">Scarpa usata</label>
                                 <select 
                                     value={track.shoe || ''} 
                                     onChange={(e) => onUpdateTrackMetadata?.(track.id, { shoe: e.target.value })}
@@ -162,7 +171,7 @@ const TrackDetailView: React.FC<{
                             </div>
                         </div>
                         <div>
-                            <label className="text-[9px] font-black text-slate-500 block mb-1">Note Attività</label>
+                            <label className="text-[9px] font-black text-slate-500 block mb-1 uppercase">Note Attività</label>
                             <textarea 
                                 value={track.notes || ''} 
                                 onChange={(e) => onUpdateTrackMetadata?.(track.id, { notes: e.target.value })}
@@ -192,10 +201,14 @@ const TrackDetailView: React.FC<{
                 </button>
                 
                 <div className="flex-grow flex items-center justify-center gap-2 sm:gap-3 px-2 border-l border-r border-slate-800 max-w-2xl">
-                    <button onClick={() => setIsAnimating(!isAnimating)} className="w-8 h-8 sm:w-9 sm:h-9 bg-cyan-600 hover:bg-cyan-500 rounded-lg flex items-center justify-center transition-colors shadow-lg active:scale-90">
+                    <button 
+                        onClick={() => setIsAnimating(!isAnimating)} 
+                        className="w-8 h-8 sm:w-9 sm:h-9 bg-cyan-600 hover:bg-cyan-500 rounded-lg flex items-center justify-center transition-colors shadow-lg active:scale-90"
+                        title={isAnimating ? "Pausa" : "Riproduci"}
+                    >
                         {isAnimating ? '⏸' : '▶'}
                     </button>
-                    <div className="flex-grow group">
+                    <div className="flex-grow group relative h-6 flex items-center">
                         <input 
                             type="range" min="0" max={track.distance} step="0.01" value={progress} 
                             onChange={e => setProgress(parseFloat(e.target.value))} 
@@ -209,11 +222,28 @@ const TrackDetailView: React.FC<{
                     </select>
                 </div>
 
-                <div className="flex items-center gap-1 bg-slate-800 p-1 rounded-xl shadow-inner">
-                    <button onClick={() => setLayout('dashboard')} className={`px-2 py-1.5 rounded-lg text-[8px] sm:text-[9px] font-black uppercase transition-all ${layout === 'dashboard' ? 'bg-cyan-600' : 'text-slate-500'}`}>DASH</button>
-                    <button onClick={() => setLayout('cinema')} className={`px-2 py-1.5 rounded-lg text-[8px] sm:text-[9px] font-black uppercase transition-all ${layout === 'cinema' ? 'bg-cyan-600' : 'text-slate-500'}`}>CINE</button>
+                <div className="flex items-center gap-1 bg-slate-800 p-1 rounded-xl shadow-inner shrink-0">
+                    <button onClick={() => setLayout('dashboard')} className={`px-2 py-1.5 rounded-lg text-[8px] sm:text-[9px] font-black uppercase transition-all ${layout === 'dashboard' ? 'bg-cyan-600 text-white' : 'text-slate-500'}`}>Pannello</button>
+                    <button onClick={() => setLayout('cinema')} className={`px-2 py-1.5 rounded-lg text-[8px] sm:text-[9px] font-black uppercase transition-all ${layout === 'cinema' ? 'bg-cyan-600 text-white' : 'text-slate-500'}`}>Cinema</button>
                 </div>
             </header>
+
+            {/* Toolbar Gradienti (Novità) */}
+            <div className="bg-slate-900 border-b border-slate-800 flex justify-center p-1 gap-1">
+                {[
+                    {id: 'none', label: 'Base'},
+                    {id: 'elevation', label: 'Altitudine'},
+                    {id: 'pace', label: 'Passo'},
+                    {id: 'hr', label: 'Cardio'}
+                ].map(m => (
+                    <button 
+                        key={m.id} onClick={() => setMapMetric(m.id)}
+                        className={`px-3 py-1 rounded text-[8px] font-black uppercase transition-all border ${mapMetric === m.id ? 'bg-cyan-600 text-white border-cyan-400' : 'bg-slate-800 text-slate-500 border-slate-700 hover:text-slate-300'}`}
+                    >
+                        {m.label}
+                    </button>
+                ))}
+            </div>
 
             {selectionStats && (
                 <div className="bg-cyan-600 text-white py-1 px-4 flex items-center justify-between animate-fade-in-down z-[55] shadow-lg shrink-0">
@@ -229,14 +259,11 @@ const TrackDetailView: React.FC<{
             <main className="flex-grow relative overflow-hidden">
                 {layout !== 'cinema' ? (
                     isMobile ? (
-                        /* MOBILE 3-STACK LAYOUT */
                         <div className="flex flex-col h-full w-full overflow-hidden">
-                            {/* TOP: DATA (Scrollable) */}
                             <div className="flex-[0.45] overflow-y-auto bg-slate-950 border-b border-slate-800">
                                 {SidebarContent}
                             </div>
                             
-                            {/* MIDDLE: MAP */}
                             <div className="flex-[0.35] relative border-b border-slate-800">
                                 <MapDisplay 
                                     tracks={[track]} visibleTrackIds={new Set([track.id])} 
@@ -244,10 +271,10 @@ const TrackDetailView: React.FC<{
                                     isAnimationPlaying={isAnimating} fitBoundsCounter={fitTrigger}
                                     raceRunners={null} hoveredTrackId={null} runnerSpeeds={new Map()}
                                     selectionPoints={selectedRange ? getPointsInDistanceRange(track, selectedRange.startDistance, selectedRange.endDistance) : highlightedSegments}
+                                    mapGradientMetric={mapMetric}
                                 />
                             </div>
 
-                            {/* BOTTOM: CHART */}
                             <div className="flex-[0.2] bg-slate-900/40 p-2">
                                 <TimelineChart 
                                     track={track} yAxisMetrics={['pace', 'hr']} 
@@ -259,7 +286,6 @@ const TrackDetailView: React.FC<{
                             </div>
                         </div>
                     ) : (
-                        /* DESKTOP RESIZABLE LAYOUT */
                         <ResizablePanel direction="vertical" initialSizeRatio={0.3} minSize={320}>
                             {SidebarContent}
                             <div className="h-full flex flex-col bg-slate-950 overflow-hidden">
@@ -270,6 +296,7 @@ const TrackDetailView: React.FC<{
                                         isAnimationPlaying={isAnimating} fitBoundsCounter={fitTrigger}
                                         raceRunners={null} hoveredTrackId={null} runnerSpeeds={new Map()}
                                         selectionPoints={selectedRange ? getPointsInDistanceRange(track, selectedRange.startDistance, selectedRange.endDistance) : highlightedSegments}
+                                        mapGradientMetric={mapMetric}
                                     />
                                  </div>
                                  <div className="h-[180px] shrink-0 border-t border-slate-800/80 p-2 bg-slate-900/40 backdrop-blur-sm z-10">
@@ -285,7 +312,6 @@ const TrackDetailView: React.FC<{
                         </ResizablePanel>
                     )
                 ) : (
-                    /* CINEMA MODE */
                     <div className="flex-grow relative h-full">
                         <MapDisplay 
                             tracks={[track]} visibleTrackIds={new Set([track.id])} 
@@ -293,6 +319,7 @@ const TrackDetailView: React.FC<{
                             isAnimationPlaying={isAnimating} fitBoundsCounter={fitTrigger}
                             raceRunners={null} hoveredTrackId={null} runnerSpeeds={new Map()}
                             selectionPoints={selectedRange ? getPointsInDistanceRange(track, selectedRange.startDistance, selectedRange.endDistance) : highlightedSegments}
+                            mapGradientMetric={mapMetric}
                         />
                         <div className="absolute bottom-6 left-2 right-2 sm:left-6 sm:right-6 h-28 sm:h-32 bg-slate-900/60 backdrop-blur-xl border border-white/10 rounded-2xl p-2 sm:p-4 z-[4000] shadow-2xl">
                             <TimelineChart 

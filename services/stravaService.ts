@@ -123,37 +123,31 @@ const getValidAccessToken = async () => {
 };
 
 /**
- * Carica un file GPX direttamente su Strava.
+ * Recupera l'elenco delle attività senza i flussi (streams), molto più veloce.
  */
-export const uploadGpxToStrava = async (gpxContent: string, name: string, activityType: string = 'run') => {
+export const fetchStravaActivitiesMetadata = async (after?: number, before?: number, limit: number = 50): Promise<any[]> => {
     const token = await getValidAccessToken();
+    let url = `https://www.strava.com/api/v3/athlete/activities?per_page=${limit}`;
+    if (after) url += `&after=${after}`;
+    if (before) url += `&before=${before}`;
+
+    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+    if (!res.ok) throw new Error("Errore durante il recupero dell'elenco attività.");
     
-    const formData = new FormData();
-    const blob = new Blob([gpxContent], { type: 'application/gpx+xml' });
-    formData.append('file', blob, 'activity.gpx');
-    formData.append('data_type', 'gpx');
-    formData.append('name', name);
-    formData.append('activity_type', activityType.toLowerCase() === 'corsa' || activityType.toLowerCase() === 'run' ? 'run' : 'run');
-
-    const response = await fetch('https://www.strava.com/api/v3/uploads', {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${token}`
-        },
-        body: formData
-    });
-
-    if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.message || "Errore durante il caricamento su Strava.");
-    }
-
-    return await response.json();
+    return await res.json();
 };
 
-const mapStravaToTrack = async (activity: any, token: string): Promise<Track | null> => {
-    const streamUrl = `https://www.strava.com/api/v3/activities/${activity.id}/streams?keys=time,latlng,altitude,heartrate,watts,cadence,velocity_smooth&key_by_type=true`;
+export const fetchDetailedStravaActivity = async (activityId: string | number): Promise<Track | null> => {
+    const token = await getValidAccessToken();
     
+    // Fetch individual activity to get full details (like description)
+    const actRes = await fetch(`https://www.strava.com/api/v3/activities/${activityId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!actRes.ok) return null;
+    const activity = await actRes.json();
+
+    const streamUrl = `https://www.strava.com/api/v3/activities/${activityId}/streams?keys=time,latlng,altitude,heartrate,watts,cadence,velocity_smooth&key_by_type=true`;
     const streamRes = await fetch(streamUrl, {
         headers: { 'Authorization': `Bearer ${token}` }
     });
@@ -168,7 +162,6 @@ const mapStravaToTrack = async (activity: any, token: string): Promise<Track | n
     let totalDistance = 0;
 
     const rawPoints: Omit<TrackPoint, 'cummulativeDistance'>[] = [];
-    
     for (let i = 0; i < streams.time.data.length; i++) {
         const latlng = streams.latlng.data[i];
         const timeOffset = streams.time.data[i];
@@ -189,11 +182,8 @@ const mapStravaToTrack = async (activity: any, token: string): Promise<Track | n
     }
 
     const smoothed = smoothElevation(rawPoints);
-
     smoothed.forEach((p, i) => {
-        if (i > 0) {
-            totalDistance += haversineDistance(smoothed[i-1], p);
-        }
+        if (i > 0) totalDistance += haversineDistance(smoothed[i-1], p);
         points.push({ ...p, cummulativeDistance: totalDistance });
     });
 
@@ -207,35 +197,20 @@ const mapStravaToTrack = async (activity: any, token: string): Promise<Track | n
         activityType: 'Lento', 
         startTime: activity.start_date,
         isPublic: false,
+        notes: activity.description || '',
         tags: ['Strava']
     };
 };
 
 export const fetchRecentStravaActivities = async (limit: number = 30, afterTimestamp?: number): Promise<Track[]> => {
-    const token = await getValidAccessToken();
-    
-    let url = `https://www.strava.com/api/v3/athlete/activities?per_page=${limit}`;
-    if (afterTimestamp) {
-        url += `&after=${afterTimestamp}`;
-    }
-    
-    const activitiesRes = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${token}` }
-    });
-
-    if (!activitiesRes.ok) throw new Error("Errore download attività.");
-
-    const activities = await activitiesRes.json();
+    const activities = await fetchStravaActivitiesMetadata(afterTimestamp, undefined, limit);
     const tracks: Track[] = [];
 
     for (const act of activities) {
-        // Filtriamo esplicitamente per includere solo corse (Run), Trail (TrailRun) e Virtual (VirtualRun)
-        // Strava supporta anche Walk, Hike, Ride, ecc. che vogliamo escludere.
         const isRunningType = ['Run', 'TrailRun', 'VirtualRun'].includes(act.type);
-        
         if (isRunningType) {
             try {
-                const track = await mapStravaToTrack(act, token);
+                const track = await fetchDetailedStravaActivity(act.id);
                 if (track) tracks.push(track);
             } catch (e) {
                 console.warn(`Failed to import Strava activity ${act.id}`, e);

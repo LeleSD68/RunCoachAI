@@ -26,6 +26,12 @@ const formatPace = (pace: number) => {
     return `${m}:${s.toString().padStart(2, '0')}`;
 };
 
+const StravaSmallIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-2.5 h-2.5 text-[#fc4c02]">
+        <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.477 0 4.177 12.173h4.172" />
+    </svg>
+);
+
 const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTrack }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const sortedTracks = useMemo(() => {
@@ -58,10 +64,16 @@ const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTr
                     <tbody className="divide-y divide-slate-800">
                         {sortedTracks.map(t => {
                             const s = calculateTrackStats(t);
+                            const isStrava = t.id.startsWith('strava-') || t.tags?.includes('Strava');
                             return (
                                 <tr key={t.id} onClick={() => onSelectTrack(t.id)} className="hover:bg-slate-800 cursor-pointer group">
                                     <td className="p-2 text-slate-500">{new Date(t.points[0].time).toLocaleDateString()}</td>
-                                    <td className="p-2 font-bold group-hover:text-cyan-400">{t.name}</td>
+                                    <td className="p-2">
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="font-bold group-hover:text-cyan-400 truncate max-w-[200px]">{t.name}</span>
+                                            {isStrava && <StravaSmallIcon />}
+                                        </div>
+                                    </td>
                                     <td className="p-2 font-mono">{t.distance.toFixed(1)}k</td>
                                     <td className="p-2 font-mono">{formatPace(s.movingAvgPace)}</td>
                                     <td className="p-2 font-mono text-red-300">{s.avgHr ? Math.round(s.avgHr) : '-'}</td>

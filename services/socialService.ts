@@ -1,222 +1,158 @@
 
-import { Track, TrackPoint } from '../types';
-import { smoothElevation } from './dataProcessingService';
+import { supabase } from './supabaseClient';
+import { UserProfile, FriendRequest, Track, DirectMessage } from '../types';
 
-const STRAVA_TOKEN_KEY = 'strava_access_token';
-const STRAVA_REFRESH_TOKEN_KEY = 'strava_refresh_token';
-const STRAVA_EXPIRES_AT_KEY = 'strava_expires_at';
-const STRAVA_CLIENT_ID_KEY = 'strava_client_id';
-const STRAVA_CLIENT_SECRET_KEY = 'strava_client_secret';
-
-// Haversine formula to calculate distance
-const haversineDistance = (p1: {lat: number, lon: number}, p2: {lat: number, lon: number}): number => {
-  const R = 6371; 
-  const dLat = (p2.lat - p1.lat) * (Math.PI / 180);
-  const dLon = (p2.lon - p1.lon) * (Math.PI / 180);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(p1.lat * (Math.PI / 180)) *
-      Math.cos(p2.lat * (Math.PI / 180)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c; 
-};
-
-export const saveStravaConfig = (clientId: string, clientSecret: string) => {
-    localStorage.setItem(STRAVA_CLIENT_ID_KEY, clientId);
-    localStorage.setItem(STRAVA_CLIENT_SECRET_KEY, clientSecret);
-};
-
-export const getStravaConfig = () => {
-    return {
-        clientId: localStorage.getItem(STRAVA_CLIENT_ID_KEY),
-        clientSecret: localStorage.getItem(STRAVA_CLIENT_SECRET_KEY)
-    };
-};
-
-export const isStravaConnected = () => {
-    return !!localStorage.getItem(STRAVA_TOKEN_KEY);
-};
-
-export const disconnectStrava = () => {
-    localStorage.removeItem(STRAVA_TOKEN_KEY);
-    localStorage.removeItem(STRAVA_REFRESH_TOKEN_KEY);
-    localStorage.removeItem(STRAVA_EXPIRES_AT_KEY);
-};
-
-export const initiateStravaAuth = () => {
-    const { clientId } = getStravaConfig();
-    if (!clientId) throw new Error("Strava Client ID mancante.");
-    
-    const redirectUri = window.location.origin;
-    const scope = 'activity:read_all,activity:write,read_all';
-    const authUrl = `https://www.strava.com/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}`;
-    
-    window.location.href = authUrl;
-};
-
-export const handleStravaCallback = async (code: string) => {
-    const { clientId, clientSecret } = getStravaConfig();
-    if (!clientId || !clientSecret) throw new Error("Credenziali Strava non configurate.");
-
-    const response = await fetch('https://www.strava.com/oauth/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            client_id: clientId,
-            client_secret: clientSecret,
-            code: code,
-            grant_type: 'authorization_code'
-        })
-    });
-
-    if (!response.ok) throw new Error("Errore scambio token Strava.");
-
-    const data = await response.json();
-    saveTokens(data);
-    return data;
-};
-
-const saveTokens = (data: any) => {
-    localStorage.setItem(STRAVA_TOKEN_KEY, data.access_token);
-    localStorage.setItem(STRAVA_REFRESH_TOKEN_KEY, data.refresh_token);
-    localStorage.setItem(STRAVA_EXPIRES_AT_KEY, data.expires_at);
-};
-
-const getValidAccessToken = async () => {
-    let accessToken = localStorage.getItem(STRAVA_TOKEN_KEY);
-    const expiresAt = parseInt(localStorage.getItem(STRAVA_EXPIRES_AT_KEY) || '0');
-    const now = Math.floor(Date.now() / 1000);
-
-    if (accessToken && now < expiresAt) {
-        return accessToken;
-    }
-
-    const refreshToken = localStorage.getItem(STRAVA_REFRESH_TOKEN_KEY);
-    const { clientId, clientSecret } = getStravaConfig();
-
-    if (!refreshToken || !clientId || !clientSecret) {
-        throw new Error("AUTH_REQUIRED");
-    }
-
+export const updatePresence = async (userId: string) => {
+    if (!userId) return;
     try {
-        const response = await fetch('https://www.strava.com/oauth/token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                client_id: clientId,
-                client_secret: clientSecret,
-                refresh_token: refreshToken,
-                grant_type: 'refresh_token'
-            })
-        });
-
-        if (!response.ok) throw new Error("Errore refresh token.");
-
-        const data = await response.json();
-        saveTokens(data);
-        return data.access_token;
+        await supabase.from('profiles').update({ last_seen_at: new Date().toISOString() }).eq('id', userId);
     } catch (e) {
-        throw new Error("AUTH_REQUIRED");
+        console.error("Presence update failed", e);
     }
 };
 
-/**
- * Recupera l'elenco delle attività senza i flussi (streams), molto più veloce.
- */
-export const fetchStravaActivitiesMetadata = async (after?: number, before?: number, limit: number = 50): Promise<any[]> => {
-    const token = await getValidAccessToken();
-    let url = `https://www.strava.com/api/v3/athlete/activities?per_page=${limit}`;
-    if (after) url += `&after=${after}`;
-    if (before) url += `&before=${before}`;
-
-    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
-    if (!res.ok) throw new Error("Errore durante il recupero dell'elenco attività.");
+export const searchUsers = async (query: string): Promise<UserProfile[]> => {
+    const { data, error } = await supabase
+        .from('profiles')
+        .select('id, name')
+        .ilike('name', `%${query}%`)
+        .limit(10);
     
-    return await res.json();
+    if (error) throw error;
+    return data || [];
 };
 
-export const fetchDetailedStravaActivity = async (activityId: string | number): Promise<Track | null> => {
-    const token = await getValidAccessToken();
+export const sendFriendRequest = async (toUserId: string, currentUserId: string) => {
+    const { data: existing } = await supabase
+        .from('friends')
+        .select('*')
+        .or(`and(user_id_1.eq.${currentUserId},user_id_2.eq.${toUserId}),and(user_id_1.eq.${toUserId},user_id_2.eq.${currentUserId})`);
     
-    // Fetch individual activity to get full details (like description)
-    const actRes = await fetch(`https://www.strava.com/api/v3/activities/${activityId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+    if (existing && existing.length > 0) throw new Error("Richiesta già inviata o siete già amici.");
+
+    const { error } = await supabase.from('friends').insert({
+        user_id_1: currentUserId,
+        user_id_2: toUserId,
+        status: 'pending'
     });
-    if (!actRes.ok) return null;
-    const activity = await actRes.json();
-
-    const streamUrl = `https://www.strava.com/api/v3/activities/${activityId}/streams?keys=time,latlng,altitude,heartrate,watts,cadence,velocity_smooth&key_by_type=true`;
-    const streamRes = await fetch(streamUrl, {
-        headers: { 'Authorization': `Bearer ${token}` }
-    });
-
-    if (!streamRes.ok) return null;
-    const streams = await streamRes.json();
-
-    if (!streams.latlng || !streams.time) return null;
-
-    const points: TrackPoint[] = [];
-    const startTime = new Date(activity.start_date);
-    let totalDistance = 0;
-
-    const rawPoints: Omit<TrackPoint, 'cummulativeDistance'>[] = [];
-    for (let i = 0; i < streams.time.data.length; i++) {
-        const latlng = streams.latlng.data[i];
-        const timeOffset = streams.time.data[i];
-        const ele = streams.altitude ? streams.altitude.data[i] : 0;
-        const hr = streams.heartrate ? streams.heartrate.data[i] : undefined;
-        const cad = streams.cadence ? streams.cadence.data[i] : undefined;
-        const power = streams.watts ? streams.watts.data[i] : undefined;
-
-        rawPoints.push({
-            lat: latlng[0],
-            lon: latlng[1],
-            ele: ele,
-            time: new Date(startTime.getTime() + timeOffset * 1000),
-            hr,
-            cad,
-            power
-        });
-    }
-
-    const smoothed = smoothElevation(rawPoints);
-    smoothed.forEach((p, i) => {
-        if (i > 0) totalDistance += haversineDistance(smoothed[i-1], p);
-        points.push({ ...p, cummulativeDistance: totalDistance });
-    });
-
-    return {
-        id: `strava-${activity.id}`,
-        name: activity.name,
-        points: points,
-        distance: totalDistance,
-        duration: activity.moving_time * 1000,
-        color: '#fc4c02',
-        activityType: 'Lento', 
-        startTime: activity.start_date,
-        isPublic: false,
-        notes: activity.description || '',
-        tags: ['Strava']
-    };
+    if (error) throw error;
 };
 
-export const fetchRecentStravaActivities = async (limit: number = 30, afterTimestamp?: number): Promise<Track[]> => {
-    const activities = await fetchStravaActivitiesMetadata(afterTimestamp, undefined, limit);
-    const tracks: Track[] = [];
+export const getFriendRequests = async (currentUserId: string): Promise<FriendRequest[]> => {
+    const { data: requests, error } = await supabase
+        .from('friends')
+        .select('id, status, created_at, user_id_1')
+        .eq('user_id_2', currentUserId)
+        .eq('status', 'pending');
 
-    for (const act of activities) {
-        const isRunningType = ['Run', 'TrailRun', 'VirtualRun'].includes(act.type);
-        if (isRunningType) {
-            try {
-                const track = await fetchDetailedStravaActivity(act.id);
-                if (track) tracks.push(track);
-            } catch (e) {
-                console.warn(`Failed to import Strava activity ${act.id}`, e);
+    if (error || !requests) return [];
+
+    const requesterIds = requests.map((r: any) => r.user_id_1);
+    const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, name, last_seen_at')
+        .in('id', requesterIds);
+        
+    const profilesMap = new Map(profiles?.map((p: any) => [p.id, p]));
+
+    return requests.map((r: any) => ({
+        id: r.id,
+        status: r.status,
+        createdAt: r.created_at,
+        requester: profilesMap.get(r.user_id_1) || { id: r.user_id_1, name: 'Utente sconosciuto' }
+    }));
+};
+
+export const acceptFriendRequest = async (requestId: string) => {
+    const { error } = await supabase.from('friends').update({ status: 'accepted' }).eq('id', requestId);
+    if (error) throw error;
+};
+
+export const rejectFriendRequest = async (requestId: string) => {
+    const { error } = await supabase.from('friends').delete().eq('id', requestId);
+    if (error) throw error;
+};
+
+export const getFriends = async (currentUserId: string): Promise<UserProfile[]> => {
+    const { data, error } = await supabase
+        .from('friends')
+        .select('user_id_1, user_id_2')
+        .or(`user_id_1.eq.${currentUserId},user_id_2.eq.${currentUserId}`)
+        .eq('status', 'accepted');
+
+    if (error) return [];
+    const friendIds = data.map((r: any) => r.user_id_1 === currentUserId ? r.user_id_2 : r.user_id_1);
+    if (friendIds.length === 0) return [];
+
+    const { data: profiles } = await supabase.from('profiles').select('id, name, last_seen_at').in('id', friendIds);
+    return profiles?.map((p: any) => ({
+        ...p,
+        isOnline: p.last_seen_at && (new Date().getTime() - new Date(p.last_seen_at).getTime() < 2 * 60 * 1000)
+    })) || [];
+};
+
+export const getFriendsActivityFeed = async (currentUserId: string): Promise<Track[]> => {
+    // Recuperiamo le tracce pubbliche (RLS gestisce l'amicizia se configurata, altrimenti filter esplicito)
+    const { data: tracks, error } = await supabase
+        .from('tracks')
+        .select('id, name, distance_km, duration_ms, start_time, activity_type, color, user_id, points_data, rating')
+        .neq('user_id', currentUserId)
+        .eq('is_public', true)
+        .order('start_time', { ascending: false })
+        .limit(20);
+
+    if (error || !tracks) return [];
+
+    const userIds = [...new Set(tracks.map((t: any) => t.user_id))];
+    const { data: profiles } = await supabase.from('profiles').select('id, name').in('id', userIds);
+    const profilesMap = new Map(profiles?.map((p: any) => [p.id, p.name]));
+
+    return tracks.map((t: any) => {
+        let points = [];
+        try {
+            const allPoints = typeof t.points_data === 'string' ? JSON.parse(t.points_data) : t.points_data;
+            // Campionamento per l'anteprima (max 100 punti)
+            if (Array.isArray(allPoints)) {
+                const step = Math.max(1, Math.floor(allPoints.length / 100));
+                points = allPoints.filter((_, i) => i % step === 0).map(p => ({ ...p, time: new Date(p.time) }));
             }
-        }
-    }
+        } catch (e) {}
 
-    return tracks;
+        return {
+            id: t.id,
+            name: t.name,
+            distance: t.distance_km,
+            duration: t.duration_ms,
+            points: points,
+            color: t.color || '#3b82f6',
+            activityType: t.activity_type,
+            rating: t.rating,
+            userDisplayName: profilesMap.get(t.user_id) || 'Runner',
+            userId: t.user_id,
+            startTime: t.start_time
+        };
+    });
+};
+
+export const sendDirectMessage = async (senderId: string, receiverId: string, content: string) => {
+    const { error } = await supabase.from('direct_messages').insert({ sender_id: senderId, receiver_id: receiverId, content: content });
+    if (error) throw error;
+};
+
+export const getDirectMessages = async (currentUserId: string, friendId: string): Promise<DirectMessage[]> => {
+    const { data, error } = await supabase
+        .from('direct_messages')
+        .select('id, sender_id, receiver_id, content, created_at')
+        .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${currentUserId})`)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+    if (error) return [];
+    return data.reverse().map((msg: any) => ({
+        id: msg.id,
+        senderId: msg.sender_id,
+        receiverId: msg.receiver_id,
+        content: msg.content,
+        createdAt: msg.created_at
+    }));
 };

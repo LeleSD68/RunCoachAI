@@ -50,8 +50,6 @@ const LargeLogoIcon = () => (
     </div>
 );
 
-const LATEST_BUILD_TIME = "30/01/2026 12:00";
-
 const HomeModal: React.FC<HomeModalProps> = ({ 
     onOpenDiary, onOpenExplorer, onOpenHelp, onImportBackup, onExportBackup, 
     onUploadTracks, onClose, trackCount, plannedWorkouts = [], onOpenWorkout, 
@@ -85,24 +83,19 @@ const HomeModal: React.FC<HomeModalProps> = ({
     const handleOpponentUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0 && onUploadOpponent) {
             onUploadOpponent(Array.from(e.target.files));
-            if (onEnterRaceMode) {
-                onEnterRaceMode();
-            } else {
-                onClose(); 
-            }
+            if (onEnterRaceMode) onEnterRaceMode();
+            else onClose(); 
         }
     };
 
     const nextWorkout = useMemo(() => {
         const now = new Date();
         now.setHours(0, 0, 0, 0);
-        
         const sorted = [...plannedWorkouts]
             .filter(w => !w.completedTrackId)
             .map(w => ({ ...w, dateObj: new Date(w.date) }))
             .filter(w => w.dateObj >= now)
             .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
-            
         return sorted.length > 0 ? sorted[0] : null;
     }, [plannedWorkouts]);
 
@@ -112,18 +105,18 @@ const HomeModal: React.FC<HomeModalProps> = ({
                 <button onClick={() => setMenuStep('analyze')} className="flex flex-col items-center justify-center p-4 md:p-6 bg-cyan-600/5 hover:bg-cyan-600/10 border-2 border-cyan-500/20 hover:border-cyan-400 rounded-2xl transition-all group active:scale-95 shadow-lg min-h-[120px]">
                     <div className="text-3xl md:text-4xl mb-2 group-hover:scale-110 transition-transform">📈</div>
                     <span className="text-sm md:text-lg font-black text-white uppercase tracking-tight">Analizza</span>
-                    <span className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest mt-1 opacity-60">Studia una prestazione</span>
+                    <span className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest mt-1 opacity-60">Studia i tuoi dati</span>
                 </button>
 
                 <button onClick={() => setMenuStep('plan')} className="flex flex-col items-center justify-center p-4 md:p-6 bg-purple-600/5 hover:bg-purple-600/10 border-2 border-purple-500/20 hover:border-purple-400 rounded-2xl transition-all group active:scale-95 shadow-lg min-h-[120px]">
                     <div className="text-3xl md:text-4xl mb-2 group-hover:scale-110 transition-transform">📅</div>
                     <span className="text-sm md:text-lg font-black text-white uppercase tracking-tight">Pianifica</span>
-                    <span className="text-[10px] text-purple-400 font-bold uppercase tracking-widest mt-1 opacity-60">Diario & Coach AI</span>
+                    <span className="text-[10px] text-purple-400 font-bold uppercase tracking-widest mt-1 opacity-60">Calendario & AI</span>
                 </button>
 
-                <button onClick={onOpenExplorer} className="flex flex-col items-center justify-center p-4 md:p-6 bg-slate-700/20 hover:bg-slate-700/40 border-2 border-slate-600/40 hover:border-white/40 rounded-2xl transition-all group active:scale-95 shadow-lg min-h-[120px]">
+                <button onClick={() => { onOpenExplorer(); onClose(); }} className="flex flex-col items-center justify-center p-4 md:p-6 bg-slate-700/20 hover:bg-slate-700/40 border-2 border-slate-600/40 hover:border-white/40 rounded-2xl transition-all group active:scale-95 shadow-lg min-h-[120px]">
                     <div className="text-3xl md:text-4xl mb-2 group-hover:scale-110 transition-transform">👁️</div>
-                    <span className="text-sm md:text-lg font-black text-white uppercase tracking-tight">Rivedi</span>
+                    <span className="text-sm md:text-lg font-black text-white uppercase tracking-tight">Archivio</span>
                     <span className="text-[10px] text-slate-400 group-hover:text-white font-bold uppercase tracking-widest mt-1 opacity-60">Esplora storico</span>
                 </button>
 
@@ -134,66 +127,47 @@ const HomeModal: React.FC<HomeModalProps> = ({
                 </button>
             </div>
 
-            <button 
-                onClick={onClose} 
-                className="w-full bg-gradient-to-r from-slate-800 to-slate-800 hover:from-slate-700 hover:to-slate-700 border border-slate-600 hover:border-cyan-500/50 text-white font-bold py-3 md:py-4 rounded-2xl transition-all shadow-lg flex items-center justify-center gap-3 group active:scale-95"
-            >
+            <button onClick={onClose} className="w-full bg-gradient-to-r from-slate-800 to-slate-800 hover:from-slate-700 hover:to-slate-700 border border-slate-600 hover:border-cyan-500/50 text-white font-bold py-3 md:py-4 rounded-2xl transition-all shadow-lg flex items-center justify-center gap-3 group active:scale-95">
                 <span className="text-xl group-hover:scale-110 transition-transform">🗺️</span>
-                <span className="uppercase tracking-widest text-sm text-slate-200 group-hover:text-white">Vai alla Mappa</span>
+                <span className="uppercase tracking-widest text-sm text-slate-200 group-hover:text-white font-black">Esplora Mappa</span>
             </button>
         </div>
     );
 
     const AnalyzeMenu = () => (
         <div className="flex flex-col gap-4 animate-fade-in">
-            <h3 className="text-lg font-black text-white uppercase tracking-tighter mb-2 border-b border-slate-700 pb-2">
-                Cosa vuoi analizzare?
-            </h3>
+            <h3 className="text-lg font-black text-white uppercase tracking-tighter mb-2 border-b border-slate-700 pb-2">Analisi Attività</h3>
             <button onClick={() => { onOpenExplorer(); onClose(); }} className="p-4 bg-slate-700/30 hover:bg-slate-700 border border-slate-600 rounded-xl text-left transition-all hover:border-cyan-500 group">
                 <span className="block text-sm font-bold text-white group-hover:text-cyan-400 mb-1">📂 Corsa in Archivio</span>
                 <span className="text-xs text-slate-400">Scegli una corsa già caricata per vedere dettagli e statistiche.</span>
             </button>
             <button onClick={() => trackInputRef.current?.click()} className="p-4 bg-slate-700/30 hover:bg-slate-700 border border-slate-600 rounded-xl text-left transition-all hover:border-green-500 group">
-                <span className="block text-sm font-bold text-white group-hover:text-green-400 mb-1">📤 Nuova Traccia</span>
-                <span className="text-xs text-slate-400">Carica un file GPX o TCX per una nuova analisi.</span>
+                <span className="block text-sm font-bold text-white group-hover:text-green-400 mb-1">📤 Nuova Traccia (GPX/TCX)</span>
+                <span className="text-xs text-slate-400">Carica file dal dispositivo per una nuova analisi profonda.</span>
                 <input type="file" ref={trackInputRef} multiple accept=".gpx,.tcx" className="hidden" onChange={handleTrackUploadChange} />
             </button>
             {onOpenStravaConfig && (
-                <button 
-                    onClick={() => { onOpenStravaConfig(); }} 
-                    className={`p-4 border rounded-xl text-left transition-all group ${
-                        isStravaLinked 
-                        ? 'bg-green-900/10 border-green-500/30 hover:bg-green-900/20' 
-                        : 'bg-[#fc4c02]/10 border-[#fc4c02]/30 hover:bg-[#fc4c02]/20 hover:border-[#fc4c02]'
-                    }`}
-                >
+                <button onClick={onOpenStravaConfig} className={`p-4 border rounded-xl text-left transition-all group ${isStravaLinked ? 'bg-green-900/10 border-green-500/30 hover:bg-green-900/20' : 'bg-[#fc4c02]/10 border-[#fc4c02]/30 hover:bg-[#fc4c02]/20 hover:border-[#fc4c02]'}`}>
                     <span className={`block text-sm font-bold mb-1 flex items-center gap-2 ${isStravaLinked ? 'text-green-400' : 'text-white group-hover:text-[#fc4c02]'}`}>
-                        <StravaIcon /> {isStravaLinked ? 'Sincronizza Strava' : 'Connetti Strava'}
+                        <StravaIcon /> {isStravaLinked ? 'Sincronizza con Strava' : 'Connetti account Strava'}
                         {isStravaLinked && <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>}
                     </span>
-                    <span className="text-xs text-slate-400">
-                        {isStravaLinked ? 'Scarica le ultime attività caricate.' : 'Ottieni automaticamente le tue corse da Strava.'}
-                    </span>
+                    <span className="text-xs text-slate-400">{isStravaLinked ? 'Scarica subito le tue ultime corse.' : 'Ottieni automaticamente le tue attività via API.'}</span>
                 </button>
             )}
-            <button onClick={() => setMenuStep('main')} className="text-xs text-slate-500 hover:text-white underline mt-2 text-center">Torna Indietro</button>
+            <button onClick={() => setMenuStep('main')} className="text-xs font-black text-slate-500 hover:text-white uppercase mt-2 text-center tracking-widest">Torna al Menu Principale</button>
         </div>
     );
 
     const PlanMenu = () => (
         <div className="flex flex-col gap-4 animate-fade-in">
-            <h3 className="text-lg font-black text-white uppercase tracking-tighter mb-2 border-b border-slate-700 pb-2">
-                Pianificazione & Coach
-            </h3>
+            <h3 className="text-lg font-black text-white uppercase tracking-tighter mb-2 border-b border-slate-700 pb-2">Diario & Allenamento</h3>
             <button onClick={() => { onOpenDiary(); onClose(); }} className="p-4 bg-slate-700/30 hover:bg-slate-700 border border-slate-600 rounded-xl text-left transition-all hover:border-purple-500 group">
-                <span className="block text-sm font-bold text-white group-hover:text-purple-400 mb-1">📅 Apri Diario & Calendario</span>
-                <span className="text-xs text-slate-400">Visualizza il calendario, gestisci allenamenti e chatta col Coach.</span>
+                <span className="block text-sm font-bold text-white group-hover:text-purple-400 mb-1">📅 Calendario Allenamenti</span>
+                <span className="text-xs text-slate-400">Gestisci i tuoi impegni e segui la scheda suggerita dal Coach AI.</span>
             </button>
             {nextWorkout && (
-                <button 
-                    onClick={() => { if(onOpenWorkout) onOpenWorkout(nextWorkout.id); }}
-                    className="p-4 bg-slate-700/30 hover:bg-slate-700 border border-slate-600 rounded-xl text-left transition-all hover:border-amber-500 group relative overflow-hidden"
-                >
+                <button onClick={() => { if(onOpenWorkout) onOpenWorkout(nextWorkout.id); }} className="p-4 bg-slate-700/30 hover:bg-slate-700 border border-slate-600 rounded-xl text-left transition-all hover:border-amber-500 group relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-1 bg-amber-500/20 rounded-bl-lg">
                         <span className="text-[9px] font-bold text-amber-400 uppercase px-1">Prossimo</span>
                     </div>
@@ -201,130 +175,68 @@ const HomeModal: React.FC<HomeModalProps> = ({
                     <span className="text-xs text-slate-400 block">{new Date(nextWorkout.date).toLocaleDateString()} - {nextWorkout.activityType}</span>
                 </button>
             )}
-            <button onClick={() => setMenuStep('main')} className="text-xs text-slate-500 hover:text-white underline mt-2 text-center">Torna Indietro</button>
+            <button onClick={() => setMenuStep('main')} className="text-xs font-black text-slate-500 hover:text-white uppercase mt-2 text-center tracking-widest">Torna al Menu Principale</button>
         </div>
     );
 
     const RaceMenu = () => (
         <div className="flex flex-col gap-4 animate-fade-in">
-            <h3 className="text-lg font-black text-white uppercase tracking-tighter mb-2 border-b border-slate-700 pb-2">
-                Setup Gara
-            </h3>
+            <h3 className="text-lg font-black text-white uppercase tracking-tighter mb-2 border-b border-slate-700 pb-2">Virtual Race Mode</h3>
             <button onClick={() => { onEnterRaceMode?.(); }} className="p-4 bg-slate-700/30 hover:bg-slate-700 border border-slate-600 rounded-xl text-left transition-all hover:border-green-500 group">
-                <span className="block text-sm font-bold text-white group-hover:text-green-400 mb-1">🏎️ Configura Griglia</span>
-                <span className="text-xs text-slate-400">Seleziona le tracce dall'archivio e avvia la simulazione.</span>
+                <span className="block text-sm font-bold text-white group-hover:text-green-400 mb-1">🏎️ Gestione Griglia Gara</span>
+                <span className="text-xs text-slate-400">Seleziona le tracce dallo storico e avvia il replay simultaneo.</span>
             </button>
             <button onClick={() => opponentInputRef.current?.click()} className="p-4 bg-slate-700/30 hover:bg-slate-700 border border-slate-600 rounded-xl text-left transition-all hover:border-purple-500 group">
-                <span className="block text-sm font-bold text-white group-hover:text-purple-400 mb-1">👻 Carica Sfidante (Ghost)</span>
-                <span className="text-xs text-slate-400">Carica un GPX esterno da sfidare senza salvarlo.</span>
+                <span className="block text-sm font-bold text-white group-hover:text-purple-400 mb-1">👻 Sfida Runner Esterno (Ghost)</span>
+                <span className="text-xs text-slate-400">Carica un GPX esterno per usarlo come avversario temporaneo.</span>
                 <input type="file" ref={opponentInputRef} multiple accept=".gpx,.tcx" className="hidden" onChange={handleOpponentUpload} />
             </button>
-            <button onClick={() => setMenuStep('main')} className="text-xs text-slate-500 hover:text-white underline mt-2 text-center">Torna Indietro</button>
+            <button onClick={() => setMenuStep('main')} className="text-xs font-black text-slate-500 hover:text-white uppercase mt-2 text-center tracking-widest">Torna al Menu Principale</button>
         </div>
     );
 
     return (
         <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[5000] flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
             <div className="bg-slate-900 text-white rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden border border-slate-700/50 ring-1 ring-white/10 relative" onClick={e => e.stopPropagation()}>
-                
-                {isGuest && (
-                    <div className="bg-amber-600 text-white text-[10px] font-bold text-center py-1 uppercase tracking-widest shadow-md z-20 relative">
-                        ⚠️ Modalità Ospite: Dati non salvati nel cloud
-                    </div>
+                {isGuest ? (
+                    <div className="bg-amber-600 text-white text-[10px] font-black text-center py-1 uppercase tracking-widest shadow-md z-20 relative">⚠️ Modalità Ospite: Dati salvati solo localmente</div>
+                ) : (
+                    <div className="bg-gradient-to-r from-cyan-600 to-blue-600 text-white text-[10px] font-black text-center py-1 uppercase tracking-widest shadow-md z-20 relative">☁️ Connesso al Database Cloud</div>
                 )}
-                {!isGuest && (
-                    <div className="bg-gradient-to-r from-cyan-600 to-blue-600 text-white text-[10px] font-bold text-center py-1 uppercase tracking-widest shadow-md z-20 relative">
-                        ☁️ Connesso al Cloud
-                    </div>
-                )}
-                
                 <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-cyan-900/20 to-transparent pointer-events-none"></div>
-                
                 <header className="p-6 md:p-8 text-center relative z-10">
-                    <div className="flex justify-center mb-4">
-                        <LargeLogoIcon />
-                    </div>
-                    {!isGuest ? (
-                        <h2 className="text-2xl md:text-3xl font-black text-white italic tracking-tighter uppercase mb-1 animate-fade-in">
-                            Ciao, <span className="text-cyan-400">{userProfile?.name || 'Atleta'}</span>
-                        </h2>
-                    ) : (
-                        <h2 className="text-2xl md:text-3xl font-black text-white italic tracking-tighter uppercase mb-1">
-                            RunCoach<span className="text-cyan-400">AI</span>
-                        </h2>
-                    )}
-                    
+                    <div className="flex justify-center mb-4"><LargeLogoIcon /></div>
+                    <h2 className="text-2xl md:text-3xl font-black text-white italic tracking-tighter uppercase mb-1">Ciao, <span className="text-cyan-400">{userProfile?.name || 'Atleta'}</span></h2>
                     <div className="flex items-center justify-center gap-2 mt-2">
-                         <button 
-                            onClick={onOpenChangelog}
-                            className="bg-slate-800 border border-slate-700 text-slate-400 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider hover:bg-slate-700 hover:text-white transition-colors cursor-pointer"
-                         >
-                            v1.36
-                        </button>
-                        <span className={`border text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${trackCount > 0 ? 'bg-cyan-900/20 border-cyan-500/30 text-cyan-400' : 'bg-slate-800 border-slate-700 text-slate-500'}`}>
-                            {trackCount} {trackCount === 1 ? 'Attività' : 'Attività'}
-                        </span>
+                         <button onClick={onOpenChangelog} className="bg-slate-800 border border-slate-700 text-slate-400 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider hover:bg-slate-700 hover:text-white transition-colors">v1.36</button>
+                        <span className={`border text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${trackCount > 0 ? 'bg-cyan-900/20 border-cyan-500/30 text-cyan-400' : 'bg-slate-800 border-slate-700 text-slate-500'}`}>{trackCount} {trackCount === 1 ? 'Attività' : 'Attività'}</span>
                     </div>
                 </header>
-
                 <div className="px-6 md:px-8 pb-8">
-                    {menuStep === 'main' ? <MainMenu /> : 
-                     menuStep === 'analyze' ? <AnalyzeMenu /> :
-                     menuStep === 'plan' ? <PlanMenu /> :
-                     <RaceMenu />
-                    }
+                    {menuStep === 'main' ? <MainMenu /> : menuStep === 'analyze' ? <AnalyzeMenu /> : menuStep === 'plan' ? <PlanMenu /> : <RaceMenu />}
                 </div>
-
-                <footer className="bg-slate-950/50 p-4 border-t border-slate-800/50 flex justify-between items-center text-xs font-bold text-slate-500 relative">
+                <footer className="bg-slate-950/50 p-4 border-t border-slate-800/50 flex justify-between items-center text-[11px] font-black uppercase tracking-widest text-slate-500 relative">
                     <div className="flex gap-4">
                         <button onClick={onOpenProfile} className="hover:text-white transition-colors flex items-center gap-1"><SettingsIcon /> Profilo</button>
                         <button onClick={onOpenHelp} className="hover:text-white transition-colors flex items-center gap-1"><HelpIcon /> Guida</button>
                         {isGuest ? (
-                            <button onClick={onLogin} className="hover:text-cyan-400 transition-colors flex items-center gap-1 text-cyan-500">
-                                <UserIcon /> Accedi
-                            </button>
+                            <button onClick={onLogin} className="hover:text-cyan-400 transition-colors flex items-center gap-1 text-cyan-500 font-black"><UserIcon /> Accedi</button>
                         ) : (
-                            <button onClick={onLogout} className="hover:text-red-400 transition-colors flex items-center gap-1">
-                                <LogoutIcon /> Logout
-                            </button>
+                            <button onClick={onLogout} className="hover:text-red-400 transition-colors flex items-center gap-1"><LogoutIcon /> Esci</button>
                         )}
                     </div>
-                    
                     <div className="flex gap-4">
                         {onManualCloudSave && !isGuest && (
-                            <button onClick={onManualCloudSave} className="hover:text-green-400 transition-colors flex items-center gap-1" title="Sincronizza Cloud"><CloudUpIcon /> Cloud</button>
+                            <button onClick={onManualCloudSave} className="hover:text-green-400 transition-colors flex items-center gap-1" title="Sincronizza ora"><CloudUpIcon /> Cloud</button>
                         )}
-                        
                         <div className="relative">
-                            <button 
-                                onClick={() => setShowDataMenu(!showDataMenu)} 
-                                className={`transition-colors flex items-center gap-1 ${showDataMenu ? 'text-white' : 'hover:text-white'}`}
-                            >
-                                Dati
-                            </button>
-                            
+                            <button onClick={() => setShowDataMenu(!showDataMenu)} className={`transition-colors flex items-center gap-1 ${showDataMenu ? 'text-white' : 'hover:text-white'}`}>Dati</button>
                             {showDataMenu && (
                                 <>
-                                    <div className="fixed inset-0 z-0 cursor-default" onClick={() => setShowDataMenu(false)}></div>
+                                    <div className="fixed inset-0 z-0" onClick={() => setShowDataMenu(false)}></div>
                                     <div className="absolute bottom-full right-0 mb-2 w-32 bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden z-10 animate-fade-in">
-                                        <button 
-                                            onClick={() => { 
-                                                backupInputRef.current?.click(); 
-                                                setShowDataMenu(false); 
-                                            }} 
-                                            className="block w-full text-left px-4 py-3 hover:bg-slate-700 text-slate-300 transition-colors border-b border-slate-700/50"
-                                        >
-                                            Importa
-                                        </button>
-                                        <button 
-                                            onClick={() => { 
-                                                onExportBackup(); 
-                                                setShowDataMenu(false); 
-                                            }} 
-                                            className="block w-full text-left px-4 py-3 hover:bg-slate-700 text-slate-300 transition-colors"
-                                        >
-                                            Salva Backup
-                                        </button>
+                                        <button onClick={() => { backupInputRef.current?.click(); setShowDataMenu(false); }} className="block w-full text-left px-4 py-3 hover:bg-slate-700 text-slate-300 transition-colors border-b border-slate-700/50">Importa</button>
+                                        <button onClick={() => { onExportBackup(); setShowDataMenu(false); }} className="block w-full text-left px-4 py-3 hover:bg-slate-700 text-slate-300 transition-colors">Backup</button>
                                     </div>
                                 </>
                             )}

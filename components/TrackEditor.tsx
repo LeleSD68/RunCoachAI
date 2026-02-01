@@ -55,7 +55,7 @@ const metricLabels: Record<YAxisMetric, string> = {
     pace: 'Ritmo',
     elevation: 'Altitudine',
     speed: 'Velocità',
-    hr: 'FC',
+    hr: 'Cardio',
     power: 'Potenza'
 };
 
@@ -86,27 +86,27 @@ const SparklesIcon = () => (
 
 const StatItem: React.FC<{ title: string; value: string | React.ReactNode; subvalue?: string; }> = ({ title, value, subvalue }) => (
     <div className="text-center px-2">
-      <div className="text-xs text-slate-400 uppercase tracking-wider whitespace-nowrap">{title}</div>
+      <div className="text-[10px] text-slate-400 uppercase tracking-wider whitespace-nowrap">{title}</div>
       <div className="text-xl font-bold font-mono text-white">{value}</div>
-      {subvalue && <div className="text-xs text-slate-500 whitespace-nowrap">{subvalue}</div>}
+      {subvalue && <div className="text-[10px] text-slate-500 whitespace-nowrap">{subvalue}</div>}
     </div>
 );
 
 const SelectionStatsDisplay: React.FC<{ stats: TrackStats }> = ({ stats }) => (
     <div className="flex-shrink-0 bg-slate-800/90 backdrop-blur-sm p-2 border-b-2 border-cyan-500 text-white flex items-center justify-around gap-2 z-10 animate-fade-in-down">
-      <StatItem title="Distance" value={`${stats.totalDistance.toFixed(2)} km`} />
-      <StatItem title="Duration" value={formatDuration(stats.movingDuration)} subvalue={`Total: ${formatDuration(stats.totalDuration)}`} />
-      <StatItem title="Avg Pace" value={`${formatPace(stats.movingAvgPace)}/km`} />
-      <StatItem title="Elevation" value={`+${Math.round(stats.elevationGain)}m / -${Math.round(stats.elevationLoss)}m`} />
-      {stats.avgHr && <StatItem title="Avg HR" value={`${Math.round(stats.avgHr)} bpm`} subvalue={`Min:${stats.minHr}/Max:${stats.maxHr}`} />}
-      <StatItem title="Max Speed" value={`${stats.maxSpeed.toFixed(1)} km/h`} />
+      <StatItem title="Distanza" value={`${stats.totalDistance.toFixed(2)} km`} />
+      <StatItem title="Durata" value={formatDuration(stats.movingDuration)} subvalue={`Tot: ${formatDuration(stats.totalDuration)}`} />
+      <StatItem title="Ritmo Medio" value={`${formatPace(stats.movingAvgPace)}/km`} />
+      <StatItem title="Dislivello" value={`+${Math.round(stats.elevationGain)}m / -${Math.round(stats.elevationLoss)}m`} />
+      {stats.avgHr && <StatItem title="Cardio Medio" value={`${Math.round(stats.avgHr)} bpm`} subvalue={`Min:${stats.minHr}/Max:${stats.maxHr}`} />}
+      <StatItem title="Vel. Max" value={`${stats.maxSpeed.toFixed(1)} km/h`} />
     </div>
 );
 
 
 const TrackEditor: React.FC<TrackEditorProps> = ({ initialTracks, onExit, addToast }) => {
     const [editedTrack, setEditedTrack] = useState<Track | null>(null);
-    const [trackName, setTrackName] = useState(''); // New State for Name
+    const [trackName, setTrackName] = useState('');
     const [history, setHistory] = useState<Track[]>([]);
     const [selection, setSelection] = useState<{ startDistance: number; endDistance: number } | null>(null);
     const [selectionInfo, setSelectionInfo] = useState<SelectionInfo | null>(null);
@@ -122,7 +122,6 @@ const TrackEditor: React.FC<TrackEditorProps> = ({ initialTracks, onExit, addToa
     const isMobile = useIsMobile();
     const nameInputRef = useRef<HTMLInputElement>(null);
     
-    // Prevent double initialization
     const hasInitialized = useRef(false);
 
     const trackStats = useMemo(() => {
@@ -137,26 +136,23 @@ const TrackEditor: React.FC<TrackEditorProps> = ({ initialTracks, onExit, addToa
             hasInitialized.current = true;
             let trackToEdit;
             if (initialTracks.length > 1) {
-                // Ensure fresh merge
                 trackToEdit = mergeTracks(initialTracks);
-                addToast(`Unite ${initialTracks.length} tracce in una timeline continua.`, "info");
+                addToast(`Unite ${initialTracks.length} tracce in una linea continua.`, "info");
             } else {
                 trackToEdit = { ...initialTracks[0] };
             }
             setEditedTrack(trackToEdit);
-            setTrackName(trackToEdit.name); // Init name
+            setTrackName(trackToEdit.name);
             setHistory([trackToEdit]);
         }
     }, [initialTracks, addToast]);
 
-    // Update track name in state whenever editedTrack changes (e.g. undo)
     useEffect(() => {
         if (editedTrack) {
             setTrackName(editedTrack.name);
         }
     }, [editedTrack]);
 
-    // Effect to update selection info and map highlight
     useEffect(() => {
         if (selection && editedTrack) {
             const points = getPointsInDistanceRange(editedTrack, selection.startDistance, selection.endDistance);
@@ -173,7 +169,7 @@ const TrackEditor: React.FC<TrackEditorProps> = ({ initialTracks, onExit, addToa
 
                 const tempTrackForStats: Track = {
                     id: 'selection-stats',
-                    name: 'Selection',
+                    name: 'Selezione',
                     color: '#fde047',
                     points: points,
                     distance: distance,
@@ -193,7 +189,7 @@ const TrackEditor: React.FC<TrackEditorProps> = ({ initialTracks, onExit, addToa
             setSelectionPoints(null);
             setSelectionStats(null);
             if (editedTrack?.points.length) {
-                setFitBoundsTrigger(c => c + 1); // Fit to whole track when selection is cleared
+                setFitBoundsTrigger(c => c + 1);
             }
         }
 
@@ -213,13 +209,10 @@ const TrackEditor: React.FC<TrackEditorProps> = ({ initialTracks, onExit, addToa
     useEffect(() => {
         if (hoveredPoint && editedTrack && mapGradientMetric !== 'none' && mapGradientMetric !== 'hr_zones') {
             let value: number | null = null;
-            if (mapGradientMetric === 'elevation') {
-                value = hoveredPoint.ele;
-            } else if (mapGradientMetric === 'hr') {
-                value = hoveredPoint.hr ?? null;
-            } else if (mapGradientMetric === 'power') {
-                value = hoveredPoint.power ?? null;
-            } else if (mapGradientMetric === 'speed' || mapGradientMetric === 'pace') {
+            if (mapGradientMetric === 'elevation') value = hoveredPoint.ele;
+            else if (mapGradientMetric === 'hr') value = hoveredPoint.hr ?? null;
+            else if (mapGradientMetric === 'power') value = hoveredPoint.power ?? null;
+            else if (mapGradientMetric === 'speed' || mapGradientMetric === 'pace') {
                 const pointIndex = editedTrack.points.findIndex(p => p.time.getTime() === hoveredPoint.time.getTime());
                 if (pointIndex > 0) {
                     const p1 = editedTrack.points[pointIndex - 1];
@@ -229,7 +222,7 @@ const TrackEditor: React.FC<TrackEditorProps> = ({ initialTracks, onExit, addToa
                     if (timeHours > 1e-6) {
                         const speed = dist / timeHours;
                         if (mapGradientMetric === 'speed') value = speed;
-                        else if (speed > 0.1) value = 60 / speed; // pace
+                        else if (speed > 0.1) value = 60 / speed;
                     } else {
                         value = mapGradientMetric === 'pace' ? 99 : 0;
                     }
@@ -248,7 +241,7 @@ const TrackEditor: React.FC<TrackEditorProps> = ({ initialTracks, onExit, addToa
     const updateTrack = useCallback((newTrack: Track) => {
         setEditedTrack(newTrack);
         setHistory(prev => [...prev, newTrack]);
-        setSelection(null); // Clear selection after an action
+        setSelection(null);
         setSelectedPoint(null);
     }, []);
     
@@ -256,7 +249,7 @@ const TrackEditor: React.FC<TrackEditorProps> = ({ initialTracks, onExit, addToa
         setYAxisMetrics(prev => {
             const newMetrics = new Set(prev);
             if (newMetrics.has(metric)) {
-                if (newMetrics.size > 1) { // Can't deselect the last one
+                if (newMetrics.size > 1) {
                     newMetrics.delete(metric);
                 }
             } else {
@@ -273,22 +266,20 @@ const TrackEditor: React.FC<TrackEditorProps> = ({ initialTracks, onExit, addToa
             setEditedTrack(newHistory[newHistory.length - 1]);
             setSelection(null);
             setSelectedPoint(null);
-            addToast("Last action undone.", "info");
+            addToast("Ultima azione annullata.", "info");
         }
     }, [history, addToast]);
 
     const handlePointSelect = useCallback((point: TrackPoint | null) => {
         setSelectedPoint(point);
-        if (point) {
-            setSelection(null);
-        }
+        if (point) setSelection(null);
     }, []);
     
     const handleDelete = useCallback(() => {
         if (editedTrack && selection) {
             const newTrack = cutTrackSection(editedTrack, selection.startDistance, selection.endDistance);
             updateTrack(newTrack);
-            addToast("Selection deleted from track.", "success");
+            addToast("Tratto eliminato dal percorso.", "success");
         }
     }, [editedTrack, selection, updateTrack, addToast]);
 
@@ -296,13 +287,12 @@ const TrackEditor: React.FC<TrackEditorProps> = ({ initialTracks, onExit, addToa
         if (editedTrack && selection) {
             const newTrack = trimTrackToSelection(editedTrack, selection.startDistance, selection.endDistance);
             updateTrack(newTrack);
-            addToast("Track trimmed to selection.", "success");
+            addToast("Percorso tagliato alla selezione.", "success");
         }
     }, [editedTrack, selection, updateTrack, addToast]);
 
     const handleSaveSelection = useCallback(() => {
         if (editedTrack && selectionPoints && selectionPoints.length > 1) {
-            // Normalize points to create a new valid track starting from 0 distance and time
             const firstPoint = selectionPoints[0];
             const startTime = firstPoint.time.getTime();
             const startDist = firstPoint.cummulativeDistance;
@@ -319,7 +309,7 @@ const TrackEditor: React.FC<TrackEditorProps> = ({ initialTracks, onExit, addToa
                 points: normalizedPoints,
                 distance: normalizedPoints[normalizedPoints.length - 1].cummulativeDistance,
                 duration: normalizedPoints[normalizedPoints.length - 1].time.getTime(),
-                name: `${editedTrack.name} (Part)`,
+                name: `${editedTrack.name} (Estratto)`,
             };
             
             updateTrack(newTrack);
@@ -329,9 +319,8 @@ const TrackEditor: React.FC<TrackEditorProps> = ({ initialTracks, onExit, addToa
 
     const handleExport = useCallback(() => {
         if (editedTrack) {
-            // Use current name in input
             exportToGpx({ ...editedTrack, name: trackName });
-             addToast(`Exported "${trackName}.gpx"`, "success");
+             addToast(`Esportato "${trackName}.gpx"`, "success");
         }
     }, [editedTrack, trackName, addToast]);
 
@@ -347,9 +336,9 @@ const TrackEditor: React.FC<TrackEditorProps> = ({ initialTracks, onExit, addToa
             const { newTrack, correctedCount } = smoothTrackData(editedTrack);
             if (correctedCount > 0) {
                 updateTrack(newTrack);
-                addToast(`${correctedCount} potential GPS error(s) found and corrected.`, "success");
+                addToast(`${correctedCount} potenziali errori GPS corretti.`, "success");
             } else {
-                addToast("No significant GPS errors found to correct.", "info");
+                addToast("Nessun errore GPS significativo rilevato.", "info");
             }
         }
     }, [editedTrack, updateTrack, addToast]);
@@ -360,7 +349,6 @@ const TrackEditor: React.FC<TrackEditorProps> = ({ initialTracks, onExit, addToa
 
     const handleSaveAndExit = () => {
         if (editedTrack) {
-            // Return updated track with new name
             onExit({ ...editedTrack, name: trackName });
         } else {
             onExit();
@@ -372,7 +360,7 @@ const TrackEditor: React.FC<TrackEditorProps> = ({ initialTracks, onExit, addToa
             <div className="flex items-center justify-center h-full text-white">
                 <div className="flex flex-col items-center">
                     <div className="w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                    <div>Preparazione Editor...</div>
+                    <div className="uppercase font-black text-xs tracking-widest">Preparazione Editor...</div>
                 </div>
             </div>
         );
@@ -380,16 +368,11 @@ const TrackEditor: React.FC<TrackEditorProps> = ({ initialTracks, onExit, addToa
     
     return (
         <div className="flex flex-col h-full w-full font-sans text-white">
-            {/* Header */}
             <header className="flex items-center justify-between p-3 bg-slate-800 border-b border-slate-700 flex-shrink-0 z-10 gap-4">
-                <button
-                    onClick={() => onExit()}
-                    className="bg-slate-600 hover:bg-slate-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap text-sm"
-                >
+                <button onClick={() => onExit()} className="bg-slate-600 hover:bg-slate-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap text-sm">
                     &larr; Annulla
                 </button>
                 
-                {/* Editable Name Input */}
                 <div className="flex-grow max-w-lg relative group">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                         <PencilIcon />
@@ -415,113 +398,81 @@ const TrackEditor: React.FC<TrackEditorProps> = ({ initialTracks, onExit, addToa
                             onChange={(e) => setMapGradientMetric(e.target.value as any)}
                             className="bg-slate-600 hover:bg-slate-500 text-white font-semibold py-2 pl-9 pr-4 rounded-md transition-colors appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-sky-500 text-sm"
                         >
-                            <option value="none">Default</option>
-                            <option value="elevation">Elevation</option>
-                            <option value="pace">Pace</option>
-                            <option value="speed">Speed</option>
-                            <option value="power">Watt</option>
-                            <option value="hr" disabled={!hasHrData}>Heart Rate (Gradient)</option>
-                            <option value="hr_zones" disabled={!hasHrData}>Heart Rate (Zones)</option>
+                            <option value="none">Gradiente: No</option>
+                            <option value="elevation">Altitudine</option>
+                            <option value="pace">Passo</option>
+                            <option value="speed">Velocità</option>
+                            <option value="power">Potenza (Stima)</option>
+                            <option value="hr" disabled={!hasHrData}>Frequenza Cardiaca</option>
+                            <option value="hr_zones" disabled={!hasHrData}>Zone Cardio</option>
                         </select>
                     </div>
-                     <button
-                        onClick={handleSaveAndExit}
-                        className="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap text-sm"
-                    >
+                     <button onClick={handleSaveAndExit} className="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 rounded-md transition-colors whitespace-nowrap text-sm uppercase">
                         Salva
                     </button>
                 </div>
             </header>
 
-            {/* Main Content */}
             <div className="flex flex-grow overflow-hidden">
                 <ResizablePanel 
                     direction={isMobile ? 'horizontal' : 'vertical'}
                     initialSize={isMobile ? 350 : 256}
                     minSize={isMobile ? 250 : 200}
                 >
-                    <aside className="bg-slate-800 p-4 flex flex-col space-y-4 h-full overflow-y-auto">
+                    <aside className="bg-slate-800 p-4 flex flex-col space-y-4 h-full overflow-y-auto custom-scrollbar">
                         <div>
-                            <h2 className="text-lg font-semibold text-slate-200 mb-2">Track Info</h2>
+                            <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 border-b border-slate-700 pb-1">Info Percorso</h2>
                             <div className="text-sm space-y-1 text-slate-300 font-mono">
-                                <p>Dist: <span className="font-bold text-white">{editedTrack.distance.toFixed(2)} km</span></p>
-                                <p>Time: <span className="font-bold text-white">{formatDuration(editedTrack.duration)}</span></p>
-                                <p>Points: <span className="font-bold text-white">{editedTrack.points.length}</span></p>
+                                <p>Distanza: <span className="font-bold text-white">{editedTrack.distance.toFixed(2)} km</span></p>
+                                <p>Tempo: <span className="font-bold text-white">{formatDuration(editedTrack.duration)}</span></p>
+                                <p>Punti: <span className="font-bold text-white">{editedTrack.points.length}</span></p>
                                 {trackStats && (
                                     <div className="border-t border-slate-700 my-2 pt-2">
-                                        <p>Avg Pace: <span className="font-bold text-white">{formatPace(trackStats.movingAvgPace)} /km</span></p>
-                                        <p>Avg Speed: <span className="font-bold text-white">{trackStats.avgSpeed.toFixed(1)} km/h</span></p>
-                                        {trackStats.avgHr && (
-                                            <p>Avg HR: <span className="font-bold text-white">{Math.round(trackStats.avgHr)} bpm</span></p>
-                                        )}
-                                        {trackStats.minHr && trackStats.maxHr && (
-                                            <p>HR Range: <span className="font-bold text-white">{trackStats.minHr} - {trackStats.maxHr} bpm</span></p>
-                                        )}
+                                        <p>Ritmo Medio: <span className="font-bold text-white">{formatPace(trackStats.movingAvgPace)} /km</span></p>
+                                        <p>Velocità Media: <span className="font-bold text-white">{trackStats.avgSpeed.toFixed(1)} km/h</span></p>
+                                        {trackStats.avgHr && <p>FC Media: <span className="font-bold text-white">{Math.round(trackStats.avgHr)} bpm</span></p>}
                                     </div>
                                 )}
                             </div>
                         </div>
                         <div className="border-t border-slate-700 pt-4">
-                            <h2 className="text-lg font-semibold text-slate-200 mb-3">Editing Tools</h2>
+                            <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 border-b border-slate-700 pb-1">Strumenti Editing</h2>
                             <div className="space-y-2">
-                                <button
-                                    onClick={handleSaveSelection}
-                                    disabled={!selection}
-                                    className="w-full text-center bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-md transition-colors"
-                                >
-                                    Salva Selezione
+                                <button onClick={handleSaveSelection} disabled={!selection} className="w-full text-center bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-bold py-2 px-4 rounded-md transition-colors text-xs uppercase">
+                                    Crea Nuova Traccia
                                 </button>
-                                <button
-                                    onClick={handleDelete}
-                                    disabled={!selection}
-                                    className="w-full text-center bg-red-600 hover:bg-red-500 disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-md transition-colors"
-                                >
-                                    Delete Selection
+                                <button onClick={handleDelete} disabled={!selection} className="w-full text-center bg-red-600 hover:bg-red-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-bold py-2 px-4 rounded-md transition-colors text-xs uppercase">
+                                    Elimina Selezione
                                 </button>
-                                <button
-                                    onClick={handleTrim}
-                                    disabled={!selection}
-                                    className="w-full text-center bg-amber-600 hover:bg-amber-500 disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-md transition-colors"
-                                >
-                                    Trim to Selection
+                                <button onClick={handleTrim} disabled={!selection} className="w-full text-center bg-amber-600 hover:bg-amber-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-bold py-2 px-4 rounded-md transition-colors text-xs uppercase">
+                                    Tieni solo Selezione
                                 </button>
 
                                 <div className="border-t border-slate-600 !my-3"></div>
 
-                                <button
-                                    onClick={handleFixGpsErrors}
-                                    className="w-full flex items-center justify-center bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-4 rounded-md transition-colors"
-                                    title="Automatically find and correct points with impossibly high speed"
-                                >
+                                <button onClick={handleFixGpsErrors} className="w-full flex items-center justify-center bg-sky-600 hover:bg-sky-500 text-white font-bold py-2 px-4 rounded-md transition-colors text-xs uppercase">
                                     <SparklesIcon />
-                                    Fix GPS Errors
+                                    Ripara Errori GPS
                                 </button>
                                 
-                                <button
-                                    onClick={handleExport}
-                                    className="w-full text-center bg-slate-500 hover:bg-slate-400 text-white font-bold py-2 px-4 rounded-md transition-colors"
-                                >
-                                    Export as GPX
+                                <button onClick={handleExport} className="w-full text-center bg-slate-500 hover:bg-slate-400 text-white font-bold py-2 px-4 rounded-md transition-colors text-xs uppercase">
+                                    Esporta in GPX
                                 </button>
 
                                 <div className="border-t border-slate-600 !my-3"></div>
 
-                                <button
-                                    onClick={handleUndo}
-                                    disabled={history.length <= 1}
-                                    className="w-full text-center bg-slate-500 hover:bg-slate-400 disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-md transition-colors"
-                                >
-                                    Undo Last Action
+                                <button onClick={handleUndo} disabled={history.length <= 1} className="w-full text-center bg-slate-500 hover:bg-slate-400 disabled:bg-slate-700 disabled:text-slate-500 text-white font-bold py-2 px-4 rounded-md transition-colors text-xs uppercase">
+                                    Annulla Ultima Azione
                                 </button>
                             </div>
                         </div>
                         {selectionInfo && (
-                            <div className="border-t border-slate-700 pt-4 text-sm text-slate-400 font-mono animate-fade-in">
-                                <h3 className="text-base font-semibold text-slate-200 mb-2">Current Selection</h3>
-                                <p>Start: <span className="text-white">{selectionInfo.startDistance.toFixed(2)} km</span></p>
-                                <p>End: <span className="text-white">{selectionInfo.endDistance.toFixed(2)} km</span></p>
-                                <p>Length: <span className="text-white">{selectionInfo.distance.toFixed(2)} km</span></p>
-                                <p>Time: <span className="text-white">{formatDuration(selectionInfo.duration)}</span></p>
+                            <div className="border-t border-slate-700 pt-4 text-[10px] text-slate-400 font-mono animate-fade-in">
+                                <h3 className="text-xs font-black text-slate-200 mb-2 uppercase">Selezione Attuale</h3>
+                                <p>Inizio: <span className="text-white">{selectionInfo.startDistance.toFixed(2)} km</span></p>
+                                <p>Fine: <span className="text-white">{selectionInfo.endDistance.toFixed(2)} km</span></p>
+                                <p>Distanza: <span className="text-white">{selectionInfo.distance.toFixed(2)} km</span></p>
+                                <p>Tempo: <span className="text-white">{formatDuration(selectionInfo.duration)}</span></p>
                             </div>
                         )}
                     </aside>
@@ -530,8 +481,8 @@ const TrackEditor: React.FC<TrackEditorProps> = ({ initialTracks, onExit, addToa
                          <div className="flex flex-col-reverse flex-grow overflow-hidden h-full">
                             <ResizablePanel direction="horizontal" initialSize={192} minSize={120}>
                                 <div className="bg-slate-800 p-4 relative h-full overflow-hidden">
-                                    <div className="absolute top-2 left-12 z-10 flex items-center bg-slate-700/50 p-1 rounded-md">
-                                        <div className="flex space-x-1">
+                                    <div className="absolute top-2 left-12 z-10 flex items-center bg-slate-700/50 p-1 rounded-md overflow-x-auto no-scrollbar max-w-[calc(100%-60px)]">
+                                        <div className="flex space-x-1 shrink-0">
                                             {(['pace', 'elevation', 'speed', 'hr', 'power'] as const).map(metric => {
                                                 const isDisabled = metric === 'hr' && !hasHrData;
                                                 const isActive = yAxisMetrics.includes(metric);
@@ -540,27 +491,25 @@ const TrackEditor: React.FC<TrackEditorProps> = ({ initialTracks, onExit, addToa
                                                         key={metric}
                                                         onClick={() => toggleYAxisMetric(metric)}
                                                         disabled={isDisabled}
-                                                        className={`px-3 py-1 text-xs rounded-md transition-colors font-semibold ${
+                                                        className={`px-3 py-1 text-[10px] rounded-md transition-colors font-bold uppercase tracking-tight ${
                                                             isActive
                                                                 ? 'bg-sky-500 text-white'
                                                                 : 'bg-slate-600 hover:bg-slate-500 text-slate-300'
                                                         } ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                                        title={isDisabled ? 'Dati frequenza cardiaca non disponibili' : `Mostra ${metricLabels[metric]}`}
                                                     >
                                                         {metricLabels[metric]}
                                                     </button>
                                                 );
                                             })}
                                         </div>
-                                        <div className="border-l border-slate-600 h-5 mx-2"></div>
+                                        <div className="border-l border-slate-600 h-5 mx-2 shrink-0"></div>
                                         <button
                                             onClick={() => setShowPauses(p => !p)}
-                                            className={`flex items-center px-3 py-1 text-xs rounded-md transition-colors font-semibold ${
+                                            className={`flex items-center px-3 py-1 text-[10px] rounded-md transition-colors font-bold uppercase tracking-tight shrink-0 ${
                                                 showPauses
                                                     ? 'bg-amber-500 text-white'
                                                     : 'bg-slate-600 hover:bg-slate-500 text-slate-300'
                                             }`}
-                                            title="Mostra/nascondi pause"
                                         >
                                             <ClockIcon />
                                             Pause
@@ -612,20 +561,10 @@ const TrackEditor: React.FC<TrackEditorProps> = ({ initialTracks, onExit, addToa
                 </ResizablePanel>
             </div>
              <style>{`
-                @keyframes fade-in {
-                    from { opacity: 0; }
-                    to { opacity: 1; }
-                }
-                .animate-fade-in {
-                    animation: fade-in 0.3s ease-out forwards;
-                }
-                @keyframes fade-in-down {
-                    from { opacity: 0; transform: translateY(-10px); }
-                    to { opacity: 1; transform: translateY(0); }
-                }
-                .animate-fade-in-down {
-                    animation: fade-in-down 0.3s ease-out forwards;
-                }
+                @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+                .animate-fade-in { animation: fade-in 0.3s ease-out forwards; }
+                @keyframes fade-in-down { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+                .animate-fade-in-down { animation: fade-in-down 0.3s ease-out forwards; }
             `}</style>
         </div>
     );

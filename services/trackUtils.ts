@@ -1,6 +1,8 @@
 
 import type { Track } from '../types';
 
+const DELETED_STRAVA_KEY = 'runcoach_deleted_strava_fingerprints';
+
 // Haversine formula to calculate distance between two lat/lon points in kilometers
 const haversineDistance = (p1: {lat: number, lon: number}, p2: {lat: number, lon: number}): number => {
   const R = 6371; // Radius of the Earth in km
@@ -12,7 +14,7 @@ const haversineDistance = (p1: {lat: number, lon: number}, p2: {lat: number, lon
       Math.cos(p2.lat * (Math.PI / 180)) *
       Math.sin(dLon / 2) *
       Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(sqrt(a), sqrt(1 - a));
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 };
 
@@ -25,8 +27,9 @@ const DISTANCE_TOLERANCE_PERCENT = 0.02; // 2%
 // Genera una stringa univoca per una traccia basata su dati fisici
 export const getTrackFingerprint = (track: Track): string => {
     if (!track.points || track.points.length === 0) return track.id;
-    const startTime = new Date(track.points[0].time).getTime();
-    // Arrotondiamo distanza (metri) e durata (secondi) per gestire piccole fluttuazioni di parsing
+    const startTime = track.points[0].time instanceof Date 
+        ? track.points[0].time.getTime() 
+        : new Date(track.points[0].time).getTime();
     const roundedDist = Math.round(track.distance * 1000); 
     const roundedDur = Math.round(track.duration / 1000);
     return `${startTime}_${roundedDist}_${roundedDur}`;
@@ -35,6 +38,27 @@ export const getTrackFingerprint = (track: Track): string => {
 export const isDuplicateTrack = (track: Track, existingTracks: Track[]): boolean => {
     const fingerprint = getTrackFingerprint(track);
     return existingTracks.some(t => getTrackFingerprint(t) === fingerprint);
+};
+
+/**
+ * Gestione Blacklist per Strava
+ */
+export const markStravaTrackAsDeleted = (track: Track) => {
+    if (!track.id.startsWith('strava-') && !track.tags?.includes('Strava')) return;
+    const fingerprint = getTrackFingerprint(track);
+    const deleted = getDeletedStravaFingerprints();
+    deleted.add(fingerprint);
+    localStorage.setItem(DELETED_STRAVA_KEY, JSON.stringify(Array.from(deleted)));
+};
+
+export const getDeletedStravaFingerprints = (): Set<string> => {
+    const stored = localStorage.getItem(DELETED_STRAVA_KEY);
+    return new Set(stored ? JSON.parse(stored) : []);
+};
+
+export const isPreviouslyDeletedStravaTrack = (track: Track): boolean => {
+    const fingerprint = getTrackFingerprint(track);
+    return getDeletedStravaFingerprints().has(fingerprint);
 };
 
 // Helper function to get coordinates at a specific distance along a track

@@ -16,6 +16,11 @@ const StarIcon = ({ filled }: { filled: boolean }) => (
         <path fillRule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401Z" clipRule="evenodd" />
     </svg>
 );
+const StravaSmallIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-2.5 h-2.5 text-[#fc4c02]">
+        <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.477 0 4.177 12.173h4.172" />
+    </svg>
+);
 
 type GroupingType = 'none' | 'date' | 'distance' | 'type' | 'folder' | 'tag';
 type SortType = 'date_desc' | 'date_asc' | 'dist_desc' | 'dur_desc' | 'name_asc';
@@ -101,6 +106,10 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
         return groups;
     }, [processedTracks, grouping]);
 
+    const selectedTracksForMerge = useMemo(() => {
+        return tracks.filter(t => raceSelectionIds.has(t.id));
+    }, [tracks, raceSelectionIds]);
+
     const handleBulkGroupClick = () => {
         const folderName = prompt("Inserisci il nome della cartella per le corse selezionate:");
         if (folderName !== null) {
@@ -126,7 +135,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
 
             <div className="p-2 border-b border-slate-800 bg-slate-950/50 space-y-2">
                 <div className="flex gap-2">
-                    <input type="text" placeholder="Filtra..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="flex-grow bg-slate-800 border border-slate-700 rounded px-2 py-1 text-[11px] outline-none" />
+                    <input type="text" placeholder="Filtra per nome..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="flex-grow bg-slate-800 border border-slate-700 rounded px-2 py-1 text-[11px] outline-none" />
                     <button onClick={onSelectAll} className="text-[9px] font-bold text-slate-500 uppercase hover:text-white border border-slate-800 px-2 rounded">Tutti</button>
                 </div>
                 <div className="grid grid-cols-2 gap-1 text-[9px] uppercase font-bold text-slate-500">
@@ -134,19 +143,19 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                         <span>Raggruppa</span>
                         <select value={grouping} onChange={e => setGrouping(e.target.value as any)} className="bg-slate-800 border border-slate-700 rounded p-1 text-white">
                             <option value="none">Nessuno</option>
-                            <option value="date">Data</option>
-                            <option value="distance">Distanza</option>
-                            <option value="folder">Cartella</option>
-                            <option value="type">Tipo</option>
+                            <option value="date">Per Data</option>
+                            <option value="distance">Per Distanza</option>
+                            <option value="folder">Per Cartella</option>
+                            <option value="type">Per Tipo</option>
                         </select>
                     </div>
                     <div className="flex flex-col">
-                        <span>Ordina</span>
+                        <span>Ordina per</span>
                         <select value={sort} onChange={e => setSort(e.target.value as any)} className="bg-slate-800 border border-slate-700 rounded p-1 text-white">
-                            <option value="date_desc">Data Recente</option>
-                            <option value="date_asc">Data Vecchia</option>
-                            <option value="dist_desc">Distanza</option>
-                            <option value="name_asc">Nome A-Z</option>
+                            <option value="date_desc">Più Recenti</option>
+                            <option value="date_asc">Meno Recenti</option>
+                            <option value="dist_desc">Più Lunghe</option>
+                            <option value="name_asc">Nome (A-Z)</option>
                         </select>
                     </div>
                 </div>
@@ -159,45 +168,53 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                             <span>{groupName}</span>
                             <span className="opacity-50">{groupTracks.length}</span>
                         </div>
-                        {groupTracks.map(track => (
-                            <div key={track.id} className={`flex items-center p-2 hover:bg-slate-800 transition-all group ${focusedTrackId === track.id ? 'bg-slate-800/80 border-l-2 border-cyan-500' : ''} ${track.isFavorite ? 'ring-1 ring-amber-500/20 ring-inset' : ''}`}>
-                                <input type="checkbox" checked={raceSelectionIds.has(track.id)} onChange={() => onToggleRaceSelection(track.id)} className="mr-2 accent-cyan-500 cursor-pointer" />
-                                
-                                <div onClick={() => onViewDetails(track.id)} className="w-10 h-8 bg-slate-950 rounded border border-slate-700 overflow-hidden mr-2 shrink-0 cursor-pointer opacity-70 hover:opacity-100 transition-opacity relative group/prev">
-                                    <TrackPreview points={track.points} color={track.color} className="w-full h-full" />
-                                    <div className="absolute inset-0 bg-cyan-500/10 opacity-0 group-hover/prev:opacity-100 flex items-center justify-center transition-opacity">
-                                        <span className="text-[6px] font-black bg-black/60 px-1 rounded text-white uppercase">Info</span>
+                        {groupTracks.map(track => {
+                            const isStrava = track.id.startsWith('strava-') || track.tags?.includes('Strava');
+                            return (
+                                <div key={track.id} className={`flex items-center p-2 hover:bg-slate-800 transition-all group ${focusedTrackId === track.id ? 'bg-slate-800/80 border-l-2 border-cyan-500' : ''} ${track.isFavorite ? 'ring-1 ring-amber-500/20 ring-inset' : ''}`}>
+                                    <input type="checkbox" checked={raceSelectionIds.has(track.id)} onChange={() => onToggleRaceSelection(track.id)} className="mr-2 accent-cyan-500 cursor-pointer" />
+                                    
+                                    <div onClick={() => onViewDetails(track.id)} className="w-10 h-8 bg-slate-950 rounded border border-slate-700 overflow-hidden mr-2 shrink-0 cursor-pointer opacity-70 hover:opacity-100 transition-opacity relative group/prev">
+                                        <TrackPreview points={track.points} color={track.color} className="w-full h-full" />
+                                        <div className="absolute inset-0 bg-cyan-500/10 opacity-0 group-hover/prev:opacity-100 flex items-center justify-center transition-opacity">
+                                            <span className="text-[6px] font-black bg-black/60 px-1 rounded text-white uppercase tracking-tighter">Dettagli</span>
+                                        </div>
                                     </div>
-                                </div>
 
-                                <div className="flex-grow min-w-0 cursor-pointer" onClick={() => onFocusTrack(track.id)}>
-                                    <div className="flex items-center gap-1.5 min-w-0">
-                                        <div className="text-[11px] font-bold truncate group-hover:text-cyan-400">{track.name}</div>
-                                        {track.isFavorite && <StarIcon filled={true} />}
+                                    <div className="flex-grow min-w-0 cursor-pointer" onClick={() => onFocusTrack(track.id)}>
+                                        <div className="flex items-center gap-1.5 min-w-0">
+                                            <div className="text-[11px] font-bold truncate group-hover:text-cyan-400">{track.name}</div>
+                                            {isStrava && (
+                                                <div className="bg-[#fc4c02]/10 border border-[#fc4c02]/30 px-1 rounded flex items-center gap-0.5 shrink-0">
+                                                    <StravaSmallIcon />
+                                                </div>
+                                            )}
+                                            {track.isFavorite && <StarIcon filled={true} />}
+                                        </div>
+                                        <div className="text-[9px] text-slate-500 font-mono">
+                                            {track.distance.toFixed(1)}km • {new Date(track.points[0].time).toLocaleDateString()}
+                                        </div>
                                     </div>
-                                    <div className="text-[9px] text-slate-500 font-mono">
-                                        {track.distance.toFixed(1)}k • {new Date(track.points[0].time).toLocaleDateString()}
-                                    </div>
-                                </div>
 
-                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); onToggleFavorite(track.id); }} 
-                                        title={track.isFavorite ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti"} 
-                                        className="p-1 text-slate-400 hover:text-amber-400 transition-colors"
-                                    >
-                                        <StarIcon filled={track.isFavorite || false} />
-                                    </button>
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); onEditTrack(track.id); }} 
-                                        title="Modifica" 
-                                        className="p-1.5 bg-slate-700 text-slate-300 hover:bg-cyan-600 hover:text-white rounded-md transition-all"
-                                    >
-                                        <PencilIcon />
-                                    </button>
+                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); onToggleFavorite(track.id); }} 
+                                            title={track.isFavorite ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti"} 
+                                            className="p-1 text-slate-400 hover:text-amber-400 transition-colors"
+                                        >
+                                            <StarIcon filled={track.isFavorite || false} />
+                                        </button>
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); onEditTrack(track.id); }} 
+                                            title="Modifica Percorso" 
+                                            className="p-1.5 bg-slate-700 text-slate-300 hover:bg-cyan-600 hover:text-white rounded-md transition-all"
+                                        >
+                                            <PencilIcon />
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 ))}
                 {processedTracks.length === 0 && (
@@ -215,26 +232,32 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                             <span>🏁</span> Gara
                         </button>
                         <button 
+                            onClick={() => setShowMergeConfirm(true)} 
+                            className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black uppercase py-2.5 rounded shadow-lg transition-all active:scale-95"
+                        >
+                            <MergeIcon /> Unisci
+                        </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 mb-2">
+                        <button 
                             onClick={handleBulkGroupClick} 
                             className="flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-500 text-white text-[10px] font-black uppercase py-2.5 rounded shadow-lg transition-all active:scale-95"
                         >
                             <FolderIcon /> Cartella
                         </button>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
                         <button 
                             onClick={onBulkArchive} 
-                            className="flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-500 text-white text-[10px] font-black uppercase py-2 rounded shadow-lg transition-all active:scale-95"
+                            className="flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-500 text-white text-[10px] font-black uppercase py-2.5 rounded shadow-lg transition-all active:scale-95"
                         >
-                            <ArchiveBoxIcon /> Archivia ({raceSelectionIds.size})
-                        </button>
-                        <button 
-                            onClick={() => { if(confirm(`Eliminare definitivamente ${raceSelectionIds.size} corse?`)) onDeleteSelected(); }} 
-                            className="flex items-center justify-center gap-2 bg-red-600 hover:bg-red-500 text-white text-[10px] font-black uppercase py-2 rounded shadow-lg transition-all active:scale-95"
-                        >
-                            <TrashIcon /> Elimina ({raceSelectionIds.size})
+                            <ArchiveBoxIcon /> Archivia
                         </button>
                     </div>
+                    <button 
+                        onClick={() => { if(confirm(`Eliminare definitivamente ${raceSelectionIds.size} corse?`)) onDeleteSelected(); }} 
+                        className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-500 text-white text-[10px] font-black uppercase py-2 rounded shadow-lg transition-all active:scale-95"
+                    >
+                        <TrashIcon /> Elimina ({raceSelectionIds.size})
+                    </button>
                     <button onClick={onDeselectAll} className="w-full mt-2 text-[9px] font-black text-slate-600 uppercase hover:text-slate-400 transition-colors py-1">Annulla Selezione</button>
                 </div>
             )}
