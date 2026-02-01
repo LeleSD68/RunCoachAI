@@ -269,7 +269,7 @@ const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTr
                                                 className += 'font-mono text-cyan-200 font-bold';
                                                 break;
                                             case 'hr': 
-                                                content = row.hr > 0 ? row.hr : '-'; 
+                                                content = row.hr > 0 ? Math.round(row.hr) : '-'; 
                                                 className += row.hr > 0 ? 'font-mono text-red-300 font-bold' : 'text-slate-600';
                                                 break;
                                             case 'elevation': 
@@ -277,7 +277,7 @@ const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTr
                                                 className += 'font-mono text-amber-200';
                                                 break;
                                             case 'cadence': 
-                                                content = row.cadence > 0 ? row.cadence : '-'; 
+                                                content = row.cadence > 0 ? Math.round(row.cadence) : '-'; 
                                                 className += 'font-mono text-purple-300';
                                                 break;
                                             case 'steps':
