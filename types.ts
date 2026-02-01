@@ -24,6 +24,11 @@ export interface PauseSegment {
   duration: number; // in seconds
 }
 
+export interface Reaction {
+    userId: string;
+    emoji: string;
+}
+
 export interface Track {
   id: string;
   name: string;
@@ -53,6 +58,7 @@ export interface Track {
   userId?: string; 
   userDisplayName?: string; 
   startTime?: string; 
+  reactions?: Reaction[]; // New field
 }
 
 export interface PlannedWorkout {
