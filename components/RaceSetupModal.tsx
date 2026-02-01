@@ -3,12 +3,14 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Track } from '../types';
 
 interface RaceSetupModalProps {
-    tracks: Track[]; // All available tracks
+    tracks: Track[]; // All available local tracks
+    friendTracks?: Track[]; // Tracks from social feed
     initialSelection: Set<string>; // Currently selected IDs
     onSelectionChange: (newSelection: Set<string>) => void; // Handler to update selection
     onConfirm: (renamedMap: Record<string, string>) => void;
     onCancel: () => void;
     onAddOpponent?: (files: File[]) => void;
+    onAddGhostFromFeed?: (track: Track) => void;
     onRemoveTrack?: (trackId: string) => void;
 }
 
@@ -36,10 +38,19 @@ const SearchIcon = () => (
     </svg>
 );
 
-const RaceSetupModal: React.FC<RaceSetupModalProps> = ({ tracks, initialSelection, onSelectionChange, onConfirm, onCancel, onAddOpponent, onRemoveTrack }) => {
+const GlobeIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+        <path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-1.5 0a6.5 6.5 0 1 1-11-4.69v.447a3.5 3.5 0 0 0 1.025 2.475L8.293 10 8 10.293a1 1 0 0 0 0 1.414l1.06 1.06a1.5 1.5 0 0 1 .44 1.061v.363a6.5 6.5 0 0 1-5.5-2.259V10a6.5 6.5 0 0 1 12.5 0Z" clipRule="evenodd" />
+        <path fillRule="evenodd" d="M9 2.5a.5.5 0 0 1 .5-.5 1 1 0 0 1 1 1 .5.5 0 0 1-.5.5h-1ZM5.5 5a.5.5 0 0 1 .5-.5 1 1 0 0 1 1 1 .5.5 0 0 1-.5.5h-1ZM14.5 13a.5.5 0 0 1 .5-.5 1 1 0 0 1 1 1 .5.5 0 0 1-.5.5h-1ZM12.5 16a.5.5 0 0 1 .5-.5 1 1 0 0 1 1 1 .5.5 0 0 1-.5.5h-1Z" clipRule="evenodd" />
+    </svg>
+);
+
+const RaceSetupModal: React.FC<RaceSetupModalProps> = ({ 
+    tracks, friendTracks = [], initialSelection, onSelectionChange, onConfirm, onCancel, onAddOpponent, onAddGhostFromFeed, onRemoveTrack 
+}) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [names, setNames] = useState<Record<string, string>>({});
-    const [activeTab, setActiveTab] = useState<'grid' | 'select'>('grid');
+    const [activeTab, setActiveTab] = useState<'grid' | 'select' | 'feed'>('grid');
     const [searchTerm, setSearchTerm] = useState('');
 
     const selectedTracks = tracks.filter(t => initialSelection.has(t.id));
@@ -74,7 +85,6 @@ const RaceSetupModal: React.FC<RaceSetupModalProps> = ({ tracks, initialSelectio
         const next = new Set(initialSelection);
         if (next.has(id)) {
             next.delete(id);
-            // If checking off an external track, we might want to let parent handle removal logic too
             if (onRemoveTrack) onRemoveTrack(id); 
         } else {
             next.add(id);
@@ -83,7 +93,7 @@ const RaceSetupModal: React.FC<RaceSetupModalProps> = ({ tracks, initialSelectio
     };
 
     const filteredAvailableTracks = tracks.filter(t => 
-        !t.isExternal && // Don't show ghosts in the selection list (they appear in Grid automatically)
+        !t.isExternal && 
         t.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
@@ -98,19 +108,27 @@ const RaceSetupModal: React.FC<RaceSetupModalProps> = ({ tracks, initialSelectio
                 </header>
 
                 {/* Tabs */}
-                <div className="flex border-b border-slate-700 bg-slate-900/50">
+                <div className="flex border-b border-slate-700 bg-slate-900/50 overflow-x-auto no-scrollbar">
                     <button 
                         onClick={() => setActiveTab('grid')}
-                        className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${activeTab === 'grid' ? 'text-green-400 border-b-2 border-green-400 bg-slate-800' : 'text-slate-500 hover:text-slate-300'}`}
+                        className={`flex-1 min-w-[100px] py-3 text-xs font-bold uppercase tracking-wider transition-colors whitespace-nowrap px-2 ${activeTab === 'grid' ? 'text-green-400 border-b-2 border-green-400 bg-slate-800' : 'text-slate-500 hover:text-slate-300'}`}
                     >
-                        Griglia di Partenza ({selectedTracks.length})
+                        Griglia ({selectedTracks.length})
                     </button>
                     <button 
                         onClick={() => setActiveTab('select')}
-                        className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${activeTab === 'select' ? 'text-cyan-400 border-b-2 border-cyan-400 bg-slate-800' : 'text-slate-500 hover:text-slate-300'}`}
+                        className={`flex-1 min-w-[100px] py-3 text-xs font-bold uppercase tracking-wider transition-colors whitespace-nowrap px-2 ${activeTab === 'select' ? 'text-cyan-400 border-b-2 border-cyan-400 bg-slate-800' : 'text-slate-500 hover:text-slate-300'}`}
                     >
-                        Seleziona Corse
+                        Le Mie Corse
                     </button>
+                    {onAddGhostFromFeed && (
+                        <button 
+                            onClick={() => setActiveTab('feed')}
+                            className={`flex-1 min-w-[100px] py-3 text-xs font-bold uppercase tracking-wider transition-colors whitespace-nowrap px-2 flex items-center justify-center gap-1 ${activeTab === 'feed' ? 'text-purple-400 border-b-2 border-purple-400 bg-slate-800' : 'text-slate-500 hover:text-slate-300'}`}
+                        >
+                            <GlobeIcon /> Feed Social
+                        </button>
+                    )}
                 </div>
                 
                 <div className="flex-grow overflow-y-auto p-4 custom-scrollbar bg-slate-900">
@@ -124,7 +142,7 @@ const RaceSetupModal: React.FC<RaceSetupModalProps> = ({ tracks, initialSelectio
                                         className="w-full py-3 px-4 rounded-xl border border-dashed border-purple-500/50 bg-purple-900/10 hover:bg-purple-900/20 text-purple-300 font-bold text-sm flex items-center justify-center gap-2 transition-all group"
                                     >
                                         <UploadIcon />
-                                        Aggiungi Sfidante Esterno (Ghost)
+                                        Carica File Ghost (GPX/TCX)
                                     </button>
                                     <input type="file" ref={fileInputRef} multiple accept=".gpx,.tcx" className="hidden" onChange={handleFileChange} />
                                 </div>
@@ -133,7 +151,11 @@ const RaceSetupModal: React.FC<RaceSetupModalProps> = ({ tracks, initialSelectio
                             {selectedTracks.length === 0 ? (
                                 <div className="text-center py-8 text-slate-500 text-sm">
                                     <p>La griglia è vuota.</p>
-                                    <button onClick={() => setActiveTab('select')} className="text-cyan-400 underline mt-2 hover:text-cyan-300">Seleziona corse dallo storico</button>
+                                    <div className="flex gap-4 justify-center mt-3">
+                                        <button onClick={() => setActiveTab('select')} className="text-cyan-400 underline hover:text-cyan-300">Scegli le tue corse</button>
+                                        <span className="text-slate-600">|</span>
+                                        <button onClick={() => setActiveTab('feed')} className="text-purple-400 underline hover:text-purple-300">Scegli dal Feed</button>
+                                    </div>
                                 </div>
                             ) : (
                                 selectedTracks.map((track, index) => (
@@ -143,8 +165,8 @@ const RaceSetupModal: React.FC<RaceSetupModalProps> = ({ tracks, initialSelectio
                                         </div>
                                         <div className="flex-grow min-w-0">
                                             <div className="flex justify-between mb-1">
-                                                <label className="block text-[10px] uppercase text-slate-500 font-bold">
-                                                    {track.isExternal ? "Sfidante (Ghost)" : `Corridore ${index + 1}`}
+                                                <label className="block text-[10px] uppercase text-slate-500 font-bold flex items-center gap-1">
+                                                    {track.isExternal ? <span className="text-purple-400">Sfidante Ghost</span> : `Corridore ${index + 1}`}
                                                 </label>
                                                 <span className="text-[10px] font-mono text-slate-400">{track.distance.toFixed(2)} km</span>
                                             </div>
@@ -204,6 +226,48 @@ const RaceSetupModal: React.FC<RaceSetupModalProps> = ({ tracks, initialSelectio
                             </div>
                         </div>
                     )}
+
+                    {activeTab === 'feed' && (
+                        <div className="space-y-3 animate-fade-in-right">
+                            {friendTracks.length === 0 ? (
+                                <div className="text-center py-8">
+                                    <GlobeIcon />
+                                    <p className="text-slate-500 text-xs mt-2">Nessuna attività recente dagli amici.</p>
+                                </div>
+                            ) : (
+                                friendTracks.map(ft => (
+                                    <div key={ft.id} className="bg-slate-800 border border-purple-500/20 rounded-xl p-3 flex flex-col gap-2 hover:border-purple-500/50 transition-colors">
+                                        <div className="flex justify-between items-start">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-6 h-6 rounded-full bg-purple-900/50 text-purple-200 flex items-center justify-center text-[10px] font-bold border border-purple-500/30">
+                                                    {ft.userDisplayName?.substring(0,2)}
+                                                </div>
+                                                <div>
+                                                    <div className="text-xs font-bold text-white">{ft.userDisplayName}</div>
+                                                    <div className="text-[9px] text-slate-400">{new Date(ft.startTime || '').toLocaleDateString()}</div>
+                                                </div>
+                                            </div>
+                                            <span className="text-[9px] bg-slate-700 px-1.5 py-0.5 rounded text-slate-300 font-mono">{ft.distance.toFixed(1)}km</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs font-bold text-slate-200 truncate max-w-[150px]">{ft.name}</span>
+                                            <button 
+                                                onClick={() => {
+                                                    if(onAddGhostFromFeed) {
+                                                        onAddGhostFromFeed(ft);
+                                                        setActiveTab('grid');
+                                                    }
+                                                }}
+                                                className="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all shadow-md active:scale-95 flex items-center gap-1"
+                                            >
+                                                <GhostIcon /> Aggiungi
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 <footer className="p-5 bg-slate-800/30 border-t border-slate-800 flex gap-3 shrink-0">
@@ -215,7 +279,7 @@ const RaceSetupModal: React.FC<RaceSetupModalProps> = ({ tracks, initialSelectio
                     </button>
                     <button 
                         onClick={handleStart}
-                        disabled={selectedTracks.length < 2}
+                        disabled={selectedTracks.length < 1}
                         className="flex-grow px-4 py-3 rounded-xl font-black text-sm bg-green-600 text-white hover:bg-green-500 transition-all shadow-lg shadow-green-900/20 active:scale-95 uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         SCENDI IN PISTA &rarr;
