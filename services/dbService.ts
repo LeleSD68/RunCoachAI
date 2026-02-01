@@ -31,7 +31,6 @@ const mapTrackToSupabase = (t: Track, userId: string) => ({
     start_time: t.points[0]?.time.toISOString(),
     distance_km: t.distance,
     duration_ms: t.duration,
-    /* Fix: Accessed correct camelCase property name on Track interface */
     activity_type: t.activityType, 
     points_data: t.points, 
     color: t.color,
@@ -40,18 +39,12 @@ const mapTrackToSupabase = (t: Track, userId: string) => ({
     shoe: t.shoe,
     rpe: t.rpe,
     rating: t.rating,
-    /* Fix: Accessed correct camelCase property name on Track interface */
     rating_reason: t.ratingReason,
     tags: t.tags,
-    /* Fix: Accessed correct camelCase property name on Track interface */
     is_favorite: t.isFavorite,
-    /* Fix: Accessed correct camelCase property name on Track interface */
     is_archived: t.isArchived,
-    /* Fix: Accessed correct camelCase property name on Track interface */
     is_public: t.isPublic,
-    /* Fix: Accessed correct camelCase property name on Track interface */
     has_chat: t.hasChat,
-    /* Fix: Accessed correct camelCase property name on Track interface */
     linked_workout: t.linkedWorkout,
 });
 
@@ -143,7 +136,6 @@ export const saveProfileToDB = async (profile: UserProfile, options: { skipCloud
         ai_personality: profile.aiPersonality,
         personal_notes: profile.personalNotes,
         shoes: profile.shoes || [],
-        /* Fix: Changed weightHistory to correctly map from profile object in saveProfileToDB */
         weight_history: profile.weightHistory || [],
         updated_at: new Date().toISOString()
       });
@@ -170,7 +162,6 @@ export const loadProfileFromDB = async (forceLocal: boolean = false): Promise<Us
         aiPersonality: data.ai_personality,
         personalNotes: data.personal_notes,
         shoes: data.shoes,
-        /* Fix: Mapped data.weight_history from cloud to cloudProfile.weightHistory to match UserProfile interface */
         weightHistory: data.weight_history
       };
       await saveProfileToDB(cloudProfile, { skipCloud: true });
@@ -271,7 +262,7 @@ export const syncTrackToCloud = async (track: Track) => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session || track.isExternal) return;
     const payload = mapTrackToSupabase(track, session.user.id);
-    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{8}-[0-9a-f]{12}$/i.test(track.id)) {
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(track.id)) {
         await supabase.from('tracks').upsert({ id: track.id, ...payload });
     } else {
         const { data, error } = await supabase.from('tracks').insert(payload).select().single();
@@ -301,6 +292,8 @@ export const importAllData = async (data: any): Promise<void> => {
             const db = await initDB();
             const tx = db.transaction([TRACKS_STORE, CHATS_STORE, PROFILE_STORE, PLANNED_STORE], 'readwrite');
             
+            // Non puliamo più tutto ciecamente se stiamo facendo un merge dal chiamante
+            // Ma per un restore totale il chiamante deve decidere se passare il set completo.
             tx.objectStore(TRACKS_STORE).clear();
             tx.objectStore(CHATS_STORE).clear();
             tx.objectStore(PROFILE_STORE).clear();
