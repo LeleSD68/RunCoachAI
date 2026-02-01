@@ -148,12 +148,6 @@ const TrackEditor: React.FC<TrackEditorProps> = ({ initialTracks, onExit, addToa
     }, [initialTracks, addToast]);
 
     useEffect(() => {
-        if (editedTrack) {
-            setTrackName(editedTrack.name);
-        }
-    }, [editedTrack]);
-
-    useEffect(() => {
         if (selection && editedTrack) {
             const points = getPointsInDistanceRange(editedTrack, selection.startDistance, selection.endDistance);
             if(points.length > 1) {
@@ -239,11 +233,12 @@ const TrackEditor: React.FC<TrackEditorProps> = ({ initialTracks, onExit, addToa
     }, []);
 
     const updateTrack = useCallback((newTrack: Track) => {
-        setEditedTrack(newTrack);
-        setHistory(prev => [...prev, newTrack]);
+        const trackToSave = { ...newTrack, name: trackName };
+        setEditedTrack(trackToSave);
+        setHistory(prev => [...prev, trackToSave]);
         setSelection(null);
         setSelectedPoint(null);
-    }, []);
+    }, [trackName]);
     
     const toggleYAxisMetric = useCallback((metric: YAxisMetric) => {
         setYAxisMetrics(prev => {
@@ -263,7 +258,9 @@ const TrackEditor: React.FC<TrackEditorProps> = ({ initialTracks, onExit, addToa
         if (history.length > 1) {
             const newHistory = history.slice(0, -1);
             setHistory(newHistory);
-            setEditedTrack(newHistory[newHistory.length - 1]);
+            const prevTrack = newHistory[newHistory.length - 1];
+            setEditedTrack(prevTrack);
+            setTrackName(prevTrack.name); 
             setSelection(null);
             setSelectedPoint(null);
             addToast("Ultima azione annullata.", "info");
@@ -309,13 +306,18 @@ const TrackEditor: React.FC<TrackEditorProps> = ({ initialTracks, onExit, addToa
                 points: normalizedPoints,
                 distance: normalizedPoints[normalizedPoints.length - 1].cummulativeDistance,
                 duration: normalizedPoints[normalizedPoints.length - 1].time.getTime(),
-                name: `${editedTrack.name} (Estratto)`,
+                name: `${trackName} (Estratto)`,
             };
             
-            updateTrack(newTrack);
+            setEditedTrack(newTrack);
+            setTrackName(newTrack.name);
+            setHistory(prev => [...prev, newTrack]);
+            setSelection(null);
+            setSelectedPoint(null);
+            
             addToast("Selezione salvata come nuova traccia.", "success");
         }
-    }, [editedTrack, selectionPoints, updateTrack, addToast]);
+    }, [editedTrack, selectionPoints, trackName, addToast]);
 
     const handleExport = useCallback(() => {
         if (editedTrack) {
