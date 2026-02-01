@@ -63,7 +63,7 @@ const App: React.FC = () => {
     const [showStravaSyncOptions, setShowStravaSyncOptions] = useState(false);
     
     const [viewingTrack, setViewingTrack] = useState<Track | null>(null);
-    const [editingTrack, setEditingTrack] = useState<Track | null>(null); // Stato per editor
+    const [editingTrack, setEditingTrack] = useState<Track | null>(null); 
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [focusedTrackId, setFocusedTrackId] = useState<string | null>(null);
     const [isGuest, setIsGuest] = useState(false);
@@ -72,7 +72,6 @@ const App: React.FC = () => {
     const [hoveredTrackId, setHoveredTrackId] = useState<string | null>(null);
     const [showGlobalChat, setShowGlobalChat] = useState(false);
 
-    // DETERMINA COSA MOSTRARE IN MAPPA
     const mapVisibleIds = useMemo(() => {
         if (raceSelectionIds.size === 0) {
             return new Set(tracks.filter(t => !t.isArchived).map(t => t.id));
@@ -80,7 +79,6 @@ const App: React.FC = () => {
         return raceSelectionIds;
     }, [tracks, raceSelectionIds]);
 
-    // Notifiche Impegni
     const todayEntries = useMemo(() => {
         const today = new Date().toDateString();
         return plannedWorkouts.filter(w => 
@@ -89,7 +87,6 @@ const App: React.FC = () => {
         );
     }, [plannedWorkouts]);
 
-    // Initial usage load
     useEffect(() => {
         setUsage(getApiUsage());
         (window as any).gpxApp = {
@@ -227,7 +224,6 @@ const App: React.FC = () => {
         }
     };
 
-    // RACE SIMULATION STATE
     const [raceState, setRaceState] = useState<'idle' | 'running' | 'paused' | 'finished'>('idle');
     const [raceTime, setRaceTime] = useState(0);
     const [raceSpeed, setRaceSpeed] = useState(10);
@@ -338,6 +334,22 @@ const App: React.FC = () => {
         setRaceSelectionIds(new Set());
         await saveTracksToDB(next);
         addToast(`${raceSelectionIds.size} corse archiviate.`, "success");
+    };
+
+    const handleToggleFavorite = async (id: string) => {
+        const updatedTracks = tracks.map(t => t.id === id ? { ...t, isFavorite: !t.isFavorite } : t);
+        setTracks(updatedTracks);
+        await saveTracksToDB(updatedTracks);
+        const track = updatedTracks.find(t => t.id === id);
+        addToast(track?.isFavorite ? "Aggiunta ai preferiti" : "Rimossa dai preferiti", "success");
+    };
+
+    const handleBulkGroup = async (folderName: string) => {
+        const next = tracks.map(t => raceSelectionIds.has(t.id) ? { ...t, folder: folderName } : t);
+        setTracks(next);
+        setRaceSelectionIds(new Set());
+        await saveTracksToDB(next);
+        addToast(`${raceSelectionIds.size} corse raggruppate in "${folderName}"`, "success");
     };
 
     const handleMergeSelectedTracks = async (deleteOriginals: boolean) => {
@@ -488,6 +500,8 @@ const App: React.FC = () => {
                                     onBulkArchive={handleBulkArchive}
                                     onDeleteSelected={handleBulkDelete}
                                     onMergeSelected={handleMergeSelectedTracks}
+                                    onToggleFavorite={handleToggleFavorite}
+                                    onBulkGroup={handleBulkGroup}
                                     onFileUpload={() => {}} onToggleArchived={async (id) => { const u = tracks.map(t => t.id === id ? {...t, isArchived: !t.isArchived} : t); setTracks(u); await saveTracksToDB(u); }}
                                 />
                             </div>
@@ -517,6 +531,8 @@ const App: React.FC = () => {
                                 onBulkArchive={handleBulkArchive}
                                 onDeleteSelected={handleBulkDelete}
                                 onMergeSelected={handleMergeSelectedTracks}
+                                onToggleFavorite={handleToggleFavorite}
+                                onBulkGroup={handleBulkGroup}
                                 onFileUpload={() => {}} onToggleArchived={async (id) => { const u = tracks.map(t => t.id === id ? {...t, isArchived: !t.isArchived} : t); setTracks(u); await saveTracksToDB(u); }} onDeleteTrack={() => {}} onSelectAll={() => {}}
                              />
                         </div>
@@ -567,7 +583,7 @@ const App: React.FC = () => {
             )}
 
             {viewingTrack && (
-                <div className="fixed inset-0 z-[12000] bg-slate-900">
+                <div className="fixed inset-0 z-[10000] bg-slate-900">
                     <TrackDetailView 
                         track={viewingTrack} userProfile={userProfile} onExit={() => setViewingTrack(null)} 
                         plannedWorkouts={plannedWorkouts} onAddPlannedWorkout={handleAddPlannedWorkout} 
@@ -577,7 +593,7 @@ const App: React.FC = () => {
             )}
 
             {editingTrack && (
-                <div className="fixed inset-0 z-[12000] bg-slate-900">
+                <div className="fixed inset-0 z-[10000] bg-slate-900">
                     <TrackEditor 
                         initialTracks={[editingTrack]} 
                         addToast={addToast}
