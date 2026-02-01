@@ -9,8 +9,6 @@ const UploadIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2
 const TrashIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.1499.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149-.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clipRule="evenodd" /></svg>);
 const MergeTracksIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M3.75 3a.75.75 0 0 0-1.5 0v4a6.5 6.5 0 0 0 6.5 6.5h4.19l-1.72 1.72a.75.75 0 1 0 1.06 1.06l3-3a.75.75 0 0 0 0-1.06l-3-3a.75.75 0 1 0-1.06 1.06l1.72 1.72H8.75A5 5 0 0 1 3.75 7V3Z" clipRule="evenodd" /></svg>);
 const ArchiveBoxIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M2 3a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3Z" /><path fillRule="evenodd" d="M13 9a1 1 0 1 0 0 2h-6a1 1 0 1 0 0-2h6ZM2.75 7A.75.75 0 0 0 2 7.75v8.5c0 .69.56 1.25 1.25 1.25h13.5c.69 0 1.25-.56 1.25-1.25v-8.5A.75.75 0 0 0 17.25 7H2.75Z" clipRule="evenodd" /></svg>);
-const EyeIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" /><path fillRule="evenodd" d="M.664 10.59a1.651 1.651 0 0 1 0-1.186A10.004 10.004 0 0 1 10 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0 1 10 17c-4.257 0-7.893-2.66-9.336-6.41ZM14 10a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" clipRule="evenodd" /></svg>);
-const EyeSlashIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M3.28 2.22a.75.75 0 0 0-1.06 1.06l14.5 14.5a.75.75 0 1 0 1.06-1.06l-1.745-1.745a10.029 10.029 0 0 0 3.3-5.59 1.651 1.651 0 0 0 0-1.185A10.004 10.004 0 0 0 9.999 3a9.956 9.956 0 0 0-4.744 1.194L3.28 2.22ZM7.752 6.69l1.092 1.092a2.5 2.5 0 0 1 3.374 3.373l1.091 1.092a4 4 0 0 0-5.557-5.557Z" clipRule="evenodd" /><path d="M10.748 13.93 5.39 8.57a10.015 10.015 0 0 0-3.39 1.42 1.651 1.651 0 0 0 0 1.186A10.004 10.004 0 0 1 10 17c1.9 0 3.682-.534 5.194-1.465l-2.637-2.637a3.987 3.987 0 0 1-1.808.032Z" /></svg>);
 
 type GroupingType = 'none' | 'date' | 'distance' | 'type' | 'folder' | 'tag';
 type SortType = 'date_desc' | 'date_asc' | 'dist_desc' | 'dist_asc' | 'dur_desc' | 'name_asc';
@@ -18,10 +16,8 @@ type SortType = 'date_desc' | 'date_asc' | 'dist_desc' | 'dist_asc' | 'dur_desc'
 interface SidebarProps {
     tracks: Track[];
     onFileUpload: (files: File[] | null) => void;
-    visibleTrackIds: Set<string>;
     focusedTrackId: string | null;
     onFocusTrack: (id: string) => void;
-    onToggleVisibility: (id: string) => void;
     raceSelectionIds: Set<string>;
     onToggleRaceSelection: (id: string) => void;
     onDeselectAll: () => void;
@@ -40,7 +36,7 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = (props) => {
     const { 
-        tracks, onFileUpload, visibleTrackIds, focusedTrackId, onFocusTrack, onToggleVisibility, 
+        tracks, onFileUpload, focusedTrackId, onFocusTrack, 
         raceSelectionIds, onToggleRaceSelection, onSelectAll, onDeselectAll, 
         onStartRace, onDeleteSelected, onViewDetails, 
         hoveredTrackId, onTrackHoverStart, onTrackHoverEnd,
@@ -211,7 +207,11 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                                                     className="mr-2 accent-cyan-500 w-3 h-3 flex-shrink-0 cursor-pointer" 
                                                 />
                                                 
-                                                <div className="w-10 h-8 bg-slate-950 rounded border border-slate-700 overflow-hidden mr-2 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity">
+                                                <div 
+                                                    onClick={() => onViewDetails(track.id)}
+                                                    className="w-10 h-8 bg-slate-950 rounded border border-slate-700 overflow-hidden mr-2 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity cursor-pointer active:scale-95"
+                                                    title="Clicca per analisi dettaglio"
+                                                >
                                                     <TrackPreview points={track.points} color={track.color} className="w-full h-full" />
                                                 </div>
 
@@ -228,14 +228,8 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                                                 </div>
 
                                                 <div className="flex items-center gap-1 ml-1 opacity-0 group-hover:opacity-100 transition-opacity absolute right-1 bg-slate-800 shadow-xl rounded px-1 z-20">
-                                                    <button onClick={() => onViewDetails(track.id)} className="p-1 text-cyan-500 hover:text-white" title="Dettagli">
-                                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" /><path fillRule="evenodd" d="M.664 10.59a1.651 1.651 0 0 1 0-1.186A10.004 10.004 0 0 1 10 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0 1 10 17c-4.257 0-7.893-2.66-9.336-6.41ZM14 10a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" clipRule="evenodd" /></svg>
-                                                    </button>
                                                     <button onClick={() => onToggleArchived(track.id)} className="p-1 text-slate-500 hover:text-white" title={track.isArchived ? "Ripristina" : "Archivia"}>
                                                         {track.isArchived ? <UploadIcon /> : <ArchiveBoxIcon />}
-                                                    </button>
-                                                    <button onClick={() => onToggleVisibility(track.id)} className={`p-1 ${visibleTrackIds.has(track.id) ? 'text-cyan-400' : 'text-slate-600'}`}>
-                                                        {visibleTrackIds.has(track.id) ? <EyeIcon /> : <EyeSlashIcon />}
                                                     </button>
                                                 </div>
                                                 

@@ -7,7 +7,7 @@ import TrackEditor from './components/TrackEditor';
 import TrackDetailView from './components/TrackDetailView';
 import ToastContainer from './components/ToastContainer';
 import AuthSelectionModal from './components/AuthSelectionModal';
-import InitialChoiceModal from './components/InitialChoiceModal';
+import LoginModal from './components/LoginModal';
 import HomeModal from './components/HomeModal';
 import WelcomeModal from './components/WelcomeModal';
 import UserProfileModal from './components/UserProfileModal';
@@ -17,18 +17,14 @@ import Chatbot from './components/Chatbot';
 import StravaConfigModal from './components/StravaConfigModal';
 import StravaSyncModal from './components/StravaSyncModal';
 import GuideModal from './components/GuideModal';
-import RaceSetupModal from './components/RaceSetupModal';
-import WorkoutConfirmationModal from './components/WorkoutConfirmationModal';
 import ExplorerView from './components/ExplorerView';
 import DiaryView from './components/DiaryView';
 import PerformanceAnalysisPanel from './components/PerformanceAnalysisPanel';
 import SocialHub from './components/SocialHub';
 import SplashScreen from './components/SplashScreen';
-import LoginModal from './components/LoginModal';
 import MergeConfirmationModal from './components/MergeConfirmationModal';
+import ResizablePanel from './components/ResizablePanel';
 
-import { parseGpx } from './services/gpxService';
-import { parseTcx } from './services/tcxService';
 import { 
     saveTracksToDB, loadTracksFromDB, 
     saveProfileToDB, loadProfileFromDB, 
@@ -37,7 +33,6 @@ import {
     deletePlannedWorkoutFromCloud
 } from './services/dbService';
 import { mergeTracks } from './services/trackEditorUtils';
-import { generateSmartTitle } from './services/titleGenerator';
 import { supabase } from './services/supabaseClient';
 import { fetchRecentStravaActivities, isStravaConnected, handleStravaCallback } from './services/stravaService';
 import { updatePresence } from './services/socialService';
@@ -50,10 +45,10 @@ const App: React.FC = () => {
     
     const [showSplash, setShowSplash] = useState(true);
     const [isDataLoading, setIsDataLoading] = useState(false); 
+    const isSyncingRef = useRef(false);
+
     const [showAuthSelection, setShowAuthSelection] = useState(false);
     const [showLoginModal, setShowLoginModal] = useState(false);
-    const [showInitialChoice, setShowInitialChoice] = useState(false);
-    const [showWelcome, setShowWelcome] = useState(false);
     const [showHome, setShowHome] = useState(false);
     const [showProfile, setShowProfile] = useState(false);
     const [showChangelog, setShowChangelog] = useState(false);
@@ -75,13 +70,70 @@ const App: React.FC = () => {
     const [userId, setUserId] = useState<string | null>(null);
     const [raceSelectionIds, setRaceSelectionIds] = useState<Set<string>>(new Set());
     const [hoveredTrackId, setHoveredTrackId] = useState<string | null>(null);
+    const [layoutUpdateCounter, setLayoutUpdateCounter] = useState(0);
+
+    const [authLimitReached, setAuthLimitReached] = useState(false);
+
+    const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
+    useEffect(() => {
+        const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     const addToast = (message: string, type: Toast['type']) => {
         const id = Date.now();
         setToasts(prev => [...prev, { id, message, type }]);
     };
 
-    // Presence update
+    const resetNavigation = useCallback(() => {
+        setShowHome(false);
+        setShowExplorer(false);
+        setShowDiary(false);
+        setShowPerformance(false);
+        setShowSocial(false);
+        setShowProfile(false);
+        setShowGuide(false);
+        setShowChangelog(false);
+        setViewingTrack(null);
+        setShowGlobalChat(false);
+    }, []);
+
+    const toggleView = (view: 'diary' | 'explorer' | 'performance' | 'social' | 'hub' | 'profile' | 'guide') => {
+        const isOpen = {
+            diary: showDiary,
+            explorer: showExplorer,
+            performance: showPerformance,
+            social: showSocial,
+            hub: showHome,
+            profile: showProfile,
+            guide: showGuide
+        }[view];
+
+        resetNavigation();
+
+        if (!isOpen) {
+            switch(view) {
+                case 'diary': setShowDiary(true); break;
+                case 'explorer': setShowExplorer(true); break;
+                case 'performance': setShowPerformance(true); break;
+                case 'social': setShowSocial(true); break;
+                case 'hub': setShowHome(true); break;
+                case 'profile': setShowProfile(true); break;
+                case 'guide': setShowGuide(true); break;
+            }
+        }
+    };
+
+    const onCheckAiAccess = useCallback(() => {
+        if (isGuest) {
+            setAuthLimitReached(true);
+            setShowLoginModal(true);
+            return false;
+        }
+        return true;
+    }, [isGuest]);
+
     useEffect(() => {
         if (!userId || isGuest) return;
         updatePresence(userId);
@@ -89,35 +141,6 @@ const App: React.FC = () => {
         return () => clearInterval(interval);
     }, [userId, isGuest]);
 
-    // Realtime Notifications
-    useEffect(() => {
-        if (!userId || isGuest) return;
-
-        const messageChannel = supabase.channel('global-notifications')
-            .on(
-                'postgres_changes',
-                { event: 'INSERT', schema: 'public', table: 'direct_messages', filter: `receiver_id=eq.${userId}` },
-                async (payload) => {
-                    if (showSocial) return; // Se siamo già nel social hub non serve il toast
-                    const { data: sender } = await supabase.from('profiles').select('name').eq('id', payload.new.sender_id).single();
-                    addToast(`💬 Messaggio da ${sender?.name || 'un amico'}: "${payload.new.content.substring(0, 30)}..."`, 'info');
-                }
-            )
-            .on(
-                'postgres_changes',
-                { event: 'INSERT', schema: 'public', table: 'tracks', filter: 'is_public=eq.true' },
-                async (payload) => {
-                    if (payload.new.user_id === userId) return;
-                    const { data: friend } = await supabase.from('profiles').select('name').eq('id', payload.new.user_id).single();
-                    addToast(`🏃 ${friend?.name || 'Un amico'} ha condiviso una nuova corsa: ${payload.new.name}!`, 'success');
-                }
-            )
-            .subscribe();
-
-        return () => { supabase.removeChannel(messageChannel); };
-    }, [userId, isGuest, showSocial]);
-
-    // --- Strava OAuth Interceptor ---
     useEffect(() => {
         const checkStravaCallback = async () => {
             const urlParams = new URLSearchParams(window.location.search);
@@ -126,11 +149,11 @@ const App: React.FC = () => {
                 setIsDataLoading(true);
                 try {
                     await handleStravaCallback(code);
-                    addToast("Strava collegato correttamente!", "success");
+                    addToast("Strava collegato!", "success");
                     window.history.replaceState({}, document.title, window.location.pathname);
                     handleStravaAutoSync();
                 } catch (e: any) {
-                    addToast("Errore collegamento Strava: " + e.message, "error");
+                    addToast("Errore Strava: " + e.message, "error");
                 } finally {
                     setIsDataLoading(false);
                 }
@@ -140,202 +163,36 @@ const App: React.FC = () => {
     }, []);
 
     const handleStravaAutoSync = async (afterTimestamp?: number) => {
-        if (!isStravaConnected()) {
-            setShowStravaConfig(true);
-            return;
-        }
+        if (!isStravaConnected() || isSyncingRef.current) return;
+        isSyncingRef.current = true;
         setIsDataLoading(true);
         try {
             const newTracks = await fetchRecentStravaActivities(30, afterTimestamp);
             if (newTracks.length > 0) {
-                const existingIds = new Set(tracks.map(t => t.id));
-                const filteredNew = newTracks.filter(t => !existingIds.has(t.id));
-                
-                if (filteredNew.length === 0) {
-                    addToast("Tutte le corse sono già sincronizzate.", "info");
-                    return;
-                }
-
-                const updated = [...tracks, ...filteredNew].sort((a, b) => 
-                    new Date(b.points[0].time).getTime() - new Date(a.points[0].time).getTime()
-                );
-                setTracks(updated);
-                await saveTracksToDB(updated);
-                
-                if (!isGuest && userId) {
-                    for (const t of filteredNew) {
-                        await syncTrackToCloud(t);
+                const tracksMap = new Map<string, Track>();
+                tracks.forEach(t => tracksMap.set(t.id, t));
+                let addedCount = 0;
+                for (const nt of newTracks) {
+                    if (!tracksMap.has(nt.id)) {
+                        tracksMap.set(nt.id, nt);
+                        addedCount++;
                     }
                 }
-                addToast(`Sincronizzate ${filteredNew.length} nuove corse da Strava!`, "success");
-            } else {
-                addToast("Nessuna nuova corsa trovata su Strava.", "info");
+                if (addedCount > 0) {
+                    const updated = Array.from(tracksMap.values()).sort((a, b) => 
+                        new Date(b.points[0].time).getTime() - new Date(a.points[0].time).getTime()
+                    );
+                    setTracks(updated);
+                    await saveTracksToDB(updated);
+                    addToast(`Importate ${addedCount} attività!`, "success");
+                }
             }
         } catch (e: any) {
-            console.error(e);
-            addToast("Errore durante la sincronizzazione.", "error");
+            addToast("Sync fallito.", "error");
         } finally {
             setIsDataLoading(false);
+            isSyncingRef.current = false;
         }
-    };
-
-    const handleImportBackup = async (file: File) => {
-        try {
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                const content = e.target?.result as string;
-                if (content) {
-                    const data = JSON.parse(content);
-                    await importAllData(data);
-                    addToast("Backup ripristinato con successo!", "success");
-                    await loadData();
-                }
-            };
-            reader.readAsText(file);
-        } catch (err) {
-            addToast("Errore lettura file backup.", "error");
-        }
-    };
-
-    const handleExportBackup = async () => {
-        setIsDataLoading(true);
-        try {
-            const data = await exportAllData();
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            const date = new Date().toISOString().split('T')[0];
-            a.href = url;
-            a.download = `runcoach-backup-${date}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            addToast("File backup generato e scaricato.", "success");
-        } catch (e) {
-            addToast("Errore creazione backup.", "error");
-        } finally {
-            setIsDataLoading(false);
-        }
-    };
-
-    const handleDeleteTrack = async (id: string) => {
-        if (confirm("Sei sicuro di voler eliminare questa traccia?")) {
-            const updated = tracks.filter(t => t.id !== id);
-            setTracks(updated);
-            await saveTracksToDB(updated);
-            if (!isGuest) await deleteTrackFromCloud(id);
-            addToast("Traccia eliminata.", "success");
-        }
-    };
-
-    const handleDeleteSelected = async () => {
-        if (confirm(`Eliminare ${raceSelectionIds.size} tracce selezionate?`)) {
-            const updated = tracks.filter(t => !raceSelectionIds.has(t.id));
-            setTracks(updated);
-            await saveTracksToDB(updated);
-            if (!isGuest) {
-                for (const id of Array.from(raceSelectionIds)) {
-                    await deleteTrackFromCloud(id);
-                }
-            }
-            setRaceSelectionIds(new Set());
-            addToast("Tracce eliminate.", "success");
-        }
-    };
-
-    const handleMergeSelected = () => {
-        if (raceSelectionIds.size < 2) return;
-        setShowMergeConfirmation(true);
-    };
-
-    const confirmMerge = async (deleteOriginals: boolean) => {
-        setShowMergeConfirmation(false);
-        setIsDataLoading(true);
-        try {
-            const tracksToMerge = tracks.filter(t => raceSelectionIds.has(t.id));
-            const merged = mergeTracks(tracksToMerge);
-            
-            let updatedTracks = [...tracks];
-            
-            if (deleteOriginals) {
-                updatedTracks = updatedTracks.filter(t => !raceSelectionIds.has(t.id));
-                if (!isGuest) {
-                    for (const id of Array.from(raceSelectionIds)) {
-                        await deleteTrackFromCloud(id);
-                    }
-                }
-            }
-            
-            updatedTracks = [merged, ...updatedTracks].sort((a, b) => 
-                new Date(b.points[0].time).getTime() - new Date(a.points[0].time).getTime()
-            );
-            
-            setTracks(updatedTracks);
-            await saveTracksToDB(updatedTracks);
-            
-            if (!isGuest) {
-                await syncTrackToCloud(merged);
-            }
-            
-            setRaceSelectionIds(new Set());
-            addToast("Tracce unite correttamente!", "success");
-            setViewingTrack(merged); 
-            
-        } catch (e) {
-            console.error(e);
-            addToast("Errore durante l'unione.", "error");
-        } finally {
-            setIsDataLoading(false);
-        }
-    };
-
-    const handleToggleArchived = async (id: string) => {
-        const trackToUpdate = tracks.find(t => t.id === id);
-        if (!trackToUpdate) return;
-        const updatedTrack = { ...trackToUpdate, isArchived: !trackToUpdate.isArchived };
-        const updatedTracks = tracks.map(t => t.id === id ? updatedTrack : t);
-        setTracks(updatedTracks);
-        await saveTracksToDB(updatedTracks);
-        if (!isGuest) await syncTrackToCloud(updatedTrack);
-    };
-
-    const handleUpdateTrackMetadata = async (id: string, metadata: Partial<Track>) => {
-        const trackToUpdate = tracks.find(t => t.id === id);
-        if (!trackToUpdate) return;
-        
-        const updatedTrack = { ...trackToUpdate, ...metadata };
-        const updatedTracks = tracks.map(t => t.id === id ? updatedTrack : t);
-        
-        setTracks(updatedTracks);
-        if (viewingTrack && viewingTrack.id === id) {
-            setViewingTrack(updatedTrack);
-        }
-        
-        await saveTracksToDB(updatedTracks);
-        if (!isGuest) await syncTrackToCloud(updatedTrack);
-    };
-
-    const handleTrackClickFromMap = (id: string, isMultiSelect: boolean) => {
-        setRaceSelectionIds(prev => {
-            const next = new Set(prev);
-            if (isMultiSelect) {
-                if (next.has(id)) next.delete(id);
-                else next.add(id);
-            } else {
-                next.clear();
-                next.add(id);
-            }
-            return next;
-        });
-        if (!isMultiSelect) {
-            setFocusedTrackId(id);
-        }
-    };
-
-    const handleStartRace = () => {
-        setIsSidebarOpen(false);
-        addToast("Pronto alla sfida!", "info");
     };
 
     const handleSplashFinish = () => {
@@ -372,53 +229,15 @@ const App: React.FC = () => {
             const loadedWorkouts = await loadPlannedWorkoutsFromDB(forceLocal);
             setPlannedWorkouts(loadedWorkouts);
         } catch (e) {
-            addToast("Errore sincronizzazione dati.", "error");
+            addToast("Dati sincronizzati.", "info");
         }
     };
 
-    const handleFileUpload = (files: File[] | null) => {
-        if (!files || files.length === 0) return;
-        addToast("Analisi file in corso...", "info");
-    };
-
-    const resetNavigation = useCallback(() => {
-        setShowHome(false);
-        setShowExplorer(false);
-        setShowDiary(false);
-        setShowPerformance(false);
-        setShowSocial(false);
-        setViewingTrack(null);
-    }, []);
-
-    // --- Diary Actions ---
     const handleAddPlannedWorkout = async (w: PlannedWorkout) => {
         const next = [w, ...plannedWorkouts];
         setPlannedWorkouts(next);
         await savePlannedWorkoutsToDB(next);
-        addToast("Allenamento registrato correttamente nel diario!", "success");
-    };
-
-    const handleDeletePlannedWorkout = async (id: string) => {
-        const next = plannedWorkouts.filter(w => w.id !== id);
-        setPlannedWorkouts(next);
-        await savePlannedWorkoutsToDB(next);
-        if (!isGuest) await deletePlannedWorkoutFromCloud(id);
-        addToast("Allenamento rimosso.", "info");
-    };
-
-    const handleUpdatePlannedWorkout = async (updated: PlannedWorkout) => {
-        const next = plannedWorkouts.map(w => w.id === updated.id ? updated : w);
-        setPlannedWorkouts(next);
-        await savePlannedWorkoutsToDB(next);
-    };
-
-    const handleMassUpdatePlannedWorkouts = async (list: PlannedWorkout[]) => {
-        const next = plannedWorkouts.map(w => {
-            const upd = list.find(l => l.id === w.id);
-            return upd ? upd : w;
-        });
-        setPlannedWorkouts(next);
-        await savePlannedWorkoutsToDB(next);
+        addToast("Salvato nel diario!", "success");
     };
 
     const handleSaveProfile = async (profile: UserProfile) => {
@@ -427,33 +246,70 @@ const App: React.FC = () => {
         addToast("Profilo aggiornato!", "success");
     };
 
+    const handleToggleSidebar = (open: boolean) => {
+        setIsSidebarOpen(open);
+        setLayoutUpdateCounter(c => c + 1);
+    };
+
+    const handleDeleteTrack = async (id: string) => {
+        if (confirm("Eliminare definitivamente?")) {
+            const updated = tracks.filter(t => t.id !== id);
+            setTracks(updated);
+            await saveTracksToDB(updated);
+            if (!isGuest) await deleteTrackFromCloud(id);
+            addToast("Eliminata.", "success");
+        }
+    };
+
+    const handleUpdateTrackMetadata = async (id: string, metadata: Partial<Track>) => {
+        const updatedTracks = tracks.map(t => t.id === id ? { ...t, ...metadata } : t);
+        setTracks(updatedTracks);
+        await saveTracksToDB(updatedTracks);
+    };
+
+    const handleExportBackup = async () => {
+        const d = await exportAllData(); 
+        const b = new Blob([JSON.stringify(d)], {type:'application/json'}); 
+        const u = URL.createObjectURL(b); 
+        const a = document.createElement('a'); 
+        a.href=u; a.download='backup.json'; 
+        a.click();
+    };
+
     if (showSplash) return <SplashScreen onFinish={handleSplashFinish} />;
 
     return (
         <div className="h-screen w-screen flex flex-col overflow-hidden bg-slate-950 text-white font-sans">
             <ToastContainer toasts={toasts} setToasts={setToasts} />
+            
             {isDataLoading && (
                 <div className="fixed inset-0 z-[99999] bg-slate-950/80 flex flex-col items-center justify-center">
                     <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                    <p className="text-cyan-400 font-bold uppercase tracking-widest animate-pulse">Caricamento dati...</p>
+                    <p className="text-cyan-400 font-bold uppercase tracking-widest animate-pulse">Caricamento...</p>
                 </div>
             )}
 
             {showAuthSelection && <AuthSelectionModal onGuest={() => { setIsGuest(true); setUserId('guest'); setShowAuthSelection(false); setShowHome(true); }} onLogin={() => setShowLoginModal(true)} />}
-            {showLoginModal && <LoginModal onClose={() => setShowLoginModal(false)} onLoginSuccess={() => { setShowLoginModal(false); checkSession(); }} tracks={tracks} userProfile={userProfile} plannedWorkouts={plannedWorkouts} />}
+            {showLoginModal && (
+                <LoginModal 
+                    onClose={() => { setShowLoginModal(false); setAuthLimitReached(false); }} 
+                    onLoginSuccess={() => { setShowLoginModal(false); setAuthLimitReached(false); checkSession(); }} 
+                    tracks={tracks} userProfile={userProfile} plannedWorkouts={plannedWorkouts} limitReached={authLimitReached}
+                />
+            )}
             
             {showHome && (
                 <HomeModal 
                     onClose={() => setShowHome(false)}
-                    onOpenDiary={() => { resetNavigation(); setShowDiary(true); }}
-                    onOpenExplorer={() => { resetNavigation(); setShowExplorer(true); }}
-                    onOpenHelp={() => { resetNavigation(); setShowGuide(true); }}
+                    onOpenDiary={() => toggleView('diary')}
+                    onOpenExplorer={() => toggleView('explorer')}
+                    onOpenHelp={() => toggleView('guide')}
                     onOpenStravaConfig={() => setShowStravaSyncOptions(true)}
-                    onImportBackup={handleImportBackup}
+                    onImportBackup={async (f) => { await importAllData(f); await loadData(); addToast("Importato!", "success"); }}
                     onExportBackup={handleExportBackup}
-                    onUploadTracks={handleFileUpload}
-                    onOpenProfile={() => setShowProfile(true)}
-                    onOpenChangelog={() => setShowChangelog(true)}
+                    onUploadTracks={() => {}}
+                    onOpenProfile={() => toggleView('profile')}
+                    onOpenChangelog={() => toggleView('profile')}
                     trackCount={tracks.length}
                     userProfile={userProfile}
                 />
@@ -467,150 +323,99 @@ const App: React.FC = () => {
                 />
             )}
 
-            {showStravaConfig && <StravaConfigModal onClose={() => setShowStravaConfig(false)} />}
+            {!showHome && !showAuthSelection && (
+                <div className="flex flex-col h-full relative overflow-hidden pb-16 md:pb-0">
+                    {isSidebarOpen ? (
+                        <ResizablePanel 
+                            direction={isDesktop ? 'vertical' : 'horizontal'}
+                            initialSizeRatio={isDesktop ? 0.3 : 0.6}
+                            minSize={250}
+                            onResizeEnd={() => setLayoutUpdateCounter(c => c + 1)}
+                        >
+                            <div className="h-full bg-slate-900 border-slate-800 overflow-hidden flex flex-col">
+                                <Sidebar 
+                                    tracks={tracks} onFileUpload={() => {}} visibleTrackIds={visibleTrackIds}
+                                    onToggleVisibility={(id) => setVisibleTrackIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
+                                    onFocusTrack={setFocusedTrackId} focusedTrackId={focusedTrackId}
+                                    raceSelectionIds={raceSelectionIds} 
+                                    onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
+                                    onDeselectAll={() => setRaceSelectionIds(new Set())}
+                                    onSelectAll={() => setRaceSelectionIds(new Set(tracks.map(t => t.id)))}
+                                    onStartRace={() => { handleToggleSidebar(false); }}
+                                    onMergeSelected={() => setShowMergeConfirmation(true)}
+                                    hoveredTrackId={hoveredTrackId}
+                                    onTrackHoverStart={setHoveredTrackId}
+                                    onTrackHoverEnd={() => setHoveredTrackId(null)}
+                                    onDeleteTrack={handleDeleteTrack}
+                                    onDeleteSelected={() => {}}
+                                    onViewDetails={(id) => { resetNavigation(); setViewingTrack(tracks.find(t => t.id === id) || null); }}
+                                    onToggleArchived={() => {}}
+                                />
+                            </div>
 
-            {showMergeConfirmation && (
-                <MergeConfirmationModal 
-                    selectedTracks={tracks.filter(t => raceSelectionIds.has(t.id))}
-                    onConfirm={confirmMerge}
-                    onCancel={() => setShowMergeConfirmation(false)}
-                />
+                            <div className="h-full relative bg-slate-950 flex flex-col">
+                                <MapDisplay 
+                                    tracks={tracks} 
+                                    visibleTrackIds={focusedTrackId ? new Set([focusedTrackId]) : (raceSelectionIds.size > 0 ? raceSelectionIds : visibleTrackIds)}
+                                    selectedTrackIds={raceSelectionIds}
+                                    raceRunners={null} runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
+                                    onTrackClick={() => {}}
+                                    fitBoundsCounter={layoutUpdateCounter}
+                                />
+                            </div>
+                        </ResizablePanel>
+                    ) : (
+                        <div className="h-full w-full relative bg-slate-950 flex flex-col">
+                            <MapDisplay 
+                                tracks={tracks} 
+                                visibleTrackIds={focusedTrackId ? new Set([focusedTrackId]) : (raceSelectionIds.size > 0 ? raceSelectionIds : visibleTrackIds)}
+                                selectedTrackIds={raceSelectionIds}
+                                raceRunners={null} runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
+                                onTrackClick={() => {}}
+                                fitBoundsCounter={layoutUpdateCounter}
+                            />
+                        </div>
+                    )}
+                </div>
             )}
 
-            {!showHome && !showAuthSelection && (
-                <div className="flex h-full relative">
-                    <div className={`z-20 bg-slate-900 border-r border-slate-800 shrink-0 transition-all duration-300 ${isSidebarOpen ? 'w-80' : 'w-0 overflow-hidden border-none'}`}>
-                        <Sidebar 
-                            tracks={tracks} 
-                            onFileUpload={handleFileUpload} 
-                            visibleTrackIds={visibleTrackIds}
-                            onToggleVisibility={(id) => setVisibleTrackIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
-                            onFocusTrack={setFocusedTrackId} 
-                            focusedTrackId={focusedTrackId}
-                            raceSelectionIds={raceSelectionIds} 
-                            onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
-                            onDeselectAll={() => setRaceSelectionIds(new Set())}
-                            onSelectAll={() => setRaceSelectionIds(new Set(tracks.map(t => t.id)))}
-                            onStartRace={handleStartRace}
-                            onMergeSelected={handleMergeSelected}
-                            hoveredTrackId={hoveredTrackId}
-                            onTrackHoverStart={setHoveredTrackId}
-                            onTrackHoverEnd={() => setHoveredTrackId(null)}
-                            onDeleteTrack={handleDeleteTrack}
-                            onDeleteSelected={handleDeleteSelected}
-                            onViewDetails={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)}
-                            onToggleArchived={handleToggleArchived}
-                        />
-                    </div>
-                    <div className="flex-grow relative bg-slate-950">
-                        <MapDisplay 
-                            tracks={tracks} 
-                            visibleTrackIds={focusedTrackId ? new Set([focusedTrackId]) : (raceSelectionIds.size > 0 ? raceSelectionIds : visibleTrackIds)}
-                            selectedTrackIds={raceSelectionIds}
-                            raceRunners={null} runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
-                            onTrackClick={handleTrackClickFromMap}
-                        />
-                        
-                        {/* Floating AI Coach Button on Map */}
-                        <button 
-                            onClick={() => setShowGlobalChat(true)}
-                            className="absolute bottom-20 right-6 z-40 bg-purple-600 hover:bg-purple-500 text-white px-5 py-3 rounded-full shadow-[0_0_20px_rgba(147,51,234,0.4)] flex items-center justify-center gap-2 transition-all active:scale-90 border border-purple-400/50 group"
-                        >
-                            <span className="text-xl group-hover:scale-110 transition-transform">🧠</span>
-                            <span className="text-xs font-black uppercase tracking-widest hidden sm:inline">Coach AI</span>
-                        </button>
+            <button onClick={() => setShowGlobalChat(true)} className="fixed bottom-20 lg:bottom-24 right-4 z-[9500] bg-purple-600 hover:bg-purple-500 text-white p-3 rounded-full shadow-2xl transition-all active:scale-90 border border-purple-400/50">
+                <span className="text-xl">🧠</span>
+            </button>
 
-                        <NavigationDock 
-                            onOpenSidebar={() => setIsSidebarOpen(true)} 
-                            onCloseSidebar={() => setIsSidebarOpen(false)}
-                            onOpenExplorer={() => setShowExplorer(true)} 
-                            onOpenDiary={() => setShowDiary(true)}
-                            onOpenPerformance={() => setShowPerformance(true)} 
-                            onOpenHub={() => setShowHome(true)}
-                            onOpenGuide={() => setShowGuide(true)}
-                            onExportBackup={handleExportBackup}
-                            onOpenSocial={() => setShowSocial(true)}
-                            onOpenProfile={() => setShowProfile(true)}
-                            isSidebarOpen={isSidebarOpen}
-                        />
-                    </div>
-                </div>
+            {/* Navigation Dock rendered globally over all main sections */}
+            {!showHome && !showAuthSelection && !showSplash && (
+                <NavigationDock 
+                    onOpenSidebar={() => handleToggleSidebar(true)} 
+                    onCloseSidebar={() => handleToggleSidebar(false)}
+                    onOpenExplorer={() => toggleView('explorer')} 
+                    onOpenDiary={() => toggleView('diary')}
+                    onOpenPerformance={() => toggleView('performance')} 
+                    onOpenHub={() => toggleView('hub')}
+                    onOpenGuide={() => toggleView('guide')} 
+                    onExportBackup={handleExportBackup}
+                    onOpenSocial={() => toggleView('social')} 
+                    onOpenProfile={() => toggleView('profile')}
+                    isSidebarOpen={isSidebarOpen}
+                />
             )}
 
             {showGlobalChat && (
-                <div className="fixed inset-0 z-[10000] bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center p-4">
-                    <Chatbot 
-                        onClose={() => setShowGlobalChat(false)}
-                        userProfile={userProfile}
-                        tracksToAnalyze={tracks}
-                        plannedWorkouts={plannedWorkouts}
-                        onAddPlannedWorkout={handleAddPlannedWorkout}
-                        isStandalone={true}
-                    />
+                <div className="fixed inset-0 z-[12000] bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center p-4">
+                    <Chatbot onClose={() => setShowGlobalChat(false)} userProfile={userProfile} tracksToAnalyze={tracks} plannedWorkouts={plannedWorkouts} onAddPlannedWorkout={handleAddPlannedWorkout} isStandalone={true} />
                 </div>
             )}
 
-            {showProfile && (
-                <UserProfileModal 
-                    onClose={() => setShowProfile(false)} 
-                    onSave={handleSaveProfile} 
-                    currentProfile={userProfile} 
-                    tracks={tracks}
-                    onLogout={() => { setShowProfile(false); setUserId(null); setIsGuest(false); setShowAuthSelection(true); }}
-                />
-            )}
-
-            {showChangelog && <Changelog onClose={() => setShowChangelog(false)} />}
+            {showProfile && <UserProfileModal onClose={() => setShowProfile(false)} onSave={handleSaveProfile} currentProfile={userProfile} tracks={tracks} onLogout={() => { resetNavigation(); setUserId(null); setIsGuest(false); setShowAuthSelection(true); }} />}
             {showGuide && <GuideModal onClose={() => setShowGuide(false)} />}
-            
-            {showExplorer && (
-                <ExplorerView 
-                    tracks={tracks} 
-                    onClose={() => setShowExplorer(false)} 
-                    onSelectTrack={(id) => { resetNavigation(); setViewingTrack(tracks.find(t => t.id === id) || null); }} 
-                />
-            )}
-
-            {showDiary && (
-                <DiaryView 
-                    tracks={tracks}
-                    plannedWorkouts={plannedWorkouts}
-                    userProfile={userProfile}
-                    onClose={() => setShowDiary(false)}
-                    onSelectTrack={(id) => { resetNavigation(); setViewingTrack(tracks.find(t => t.id === id) || null); }}
-                    onAddPlannedWorkout={handleAddPlannedWorkout}
-                    onDeletePlannedWorkout={handleDeletePlannedWorkout}
-                    onUpdatePlannedWorkout={handleUpdatePlannedWorkout}
-                    onMassUpdatePlannedWorkouts={handleMassUpdatePlannedWorkouts}
-                    onOpenGlobalChat={() => { resetNavigation(); setShowGlobalChat(true); }}
-                />
-            )}
-
-            {showPerformance && (
-                <PerformanceAnalysisPanel 
-                    tracks={tracks}
-                    userProfile={userProfile}
-                    onClose={() => setShowPerformance(false)}
-                />
-            )}
-
-            {showSocial && userId && (
-                <SocialHub 
-                    onClose={() => setShowSocial(false)}
-                    currentUserId={userId}
-                />
-            )}
+            {showExplorer && <ExplorerView tracks={tracks} onClose={() => setShowExplorer(false)} onSelectTrack={(id) => { resetNavigation(); setViewingTrack(tracks.find(t => t.id === id) || null); }} />}
+            {showDiary && <DiaryView tracks={tracks} plannedWorkouts={plannedWorkouts} userProfile={userProfile} onClose={() => setShowDiary(false)} onSelectTrack={(id) => { resetNavigation(); setViewingTrack(tracks.find(t => t.id === id) || null); }} onAddPlannedWorkout={handleAddPlannedWorkout} onCheckAiAccess={onCheckAiAccess} />}
+            {showPerformance && <PerformanceAnalysisPanel tracks={tracks} userProfile={userProfile} onClose={() => setShowPerformance(false)} />}
+            {showSocial && userId && <SocialHub onClose={() => setShowSocial(false)} currentUserId={userId} />}
             
             {viewingTrack && (
-                <div className="fixed inset-0 z-[5000] bg-slate-900">
-                    <TrackDetailView 
-                        track={viewingTrack} 
-                        userProfile={userProfile} 
-                        onExit={() => setViewingTrack(null)} 
-                        plannedWorkouts={plannedWorkouts}
-                        onAddPlannedWorkout={handleAddPlannedWorkout}
-                        onUpdateTrackMetadata={handleUpdateTrackMetadata}
-                    />
+                <div className="fixed inset-0 z-[10000] bg-slate-900">
+                    <TrackDetailView track={viewingTrack} userProfile={userProfile} onExit={() => setViewingTrack(null)} plannedWorkouts={plannedWorkouts} onAddPlannedWorkout={handleAddPlannedWorkout} onUpdateTrackMetadata={handleUpdateTrackMetadata} onCheckAiAccess={onCheckAiAccess} />
                 </div>
             )}
         </div>

@@ -37,12 +37,6 @@ const RotateDeviceIcon = () => (
     </svg>
 );
 
-const StravaIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 text-[#fc4c02]">
-        <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.477 0 4.177 12.173h4.172" />
-    </svg>
-);
-
 const SortArrow = ({ active, direction }: { active: boolean, direction: 'asc' | 'desc' }) => {
     if (!active) return <span className="opacity-20 ml-1">⇅</span>;
     return <span className="ml-1 text-cyan-400">{direction === 'asc' ? '▲' : '▼'}</span>;
@@ -51,7 +45,6 @@ const SortArrow = ({ active, direction }: { active: boolean, direction: 'asc' | 
 const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTrack }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [viewMode, setViewMode] = useState<ViewMode>('table'); 
-    const [gridCols, setGridCols] = useState(4);
     const [sortOption, setSortOption] = useState<SortOption>('date_desc');
     const [groupingMode, setGroupingMode] = useState<GroupingMode>('none');
     const [showRotateHint, setShowRotateHint] = useState(false);
@@ -63,12 +56,6 @@ const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTr
         } catch (e) {}
         return new Set(['date', 'name', 'activity', 'distance', 'time', 'pace', 'hr', 'elevation']);
     });
-    
-    const [showColMenu, setShowColMenu] = useState(false);
-
-    useEffect(() => {
-        localStorage.setItem('runcoach-explorer-columns', JSON.stringify(Array.from(visibleColumns)));
-    }, [visibleColumns]);
 
     useEffect(() => {
         const checkOrientation = () => {
@@ -83,8 +70,7 @@ const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTr
     const tracksWithStats = useMemo(() => {
         return tracks.map(t => {
             const stats = calculateTrackStats(t);
-            const efficiency = stats.avgHr && stats.avgHr > 0 ? (stats.avgSpeed * 100) / stats.avgHr : 0;
-            return { ...t, stats, efficiency };
+            return { ...t, stats };
         });
     }, [tracks]);
 
@@ -209,7 +195,7 @@ const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTr
                                         {visibleColumns.has('distance') && <td className="px-1.5 py-2 font-mono text-cyan-200">{t.distance.toFixed(1)}</td>}
                                         {visibleColumns.has('time') && <td className="px-1.5 py-2 font-mono text-slate-400">{formatDuration(t.duration)}</td>}
                                         {visibleColumns.has('pace') && <td className="px-1.5 py-2 font-mono font-bold text-white">{formatPace(t.stats.movingAvgPace)}</td>}
-                                        {visibleColumns.has('hr') && <td className="px-1.5 py-2 font-mono text-red-300">{t.stats.avgHr || '-'}</td>}
+                                        {visibleColumns.has('hr') && <td className="px-1.5 py-2 font-mono text-red-300">{t.stats.avgHr ? Math.round(t.stats.avgHr) : '-'}</td>}
                                         {visibleColumns.has('elevation') && <td className="px-1.5 py-2 font-mono text-amber-200">+{Math.round(t.stats.elevationGain)}</td>}
                                         {visibleColumns.has('rpe') && <td className="px-1.5 py-2 text-slate-500 text-center">{t.rpe || '-'}</td>}
                                         {visibleColumns.has('rating') && <td className="px-1.5 py-2"><RatingStars rating={t.rating} size="xs" /></td>}

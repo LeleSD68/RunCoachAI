@@ -1,21 +1,24 @@
 
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { Track, RaceRunner, MapDisplayProps, TrackPoint, PauseSegment, TrackStats, Split, AiSegment, UserProfile } from '../types';
-import { getTrackPointAtDistance, getPointsInDistanceRange } from '../services/trackEditorUtils';
+import { getTrackPointAtDistance, getPointsInDistanceRange, getSmoothedPace } from '../services/trackEditorUtils';
 import { getTrackSegmentColors, GradientMetric } from '../services/colorService';
-import FlyoverMap from './FlyoverMap';
 
 declare const L: any; 
+
+const formatPace = (pace: number) => {
+    if (!isFinite(pace) || pace <= 0) return '--:--';
+    const m = Math.floor(pace);
+    const s = Math.round((pace - m) * 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+};
 
 const MapDisplay: React.FC<MapDisplayProps> = ({ 
     tracks, visibleTrackIds, selectedTrackIds, raceRunners, hoveredTrackId, runnerSpeeds, 
     selectionPoints, hoveredPoint, hoveredData, pauseSegments, showPauses, onMapHover, onTrackHover,
     onPauseClick, mapGradientMetric = 'none', coloredPauseSegments, animationTrack, 
-    animationProgress = 0, animationPace = 0, onExitAnimation, fastestSplitForAnimation, animationHighlight,
-    isAnimationPlaying, onToggleAnimationPlay, onAnimationProgressChange,
-    animationSpeed, onAnimationSpeedChange, fitBoundsCounter = 0,
-    selectedPoint, onPointClick, hoveredLegendValue, aiSegmentHighlight,
-    showSummaryMode, onTrackClick, theme
+    animationProgress = 0, animationPace = 0, isAnimationPlaying, fitBoundsCounter = 0,
+    selectedPoint, onPointClick, hoveredLegendValue, aiSegmentHighlight
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
@@ -24,8 +27,6 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
   const trailPolylineRef = useRef<any>(null);
   const selectionPolylineRef = useRef<any>(null);
   const hoverMarkerRef = useRef<any>(null);
-
-  const [viewMode, setViewMode] = useState<'2D' | '3D'>('2D');
 
   const fitMapToBounds = useCallback(() => {
     const map = mapRef.current;
@@ -40,6 +41,12 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
 
     if (bounds && bounds.isValid()) map.fitBounds(bounds, { padding: [40, 40] });
   }, [tracks, visibleTrackIds]);
+
+  useEffect(() => {
+    if (mapRef.current) {
+        setTimeout(() => mapRef.current.invalidateSize(), 300);
+    }
+  }, [fitBoundsCounter]);
 
   useEffect(() => {
     if (mapContainerRef.current && !mapRef.current) {
@@ -61,94 +68,96 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
 
     tracks.forEach(track => {
         if (!visibleTrackIds.has(track.id)) return;
+        
+        // Durante l'animazione mostriamo solo il percorso "fatto"
+        if (animationTrack && animationTrack.id === track.id) return;
 
         let layer;
         if (mapGradientMetric !== 'none') {
             const segments = getTrackSegmentColors(track, mapGradientMetric as GradientMetric);
             layer = L.featureGroup(segments.map(seg => 
                 L.polyline([[seg.p1.lat, seg.p1.lon], [seg.p2.lat, seg.p2.lon]], {
-                    color: seg.color, weight: 3, opacity: 0.6
+                    color: seg.color, weight: 4, opacity: 0.7
                 })
             ));
         } else {
             layer = L.polyline(track.points.map(p => [p.lat, p.lon]), {
-                color: track.color, weight: 3, opacity: 0.5
+                color: track.color, weight: 4, opacity: 0.6
             });
         }
         layer.addTo(map);
         polylinesRef.current.set(track.id, layer);
     });
-  }, [tracks, visibleTrackIds, mapGradientMetric]);
+  }, [tracks, visibleTrackIds, mapGradientMetric, animationTrack]);
 
   // Gestione Animazione Runner
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !animationTrack) return;
+    if (!map || !animationTrack) {
+        if (runnerMarkerRef.current) { map.removeLayer(runnerMarkerRef.current); runnerMarkerRef.current = null; }
+        if (trailPolylineRef.current) { map.removeLayer(trailPolylineRef.current); trailPolylineRef.current = null; }
+        return;
+    }
 
     const currentPoint = getTrackPointAtDistance(animationTrack, animationProgress);
     if (!currentPoint) return;
 
-    // Aggiorna o crea il marker del runner
+    // Calcolo Passo Live (ultimi 80m per stabilità)
+    const livePace = getSmoothedPace(animationTrack, animationProgress, 80);
+
+    // Marker con Etichetta Passo
     if (!runnerMarkerRef.current) {
-        runnerMarkerRef.current = L.circleMarker([currentPoint.lat, currentPoint.lon], {
-            radius: 8, color: '#fff', fillColor: animationTrack.color, fillOpacity: 1, weight: 3, className: 'pulse-runner'
-        }).addTo(map);
+        const customIcon = L.divIcon({
+            className: 'custom-runner-icon',
+            html: `
+                <div class="relative flex flex-col items-center">
+                    <div class="bg-cyan-600 text-white font-mono font-black text-[10px] px-2 py-0.5 rounded-full border border-white/40 shadow-2xl mb-1.5 whitespace-nowrap">
+                        ${formatPace(livePace)}
+                    </div>
+                    <div class="w-4 h-4 bg-white rounded-full border-2 border-cyan-500 shadow-[0_0_15px_rgba(34,211,238,0.8)] pulse-anim"></div>
+                </div>
+            `,
+            iconSize: [60, 40],
+            iconAnchor: [30, 40]
+        });
+        runnerMarkerRef.current = L.marker([currentPoint.lat, currentPoint.lon], { icon: customIcon }).addTo(map);
     } else {
         runnerMarkerRef.current.setLatLng([currentPoint.lat, currentPoint.lon]);
+        runnerMarkerRef.current.getElement().innerHTML = `
+            <div class="relative flex flex-col items-center">
+                <div class="bg-cyan-600 text-white font-mono font-black text-[10px] px-2 py-0.5 rounded-full border border-white/40 shadow-2xl mb-1.5 whitespace-nowrap">
+                    ${formatPace(livePace)}
+                </div>
+                <div class="w-4 h-4 bg-white rounded-full border-2 border-cyan-500 shadow-[0_0_15px_rgba(34,211,238,0.8)] pulse-anim"></div>
+            </div>
+        `;
     }
 
-    // Aggiorna la scia progressiva
+    // Progressive Path Reveal
     const trailPoints = animationTrack.points.filter(p => p.cummulativeDistance <= animationProgress);
     if (trailPoints.length > 1) {
         if (!trailPolylineRef.current) {
             trailPolylineRef.current = L.polyline(trailPoints.map(p => [p.lat, p.lon]), {
-                color: animationTrack.color, weight: 6, opacity: 0.8, className: 'neon-trail'
+                color: '#22d3ee', weight: 6, opacity: 0.9, className: 'reveal-trail'
             }).addTo(map);
         } else {
             trailPolylineRef.current.setLatLngs(trailPoints.map(p => [p.lat, p.lon]));
         }
     }
 
-    // Centra se richiesto o se esce dallo schermo
-    if (isAnimationPlaying && !map.getBounds().contains([currentPoint.lat, currentPoint.lon])) {
-        map.panTo([currentPoint.lat, currentPoint.lon]);
+    // Auto-Centering Costante
+    if (isAnimationPlaying) {
+        map.panTo([currentPoint.lat, currentPoint.lon], { animate: true, duration: 0.1 });
     }
   }, [animationProgress, animationTrack, isAnimationPlaying]);
-
-  // Selection Highlight Logic
-  useEffect(() => {
-      const map = mapRef.current;
-      if (!map) return;
-      if (selectionPolylineRef.current) map.removeLayer(selectionPolylineRef.current);
-
-      if (selectionPoints && selectionPoints.length > 1) {
-          selectionPolylineRef.current = L.polyline(selectionPoints.map(p => [p.lat, p.lon]), {
-              color: '#fde047', weight: 8, opacity: 0.9, lineCap: 'round', className: 'neon-selection'
-          }).addTo(map);
-      }
-  }, [selectionPoints]);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !hoveredPoint) {
-        if (hoverMarkerRef.current) { map.removeLayer(hoverMarkerRef.current); hoverMarkerRef.current = null; }
-        return;
-    }
-    if (hoverMarkerRef.current) map.removeLayer(hoverMarkerRef.current);
-    hoverMarkerRef.current = L.circleMarker([hoveredPoint.lat, hoveredPoint.lon], {
-        radius: 6, color: '#fff', fillColor: '#0ea5e9', fillOpacity: 1, weight: 2
-    }).addTo(map);
-  }, [hoveredPoint]);
 
   return (
     <div className="relative h-full w-full bg-slate-900 overflow-hidden">
       <div ref={mapContainerRef} className="h-full w-full" />
       <style>{`
-        .neon-selection { filter: drop-shadow(0 0 10px #fde047); stroke-dasharray: 10, 10; animation: dash 20s linear infinite; }
-        .neon-trail { filter: drop-shadow(0 0 5px currentColor); }
-        .pulse-runner { animation: pulse 1.5s infinite; }
-        @keyframes dash { to { stroke-dashoffset: -1000; } }
-        @keyframes pulse { 0% { r: 8; stroke-opacity: 1; } 100% { r: 15; stroke-opacity: 0; } }
+        .reveal-trail { filter: drop-shadow(0 0 8px rgba(34, 211, 238, 0.6)); stroke-linecap: round; }
+        .pulse-anim { animation: marker-pulse 2s infinite; }
+        @keyframes marker-pulse { 0% { box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(34, 211, 238, 0); } 100% { box-shadow: 0 0 0 0 rgba(34, 211, 238, 0); } }
       `}</style>
     </div>
   );

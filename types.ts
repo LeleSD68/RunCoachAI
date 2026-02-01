@@ -269,7 +269,7 @@ declare global {
       addTokens: (count: number) => void;
       trackApiRequest: () => void;
     };
-    // Fix: Added readonly modifier to match the likely pre-configured environment declaration
-    readonly aistudio: AIStudio;
+    // Fix: removed declaration of 'aistudio' on Window to avoid conflicts with global types 
+    // already provided by the environment, satisfying identical modifiers and same type requirements.
   }
 }

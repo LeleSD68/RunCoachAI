@@ -147,7 +147,7 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
 
     if (activeChatFriend) {
         return (
-            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9000] flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[10000] flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
                 <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-lg h-[80vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
                     <header className="bg-slate-800 p-4 border-b border-slate-700 flex justify-between items-center shrink-0">
                         <div className="flex items-center gap-3">
@@ -160,7 +160,7 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
                         </div>
                         <button onClick={onClose} className="text-slate-400 hover:text-white text-xl">&times;</button>
                     </header>
-                    <div className="flex-grow overflow-y-auto p-4 custom-scrollbar bg-slate-900/50 space-y-3">
+                    <div className="flex-grow overflow-y-auto p-4 custom-scrollbar bg-slate-900/50 space-y-3 pb-24">
                         {chatMessages.length === 0 && <div className="text-center text-slate-500 text-xs mt-10">Inizia la conversazione con {activeChatFriend.name}</div>}
                         {Object.entries(groupedMessages).map(([dateLabel, msgs]) => (
                             <div key={dateLabel} className="space-y-3">
@@ -192,7 +192,7 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
     }
 
     return (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[9000] flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[10000] flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
             <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-2xl h-[80vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
                 <div className="bg-slate-800 p-4 border-b border-slate-700 flex justify-between items-center shrink-0">
                     <h2 className="text-xl font-bold text-white flex items-center gap-2"><span className="text-cyan-400">⚡</span> Social Hub</h2>
@@ -203,7 +203,7 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
                     <button onClick={() => setActiveTab('friends')} className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${activeTab === 'friends' ? 'text-cyan-400 border-b-2 border-cyan-400 bg-slate-800' : 'text-slate-500 hover:text-slate-300'}`}><UserIcon /> Amici {friends.length > 0 && `(${friends.length})`}</button>
                     <button onClick={() => setActiveTab('add')} className={`flex-1 py-3 text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${activeTab === 'add' ? 'text-cyan-400 border-b-2 border-cyan-400 bg-slate-800' : 'text-slate-500 hover:text-slate-300'}`}><AddUserIcon /> Aggiungi</button>
                 </div>
-                <div className="flex-grow overflow-y-auto p-4 custom-scrollbar">
+                <div className="flex-grow overflow-y-auto p-4 custom-scrollbar pb-24">
                     {message && <div className="sticky top-0 z-10 bg-cyan-900/90 border border-cyan-500/50 text-cyan-200 p-3 rounded-lg mb-4 text-center text-sm font-bold shadow-lg backdrop-blur-sm animate-fade-in-down">{message}</div>}
                     {activeTab === 'feed' && (
                         <div className="space-y-4">
