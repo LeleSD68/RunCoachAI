@@ -7,6 +7,15 @@ interface ChangelogProps {
 
 const changelogData = [
     {
+        version: 'v1.39',
+        date: '2026-01-29',
+        changes: [
+            '🔔 **Notifiche Realtime**: Ora ricevi avvisi immediati per nuovi messaggi dagli amici e richieste di amicizia direttamente nel browser o su Android.',
+            '📅 **Alert Diario**: Le scadenze e gli impegni giornalieri ti avvisano all\'apertura dell\'app.',
+            '🛠️ **Fix Navigazione**: Corretto il pulsante del numero di versione che apriva erroneamente il profilo invece del changelog.'
+        ]
+    },
+    {
         version: 'v1.38',
         date: '2026-01-29',
         changes: [
