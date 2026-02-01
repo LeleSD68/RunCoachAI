@@ -1,5 +1,4 @@
 
-
 export type ActivityType = 'Lento' | 'Fartlek' | 'Ripetute' | 'Gara' | 'Lungo' | 'Altro' | 'Nota' | 'Impegno' | 'Recupero';
 
 export type DiaryEntryType = 'workout' | 'note' | 'commitment';
@@ -19,7 +18,6 @@ export interface TrackPoint {
   power?: number; 
 }
 
-// Added PauseSegment interface used in TrackStats
 export interface PauseSegment {
   startPoint: TrackPoint;
   endPoint: TrackPoint;
@@ -65,9 +63,9 @@ export interface PlannedWorkout {
     activityType: ActivityType;
     isAiSuggested: boolean;
     completedTrackId?: string; 
-    entryType?: DiaryEntryType; // 'workout', 'note', 'commitment'
-    startTime?: string; // HH:mm
-    endTime?: string; // HH:mm
+    entryType?: DiaryEntryType;
+    startTime?: string; 
+    endTime?: string; 
     isGoogleSynced?: boolean;
 }
 
@@ -87,10 +85,9 @@ export interface UserProfile {
   shoes?: string[]; 
   autoAnalyzeEnabled?: boolean;
   googleCalendarSyncEnabled?: boolean;
-  calendarPreference?: CalendarPreference; // 'google' | 'apple'
+  calendarPreference?: CalendarPreference;
   weightHistory?: {date: string, weight: number}[];
   powerSaveMode?: boolean;
-  /* Added isOnline to fix type errors in SocialHub and MiniChat */
   isOnline?: boolean;
 }
 
@@ -108,6 +105,9 @@ export interface ApiUsage {
     lastReset: string;
 }
 
+// Fix for: Module '"../types"' has no exported member 'ApiUsageStats'.
+export type ApiUsageStats = ApiUsage;
+
 export interface RaceResult {
   trackId: string;
   name: string;
@@ -116,7 +116,6 @@ export interface RaceResult {
   rank: number;
 }
 
-// Added missing types to fix module export errors
 export interface Split {
   splitNumber: number;
   distance: number;
@@ -160,65 +159,6 @@ export interface AiSegment extends Partial<TrackStats> {
   pace: number;
 }
 
-export interface ApiUsageStats extends ApiUsage {}
-
-export interface Commentary {
-  text: string;
-  timestamp: number;
-}
-
-export interface PersonalRecord {
-  distance: number;
-  time: number;
-  trackId: string;
-  trackName: string;
-  date: string;
-}
-
-export interface WeightEntry {
-  date: string;
-  weight: number;
-}
-
-export interface ChatMessage {
-  role: 'user' | 'model';
-  text: string;
-  timestamp: number;
-  suggestedReplies?: string[];
-}
-
-export interface FriendRequest {
-  id: string;
-  status: 'pending' | 'accepted' | 'rejected';
-  createdAt: string;
-  requester: UserProfile;
-}
-
-export interface DirectMessage {
-  id: string;
-  senderId: string;
-  receiverId: string;
-  content: string;
-  createdAt: string;
-}
-
-export interface Weather {
-  temperature: number;
-  windSpeed: number;
-  humidity: number;
-  condition: string;
-}
-
-// Added RaceRunner interface for race simulations
-export interface RaceRunner {
-  trackId: string;
-  name: string;
-  position: TrackPoint;
-  color: string;
-  pace: number;
-}
-
-// Added MapDisplayProps interface for the map component
 export interface MapDisplayProps {
     tracks: Track[];
     visibleTrackIds: Set<string>;
@@ -232,7 +172,8 @@ export interface MapDisplayProps {
     animationProgress?: number;
     isAnimationPlaying?: boolean;
     fitBoundsCounter?: number;
-    selectionPoints?: TrackPoint[] | null;
+    // Modificato per supportare segmenti multipli (es. zone cardio non contigue)
+    selectionPoints?: TrackPoint[] | TrackPoint[][] | null;
     pauseSegments?: PauseSegment[];
     showPauses?: boolean;
     onMapHover?: (point: TrackPoint | null) => void;
@@ -246,9 +187,70 @@ export interface MapDisplayProps {
     hoveredLegendValue?: number | null;
 }
 
-// Global declaration to handle gpxApp and aistudio window properties
+export interface RaceRunner {
+  trackId: string;
+  name: string;
+  position: TrackPoint;
+  color: string;
+  pace: number;
+}
+
+// Fix for: Module '"./types"' has no exported member 'Commentary'.
+export interface Commentary {
+  id: string;
+  text: string;
+  timestamp: number;
+}
+
+// Fix for: Module '"../types"' has no exported member 'Weather'.
+export interface Weather {
+  temperature: number;
+  windSpeed: number;
+  humidity: number;
+  condition: string;
+}
+
+// Fix for: Module '"../types"' has no exported member 'PersonalRecord'.
+export interface PersonalRecord {
+  distance: number;
+  time: number;
+  trackId: string;
+  trackName: string;
+  date: string;
+}
+
+// Fix for: Module '"../types"' has no exported member 'WeightEntry'.
+export interface WeightEntry {
+  date: string;
+  weight: number;
+}
+
+// Fix for: Module '"../types"' has no exported member 'ChatMessage'.
+export interface ChatMessage {
+  role: 'user' | 'model';
+  text: string;
+  timestamp: number;
+  suggestedReplies?: string[];
+}
+
+// Fix for: Module '"../types"' has no exported member 'DirectMessage'.
+export interface DirectMessage {
+  id: string;
+  senderId: string;
+  receiverId: string;
+  content: string;
+  createdAt: string;
+}
+
+// Fix for: Module '"../types"' has no exported member 'FriendRequest'.
+export interface FriendRequest {
+  id: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  createdAt: string;
+  requester: UserProfile;
+}
+
 declare global {
-  /* Fix: Moved AIStudio inside global to resolve type identity mismatch errors and made window.aistudio optional */
   interface AIStudio {
     hasSelectedApiKey: () => Promise<boolean>;
     openSelectKey: () => Promise<void>;
@@ -260,7 +262,6 @@ declare global {
       trackApiRequest: () => void;
       getUsage: () => ApiUsage;
     };
-    /* Fix: ensure identical modifiers (optional) and same type identity as existing global declarations */
     aistudio?: AIStudio;
   }
 }

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, FriendRequest, Track, DirectMessage } from '../types';
 import { searchUsers, sendFriendRequest, getFriendRequests, acceptFriendRequest, rejectFriendRequest, getFriends, getFriendsActivityFeed, sendDirectMessage, getDirectMessages } from '../services/socialService';
@@ -9,6 +8,7 @@ import RatingStars from './RatingStars';
 interface SocialHubProps {
     onClose: () => void;
     currentUserId: string;
+    onChallengeGhost?: (track: Track) => void; // Nuova prop per gestire la sfida
 }
 
 const UserIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M10 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM3.465 14.493a1.23 1.23 0 0 0 .41 1.412A9.957 9.957 0 0 0 10 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 0 0-13.074.003Z" /></svg>);
@@ -17,6 +17,11 @@ const ActivityIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0
 const SearchIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clipRule="evenodd" /></svg>);
 const ChatBubbleIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M10 2c-2.236 0-4.43.18-6.57.524C1.993 2.755 1 4.014 1 5.426v5.148c0 1.413.993 2.67 2.43 2.902.848.137 1.705.248 2.57.331v3.443a.75.75 0 0 0 1.28.53l3.58-3.579a.78.78 0 0 1 .527-.224 41.202 41.202 0 0 0 5.183-.5c1.437-.232 2.43-1.49 2.43-2.903V5.426c0-1.413-.993-2.67-2.43-2.902A41.289 41.289 0 0 0 10 2Zm0 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM8 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm5 1a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd" /></svg>);
 const SendIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M3.105 2.289a.75.75 0 0 0-.826.95l1.414 4.949a.75.75 0 0 0 .95.95l4.95-1.414a.75.75 0 0 0-.95-.95l-3.539 1.01-1.01-3.54a.75.75 0 0 0-.95-.826ZM12.23 7.77a.75.75 0 0 0-1.06 0l-4.25 4.25a.75.75 0 0 0 0 1.06l4.25 4.25a.75.75 0 0 0 1.06-1.06l-3.72-3.72 3.72-3.72a.75.75 0 0 0 0-1.06ZM15.5 10a.75.75 0 0 1 .75-.75h.01a.75.75 0 0 1 0 1.5H16.25a.75.75 0 0 1-.75-.75Z" /></svg>);
+const GhostIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+        <path d="M10 1a4.5 4.5 0 0 0-4.5 4.5V9H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-.5V5.5A4.5 4.5 0 0 0 10 1Zm3 8V5.5a3 3 0 1 0-6 0V9h6Z" />
+    </svg>
+);
 
 const getMessageDateLabel = (dateString: string) => {
     const date = new Date(dateString);
@@ -31,7 +36,7 @@ const getMessageDateLabel = (dateString: string) => {
     return date.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' });
 };
 
-const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
+const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallengeGhost }) => {
     const [activeTab, setActiveTab] = useState<'feed' | 'friends' | 'add'>('feed');
     const [friends, setFriends] = useState<UserProfile[]>([]);
     const [requests, setRequests] = useState<FriendRequest[]>([]);
@@ -94,6 +99,7 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
 
     const fetchChatMessages = async () => {
         if (!activeChatFriend?.id) return;
+        // Fix for: Error in file components/SocialHub.tsx on line 103: friendId was not defined, using activeChatFriend.id
         setChatMessages(await getDirectMessages(currentUserId, activeChatFriend.id));
     };
 
@@ -162,7 +168,6 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
                     </header>
                     <div className="flex-grow overflow-y-auto p-4 custom-scrollbar bg-slate-900/50 space-y-3 pb-24">
                         {chatMessages.length === 0 && <div className="text-center text-slate-500 text-xs mt-10">Inizia la conversazione con {activeChatFriend.name}</div>}
-                        {/* Added explicit type cast to [string, DirectMessage[]][] to fix map on unknown type error */}
                         {(Object.entries(groupedMessages) as [string, DirectMessage[]][]).map(([dateLabel, msgs]) => (
                             <div key={dateLabel} className="space-y-3">
                                 <div className="flex justify-center sticky top-0 z-10 py-2 pointer-events-none">
@@ -234,7 +239,17 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId }) => {
                                                         <span className="block text-[8px] text-slate-500 font-black uppercase">Passo</span>
                                                         <span className="text-xs font-mono font-bold text-cyan-400">{(track.duration / 60000 / track.distance).toFixed(2)}</span>
                                                     </div>
-                                                    {track.rating && <div className="ml-auto flex items-end pb-0.5"><RatingStars rating={track.rating} size="xs" /></div>}
+                                                    <div className="ml-auto flex items-center gap-2">
+                                                        {onChallengeGhost && (
+                                                            <button 
+                                                                onClick={(e) => { e.stopPropagation(); onChallengeGhost(track); }}
+                                                                className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95 border border-purple-400/30"
+                                                            >
+                                                                <GhostIcon /> Sfida Ghost
+                                                            </button>
+                                                        )}
+                                                        {track.rating && <div className="flex items-end pb-0.5"><RatingStars rating={track.rating} size="xs" /></div>}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>

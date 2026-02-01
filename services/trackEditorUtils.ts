@@ -1,9 +1,8 @@
 
 import { Track, TrackPoint, PauseSegment } from '../types';
 
-// Haversine formula from gpxService, duplicated for modularity
 const haversineDistance = (p1: {lat: number, lon: number}, p2: {lat: number, lon: number}): number => {
-  const R = 6371; // Radius of the Earth in km
+  const R = 6371; 
   const dLat = (p2.lat - p1.lat) * (Math.PI / 180);
   const dLon = (p2.lon - p1.lon) * (Math.PI / 180);
   const a =
@@ -13,10 +12,9 @@ const haversineDistance = (p1: {lat: number, lon: number}, p2: {lat: number, lon
       Math.sin(dLon / 2) *
       Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c; // Distance in km
+  return R * c; 
 };
 
-// Recalculates cumulative distance and total distance/duration for a track's points
 const recalculateTrackMetrics = (points: TrackPoint[]): { points: TrackPoint[], distance: number, duration: number } => {
     if (points.length < 2) {
         return { points, distance: 0, duration: 0 };
@@ -31,7 +29,6 @@ const recalculateTrackMetrics = (points: TrackPoint[]): { points: TrackPoint[], 
     });
     
     const totalDuration = points[points.length - 1].time.getTime() - points[0].time.getTime();
-
     return { points: pointsWithDistance, distance: totalDistance, duration: totalDuration };
 }
 
@@ -39,447 +36,190 @@ export const getTrackPointAtDistance = (track: Track, targetDistance: number): T
     if (track.points.length < 2 || targetDistance < 0 || targetDistance > track.distance) {
         return null;
     }
-
     if (targetDistance <= 0) return track.points[0];
     if (targetDistance >= track.distance) return track.points[track.points.length - 1];
     
     for (let i = 0; i < track.points.length - 1; i++) {
         const p1 = track.points[i];
         const p2 = track.points[i + 1];
-
         if (p1.cummulativeDistance <= targetDistance && p2.cummulativeDistance >= targetDistance) {
             const segmentDistance = p2.cummulativeDistance - p1.cummulativeDistance;
             if (segmentDistance === 0) return p1;
-            
-            const distanceIntoSegment = targetDistance - p1.cummulativeDistance;
-            const ratio = distanceIntoSegment / segmentDistance;
-
-            const lat = p1.lat + (p2.lat - p1.lat) * ratio;
-            const lon = p1.lon + (p2.lon - p1.lon) * ratio;
-            const ele = p1.ele + (p2.ele - p1.ele) * ratio;
-            const time = new Date(p1.time.getTime() + (p2.time.getTime() - p1.time.getTime()) * ratio);
-            
-            let hr = undefined;
-            if (p1.hr !== undefined && p2.hr !== undefined) {
-                hr = Math.round(p1.hr + (p2.hr - p1.hr) * ratio);
-            } else {
-                hr = p1.hr ?? p2.hr ?? undefined;
-            }
-            
-            return { lat, lon, ele, time, cummulativeDistance: targetDistance, hr };
+            const ratio = (targetDistance - p1.cummulativeDistance) / segmentDistance;
+            return {
+                lat: p1.lat + (p2.lat - p1.lat) * ratio,
+                lon: p1.lon + (p2.lon - p1.lon) * ratio,
+                ele: p1.ele + (p2.ele - p1.ele) * ratio,
+                time: new Date(p1.time.getTime() + (p2.time.getTime() - p1.time.getTime()) * ratio),
+                cummulativeDistance: targetDistance,
+                hr: p1.hr !== undefined && p2.hr !== undefined ? Math.round(p1.hr + (p2.hr - p1.hr) * ratio) : (p1.hr ?? p2.hr),
+                cad: p1.cad,
+                power: p1.power !== undefined && p2.power !== undefined ? Math.round(p1.power + (p2.power - p1.power) * ratio) : (p1.power ?? p2.power)
+            };
         }
     }
     return null;
 };
 
-/**
- * Calculates the interpolated state of a track at a specific time offset from the start.
- * Useful for time-based race simulations to determine real-time pace and position.
- */
 export const getTrackStateAtTime = (track: Track, timeOffsetMs: number): { point: TrackPoint, pace: number } | null => {
     if (track.points.length < 2) return null;
-    
     const startTime = track.points[0].time.getTime();
     const targetTime = startTime + timeOffsetMs;
     const endTime = track.points[track.points.length - 1].time.getTime();
-
     if (targetTime <= startTime) return { point: track.points[0], pace: 0 };
     if (targetTime >= endTime) return { point: track.points[track.points.length - 1], pace: 0 };
 
-    // Binary search for efficiency
     let low = 0, high = track.points.length - 1;
     while (low <= high) {
         const mid = Math.floor((low + high) / 2);
         const pTime = track.points[mid].time.getTime();
-        
-        if (pTime < targetTime) {
-            low = mid + 1;
-        } else if (pTime > targetTime) {
-            high = mid - 1;
-        } else {
-            // Exact match (rare)
-            return { point: track.points[mid], pace: 0 }; // Need pace logic here too? Just let fallback handle it below
-        }
+        if (pTime < targetTime) low = mid + 1;
+        else if (pTime > targetTime) high = mid - 1;
+        else return { point: track.points[mid], pace: 0 };
     }
-
-    // High is the index before, Low is the index after (because loop ends when low > high)
-    // Actually in standard binary search `high` ends up being `index - 1` and `low` is `index`
-    // We want the segment p[high] -> p[low] where p[high].time < target < p[low].time
-    
-    const idxBefore = high;
-    const idxAfter = low;
-
-    if (idxBefore < 0) return { point: track.points[0], pace: 0 };
-    if (idxAfter >= track.points.length) return { point: track.points[track.points.length - 1], pace: 0 };
-
-    const p1 = track.points[idxBefore];
-    const p2 = track.points[idxAfter];
-    
+    const p1 = track.points[high], p2 = track.points[low];
     const timeDiff = p2.time.getTime() - p1.time.getTime();
-    if (timeDiff === 0) return { point: p1, pace: 0 };
-
     const ratio = (targetTime - p1.time.getTime()) / timeDiff;
-
-    const lat = p1.lat + (p2.lat - p1.lat) * ratio;
-    const lon = p1.lon + (p2.lon - p1.lon) * ratio;
-    const ele = p1.ele + (p2.ele - p1.ele) * ratio;
-    const interpolatedDistance = p1.cummulativeDistance + (p2.cummulativeDistance - p1.cummulativeDistance) * ratio;
-    const time = new Date(targetTime);
-
-    // Calculate instantaneous pace based on this segment
-    const distDiff = p2.cummulativeDistance - p1.cummulativeDistance; // km
-    let pace = 0;
-    if (distDiff > 0.0001) {
-        // min/km = (ms / 60000) / km
-        pace = (timeDiff / 60000) / distDiff;
-    }
-
+    const distDiff = p2.cummulativeDistance - p1.cummulativeDistance;
     return { 
-        point: { lat, lon, ele, time, cummulativeDistance: interpolatedDistance, hr: p1.hr },
-        pace: pace
+        point: { 
+            lat: p1.lat + (p2.lat - p1.lat) * ratio, 
+            lon: p1.lon + (p2.lon - p1.lon) * ratio, 
+            ele: p1.ele + (p2.ele - p1.ele) * ratio, 
+            time: new Date(targetTime),
+            cummulativeDistance: p1.cummulativeDistance + distDiff * ratio,
+            hr: p1.hr 
+        },
+        pace: distDiff > 0.0001 ? (timeDiff / 60000) / distDiff : 0
     };
 };
 
-/**
- * Calculates smoothed pace by looking back a certain distance.
- * This provides a more stable pace reading during simulations.
- */
 export const getSmoothedPace = (track: Track, currentDist: number, lookbackMeters: number): number => {
     if (currentDist < 0.05) return 0;
-    
     const startDist = Math.max(0, currentDist - (lookbackMeters / 1000));
-    
-    const pEnd = getTrackPointAtDistance(track, currentDist);
-    const pStart = getTrackPointAtDistance(track, startDist);
-    
+    const pEnd = getTrackPointAtDistance(track, currentDist), pStart = getTrackPointAtDistance(track, startDist);
     if (!pEnd || !pStart) return 0;
-    
     const distDiff = pEnd.cummulativeDistance - pStart.cummulativeDistance;
-    if (distDiff < 0.001) return 0;
-    
     const timeDiffMs = pEnd.time.getTime() - pStart.time.getTime();
-    if (timeDiffMs <= 0) return 0;
-    
-    // min/km
-    return (timeDiffMs / 60000) / distDiff;
+    return (distDiff > 0.001 && timeDiffMs > 0) ? (timeDiffMs / 60000) / distDiff : 0;
 }
 
 export const getPointsInDistanceRange = (track: Track, startDistance: number, endDistance: number): TrackPoint[] => {
     const pointsInRange: TrackPoint[] = [];
-
     const startPoint = getTrackPointAtDistance(track, startDistance);
     if (startPoint) pointsInRange.push(startPoint);
-    
     track.points.forEach(p => {
-        if (p.cummulativeDistance > startDistance && p.cummulativeDistance < endDistance) {
-            pointsInRange.push(p);
-        }
+        if (p.cummulativeDistance > startDistance && p.cummulativeDistance < endDistance) pointsInRange.push(p);
     });
-
     const endPoint = getTrackPointAtDistance(track, endDistance);
     if (endPoint) pointsInRange.push(endPoint);
-
     return pointsInRange;
 };
 
+/**
+ * Calcola statistiche dettagliate per un segmento (inclusi min/max)
+ */
 export const calculateSegmentStats = (track: Track, startDistance: number, endDistance: number) => {
     const points = getPointsInDistanceRange(track, startDistance, endDistance);
-    if (points.length < 2) {
-        return { distance: 0, duration: 0, elevationGain: 0, pace: 0 };
-    }
+    if (points.length < 2) return null;
 
     const distance = endDistance - startDistance;
     const duration = points[points.length - 1].time.getTime() - points[0].time.getTime();
+    const pace = distance > 0 ? (duration / 60000) / distance : 0;
     
-    let elevationGain = 0;
+    let elevationGain = 0, elevationLoss = 0;
+    let minEle = points[0].ele, maxEle = points[0].ele;
+    let heartRates: number[] = [], powers: number[] = [], paces: number[] = [], cadences: number[] = [];
+
     for (let i = 1; i < points.length; i++) {
-        const eleDiff = points[i].ele - points[i-1].ele;
-        if (eleDiff > 0) {
-            elevationGain += eleDiff;
-        }
+        const p1 = points[i-1], p2 = points[i];
+        const diff = p2.ele - p1.ele;
+        if (diff > 0) elevationGain += diff; else elevationLoss += Math.abs(diff);
+        if (p2.ele < minEle) minEle = p2.ele; if (p2.ele > maxEle) maxEle = p2.ele;
+        if (p2.hr) heartRates.push(p2.hr);
+        if (p2.power) powers.push(p2.power);
+        if (p2.cad) cadences.push(p2.cad);
+        
+        const d = p2.cummulativeDistance - p1.cummulativeDistance;
+        const t = (p2.time.getTime() - p1.time.getTime()) / 60000;
+        if (d > 0.001 && t > 0) paces.push(t / d);
     }
 
-    const pace = distance > 0 ? (duration / 1000 / 60) / distance : 0;
-    
-    return { distance, duration, elevationGain, pace };
-};
-
-
-export const mergeTracks = (tracks: Track[]): Track => {
-    // Sort tracks by their start time to merge them in a logical order
-    const sortedTracks = [...tracks].sort((a, b) => 
-        (a.points[0]?.time.getTime() || 0) - (b.points[0]?.time.getTime() || 0)
-    );
-
-    const newPoints: TrackPoint[] = [];
-    
-    // We keep track of the end time of the *last added point* in the new merged array
-    // to calculate offsets relative to the *new* timeline, ensuring continuity.
-    let runningEndTime = 0;
-
-    sortedTracks.forEach((track, trackIndex) => {
-        if (track.points.length === 0) return;
-
-        const trackStartTime = track.points[0].time.getTime();
-        let offset = 0;
-
-        if (trackIndex > 0) {
-            // We want the new track to start 1 second after the previous one ended
-            // on the new timeline.
-            const desiredStartTime = runningEndTime + 1000;
-            offset = desiredStartTime - trackStartTime;
-        }
-
-        track.points.forEach(p => {
-             const newTimeVal = p.time.getTime() + offset;
-             newPoints.push({
-                ...p, // PRESERVE ALL ORIGINAL DATA (HR, CAD, POWER, ETC)
-                time: new Date(newTimeVal)
-            });
-            runningEndTime = newTimeVal;
-        });
-    });
-    
-    const { points, distance, duration } = recalculateTrackMetrics(newPoints);
-
-    const mergedName = sortedTracks.map(t => t.name).join(' + ');
-
     return {
-        id: `merged-${new Date().getTime()}`,
-        name: mergedName,
-        color: '#0ea5e9',
-        points,
-        distance,
-        duration,
+        distance, duration, pace,
+        minPace: paces.length > 0 ? Math.min(...paces) : pace,
+        maxPace: paces.length > 0 ? Math.max(...paces) : pace,
+        elevationGain, elevationLoss, minEle, maxEle,
+        avgHr: heartRates.length > 0 ? heartRates.reduce((a,b)=>a+b,0)/heartRates.length : null,
+        minHr: heartRates.length > 0 ? Math.min(...heartRates) : null,
+        maxHr: heartRates.length > 0 ? Math.max(...heartRates) : null,
+        avgPower: powers.length > 0 ? powers.reduce((a,b)=>a+b,0)/powers.length : null,
+        avgCadence: cadences.length > 0 ? cadences.reduce((a,b)=>a+b,0)/cadences.length : null
     };
 };
 
-export const cutTrackSection = (track: Track, startDistance: number, endDistance: number): Track => {
-    if (startDistance >= endDistance || !track.points.length) {
-        return track;
-    }
-    
-    // Find the interpolated points at the cut boundaries.
-    const cutStartPoint = getTrackPointAtDistance(track, startDistance);
-    const cutEndPoint = getTrackPointAtDistance(track, endDistance);
-
-    // This should not happen if selection is valid.
-    if (!cutStartPoint || !cutEndPoint) {
-        return track;
-    }
-
-    const durationToRemove = cutEndPoint.time.getTime() - cutStartPoint.time.getTime();
-
-    // Segment before the cut
-    const pointsBefore = track.points.filter(p => p.cummulativeDistance < startDistance);
-    // Add the interpolated start point to ensure a clean cut, unless the cut is at the very beginning
-    if (startDistance > 0) {
-        pointsBefore.push(cutStartPoint);
-    }
-    
-    // Segment after the cut
-    const pointsAfter = track.points
-        .filter(p => p.cummulativeDistance > endDistance)
-        .map(p => ({ // Adjust time for all points after the cut
-            ...p,
-            time: new Date(p.time.getTime() - durationToRemove),
-        }));
-        
-    // Add the interpolated end point to start the 'after' segment, unless the cut goes to the very end
-    if (endDistance < track.distance) {
-        const adjustedCutEndPoint = {
-            ...cutEndPoint,
-            time: new Date(cutEndPoint.time.getTime() - durationToRemove)
-        };
-        pointsAfter.unshift(adjustedCutEndPoint);
-    }
-    
-    const combinedPoints = [...pointsBefore, ...pointsAfter];
-    
-    // If we deleted everything, return an empty track
-    if (combinedPoints.length === 0) {
-         return { ...track, name: `${track.name} (edited)`, points: [], distance: 0, duration: 0 };
-    }
-
-    // Recalculate all metrics from scratch
-    const { points, distance, duration } = recalculateTrackMetrics(combinedPoints);
-    return { ...track, name: `${track.name} (edited)`, points, distance, duration };
+export const mergeTracks = (tracks: Track[]): Track => {
+    const sortedTracks = [...tracks].sort((a, b) => (a.points[0]?.time.getTime() || 0) - (b.points[0]?.time.getTime() || 0));
+    const newPoints: TrackPoint[] = [];
+    let runningEndTime = 0;
+    sortedTracks.forEach((track, idx) => {
+        if (track.points.length === 0) return;
+        const offset = idx > 0 ? (runningEndTime + 1000) - track.points[0].time.getTime() : 0;
+        track.points.forEach(p => {
+             const newTime = p.time.getTime() + offset;
+             newPoints.push({ ...p, time: new Date(newTime) });
+             runningEndTime = newTime;
+        });
+    });
+    const { points, distance, duration } = recalculateTrackMetrics(newPoints);
+    return { id: `merged-${Date.now()}`, name: sortedTracks.map(t => t.name).join(' + '), color: '#0ea5e9', points, distance, duration };
 };
 
-export const trimTrackToSelection = (track: Track, startDistance: number, endDistance: number): Track => {
-    const newPoints: TrackPoint[] = [];
-    let foundStart = false;
-
-    // Find the closest point before the start distance to ensure the line starts correctly
-    let startIdx = track.points.findIndex(p => p.cummulativeDistance >= startDistance);
-    if (startIdx > 0) startIdx--;
-    else startIdx = 0;
-
-    for (let i = startIdx; i < track.points.length; i++) {
-        const p = track.points[i];
-        if (p.cummulativeDistance >= startDistance && p.cummulativeDistance <= endDistance) {
-            if (!foundStart) {
-                // This is the first point in our new track. Reset its time and distance.
-                foundStart = true;
-            }
-            newPoints.push({ ...p });
-        }
-         if (p.cummulativeDistance > endDistance) {
-            // Add the first point after the selection to ensure the line ends correctly, then stop.
-            newPoints.push({ ...p });
-            break;
-        }
-    }
-    
-    if (newPoints.length < 2) return { ...track, points: [], distance: 0, duration: 0 };
-    
-    // Reset time and distance to start from zero for the new trimmed track
-    const firstPointTime = newPoints[0].time.getTime();
-    const firstPointDistance = newPoints[0].cummulativeDistance;
-    
-    const finalPoints = newPoints.map(p => ({
-        ...p,
-        time: new Date(p.time.getTime() - firstPointTime),
-        cummulativeDistance: p.cummulativeDistance - firstPointDistance
-    }));
-    
-    // We need to do a full recalculation as the original cumulative distances are now just relative offsets
-    const { points, distance, duration } = recalculateTrackMetrics(finalPoints);
-
+export const cutTrackSection = (track: Track, startDistance: number, endDistance: number): Track => {
+    if (startDistance >= endDistance || !track.points.length) return track;
+    const p1 = getTrackPointAtDistance(track, startDistance), p2 = getTrackPointAtDistance(track, endDistance);
+    if (!p1 || !p2) return track;
+    const removedDur = p2.time.getTime() - p1.time.getTime();
+    const combined = [...track.points.filter(p => p.cummulativeDistance < startDistance), p1, ...track.points.filter(p => p.cummulativeDistance > endDistance).map(p => ({ ...p, time: new Date(p.time.getTime() - removedDur) }))];
+    const { points, distance, duration } = recalculateTrackMetrics(combined);
     return { ...track, points, distance, duration };
 };
 
-export const findPauses = (track: Track, minDurationSec: number = 10, maxSpeedKmh: number = 1): PauseSegment[] => {
-    if (track.points.length < 2) return [];
-
-    const pauseSegments: PauseSegment[] = [];
-    let potentialPauseStart: TrackPoint | null = null;
-
-    for (let i = 1; i < track.points.length; i++) {
-        const p1 = track.points[i - 1];
-        const p2 = track.points[i];
-        
-        const distance = p2.cummulativeDistance - p1.cummulativeDistance;
-        const timeDiffSec = (p2.time.getTime() - p1.time.getTime()) / 1000;
-
-        let speedKmh = Infinity;
-        if (timeDiffSec > 0.1) {
-            speedKmh = (distance / timeDiffSec) * 3600;
-        }
-
-        if (speedKmh < maxSpeedKmh) {
-            if (!potentialPauseStart) {
-                potentialPauseStart = p1;
-            }
-        } else {
-            if (potentialPauseStart) {
-                const pauseEndPoint = p1;
-                const pauseDurationSec = (pauseEndPoint.time.getTime() - potentialPauseStart.time.getTime()) / 1000;
-                if (pauseDurationSec >= minDurationSec) {
-                    pauseSegments.push({
-                        startPoint: potentialPauseStart,
-                        endPoint: pauseEndPoint,
-                        duration: pauseDurationSec
-                    });
-                }
-                potentialPauseStart = null;
-            }
-        }
-    }
-
-    // Check for a pause at the very end of the track
-    if (potentialPauseStart) {
-        const lastPoint = track.points[track.points.length - 1];
-        const pauseDurationSec = (lastPoint.time.getTime() - potentialPauseStart.time.getTime()) / 1000;
-        if (pauseDurationSec >= minDurationSec) {
-            pauseSegments.push({
-                startPoint: potentialPauseStart,
-                endPoint: lastPoint,
-                duration: pauseDurationSec
-            });
-        }
-    }
-
-    return pauseSegments;
+export const trimTrackToSelection = (track: Track, startDistance: number, endDistance: number): Track => {
+    const trimmed = getPointsInDistanceRange(track, startDistance, endDistance);
+    if (trimmed.length < 2) return { ...track, points: [], distance: 0, duration: 0 };
+    const t0 = trimmed[0].time.getTime(), d0 = trimmed[0].cummulativeDistance;
+    const final = trimmed.map(p => ({ ...p, time: new Date(p.time.getTime() - t0), cummulativeDistance: p.cummulativeDistance - d0 }));
+    const { points, distance, duration } = recalculateTrackMetrics(final);
+    return { ...track, points, distance, duration };
 };
 
-const SPEED_THRESHOLD_KMH = 50; // Anything over 50km/h is almost certainly a GPS error.
+export const findPauses = (track: Track, minDurationSec: number = 10, maxSpeedKmh: number = 1.5): PauseSegment[] => {
+    if (track.points.length < 2) return [];
+    const pauses: PauseSegment[] = [];
+    let start: TrackPoint | null = null;
+    for (let i = 1; i < track.points.length; i++) {
+        const p1 = track.points[i-1], p2 = track.points[i];
+        const dt = (p2.time.getTime() - p1.time.getTime()) / 1000, dd = p2.cummulativeDistance - p1.cummulativeDistance;
+        const speed = dt > 0.1 ? (dd / dt) * 3600 : Infinity;
+        if (speed < maxSpeedKmh) { if (!start) start = p1; }
+        else { if (start) { const dur = (p1.time.getTime() - start.time.getTime()) / 1000; if (dur >= minDurationSec) pauses.push({ startPoint: start, endPoint: p1, duration: dur }); start = null; } }
+    }
+    return pauses;
+};
 
 export const smoothTrackData = (track: Track): { newTrack: Track, correctedCount: number } => {
-    if (track.points.length < 3) {
-        // Not enough points to identify neighbors
-        return { newTrack: track, correctedCount: 0 };
-    }
-
-    const originalPoints = track.points;
-    const outlierIndices = new Set<number>();
-
-    // 1. Identify outliers by checking speed between consecutive points
-    for (let i = 1; i < originalPoints.length; i++) {
-        const p1 = originalPoints[i - 1];
-        const p2 = originalPoints[i];
-        
-        const distance = haversineDistance(p1, p2); // in km
-        const timeDiffHours = (p2.time.getTime() - p1.time.getTime()) / 3600000;
-
-        if (timeDiffHours > 1e-6) { // Avoid division by zero
-            const speedKmh = distance / timeDiffHours;
-            if (speedKmh > SPEED_THRESHOLD_KMH) {
-                // The error is likely in the position of p2, as the segment (p1, p2) is impossibly long.
-                outlierIndices.add(i);
-            }
+    if (track.points.length < 3) return { newTrack: track, correctedCount: 0 };
+    const points = [...track.points];
+    let corrected = 0;
+    for (let i = 1; i < points.length - 1; i++) {
+        const p0 = points[i-1], p1 = points[i], p2 = points[i+1];
+        const d = haversineDistance(p0, p1), t = (p1.time.getTime() - p0.time.getTime()) / 3600000;
+        if (t > 0 && (d/t) > 45) {
+            points[i] = { ...p1, lat: (p0.lat + p2.lat)/2, lon: (p0.lon + p2.lon)/2, ele: (p0.ele + p2.ele)/2 };
+            corrected++;
         }
     }
-
-    if (outlierIndices.size === 0) {
-        return { newTrack: track, correctedCount: 0 };
-    }
-
-    // 2. Create a new array of points, correcting outliers.
-    const correctedPoints = originalPoints.map((p, i) => {
-        if (!outlierIndices.has(i)) {
-            return p; // Not an outlier, keep it.
-        }
-
-        // This point is an outlier. Find the nearest valid preceding and succeeding points.
-        let prevPoint: TrackPoint | null = null;
-        for (let j = i - 1; j >= 0; j--) {
-            if (!outlierIndices.has(j)) {
-                prevPoint = originalPoints[j];
-                break;
-            }
-        }
-
-        let nextPoint: TrackPoint | null = null;
-        for (let j = i + 1; j < originalPoints.length; j++) {
-            if (!outlierIndices.has(j)) {
-                nextPoint = originalPoints[j];
-                break;
-            }
-        }
-
-        if (prevPoint && nextPoint) {
-            // We have both neighbors, average their positions.
-            const avgLat = (prevPoint.lat + nextPoint.lat) / 2;
-            const avgLon = (prevPoint.lon + nextPoint.lon) / 2;
-            const avgEle = (prevPoint.ele + nextPoint.ele) / 2;
-            // Keep the original time, as that's likely correct. Only the position is wrong.
-            return { ...p, lat: avgLat, lon: avgLon, ele: avgEle };
-        } else if (prevPoint) {
-            // Outlier is at/near the end, only a preceding point is available. Use its position.
-            return { ...p, lat: prevPoint.lat, lon: prevPoint.lon, ele: prevPoint.ele };
-        } else if (nextPoint) {
-            // Outlier is at/near the beginning, only a succeeding point is available. Use its position.
-            return { ...p, lat: nextPoint.lat, lon: nextPoint.lon, ele: nextPoint.ele };
-        } else {
-            // No valid neighbors found (e.g., all points are outliers), can't correct. Return original.
-            return p;
-        }
-    });
-
-    // 3. Recalculate all metrics based on the new point data.
-    const { points, distance, duration } = recalculateTrackMetrics(correctedPoints);
-    const newTrack: Track = { ...track, points, distance, duration };
-    
-    return { newTrack, correctedCount: outlierIndices.size };
+    const { points: smoothed, distance, duration } = recalculateTrackMetrics(points);
+    return { newTrack: { ...track, points: smoothed, distance, duration }, correctedCount: corrected };
 };

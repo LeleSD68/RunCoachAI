@@ -5,7 +5,7 @@ import { Track, UserProfile, TrackPoint } from '../types';
 interface HeartRateZonePanelProps {
     track: Track;
     userProfile: UserProfile;
-    onZoneSelect?: (points: (TrackPoint & { highlightColor: string })[] | null) => void;
+    onZoneSelect?: (segments: (TrackPoint & { highlightColor: string })[][] | null) => void;
 }
 
 const formatDuration = (ms: number) => {
@@ -17,7 +17,6 @@ const formatDuration = (ms: number) => {
     return `${hours > 0 ? hours + ':' : ''}${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 };
 
-// Fix: Exporting ZoneInfo interface for use in other components
 export interface ZoneInfo {
     name: string;
     threshold: number;
@@ -28,13 +27,10 @@ export interface ZoneInfo {
     min: number;
 }
 
-// Fix: Extracting heart rate zone calculation logic to be shared with other components (like Coach AI)
-// This resolves the error in GeminiTrackAnalysisPanel.tsx where this function was imported but not exported.
 export const getHeartRateZoneInfo = (track: Track, userProfile: UserProfile): { zones: ZoneInfo[], maxHrUsed: number } => {
     const maxHrFromTrack = Math.max(...track.points.map(p => p.hr || 0));
     const maxHrFromProfile = userProfile.maxHr || (userProfile.age ? 220 - userProfile.age : null);
     const maxHrUsed = maxHrFromProfile || maxHrFromTrack;
-
     if (!maxHrUsed || maxHrUsed === 0) return { zones: [], maxHrUsed: 0 };
 
     const zonesDef = [
@@ -47,16 +43,12 @@ export const getHeartRateZoneInfo = (track: Track, userProfile: UserProfile): { 
 
     const zoneDurations = Array(5).fill(0);
     let totalHrDuration = 0;
-
     for (let i = 1; i < track.points.length; i++) {
-        const p1 = track.points[i - 1];
-        const p2 = track.points[i];
+        const p1 = track.points[i - 1], p2 = track.points[i];
         if (p1.hr && p2.hr) {
-            const avgHr = (p1.hr + p2.hr) / 2;
-            const ratio = avgHr / maxHrUsed;
+            const ratio = ((p1.hr + p2.hr) / 2) / maxHrUsed;
             const duration = p2.time.getTime() - p1.time.getTime();
             totalHrDuration += duration;
-
             if (ratio < zonesDef[0].threshold) zoneDurations[0] += duration;
             else if (ratio < zonesDef[1].threshold) zoneDurations[1] += duration;
             else if (ratio < zonesDef[2].threshold) zoneDurations[2] += duration;
@@ -64,76 +56,51 @@ export const getHeartRateZoneInfo = (track: Track, userProfile: UserProfile): { 
             else zoneDurations[4] += duration;
         }
     }
-
-    const details = zonesDef.map((z, i) => ({
-        ...z,
-        range: `${Math.round(z.min * maxHrUsed)}-${Math.round(z.threshold * maxHrUsed)} bpm`,
-        duration: zoneDurations[i],
-        percent: totalHrDuration > 0 ? (zoneDurations[i] / totalHrDuration) * 100 : 0,
-    }));
-    
-    return { zones: details, maxHrUsed };
+    return { 
+        zones: zonesDef.map((z, i) => ({ ...z, range: `${Math.round(z.min * maxHrUsed)}-${Math.round(z.threshold * maxHrUsed)} bpm`, duration: zoneDurations[i], percent: totalHrDuration > 0 ? (zoneDurations[i] / totalHrDuration) * 100 : 0 })), 
+        maxHrUsed 
+    };
 };
 
 const HeartRateZonePanel: React.FC<HeartRateZonePanelProps> = ({ track, userProfile, onZoneSelect }) => {
-    // Fix: Refactored component to use the newly exported getHeartRateZoneInfo function
     const { zones, maxHrUsed } = useMemo(() => getHeartRateZoneInfo(track, userProfile), [track, userProfile]);
 
-    const handleZoneClick = (zone: any) => {
+    const handleZoneClick = (zone: ZoneInfo) => {
         if (!onZoneSelect) return;
         
-        // Trova tutti i tratti di punti che appartengono a questa zona
-        const pointsInZone: (TrackPoint & { highlightColor: string })[] = [];
-        for (let i = 1; i < track.points.length; i++) {
+        const segments: (TrackPoint & { highlightColor: string })[][] = [];
+        let currentSegment: (TrackPoint & { highlightColor: string })[] = [];
+
+        for (let i = 0; i < track.points.length; i++) {
             const p = track.points[i];
             const ratio = (p.hr || 0) / maxHrUsed;
-            
-            // Verifica se il punto è nella zona selezionata
-            const isInZone = i > 0 && ratio >= zone.min && ratio < zone.threshold;
+            const isInZone = ratio >= zone.min && ratio < zone.threshold;
+
             if (isInZone) {
-                pointsInZone.push({ ...p, highlightColor: zone.color });
+                currentSegment.push({ ...p, highlightColor: zone.color });
+            } else if (currentSegment.length > 0) {
+                if (currentSegment.length > 1) segments.push(currentSegment);
+                currentSegment = [];
             }
         }
+        if (currentSegment.length > 1) segments.push(currentSegment);
         
-        if (pointsInZone.length === 0) {
-            onZoneSelect(null);
-        } else {
-            onZoneSelect(pointsInZone);
-        }
+        onZoneSelect(segments.length > 0 ? segments : null);
     };
 
     if (zones.length === 0) return null;
 
     return (
         <div className="space-y-2">
-            <p className="text-[9px] text-slate-500 mb-2 italic">Calcolato su max {maxHrUsed} bpm. Tocca una zona per vederla in mappa.</p>
+            <p className="text-[9px] text-slate-500 mb-2 italic">Basato su max {maxHrUsed} bpm. Tocca una zona per evidenziarla.</p>
             {zones.map(zone => (
-                <div 
-                    key={zone.name} 
-                    onClick={() => handleZoneClick(zone)}
-                    className="grid grid-cols-12 gap-x-2 items-center text-[10px] cursor-pointer group hover:bg-slate-800/50 p-1 rounded transition-colors"
-                >
-                    <div className="col-span-4">
-                        <p className="text-slate-300 truncate font-bold group-hover:text-white">{zone.name}</p>
-                        <p className="text-[8px] text-slate-500 font-mono">{zone.range}</p>
-                    </div>
-                    <div className="col-span-5">
-                         <div className="w-full bg-slate-800 rounded-full h-2 shadow-inner">
-                            <div className="h-2 rounded-full transition-all duration-700" style={{ width: `${zone.percent}%`, backgroundColor: zone.color }}></div>
-                        </div>
-                    </div>
-                    <div className="col-span-3 text-right">
-                         <p className="font-mono text-slate-200 font-bold">{formatDuration(zone.duration)}</p>
-                         <p className="text-[8px] text-slate-500 font-black">{zone.percent.toFixed(1)}%</p>
-                    </div>
+                <div key={zone.name} onClick={() => handleZoneClick(zone)} className="grid grid-cols-12 gap-x-2 items-center text-[10px] cursor-pointer group hover:bg-slate-800/50 p-1 rounded transition-colors">
+                    <div className="col-span-4"><p className="text-slate-300 truncate font-bold group-hover:text-white">{zone.name}</p><p className="text-[8px] text-slate-500 font-mono">{zone.range}</p></div>
+                    <div className="col-span-5"><div className="w-full bg-slate-800 rounded-full h-2 shadow-inner"><div className="h-2 rounded-full transition-all duration-700" style={{ width: `${zone.percent}%`, backgroundColor: zone.color }}></div></div></div>
+                    <div className="col-span-3 text-right"><p className="font-mono text-slate-200 font-bold">{formatDuration(zone.duration)}</p><p className="text-[8px] text-slate-500 font-black">{zone.percent.toFixed(1)}%</p></div>
                 </div>
             ))}
-            <button 
-                onClick={() => onZoneSelect?.(null)}
-                className="w-full mt-2 text-[8px] font-black text-slate-600 uppercase hover:text-slate-400 py-1"
-            >
-                Reset Highlight Mappa
-            </button>
+            <button onClick={() => onZoneSelect?.(null)} className="w-full mt-2 text-[8px] font-black text-slate-600 uppercase hover:text-slate-400 py-1">Resetta Mappa</button>
         </div>
     );
 };

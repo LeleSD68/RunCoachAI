@@ -75,6 +75,7 @@ const App: React.FC = () => {
     const [raceSelectionIds, setRaceSelectionIds] = useState<Set<string>>(new Set());
     const [hoveredTrackId, setHoveredTrackId] = useState<string | null>(null);
     const [showGlobalChat, setShowGlobalChat] = useState(false);
+    const [fitBoundsCounter, setFitBoundsCounter] = useState(0);
 
     const mapVisibleIds = useMemo(() => {
         if (raceSelectionIds.size === 0) {
@@ -108,7 +109,12 @@ const App: React.FC = () => {
 
     const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
     useEffect(() => {
-        const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
+        const handleResize = () => {
+            const desk = window.innerWidth >= 1024;
+            setIsDesktop(desk);
+            // Trigger map refit when layout changes
+            setFitBoundsCounter(c => c + 1);
+        };
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
@@ -139,7 +145,7 @@ const App: React.FC = () => {
         setShowGlobalChat(false);
         setViewingTrack(null);
         setEditingTrack(null);
-        setIsSidebarOpen(false); 
+        // On mobile, navigation usually closes the sidebar list unless it's the home
     }, []);
 
     const toggleView = (view: 'diary' | 'explorer' | 'performance' | 'social' | 'hub' | 'profile' | 'guide') => {
@@ -234,13 +240,17 @@ const App: React.FC = () => {
     const [raceRunners, setRaceRunners] = useState<RaceRunner[] | null>(null);
     const [raceResults, setRaceResults] = useState<RaceResult[] | null>(null);
     const [raceGaps, setRaceGaps] = useState<Map<string, number | undefined>>(new Map());
-    const raceIntervalRef = useRef<number | null>(null);
+    
+    // ANIMAZIONE GARA OTTIMIZZATA
+    const raceLastTimeRef = useRef<number | null>(null);
+    const raceTimeRef = useRef(0);
 
     const startRace = () => {
         const selected = tracks.filter(t => raceSelectionIds.has(t.id));
         if (selected.length < 1) return;
         
         setRaceResults(null);
+        raceTimeRef.current = 0;
         setRaceTime(0);
         setRaceState('running');
         setRaceRunners(selected.map(t => ({
@@ -250,68 +260,81 @@ const App: React.FC = () => {
             color: t.color,
             pace: 0
         })));
+        // On mobile, close list to see the race
+        if (!isDesktop) setIsSidebarOpen(false);
     };
 
     useEffect(() => {
-        if (raceState === 'running') {
-            const step = 200; 
-            raceIntervalRef.current = window.setInterval(() => {
-                setRaceTime(prev => {
-                    const next = prev + (step * raceSpeed);
-                    const selected = tracks.filter(t => raceSelectionIds.has(t.id));
-                    
-                    let allFinished = true;
-                    const newRunners: RaceRunner[] = [];
-                    const currentGaps = new Map<string, number>();
+        let frame: number;
+        
+        const animateRace = (time: number) => {
+            if (raceLastTimeRef.current !== null) {
+                const delta = time - raceLastTimeRef.current;
+                const nextTime = raceTimeRef.current + (delta * raceSpeed);
+                raceTimeRef.current = nextTime;
+                setRaceTime(nextTime);
 
-                    selected.forEach(t => {
-                        const state = getTrackStateAtTime(t, next);
-                        if (state) {
-                            newRunners.push({
-                                trackId: t.id,
-                                name: t.name,
-                                position: state.point,
-                                color: t.color,
-                                pace: state.pace
-                            });
-                            if (state.point.cummulativeDistance < t.distance) allFinished = false;
-                        } else {
-                            const lastPoint = t.points[t.points.length-1];
-                            newRunners.push({
-                                trackId: t.id, name: t.name, position: lastPoint, color: t.color, pace: 0
-                            });
-                        }
-                    });
+                const selected = tracks.filter(t => raceSelectionIds.has(t.id));
+                let allFinished = true;
+                const newRunners: RaceRunner[] = [];
+                const currentGaps = new Map<string, number>();
 
-                    const sorted = [...newRunners].sort((a,b) => b.position.cummulativeDistance - a.position.cummulativeDistance);
+                selected.forEach(t => {
+                    const state = getTrackStateAtTime(t, nextTime);
+                    if (state) {
+                        newRunners.push({
+                            trackId: t.id,
+                            name: t.name,
+                            position: state.point,
+                            color: t.color,
+                            pace: state.pace
+                        });
+                        if (state.point.cummulativeDistance < t.distance) allFinished = false;
+                    } else {
+                        const lastPoint = t.points[t.points.length-1];
+                        newRunners.push({
+                            trackId: t.id, name: t.name, position: lastPoint, color: t.color, pace: 0
+                        });
+                    }
+                });
+
+                const sorted = [...newRunners].sort((a,b) => b.position.cummulativeDistance - a.position.cummulativeDistance);
+                if (sorted.length > 0) {
                     const leaderDist = sorted[0].position.cummulativeDistance;
                     sorted.forEach((r) => {
                         currentGaps.set(r.trackId, (leaderDist - r.position.cummulativeDistance) * 1000);
                     });
+                }
 
-                    setRaceRunners(newRunners);
-                    setRaceGaps(currentGaps);
+                setRaceRunners(newRunners);
+                setRaceGaps(currentGaps);
 
-                    if (allFinished) {
-                        setRaceState('finished');
-                        const results = selected.map(t => ({
-                            trackId: t.id,
-                            name: t.name,
-                            finishTime: t.duration,
-                            distance: t.distance,
-                            rank: 0
-                        })).sort((a,b) => a.finishTime - b.finishTime)
-                           .map((r, i) => ({ ...r, rank: i + 1 }));
-                        setRaceResults(results);
-                        return prev;
-                    }
-                    return next;
-                });
-            }, step);
+                if (allFinished) {
+                    setRaceState('finished');
+                    const results = selected.map(t => ({
+                        trackId: t.id,
+                        name: t.name,
+                        finishTime: t.duration,
+                        distance: t.distance,
+                        rank: 0
+                    })).sort((a,b) => a.finishTime - b.finishTime)
+                       .map((r, i) => ({ ...r, rank: i + 1 }));
+                    setRaceResults(results);
+                    raceLastTimeRef.current = null;
+                    return;
+                }
+            }
+            raceLastTimeRef.current = time;
+            frame = requestAnimationFrame(animateRace);
+        };
+
+        if (raceState === 'running') {
+            frame = requestAnimationFrame(animateRace);
         } else {
-            if (raceIntervalRef.current) clearInterval(raceIntervalRef.current);
+            raceLastTimeRef.current = null;
         }
-        return () => { if (raceIntervalRef.current) clearInterval(raceIntervalRef.current); };
+
+        return () => cancelAnimationFrame(frame);
     }, [raceState, raceSpeed, tracks, raceSelectionIds]);
 
     const handleUpdateTrackMetadata = async (id: string, metadata: Partial<Track>) => {
@@ -320,13 +343,35 @@ const App: React.FC = () => {
         await saveTracksToDB(updatedTracks);
     };
 
+    const handleChallengeGhost = (friendTrack: Track) => {
+        const ghostTrack: Track = {
+            ...friendTrack,
+            id: `ghost-friend-${friendTrack.id}`,
+            name: `Ghost: ${friendTrack.userDisplayName || 'Amico'}`,
+            isExternal: true,
+            color: '#a855f7',
+        };
+
+        if (!tracks.some(t => t.id === ghostTrack.id)) {
+            setTracks(prev => [ghostTrack, ...prev]);
+            addToast(`Corsa di ${friendTrack.userDisplayName} aggiunta come Ghost!`, "success");
+        }
+
+        setRaceSelectionIds(prev => {
+            const next = new Set(prev);
+            next.add(ghostTrack.id);
+            return next;
+        });
+
+        setShowSocial(false);
+        setIsSidebarOpen(true);
+        setFitBoundsCounter(c => c + 1);
+    };
+
     const handleBulkDelete = async () => {
         const idsToDelete = Array.from(raceSelectionIds);
         const tracksToDelete = tracks.filter(t => raceSelectionIds.has(t.id));
-        
-        // Memorizza impronte Strava cancellate
         tracksToDelete.forEach(t => markStravaTrackAsDeleted(t));
-        
         const next = tracks.filter(t => !raceSelectionIds.has(t.id));
         setTracks(next);
         setRaceSelectionIds(new Set());
@@ -364,18 +409,13 @@ const App: React.FC = () => {
     const handleMergeSelectedTracks = async (deleteOriginals: boolean) => {
         const selected = tracks.filter(t => raceSelectionIds.has(t.id));
         if (selected.length < 2) return;
-
         const merged = mergeTracks(selected);
         let nextTracks = [merged, ...tracks];
         const idsToRemove = Array.from(raceSelectionIds);
-
         if (deleteOriginals) {
             nextTracks = nextTracks.filter(t => !raceSelectionIds.has(t.id) || t.id === merged.id);
-            for (const id of idsToRemove) {
-                await deleteTrackFromCloud(id);
-            }
+            for (const id of idsToRemove) await deleteTrackFromCloud(id);
         }
-
         setTracks(nextTracks);
         setRaceSelectionIds(new Set([merged.id]));
         await saveTracksToDB(nextTracks);
@@ -410,92 +450,45 @@ const App: React.FC = () => {
         let newCount = 0;
         let skipCount = 0;
         const newTracks: Track[] = [];
-
         for (const file of files) {
             const text = await file.text();
             let parsed = null;
             if (file.name.toLowerCase().endsWith('.gpx')) parsed = parseGpx(text, file.name);
             else if (file.name.toLowerCase().endsWith('.tcx')) parsed = parseTcx(text, file.name);
-
             if (parsed) {
                 const { title, activityType, folder } = generateSmartTitle(parsed.points, parsed.distance, parsed.name);
-                const tempTrack: Track = {
-                    id: crypto.randomUUID(),
-                    name: title,
-                    points: parsed.points,
-                    distance: parsed.distance,
-                    duration: parsed.duration,
-                    color: `hsl(${Math.random() * 360}, 70%, 60%)`,
-                    activityType,
-                    folder
-                };
-
-                if (!isDuplicateTrack(tempTrack, [...tracks, ...newTracks])) {
-                    newTracks.push(tempTrack);
-                    newCount++;
-                } else {
-                    skipCount++;
-                }
+                const tempTrack: Track = { id: crypto.randomUUID(), name: title, points: parsed.points, distance: parsed.distance, duration: parsed.duration, color: `hsl(${Math.random() * 360}, 70%, 60%)`, activityType, folder };
+                if (!isDuplicateTrack(tempTrack, [...tracks, ...newTracks])) { newTracks.push(tempTrack); newCount++; } 
+                else skipCount++;
             }
         }
-
-        if (newCount > 0) {
-            const updated = [...newTracks, ...tracks];
-            setTracks(updated);
-            await saveTracksToDB(updated);
-            addToast(`Caricate ${newCount} nuove corse.`, "success");
-        }
-        if (skipCount > 0) {
-            addToast(`${skipCount} attività già presenti ignorate.`, "info");
-        }
+        if (newCount > 0) { const updated = [...newTracks, ...tracks]; setTracks(updated); await saveTracksToDB(updated); addToast(`Caricate ${newCount} nuove corse.`, "success"); }
+        if (skipCount > 0) addToast(`${skipCount} attività già presenti ignorate.`, "info");
         setIsDataLoading(false);
+        setFitBoundsCounter(c => c + 1);
     };
 
     const handleStravaImportFinished = async (newTracksFromStrava: Track[]) => {
-        if (newTracksFromStrava.length === 0) {
-            addToast("Nessuna nuova attività importata da Strava.", "info");
-            return;
-        }
-
+        if (newTracksFromStrava.length === 0) { addToast("Nessuna nuova attività importata da Strava.", "info"); return; }
         setIsDataLoading(true);
-        let importedCount = 0;
-        let skippedCount = 0;
-        let previouslyDeletedCount = 0;
+        let importedCount = 0; let skippedCount = 0; let previouslyDeletedCount = 0;
         const toAdd: Track[] = [];
-
         for (const track of newTracksFromStrava) {
-            if (isDuplicateTrack(track, tracks)) {
-                skippedCount++;
-            } else if (isPreviouslyDeletedStravaTrack(track)) {
-                previouslyDeletedCount++;
-            } else {
-                toAdd.push(track);
-                importedCount++;
-            }
+            if (isDuplicateTrack(track, tracks)) skippedCount++;
+            else if (isPreviouslyDeletedStravaTrack(track)) previouslyDeletedCount++;
+            else { toAdd.push(track); importedCount++; }
         }
-
-        if (importedCount > 0) {
-            const updated = [...toAdd, ...tracks];
-            setTracks(updated);
-            await saveTracksToDB(updated);
-            addToast(`Importate con successo ${importedCount} corse da Strava.`, "success");
-        }
-
-        if (skippedCount > 0) {
-            addToast(`${skippedCount} attività Strava ignorate perché già presenti.`, "info");
-        }
-        
-        if (previouslyDeletedCount > 0) {
-            addToast(`${previouslyDeletedCount} attività Strava ignorate perché eliminate in passato.`, "info");
-        }
-        
+        if (importedCount > 0) { const updated = [...toAdd, ...tracks]; setTracks(updated); await saveTracksToDB(updated); addToast(`Importate con successo ${importedCount} corse da Strava.`, "success"); }
+        if (skippedCount > 0) addToast(`${skippedCount} attività Strava ignorate perché già presenti.`, "info");
+        if (previouslyDeletedCount > 0) addToast(`${previouslyDeletedCount} attività Strava ignorate perché eliminate in passato.`, "info");
         setIsDataLoading(false);
+        setFitBoundsCounter(c => c + 1);
     };
 
     if (showSplash) return <SplashScreen onFinish={handleSplashFinish} />;
 
     return (
-        <div className="h-screen w-screen flex flex-col lg:flex-row overflow-hidden bg-slate-950 text-white font-sans">
+        <div className="h-screen w-screen flex flex-col overflow-hidden bg-slate-950 text-white font-sans">
             <ToastContainer toasts={toasts} setToasts={setToasts} />
             <ReminderNotification entries={todayEntries} />
 
@@ -527,43 +520,25 @@ const App: React.FC = () => {
                         try {
                             const text = await f.text();
                             const data = JSON.parse(text);
-                            
-                            // DEDUPLICAZIONE BACKUP
                             if (data.tracks) {
-                                const incoming = data.tracks.map((t: any) => ({
-                                    ...t,
-                                    points: t.points.map((p: any) => ({ ...p, time: new Date(p.time) }))
-                                }));
-                                
+                                const incoming = data.tracks.map((t: any) => ({ ...t, points: t.points.map((p: any) => ({ ...p, time: new Date(p.time) })) }));
                                 const filteredTracks = incoming.filter((t: Track) => !isDuplicateTrack(t, tracks));
                                 const merged = [...filteredTracks, ...tracks];
-                                
-                                // Se abbiamo molti nuovi dati, importAllData pulisce tutto. 
-                                // Altrimenti, facciamo un merge intelligente.
                                 await importAllData({ ...data, tracks: merged }); 
                                 await loadData(true); 
-                                addToast(`Importate ${filteredTracks.length} nuove attività. ${incoming.length - filteredTracks.length} ignorate perché già presenti.`, "success"); 
+                                addToast(`Importate ${filteredTracks.length} nuove attività.`, "success"); 
+                                setFitBoundsCounter(c => c + 1);
                             }
-                        } catch (e) {
-                            addToast("Errore durante l'importazione del backup.", "error");
-                        } finally {
-                            setIsDataLoading(false);
-                        }
+                        } catch (e) { addToast("Errore backup.", "error"); } finally { setIsDataLoading(false); }
                     }}
                     onExportBackup={async () => { 
                         try {
                             const d = await exportAllData(); 
                             const b = new Blob([JSON.stringify(d, null, 2)], {type:'application/json'}); 
                             const u = URL.createObjectURL(b); 
-                            const a = document.createElement('a'); 
-                            a.href=u; 
-                            a.download=`RunCoachAI_Backup_${new Date().toISOString().split('T')[0]}.json`; 
-                            a.click(); 
-                            URL.revokeObjectURL(u);
+                            const a = document.createElement('a'); a.href=u; a.download=`RunCoachAI_Backup_${new Date().toISOString().split('T')[0]}.json`; a.click(); URL.revokeObjectURL(u);
                             addToast("Backup salvato!", "success");
-                        } catch (e) {
-                            addToast("Errore backup.", "error");
-                        }
+                        } catch (e) { addToast("Errore backup.", "error"); }
                     }}
                     onUploadTracks={handleFileUpload}
                     onOpenProfile={() => toggleView('profile')}
@@ -591,15 +566,14 @@ const App: React.FC = () => {
             )}
 
             {!showHome && !showAuthSelection && (
-                <>
-                    {isSidebarOpen && (
-                        <aside className="hidden lg:flex flex-col w-80 bg-slate-900 border-r border-slate-800 shrink-0">
+                <div className="flex-grow flex flex-col lg:flex-row overflow-hidden relative">
+                    {/* DESKTOP SIDEBAR */}
+                    {isDesktop && isSidebarOpen && (
+                        <aside className="w-80 bg-slate-900 border-r border-slate-800 shrink-0 flex flex-col">
                             <div className="flex-grow overflow-hidden">
                                 <Sidebar 
-                                    tracks={tracks} 
-                                    visibleTrackIds={mapVisibleIds} 
-                                    onFocusTrack={setFocusedTrackId} 
-                                    focusedTrackId={focusedTrackId}
+                                    tracks={tracks} visibleTrackIds={mapVisibleIds} 
+                                    onFocusTrack={setFocusedTrackId} focusedTrackId={focusedTrackId}
                                     raceSelectionIds={raceSelectionIds} 
                                     onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
                                     onDeselectAll={() => setRaceSelectionIds(new Set())}
@@ -608,19 +582,10 @@ const App: React.FC = () => {
                                     onViewDetails={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)}
                                     onEditTrack={(id) => setEditingTrack(tracks.find(t => t.id === id) || null)}
                                     onDeleteTrack={async (id) => { 
-                                        const track = tracks.find(t => t.id === id);
-                                        if (track) markStravaTrackAsDeleted(track);
-                                        const u = tracks.filter(t => t.id !== id); 
-                                        setTracks(u); 
-                                        await saveTracksToDB(u); 
-                                        await deleteTrackFromCloud(id); 
+                                        const track = tracks.find(t => t.id === id); if (track) markStravaTrackAsDeleted(track);
+                                        const u = tracks.filter(t => t.id !== id); setTracks(u); await saveTracksToDB(u); await deleteTrackFromCloud(id); 
                                     }}
-                                    onBulkArchive={handleBulkArchive}
-                                    onDeleteSelected={handleBulkDelete}
-                                    onMergeSelected={handleMergeSelectedTracks}
-                                    onToggleFavorite={handleToggleFavorite}
-                                    onBulkGroup={handleBulkGroup}
-                                    onFileUpload={handleFileUpload} onToggleArchived={async (id) => { const u = tracks.map(t => t.id === id ? {...t, isArchived: !t.isArchived} : t); setTracks(u); await saveTracksToDB(u); }}
+                                    onBulkArchive={handleBulkArchive} onDeleteSelected={handleBulkDelete} onMergeSelected={handleMergeSelectedTracks} onToggleFavorite={handleToggleFavorite} onBulkGroup={handleBulkGroup} onFileUpload={handleFileUpload} onToggleArchived={async (id) => { const u = tracks.map(t => t.id === id ? {...t, isArchived: !t.isArchived} : t); setTracks(u); await saveTracksToDB(u); }}
                                 />
                             </div>
                             <div className="bg-slate-950">
@@ -629,75 +594,89 @@ const App: React.FC = () => {
                                     onOpenExplorer={() => toggleView('explorer')} onOpenDiary={() => toggleView('diary')}
                                     onOpenPerformance={() => toggleView('performance')} onOpenHub={() => toggleView('hub')}
                                     onOpenSocial={() => toggleView('social')} onOpenProfile={() => toggleView('profile')}
-                                    onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}}
-                                    isSidebarOpen={isSidebarOpen}
+                                    onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}} isSidebarOpen={isSidebarOpen}
                                 />
                             </div>
                         </aside>
                     )}
 
-                    <main className="flex-grow relative bg-slate-950 flex flex-col min-w-0">
-                        <div className={`lg:hidden fixed inset-x-0 top-0 z-[4500] bg-slate-900 transition-transform ${isSidebarOpen ? 'translate-y-0 h-2/3' : '-translate-y-full h-0'}`}>
-                             <Sidebar 
-                                tracks={tracks} visibleTrackIds={mapVisibleIds}
-                                focusedTrackId={focusedTrackId} raceSelectionIds={raceSelectionIds}
-                                onFocusTrack={setFocusedTrackId} onDeselectAll={() => setRaceSelectionIds(new Set())}
-                                onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
-                                onStartRace={() => { setIsSidebarOpen(false); startRace(); }}
-                                onViewDetails={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)}
-                                onEditTrack={(id) => { setIsSidebarOpen(false); setEditingTrack(tracks.find(t => t.id === id) || null); }}
-                                onBulkArchive={handleBulkArchive}
-                                onDeleteSelected={handleBulkDelete}
-                                onMergeSelected={handleMergeSelectedTracks}
-                                onToggleFavorite={handleToggleFavorite}
-                                onBulkGroup={handleBulkGroup}
-                                onFileUpload={handleFileUpload} onToggleArchived={async (id) => { const u = tracks.map(t => t.id === id ? {...t, isArchived: !t.isArchived} : t); setTracks(u); await saveTracksToDB(u); }} onDeleteTrack={() => {}} onSelectAll={() => {}}
-                             />
-                        </div>
-
-                        <MapDisplay 
-                            tracks={tracks} 
-                            visibleTrackIds={mapVisibleIds}
-                            raceRunners={raceRunners}
-                            fitBoundsCounter={0}
-                            runnerSpeeds={new Map()}
-                            hoveredTrackId={hoveredTrackId}
-                        />
-
-                        {raceState !== 'idle' && (
-                            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[4600]">
-                                <RaceControls 
-                                    simulationState={raceState} simulationTime={raceTime} simulationSpeed={raceSpeed}
-                                    onPause={() => setRaceState('paused')} onResume={() => setRaceState('running')}
-                                    onStop={() => { setRaceState('idle'); setRaceRunners(null); }}
-                                    onSpeedChange={setRaceSpeed}
-                                />
+                    <main className="flex-grow flex flex-col relative bg-slate-950 min-w-0">
+                        {/* MOBILE SPLIT VIEW (VERTICAL STACK) */}
+                        {!isDesktop ? (
+                            <div className="flex flex-col h-full w-full overflow-hidden">
+                                {/* MAP TOP (40%) */}
+                                <div className="flex-[0.4] min-h-[250px] relative border-b border-slate-800 bg-slate-900">
+                                    <MapDisplay 
+                                        tracks={tracks} visibleTrackIds={mapVisibleIds} raceRunners={raceRunners}
+                                        isAnimationPlaying={raceState === 'running'} fitBoundsCounter={fitBoundsCounter}
+                                        runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
+                                    />
+                                    {raceState !== 'idle' && (
+                                        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[4600]">
+                                            <RaceControls 
+                                                simulationState={raceState} simulationTime={raceTime} simulationSpeed={raceSpeed}
+                                                onPause={() => setRaceState('paused')} onResume={() => setRaceState('running')}
+                                                onStop={() => { setRaceState('idle'); setRaceRunners(null); }}
+                                                onSpeedChange={setRaceSpeed}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                                
+                                {/* SIDEBAR BOTTOM (60%) */}
+                                <div className="flex-[0.6] flex flex-col overflow-hidden bg-slate-900">
+                                    <div className="flex-grow overflow-hidden">
+                                         <Sidebar 
+                                            tracks={tracks} visibleTrackIds={mapVisibleIds} focusedTrackId={focusedTrackId} raceSelectionIds={raceSelectionIds}
+                                            onFocusTrack={setFocusedTrackId} onDeselectAll={() => setRaceSelectionIds(new Set())}
+                                            onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
+                                            onStartRace={startRace}
+                                            onViewDetails={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)}
+                                            onEditTrack={(id) => setEditingTrack(tracks.find(t => t.id === id) || null)}
+                                            onBulkArchive={handleBulkArchive} onDeleteSelected={handleBulkDelete} onMergeSelected={handleMergeSelectedTracks} onToggleFavorite={handleToggleFavorite} onBulkGroup={handleBulkGroup} onFileUpload={handleFileUpload} onToggleArchived={async (id) => { const u = tracks.map(t => t.id === id ? {...t, isArchived: !t.isArchived} : t); setTracks(u); await saveTracksToDB(u); }} onDeleteTrack={() => {}} onSelectAll={() => {}}
+                                         />
+                                    </div>
+                                    <div className="bg-slate-950 pb-safe">
+                                        <NavigationDock 
+                                            onOpenSidebar={() => {}} onCloseSidebar={() => {}}
+                                            onOpenExplorer={() => toggleView('explorer')} onOpenDiary={() => toggleView('diary')}
+                                            onOpenPerformance={() => toggleView('performance')} onOpenHub={() => toggleView('hub')}
+                                            onOpenSocial={() => toggleView('social')} onOpenProfile={() => toggleView('profile')}
+                                            onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}} isSidebarOpen={true}
+                                        />
+                                    </div>
+                                </div>
                             </div>
-                        )}
-                        {raceRunners && (
-                             <div className="absolute top-4 right-4 z-[4600] hidden md:block">
-                                <RaceLeaderboard racers={tracks.filter(t => raceSelectionIds.has(t.id))} gaps={raceGaps} ranks={new Map()} />
-                             </div>
-                        )}
-
-                        <button onClick={() => setShowGlobalChat(true)} className="fixed bottom-20 lg:bottom-24 right-4 z-[4000] bg-purple-600 hover:bg-purple-500 text-white p-3 rounded-full shadow-2xl active:scale-90">
-                            <span className="text-xl">🧠</span>
-                        </button>
-
-                        <div className="lg:hidden fixed bottom-0 left-0 w-full z-[11000] pointer-events-none pb-safe">
-                            <div className="pointer-events-auto">
-                                <NavigationDock 
-                                    onOpenSidebar={() => setIsSidebarOpen(!isSidebarOpen)} onCloseSidebar={() => setIsSidebarOpen(false)}
-                                    onOpenExplorer={() => toggleView('explorer')} onOpenDiary={() => toggleView('diary')}
-                                    onOpenPerformance={() => toggleView('performance')} onOpenHub={() => toggleView('hub')}
-                                    onOpenSocial={() => toggleView('social')} onOpenProfile={() => toggleView('profile')}
-                                    onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}}
-                                    isSidebarOpen={isSidebarOpen}
+                        ) : (
+                            /* DESKTOP MAIN AREA (MAP ONLY) */
+                            <>
+                                <MapDisplay 
+                                    tracks={tracks} visibleTrackIds={mapVisibleIds} raceRunners={raceRunners}
+                                    isAnimationPlaying={raceState === 'running'} fitBoundsCounter={fitBoundsCounter}
+                                    runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
                                 />
-                            </div>
-                        </div>
+                                {raceState !== 'idle' && (
+                                    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[4600]">
+                                        <RaceControls 
+                                            simulationState={raceState} simulationTime={raceTime} simulationSpeed={raceSpeed}
+                                            onPause={() => setRaceState('paused')} onResume={() => setRaceState('running')}
+                                            onStop={() => { setRaceState('idle'); setRaceRunners(null); }}
+                                            onSpeedChange={setRaceSpeed}
+                                        />
+                                    </div>
+                                )}
+                                {raceRunners && (
+                                     <div className="absolute top-4 right-4 z-[4600] hidden md:block">
+                                        <RaceLeaderboard racers={tracks.filter(t => raceSelectionIds.has(t.id))} gaps={raceGaps} ranks={new Map()} />
+                                     </div>
+                                )}
+                                <button onClick={() => setShowGlobalChat(true)} className="fixed bottom-24 right-4 z-[4000] bg-purple-600 hover:bg-purple-500 text-white p-3 rounded-full shadow-2xl active:scale-90">
+                                    <span className="text-xl">🧠</span>
+                                </button>
+                            </>
+                        )}
                     </main>
-                </>
+                </div>
             )}
 
             {viewingTrack && (
@@ -713,14 +692,9 @@ const App: React.FC = () => {
             {editingTrack && (
                 <div className="fixed inset-0 z-[10000] bg-slate-900">
                     <TrackEditor 
-                        initialTracks={[editingTrack]} 
-                        addToast={addToast}
+                        initialTracks={[editingTrack]} addToast={addToast}
                         onExit={async (updated) => { 
-                            if (updated) {
-                                const u = tracks.map(t => t.id === updated.id ? updated : t);
-                                setTracks(u);
-                                await saveTracksToDB(u);
-                            }
+                            if (updated) { const u = tracks.map(t => t.id === updated.id ? updated : t); setTracks(u); await saveTracksToDB(u); }
                             setEditingTrack(null); 
                         }} 
                     />
@@ -731,30 +705,9 @@ const App: React.FC = () => {
                 <div className="fixed inset-0 z-[9000] bg-slate-900 flex flex-col">
                     <div className="flex-grow overflow-hidden">
                         <DiaryView 
-                            tracks={tracks} 
-                            plannedWorkouts={plannedWorkouts} 
-                            userProfile={userProfile} 
-                            onClose={() => toggleView('diary')} 
-                            onSelectTrack={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)} 
-                            onAddPlannedWorkout={handleAddPlannedWorkout} 
-                            onUpdatePlannedWorkout={handleUpdatePlannedWorkout}
-                            onDeletePlannedWorkout={handleDeletePlannedWorkout}
-                            onCheckAiAccess={onCheckAiAccess} 
-                        />
-                    </div>
-                    <div className="shrink-0 bg-slate-950 pb-safe">
-                        <NavigationDock 
-                            onOpenSidebar={() => {}} 
-                            onCloseSidebar={() => {}} 
-                            onOpenExplorer={() => toggleView('explorer')} 
-                            onOpenDiary={() => toggleView('diary')} 
-                            onOpenPerformance={() => toggleView('performance')} 
-                            onOpenHub={() => toggleView('hub')} 
-                            onOpenSocial={() => toggleView('social')} 
-                            onOpenProfile={() => toggleView('profile')} 
-                            onOpenGuide={() => {}} 
-                            onExportBackup={() => {}} 
-                            isSidebarOpen={false} 
+                            tracks={tracks} plannedWorkouts={plannedWorkouts} userProfile={userProfile} 
+                            onClose={() => toggleView('diary')} onSelectTrack={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)} 
+                            onAddPlannedWorkout={handleAddPlannedWorkout} onUpdatePlannedWorkout={handleUpdatePlannedWorkout} onDeletePlannedWorkout={handleDeletePlannedWorkout} onCheckAiAccess={onCheckAiAccess} 
                         />
                     </div>
                 </div>
@@ -762,7 +715,7 @@ const App: React.FC = () => {
 
             {showExplorer && <ExplorerView tracks={tracks} onClose={() => toggleView('explorer')} onSelectTrack={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)} />}
             {showPerformance && <PerformanceAnalysisPanel tracks={tracks} userProfile={userProfile} onClose={() => toggleView('performance')} />}
-            {showSocial && userId && <SocialHub onClose={() => toggleView('social')} currentUserId={userId} />}
+            {showSocial && userId && <SocialHub onClose={() => toggleView('social')} currentUserId={userId} onChallengeGhost={handleChallengeGhost} />}
             {showChangelog && <Changelog onClose={() => setShowChangelog(false)} />}
             {showGuide && <GuideModal onClose={() => toggleView('guide')} />}
             {raceResults && <RaceSummary results={raceResults} racerStats={new Map()} onClose={() => setRaceResults(null)} userProfile={userProfile} tracks={tracks} />}

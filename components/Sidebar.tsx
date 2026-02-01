@@ -118,7 +118,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
     };
 
     return (
-        <div className="flex flex-col h-full bg-slate-900 text-white overflow-hidden">
+        <div className="flex flex-col h-full w-full bg-slate-900 text-white overflow-hidden">
             <div className="p-3 border-b border-slate-800 flex items-center justify-between shrink-0">
                 <h2 className="text-sm font-black text-cyan-400 uppercase italic">Le Mie Corse</h2>
                 <div className="flex gap-2">
@@ -133,7 +133,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                 </div>
             </div>
 
-            <div className="p-2 border-b border-slate-800 bg-slate-950/50 space-y-2">
+            <div className="p-2 border-b border-slate-800 bg-slate-950/50 space-y-2 shrink-0">
                 <div className="flex gap-2">
                     <input type="text" placeholder="Filtra per nome..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="flex-grow bg-slate-800 border border-slate-700 rounded px-2 py-1 text-[11px] outline-none" />
                     <button onClick={onSelectAll} className="text-[9px] font-bold text-slate-500 uppercase hover:text-white border border-slate-800 px-2 rounded">Tutti</button>
@@ -176,19 +176,12 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                                     
                                     <div onClick={() => onViewDetails(track.id)} className="w-10 h-8 bg-slate-950 rounded border border-slate-700 overflow-hidden mr-2 shrink-0 cursor-pointer opacity-70 hover:opacity-100 transition-opacity relative group/prev">
                                         <TrackPreview points={track.points} color={track.color} className="w-full h-full" />
-                                        <div className="absolute inset-0 bg-cyan-500/10 opacity-0 group-hover/prev:opacity-100 flex items-center justify-center transition-opacity">
-                                            <span className="text-[6px] font-black bg-black/60 px-1 rounded text-white uppercase tracking-tighter">Dettagli</span>
-                                        </div>
                                     </div>
 
                                     <div className="flex-grow min-w-0 cursor-pointer" onClick={() => onFocusTrack(track.id)}>
                                         <div className="flex items-center gap-1.5 min-w-0">
                                             <div className="text-[11px] font-bold truncate group-hover:text-cyan-400">{track.name}</div>
-                                            {isStrava && (
-                                                <div className="bg-[#fc4c02]/10 border border-[#fc4c02]/30 px-1 rounded flex items-center gap-0.5 shrink-0">
-                                                    <StravaSmallIcon />
-                                                </div>
-                                            )}
+                                            {isStrava && <StravaSmallIcon />}
                                             {track.isFavorite && <StarIcon filled={true} />}
                                         </div>
                                         <div className="text-[9px] text-slate-500 font-mono">
@@ -197,68 +190,28 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                                     </div>
 
                                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); onToggleFavorite(track.id); }} 
-                                            title={track.isFavorite ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti"} 
-                                            className="p-1 text-slate-400 hover:text-amber-400 transition-colors"
-                                        >
-                                            <StarIcon filled={track.isFavorite || false} />
-                                        </button>
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); onEditTrack(track.id); }} 
-                                            title="Modifica Percorso" 
-                                            className="p-1.5 bg-slate-700 text-slate-300 hover:bg-cyan-600 hover:text-white rounded-md transition-all"
-                                        >
-                                            <PencilIcon />
-                                        </button>
+                                        <button onClick={(e) => { e.stopPropagation(); onToggleFavorite(track.id); }} className="p-1 text-slate-400 hover:text-amber-400"><StarIcon filled={track.isFavorite || false} /></button>
+                                        <button onClick={(e) => { e.stopPropagation(); onEditTrack(track.id); }} className="p-1.5 bg-slate-700 text-slate-300 hover:bg-cyan-600 rounded-md"><PencilIcon /></button>
                                     </div>
                                 </div>
                             );
                         })}
                     </div>
                 ))}
-                {processedTracks.length === 0 && (
-                    <div className="p-8 text-center text-slate-500 text-xs italic">Nessun risultato trovato.</div>
-                )}
             </div>
 
             {raceSelectionIds.size > 0 && (
-                <div className="p-3 border-t border-slate-800 bg-slate-950 animate-fade-in-up">
+                <div className="p-3 border-t border-slate-800 bg-slate-950 shrink-0">
                     <div className="grid grid-cols-2 gap-2 mb-2">
-                        <button 
-                            onClick={onStartRace} 
-                            className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 text-white text-[10px] font-black uppercase py-2.5 rounded shadow-lg transition-all active:scale-95"
-                        >
-                            <span>🏁</span> Gara
-                        </button>
-                        <button 
-                            onClick={() => setShowMergeConfirm(true)} 
-                            className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black uppercase py-2.5 rounded shadow-lg transition-all active:scale-95"
-                        >
-                            <MergeIcon /> Unisci
-                        </button>
+                        <button onClick={onStartRace} className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 text-white text-[10px] font-black uppercase py-2.5 rounded shadow-lg active:scale-95"><span>🏁</span> Gara</button>
+                        <button onClick={() => setShowMergeConfirm(true)} className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black uppercase py-2.5 rounded shadow-lg active:scale-95"><MergeIcon /> Unisci</button>
                     </div>
                     <div className="grid grid-cols-2 gap-2 mb-2">
-                        <button 
-                            onClick={handleBulkGroupClick} 
-                            className="flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-500 text-white text-[10px] font-black uppercase py-2.5 rounded shadow-lg transition-all active:scale-95"
-                        >
-                            <FolderIcon /> Cartella
-                        </button>
-                        <button 
-                            onClick={onBulkArchive} 
-                            className="flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-500 text-white text-[10px] font-black uppercase py-2.5 rounded shadow-lg transition-all active:scale-95"
-                        >
-                            <ArchiveBoxIcon /> Archivia
-                        </button>
+                        <button onClick={handleBulkGroupClick} className="flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-500 text-white text-[10px] font-black uppercase py-2.5 rounded shadow-lg active:scale-95"><FolderIcon /> Cartella</button>
+                        <button onClick={onBulkArchive} className="flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-500 text-white text-[10px] font-black uppercase py-2.5 rounded shadow-lg active:scale-95"><ArchiveBoxIcon /> Archivia</button>
                     </div>
-                    <button 
-                        onClick={() => { if(confirm(`Eliminare definitivamente ${raceSelectionIds.size} corse?`)) onDeleteSelected(); }} 
-                        className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-500 text-white text-[10px] font-black uppercase py-2 rounded shadow-lg transition-all active:scale-95"
-                    >
-                        <TrashIcon /> Elimina ({raceSelectionIds.size})
-                    </button>
-                    <button onClick={onDeselectAll} className="w-full mt-2 text-[9px] font-black text-slate-600 uppercase hover:text-slate-400 transition-colors py-1">Annulla Selezione</button>
+                    <button onClick={() => { if(confirm(`Eliminare ${raceSelectionIds.size} corse?`)) onDeleteSelected(); }} className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-500 text-white text-[10px] font-black uppercase py-2 rounded shadow-lg active:scale-95"><TrashIcon /> Elimina ({raceSelectionIds.size})</button>
+                    <button onClick={onDeselectAll} className="w-full mt-2 text-[9px] font-black text-slate-600 uppercase hover:text-slate-400 py-1">Annulla Selezione</button>
                 </div>
             )}
 

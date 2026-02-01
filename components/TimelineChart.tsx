@@ -35,15 +35,6 @@ const metricInfo: Record<string, { label: string, color: string, formatter: (v: 
     power: { label: 'Potenza', color: '#a855f7', unit: 'W', formatter: (v) => `${Math.round(v)}W` },
 };
 
-const getHrZoneLabel = (hr: number, maxHr: number) => {
-    const ratio = hr / maxHr;
-    if (ratio < 0.6) return { name: 'Z1', color: 'bg-blue-500' };
-    if (ratio < 0.7) return { name: 'Z2', color: 'bg-green-500' };
-    if (ratio < 0.8) return { name: 'Z3', color: 'bg-yellow-500' };
-    if (ratio < 0.9) return { name: 'Z4', color: 'bg-orange-500' };
-    return { name: 'Z5', color: 'bg-red-500' };
-};
-
 const TimelineChart: React.FC<TimelineChartProps> = ({ 
     track, onSelectionChange, yAxisMetrics, onChartHover, hoveredPoint, 
     showPauses, pauseSegments, highlightedRange, selectedPoint, smoothingWindow = 15,
@@ -85,10 +76,8 @@ const TimelineChart: React.FC<TimelineChartProps> = ({
     const currentValues = useMemo(() => {
         if (!activePoint) return null;
         const idx = track.points.findIndex(pt => pt.cummulativeDistance >= activePoint.cummulativeDistance);
-        const { speed, pace } = calculateSmoothedMetrics(track.points, idx === -1 ? 0 : idx, smoothingWindow);
-        return {
-            pace, speed, elevation: activePoint.ele, hr: activePoint.hr, power: activePoint.power, dist: activePoint.cummulativeDistance
-        };
+        const { pace } = calculateSmoothedMetrics(track.points, idx === -1 ? 0 : idx, smoothingWindow);
+        return { pace, elevation: activePoint.ele, hr: activePoint.hr, power: activePoint.power, dist: activePoint.cummulativeDistance };
     }, [activePoint, track, smoothingWindow]);
 
     const metricPaths = useMemo(() => {
@@ -104,56 +93,14 @@ const TimelineChart: React.FC<TimelineChartProps> = ({
                 }
                 return { x: xScale(p.cummulativeDistance), y: val };
             });
-
             const vals = points.map(p => p.y).filter(v => v > 0);
-            const minV = Math.min(...vals);
-            const maxV = Math.max(...vals);
-            const vRange = maxV - minV || 1;
-
-            const pathData = points.map((p, i) => 
-                `${i === 0 ? 'M' : 'L'} ${p.x} ${height - ((p.y - minV) / vRange) * height}`
-            ).join(' ');
-
+            const minV = Math.min(...vals), maxV = Math.max(...vals), vRange = maxV - minV || 1;
+            const pathData = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${height - ((p.y - minV) / vRange) * height}`).join(' ');
             return { metric, pathData, color: metricInfo[metric].color };
         });
     }, [track, yAxisMetrics, xScale, height, smoothingWindow]);
 
-    // GESTIONE SELEZIONE (Mouse & Touch)
-    const handleStart = (clientX: number) => {
-        const d = getDistAtX(clientX);
-        setDragRange({ start: d, end: d });
-        setIsDragging(true);
-        onSelectionChange(null);
-    };
-
-    const handleMove = (clientX: number) => {
-        const d = getDistAtX(clientX);
-        if (isDragging && dragRange) {
-            setDragRange(prev => ({ ...prev!, end: d }));
-            onSelectionChange({ 
-                startDistance: Math.min(dragRange.start, d), 
-                endDistance: Math.max(dragRange.start, d) 
-            });
-        }
-        onChartHover(getTrackPointAtDistance(track, d));
-    };
-
-    const handleEnd = () => {
-        setIsDragging(false);
-    };
-
-    const handleTouchStart = (e: React.TouchEvent) => {
-        if (e.touches.length === 2) {
-            // Garmin style: due dita definiscono subito il range
-            const d1 = getDistAtX(e.touches[0].clientX);
-            const d2 = getDistAtX(e.touches[1].clientX);
-            const range = { startDistance: Math.min(d1, d2), endDistance: Math.max(d1, d2) };
-            onSelectionChange(range);
-            setDragRange({ start: range.startDistance, end: range.endDistance });
-        } else if (e.touches.length === 1) {
-            handleStart(e.touches[0].clientX);
-        }
-    };
+    const effectiveRange = dragRange || (highlightedRange ? { start: highlightedRange.startDistance, end: highlightedRange.endDistance } : null);
 
     return (
         <div className="w-full h-full relative select-none bg-slate-900/50 rounded-xl overflow-hidden border border-slate-700/50 shadow-inner group/chart">
@@ -162,68 +109,33 @@ const TimelineChart: React.FC<TimelineChartProps> = ({
                     {yAxisMetrics.map(m => {
                         const val = (currentValues as any)[m];
                         if (val === undefined || val === null || val === 0) return null;
-                        const hrZone = m === 'hr' && userProfile?.maxHr ? getHrZoneLabel(val, userProfile.maxHr) : null;
-                        
                         return (
-                            <div key={m} className="flex items-center gap-1 px-1.5 py-0.5 bg-slate-900/80 backdrop-blur-sm border border-white/10 rounded shadow-lg animate-fade-in ring-1 ring-white/5">
+                            <div key={m} className="flex items-center gap-1 px-1.5 py-0.5 bg-slate-900/80 backdrop-blur-sm border border-white/10 rounded shadow-lg ring-1 ring-white/5">
                                 <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: metricInfo[m].color }}></div>
                                 <span className="text-[7px] font-black text-slate-400 uppercase tracking-tighter">{metricInfo[m].label}:</span>
-                                <span className="text-[10px] font-mono font-bold text-white">
-                                    {metricInfo[m].formatter(val)}
-                                    {hrZone && <span className={`ml-1 px-1 rounded ${hrZone.color} text-[7px] font-black`}>{hrZone.name}</span>}
-                                </span>
+                                <span className="text-[10px] font-mono font-bold text-white">{metricInfo[m].formatter(val)}</span>
                             </div>
                         );
                     })}
-                    <div className="ml-auto px-1.5 py-0.5 bg-cyan-950/40 rounded border border-cyan-500/30">
-                        <span className="text-[8px] font-black text-cyan-200 font-mono">{currentValues.dist.toFixed(2)} km</span>
-                    </div>
+                    <div className="ml-auto px-1.5 py-0.5 bg-cyan-950/40 rounded border border-cyan-500/30 font-mono text-[8px] text-cyan-200">{currentValues.dist.toFixed(2)} km</div>
                 </div>
             )}
-
             <svg
                 ref={svgRef}
                 className="w-full h-full cursor-crosshair touch-none"
-                onMouseDown={(e) => handleStart(e.clientX)}
-                onMouseMove={(e) => handleMove(e.clientX)}
-                onMouseUp={handleEnd}
-                onMouseLeave={() => { handleEnd(); onChartHover(null); }}
-                onTouchStart={handleTouchStart}
-                onTouchMove={(e) => handleMove(e.touches[0].clientX)}
-                onTouchEnd={handleEnd}
+                onMouseDown={(e) => { const d = getDistAtX(e.clientX); setDragRange({start:d, end:d}); setIsDragging(true); onSelectionChange(null); }}
+                onMouseMove={(e) => { const d = getDistAtX(e.clientX); if(isDragging && dragRange) { setDragRange(p=>({...p!, end:d})); onSelectionChange({startDistance:Math.min(dragRange.start, d), endDistance:Math.max(dragRange.start, d)}); } onChartHover(getTrackPointAtDistance(track, d)); }}
+                onMouseUp={() => setIsDragging(false)}
+                onMouseLeave={() => { setIsDragging(false); onChartHover(null); }}
+                onTouchStart={(e) => { if(e.touches.length===1){ const d = getDistAtX(e.touches[0].clientX); setDragRange({start:d, end:d}); setIsDragging(true); } }}
+                onTouchMove={(e) => { const d = getDistAtX(e.touches[0].clientX); if(isDragging && dragRange) { setDragRange(p=>({...p!, end:d})); onSelectionChange({startDistance:Math.min(dragRange.start, d), endDistance:Math.max(dragRange.start, d)}); } onChartHover(getTrackPointAtDistance(track, d)); }}
+                onTouchEnd={() => setIsDragging(false)}
             >
                 <g transform={`translate(${PADDING.left}, ${PADDING.top})`}>
-                    {[0, 0.25, 0.5, 0.75, 1].map(r => (
-                        <line key={r} x1={0} y1={r * height} x2={width} y2={r * height} stroke="#ffffff" strokeOpacity="0.05" strokeWidth="1" />
-                    ))}
-
-                    {dragRange && (
-                        <rect 
-                            x={xScale(Math.min(dragRange.start, dragRange.end))}
-                            y={0}
-                            width={Math.abs(xScale(dragRange.end) - xScale(dragRange.start))}
-                            height={height}
-                            fill="rgba(34, 211, 238, 0.15)"
-                            stroke="rgba(34, 211, 238, 0.5)"
-                            strokeWidth="1"
-                        />
-                    )}
-
-                    {metricPaths.map(p => (
-                        <path key={p.metric} d={p.pathData} fill="none" stroke={p.color} strokeWidth="2" strokeLinejoin="round" className="drop-shadow-lg opacity-80" />
-                    ))}
-
-                    {activePoint && (
-                        <line 
-                            x1={xScale(activePoint.cummulativeDistance)} 
-                            y1={0} 
-                            x2={xScale(activePoint.cummulativeDistance)} 
-                            y2={height} 
-                            stroke="#fde047" 
-                            strokeWidth="1.5" 
-                            strokeDasharray="4" 
-                        />
-                    )}
+                    {[0, 0.25, 0.5, 0.75, 1].map(r => (<line key={r} x1={0} y1={r * height} x2={width} y2={r * height} stroke="#ffffff" strokeOpacity="0.05" strokeWidth="1" />))}
+                    {effectiveRange && (<rect x={xScale(Math.min(effectiveRange.start, effectiveRange.end))} y={0} width={Math.abs(xScale(effectiveRange.end) - xScale(effectiveRange.start))} height={height} fill="rgba(34, 211, 238, 0.2)" stroke="rgba(34, 211, 238, 0.5)" strokeWidth="1" />)}
+                    {metricPaths.map(p => (<path key={p.metric} d={p.pathData} fill="none" stroke={p.color} strokeWidth="2" strokeLinejoin="round" className="opacity-80" />))}
+                    {activePoint && (<line x1={xScale(activePoint.cummulativeDistance)} y1={0} x2={xScale(activePoint.cummulativeDistance)} y2={height} stroke="#fde047" strokeWidth="1.5" strokeDasharray="4" />)}
                 </g>
             </svg>
         </div>
