@@ -95,6 +95,43 @@ const App: React.FC = () => {
         }
     }, []);
 
+    // --- NOTIFICATION SYSTEM START ---
+    useEffect(() => {
+        // Request notification permission on mount
+        if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+            Notification.requestPermission();
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!userId || userId === 'guest') return;
+
+        // Subscribe to Realtime events
+        const channel = supabase.channel('global_notifications')
+            // Listen for new messages
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages', filter: `receiver_id=eq.${userId}` }, (payload) => {
+                const msg = "Nuovo messaggio ricevuto!";
+                addToast(msg, "info");
+                if (Notification.permission === 'granted') {
+                    new Notification("RunCoachAI Social", { body: "Hai ricevuto un nuovo messaggio privato.", icon: '/logo.png' });
+                }
+            })
+            // Listen for friend requests
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'friends', filter: `user_id_2=eq.${userId}` }, (payload) => {
+                const msg = "Nuova richiesta di amicizia!";
+                addToast(msg, "info");
+                if (Notification.permission === 'granted') {
+                    new Notification("RunCoachAI Crew", { body: "Qualcuno vuole aggiungerti agli amici!", icon: '/logo.png' });
+                }
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [userId]);
+    // --- NOTIFICATION SYSTEM END ---
+
     const saveLayoutPrefs = (newPrefs: Partial<{ desktopSidebar: number, mobileListRatio: number }>) => {
         const updated = { ...layoutPrefs, ...newPrefs };
         setLayoutPrefs(updated);
@@ -112,10 +149,20 @@ const App: React.FC = () => {
 
     const todayEntries = useMemo(() => {
         const today = new Date().toDateString();
-        return plannedWorkouts.filter(w => 
+        const entries = plannedWorkouts.filter(w => 
             new Date(w.date).toDateString() === today && 
             (w.entryType === 'commitment' || w.entryType === 'note')
         );
+        // Trigger notification for diary entries if loaded
+        if (entries.length > 0 && Notification.permission === 'granted') {
+             // Basic debounce using session storage to avoid spamming on every render/reload
+             const notifiedKey = `notified_diary_${today}`;
+             if (!sessionStorage.getItem(notifiedKey)) {
+                 new Notification("RunCoachAI Agenda", { body: `Hai ${entries.length} note o impegni per oggi.`, icon: '/logo.png' });
+                 sessionStorage.setItem(notifiedKey, 'true');
+             }
+        }
+        return entries;
     }, [plannedWorkouts]);
 
     useEffect(() => {
@@ -649,7 +696,7 @@ const App: React.FC = () => {
                     }}
                     onUploadTracks={handleFileUpload}
                     onOpenProfile={() => toggleView('profile')}
-                    onOpenChangelog={() => toggleView('profile')}
+                    onOpenChangelog={() => setShowChangelog(true)} // FIXED: Corrected this line
                     onEnterRaceMode={openRaceSetup}
                     trackCount={tracks.length}
                     userProfile={userProfile}
