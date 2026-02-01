@@ -140,9 +140,8 @@ const App: React.FC = () => {
 
     const mapVisibleIds = useMemo(() => {
         if (raceSelectionIds.size === 0) {
-            // Filter out ghosts from default view if needed, but usually we want to see them if they exist in state
-            // However, ghosts are usually temporary.
-            return new Set(tracks.filter(t => !t.isArchived).map(t => t.id));
+            // FIX: Filter out ghosts (isExternal) from default view. They only appear when explicitly selected.
+            return new Set(tracks.filter(t => !t.isArchived && !t.isExternal).map(t => t.id));
         }
         return raceSelectionIds;
     }, [tracks, raceSelectionIds]);
