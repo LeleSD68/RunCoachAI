@@ -120,6 +120,8 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
         }
     };
 
+    const areAllSelected = tracks.length > 0 && raceSelectionIds.size === tracks.length;
+
     return (
         <div className="flex flex-col h-full w-full bg-slate-900 text-white overflow-hidden relative">
             <div className="p-3 border-b border-slate-800 flex items-center justify-between shrink-0">
@@ -139,7 +141,12 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
             <div className="p-2 border-b border-slate-800 bg-slate-950/50 space-y-2 shrink-0">
                 <div className="flex gap-2">
                     <input type="text" placeholder="Filtra per nome..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="flex-grow bg-slate-800 border border-slate-700 rounded px-2 py-1 text-[11px] outline-none" />
-                    <button onClick={onSelectAll} className="text-[9px] font-bold text-slate-500 uppercase hover:text-white border border-slate-800 px-2 rounded">Tutti</button>
+                    <button 
+                        onClick={areAllSelected ? onDeselectAll : onSelectAll} 
+                        className={`text-[9px] font-bold uppercase border px-2 rounded transition-colors ${areAllSelected ? 'bg-slate-700 text-white border-slate-600' : 'text-slate-500 hover:text-white border-slate-800'}`}
+                    >
+                        {areAllSelected ? 'Nessuno' : 'Tutti'}
+                    </button>
                 </div>
                 <div className="grid grid-cols-2 gap-1 text-[9px] uppercase font-bold text-slate-500">
                     <div className="flex flex-col">
