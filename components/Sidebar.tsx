@@ -10,6 +10,12 @@ const PencilIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2
 const TrashIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.1499.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149-.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clipRule="evenodd" /></svg>);
 const ArchiveBoxIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M2 3a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3Z" /><path fillRule="evenodd" d="M13 9a1 1 0 1 0 0 2h-6a1 1 0 1 0 0-2h6ZM2.75 7A.75.75 0 0 0 2 7.75v8.5c0 .69.56 1.25 1.25 1.25h13.5c.69 0 1.25-.56 1.25-1.25v-8.5A.75.75 0 0 0 17.25 7H2.75Z" clipRule="evenodd" /></svg>);
 const MergeIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M3.75 3a.75.75 0 0 0-1.5 0v4a6.5 6.5 0 0 0 6.5 6.5h4.19l-1.72 1.72a.75.75 0 1 0 1.06 1.06l3-3a.75.75 0 0 0 0-1.06l-3-3a.75.75 0 1 0-1.06 1.06l1.72 1.72H8.75A5 5 0 0 1 3.75 7V3Z" clipRule="evenodd" /></svg>);
+const FolderIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M2 4.75A2.75 2.75 0 0 1 4.75 2h3.185a.75.75 0 0 1 .53.22l2.25 2.25a.75.75 0 0 0 .53.22h4.005A2.75 2.75 0 0 1 18 7.64v7.61a2.75 2.75 0 0 1-2.75 2.75H4.75A2.75 2.75 0 0 1 2 15.25V4.75Z" /></svg>);
+const StarIcon = ({ filled }: { filled: boolean }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill={filled ? "#fbbf24" : "currentColor"} className={`w-4 h-4 ${filled ? 'text-amber-400' : 'text-slate-500 hover:text-amber-300'}`}>
+        <path fillRule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401Z" clipRule="evenodd" />
+    </svg>
+);
 
 type GroupingType = 'none' | 'date' | 'distance' | 'type' | 'folder' | 'tag';
 type SortType = 'date_desc' | 'date_asc' | 'dist_desc' | 'dur_desc' | 'name_asc';
@@ -25,24 +31,28 @@ interface SidebarProps {
     onSelectAll: () => void;
     onStartRace: () => void;
     onViewDetails: (id: string) => void;
-    onEditTrack: (id: string) => void; // Aggiunta callback modifica
+    onEditTrack: (id: string) => void; 
     onDeleteTrack: (id: string) => void;
     onFileUpload: (files: File[] | null) => void;
     onDeleteSelected: () => void;
     onToggleArchived: (id: string) => void;
     onBulkArchive: () => void;
     onMergeSelected: (deleteOriginals: boolean) => void;
+    onToggleFavorite: (id: string) => void;
+    onBulkGroup: (folderName: string) => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = (props) => {
     const { 
         tracks, focusedTrackId, onFocusTrack, raceSelectionIds, 
         onToggleRaceSelection, onSelectAll, onDeselectAll, 
-        onStartRace, onViewDetails, onEditTrack, onDeleteTrack, onBulkArchive, onDeleteSelected, onToggleArchived, onMergeSelected
+        onStartRace, onViewDetails, onEditTrack, onDeleteTrack, onBulkArchive, 
+        onDeleteSelected, onToggleArchived, onMergeSelected, onToggleFavorite, onBulkGroup
     } = props;
 
     const [searchTerm, setSearchTerm] = useState('');
     const [showArchived, setShowArchived] = useState(false);
+    const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
     const [grouping, setGrouping] = useState<GroupingType>('date');
     const [sort, setSort] = useState<SortType>('date_desc');
     const [showMergeConfirm, setShowMergeConfirm] = useState(false);
@@ -51,7 +61,8 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
         let list = tracks.filter(t => {
             const matchesSearch = t.name.toLowerCase().includes(searchTerm.toLowerCase());
             const matchesArchive = showArchived ? t.isArchived : !t.isArchived;
-            return matchesSearch && matchesArchive;
+            const matchesFavorite = showOnlyFavorites ? t.isFavorite : true;
+            return matchesSearch && matchesArchive && matchesFavorite;
         });
 
         list.sort((a, b) => {
@@ -67,7 +78,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
             }
         });
         return list;
-    }, [tracks, searchTerm, showArchived, sort]);
+    }, [tracks, searchTerm, showArchived, showOnlyFavorites, sort]);
 
     const groupedData = useMemo(() => {
         if (grouping === 'none') return { 'Tutte le attività': processedTracks };
@@ -90,25 +101,34 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
         return groups;
     }, [processedTracks, grouping]);
 
-    const selectedTracksForMerge = useMemo(() => 
-        tracks.filter(t => raceSelectionIds.has(t.id)),
-    [tracks, raceSelectionIds]);
+    const handleBulkGroupClick = () => {
+        const folderName = prompt("Inserisci il nome della cartella per le corse selezionate:");
+        if (folderName !== null) {
+            onBulkGroup(folderName.trim());
+        }
+    };
 
     return (
         <div className="flex flex-col h-full bg-slate-900 text-white overflow-hidden">
             <div className="p-3 border-b border-slate-800 flex items-center justify-between shrink-0">
                 <h2 className="text-sm font-black text-cyan-400 uppercase italic">Le Mie Corse</h2>
                 <div className="flex gap-2">
-                    <button onClick={onSelectAll} className="text-[9px] font-bold text-slate-500 uppercase px-1 hover:text-white">Tutti</button>
-                    <button onClick={onDeselectAll} className="text-[9px] font-bold text-slate-500 uppercase px-1 hover:text-white">Reset</button>
+                    <Tooltip text={showOnlyFavorites ? "Mostra Tutte" : "Mostra Preferiti"}>
+                        <button onClick={() => setShowOnlyFavorites(!showOnlyFavorites)} className={`p-1 rounded transition-colors ${showOnlyFavorites ? 'text-amber-400 bg-amber-900/20' : 'text-slate-500 hover:text-white'}`}>
+                            <StarIcon filled={showOnlyFavorites} />
+                        </button>
+                    </Tooltip>
                     <Tooltip text={showArchived ? "Vedi Attive" : "Vedi Archivio"}>
-                        <button onClick={() => setShowArchived(!showArchived)} className={`p-1 rounded ${showArchived ? 'bg-amber-600 text-white' : 'text-slate-500'}`}><ArchiveBoxIcon /></button>
+                        <button onClick={() => setShowArchived(!showArchived)} className={`p-1 rounded transition-colors ${showArchived ? 'bg-slate-700 text-white' : 'text-slate-500'}`}><ArchiveBoxIcon /></button>
                     </Tooltip>
                 </div>
             </div>
 
             <div className="p-2 border-b border-slate-800 bg-slate-950/50 space-y-2">
-                <input type="text" placeholder="Filtra..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-[11px] outline-none" />
+                <div className="flex gap-2">
+                    <input type="text" placeholder="Filtra..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="flex-grow bg-slate-800 border border-slate-700 rounded px-2 py-1 text-[11px] outline-none" />
+                    <button onClick={onSelectAll} className="text-[9px] font-bold text-slate-500 uppercase hover:text-white border border-slate-800 px-2 rounded">Tutti</button>
+                </div>
                 <div className="grid grid-cols-2 gap-1 text-[9px] uppercase font-bold text-slate-500">
                     <div className="flex flex-col">
                         <span>Raggruppa</span>
@@ -117,13 +137,16 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                             <option value="date">Data</option>
                             <option value="distance">Distanza</option>
                             <option value="folder">Cartella</option>
+                            <option value="type">Tipo</option>
                         </select>
                     </div>
                     <div className="flex flex-col">
                         <span>Ordina</span>
                         <select value={sort} onChange={e => setSort(e.target.value as any)} className="bg-slate-800 border border-slate-700 rounded p-1 text-white">
                             <option value="date_desc">Data Recente</option>
+                            <option value="date_asc">Data Vecchia</option>
                             <option value="dist_desc">Distanza</option>
+                            <option value="name_asc">Nome A-Z</option>
                         </select>
                     </div>
                 </div>
@@ -132,24 +155,39 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
             <div className="flex-grow overflow-y-auto custom-scrollbar">
                 {(Object.entries(groupedData) as [string, Track[]][]).map(([groupName, groupTracks]) => (
                     <div key={groupName}>
-                        <div className="bg-slate-800/40 px-3 py-1 text-[9px] font-black text-slate-500 uppercase border-b border-slate-800 sticky top-0 z-10 backdrop-blur">{groupName}</div>
+                        <div className="bg-slate-800/40 px-3 py-1 text-[9px] font-black text-slate-500 uppercase border-b border-slate-800 sticky top-0 z-10 backdrop-blur flex justify-between items-center">
+                            <span>{groupName}</span>
+                            <span className="opacity-50">{groupTracks.length}</span>
+                        </div>
                         {groupTracks.map(track => (
-                            <div key={track.id} className={`flex items-center p-2 hover:bg-slate-800 transition-all group ${focusedTrackId === track.id ? 'bg-slate-800/80 border-l-2 border-cyan-500' : ''}`}>
+                            <div key={track.id} className={`flex items-center p-2 hover:bg-slate-800 transition-all group ${focusedTrackId === track.id ? 'bg-slate-800/80 border-l-2 border-cyan-500' : ''} ${track.isFavorite ? 'ring-1 ring-amber-500/20 ring-inset' : ''}`}>
                                 <input type="checkbox" checked={raceSelectionIds.has(track.id)} onChange={() => onToggleRaceSelection(track.id)} className="mr-2 accent-cyan-500 cursor-pointer" />
                                 
                                 <div onClick={() => onViewDetails(track.id)} className="w-10 h-8 bg-slate-950 rounded border border-slate-700 overflow-hidden mr-2 shrink-0 cursor-pointer opacity-70 hover:opacity-100 transition-opacity relative group/prev">
                                     <TrackPreview points={track.points} color={track.color} className="w-full h-full" />
                                     <div className="absolute inset-0 bg-cyan-500/10 opacity-0 group-hover/prev:opacity-100 flex items-center justify-center transition-opacity">
-                                        <span className="text-[6px] font-black bg-black/60 px-1 rounded text-white">INFO</span>
+                                        <span className="text-[6px] font-black bg-black/60 px-1 rounded text-white uppercase">Info</span>
                                     </div>
                                 </div>
 
                                 <div className="flex-grow min-w-0 cursor-pointer" onClick={() => onFocusTrack(track.id)}>
-                                    <div className="text-[11px] font-bold truncate group-hover:text-cyan-400">{track.name}</div>
-                                    <div className="text-[9px] text-slate-500 font-mono">{track.distance.toFixed(1)}k • {new Date(track.points[0].time).toLocaleDateString()}</div>
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                        <div className="text-[11px] font-bold truncate group-hover:text-cyan-400">{track.name}</div>
+                                        {track.isFavorite && <StarIcon filled={true} />}
+                                    </div>
+                                    <div className="text-[9px] text-slate-500 font-mono">
+                                        {track.distance.toFixed(1)}k • {new Date(track.points[0].time).toLocaleDateString()}
+                                    </div>
                                 </div>
 
                                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); onToggleFavorite(track.id); }} 
+                                        title={track.isFavorite ? "Rimuovi dai preferiti" : "Aggiungi ai preferiti"} 
+                                        className="p-1 text-slate-400 hover:text-amber-400 transition-colors"
+                                    >
+                                        <StarIcon filled={track.isFavorite || false} />
+                                    </button>
                                     <button 
                                         onClick={(e) => { e.stopPropagation(); onEditTrack(track.id); }} 
                                         title="Modifica" 
@@ -162,6 +200,9 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                         ))}
                     </div>
                 ))}
+                {processedTracks.length === 0 && (
+                    <div className="p-8 text-center text-slate-500 text-xs italic">Nessun risultato trovato.</div>
+                )}
             </div>
 
             {raceSelectionIds.size > 0 && (
@@ -174,11 +215,10 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                             <span>🏁</span> Gara
                         </button>
                         <button 
-                            onClick={() => setShowMergeConfirm(true)} 
-                            disabled={raceSelectionIds.size < 2}
-                            className="flex items-center justify-center gap-2 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white text-[10px] font-black uppercase py-2.5 rounded shadow-lg transition-all active:scale-95"
+                            onClick={handleBulkGroupClick} 
+                            className="flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-500 text-white text-[10px] font-black uppercase py-2.5 rounded shadow-lg transition-all active:scale-95"
                         >
-                            <MergeIcon /> Unisci
+                            <FolderIcon /> Cartella
                         </button>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
@@ -195,6 +235,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                             <TrashIcon /> Elimina ({raceSelectionIds.size})
                         </button>
                     </div>
+                    <button onClick={onDeselectAll} className="w-full mt-2 text-[9px] font-black text-slate-600 uppercase hover:text-slate-400 transition-colors py-1">Annulla Selezione</button>
                 </div>
             )}
 
