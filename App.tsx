@@ -11,6 +11,7 @@ import LoginModal from './components/LoginModal';
 import HomeModal from './components/HomeModal';
 import WelcomeModal from './components/WelcomeModal';
 import UserProfileModal from './components/UserProfileModal';
+import SettingsModal from './components/SettingsModal'; // New Import
 import Changelog from './components/Changelog';
 import NavigationDock from './components/NavigationDock';
 import Chatbot from './components/Chatbot';
@@ -65,6 +66,7 @@ const App: React.FC = () => {
     const [showLoginModal, setShowLoginModal] = useState(false);
     const [showHome, setShowHome] = useState(false);
     const [showProfile, setShowProfile] = useState(false);
+    const [showSettings, setShowSettings] = useState(false); // New State
     const [showChangelog, setShowChangelog] = useState(false);
     const [showGuide, setShowGuide] = useState(false);
     const [showExplorer, setShowExplorer] = useState(false);
@@ -212,6 +214,7 @@ const App: React.FC = () => {
         setShowPerformance(false);
         setShowSocial(false);
         setShowProfile(false);
+        setShowSettings(false);
         setShowGuide(false);
         setShowChangelog(false);
         setShowGlobalChat(false);
@@ -219,7 +222,7 @@ const App: React.FC = () => {
         setEditingTrack(null);
     }, []);
 
-    const toggleView = (view: 'diary' | 'explorer' | 'performance' | 'social' | 'hub' | 'profile' | 'guide') => {
+    const toggleView = (view: 'diary' | 'explorer' | 'performance' | 'social' | 'hub' | 'profile' | 'settings' | 'guide') => {
         const currentStates = {
             diary: showDiary,
             explorer: showExplorer,
@@ -227,6 +230,7 @@ const App: React.FC = () => {
             social: showSocial,
             hub: showHome,
             profile: showProfile,
+            settings: showSettings,
             guide: showGuide
         };
         
@@ -241,6 +245,7 @@ const App: React.FC = () => {
                 case 'social': setShowSocial(true); break;
                 case 'hub': setShowHome(true); break;
                 case 'profile': setShowProfile(true); break;
+                case 'settings': setShowSettings(true); break;
                 case 'guide': setShowGuide(true); break;
             }
         } else if (view === 'hub') {
@@ -347,7 +352,7 @@ const App: React.FC = () => {
             let workoutDuplicates = 0;
             const duplicateIdsToDelete: string[] = [];
 
-            loadedWorkouts.forEach(w => {
+            loadedWorkouts.forEach((w: PlannedWorkout) => {
                 // Key composite: Date + Title + Type
                 const d = new Date(w.date);
                 const dateStr = d.toDateString();
@@ -365,7 +370,7 @@ const App: React.FC = () => {
             if (workoutDuplicates > 0) {
                 await savePlannedWorkoutsToDB(uniqueWorkouts);
                 // Clean cloud duplicates in background
-                duplicateIdsToDelete.forEach(id => deletePlannedWorkoutFromCloud(id));
+                duplicateIdsToDelete.forEach((id: string) => deletePlannedWorkoutFromCloud(id));
                 addToast(`Rimossi ${workoutDuplicates} allenamenti doppi.`, "info");
             }
 
@@ -524,14 +529,6 @@ const App: React.FC = () => {
                             next[leader.trackId].timeInLead += timeStep;
                             
                             // Add distance (approx: speed * timeStep, or better: diff from last frame)
-                            // We need prev leader pos. Simplest is assuming leader covered some ground this frame.
-                            // However, finding delta distance for specific runner is cleaner.
-                            // Let's approximate using current pace or diff from prev.
-                            // Actually, calculating delta dist is tricky without persistent prev state for logic.
-                            // Let's use leader pace * timeStep.
-                            // Speed (km/h) -> m/ms = (km/h / 3600) * 1000 / 1000 = km/h / 3600
-                            // Actually speed is dist/time. pace is min/km. 
-                            // Distance (m) = (1 / Pace(min/km)) * (Time(min) / 1) * 1000
                             if (leader.pace > 0) {
                                 const distAddedMeters = (timeStep / 60000) / leader.pace * 1000;
                                 next[leader.trackId].distanceInLead += distAddedMeters;
@@ -708,7 +705,7 @@ const App: React.FC = () => {
             if (file.name.toLowerCase().endsWith('.gpx')) parsed = parseGpx(text, file.name);
             else if (file.name.toLowerCase().endsWith('.tcx')) parsed = parseTcx(text, file.name);
             if (parsed) {
-                const { title, activityType, folder } = generateSmartTitle(parsed.points, parsed.distance, parsed.name);
+                const { title, activityType, folder } = generateSmartTitle(parsed.points, parsed.distance, parsed.name as string);
                 const tempTrack: Track = { id: crypto.randomUUID(), name: title, points: parsed.points, distance: parsed.distance, duration: parsed.duration, color: `hsl(${Math.random() * 360}, 70%, 60%)`, activityType, folder };
                 if (!isDuplicateTrack(tempTrack, [...tracks, ...newTracks])) { newTracks.push(tempTrack); newCount++; } 
                 else skipCount++;
@@ -806,7 +803,8 @@ const App: React.FC = () => {
                     }}
                     onUploadTracks={handleFileUpload}
                     onOpenProfile={() => toggleView('profile')}
-                    onOpenChangelog={() => setShowChangelog(true)} // FIXED: Corrected this line
+                    onOpenSettings={() => toggleView('settings')}
+                    onOpenChangelog={() => setShowChangelog(true)} 
                     onEnterRaceMode={openRaceSetup}
                     trackCount={tracks.length}
                     userProfile={userProfile}
@@ -827,6 +825,19 @@ const App: React.FC = () => {
                     onSave={async (p) => { setUserProfile(p); await saveProfileToDB(p); addToast("Profilo salvato!", "success"); }} 
                     currentProfile={userProfile} 
                     tracks={tracks}
+                />
+            )}
+
+            {showSettings && (
+                <SettingsModal 
+                    onClose={() => toggleView('settings')} 
+                    userProfile={userProfile}
+                    onUpdateProfile={async (updates) => {
+                        const newProfile = { ...userProfile, ...updates };
+                        setUserProfile(newProfile);
+                        await saveProfileToDB(newProfile);
+                        addToast("Impostazioni aggiornate!", "success");
+                    }}
                 />
             )}
 
@@ -929,7 +940,7 @@ const App: React.FC = () => {
                                 </aside>
                             ) : (
                                 // MOBILE: TOP PANEL IS LIST
-                                <div className="flex-grow overflow-hidden bg-slate-900 border-b border-slate-800">
+                                <div className="flex-grow overflow-hidden bg-slate-900 border-b border-slate-800 w-full h-full relative">
                                      <Sidebar 
                                         tracks={tracks.filter(t => !t.isExternal)} 
                                         visibleTrackIds={mapVisibleIds} focusedTrackId={focusedTrackId} raceSelectionIds={raceSelectionIds}

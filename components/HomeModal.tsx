@@ -16,6 +16,7 @@ interface HomeModalProps {
     plannedWorkouts?: PlannedWorkout[];
     onOpenWorkout?: (workoutId: string) => void; 
     onOpenProfile?: () => void;
+    onOpenSettings?: () => void; // New prop
     onOpenChangelog?: () => void;
     onUploadOpponent?: (files: File[]) => void;
     onEnterRaceMode?: () => void;
@@ -38,9 +39,21 @@ const LogoutIcon = () => (
     </svg>
 );
 const UserIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-5.5-2.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0ZM10 12a5.99 5.99 0 0 0-4.793 2.39A9.916 9.916 0 0 0 10 18c2.695 0 5.145-1.075 6.99-2.825A5.99 5.99 0 0 0 10 12Z" clipRule="evenodd" /></svg>);
+const CogIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M8.34 1.804A1 1 0 0 1 9.32 1h1.36a1 1 0 0 1 .98.804l.295 1.473c.497.144.971.342 1.416.587l1.25-.834a1 1 0 0 1 1.262.125l.962.962a1 1 0 0 1 .125 1.262l-.834 1.25c.245.445.443.919.587 1.416l1.473.294a1 1 0 0 1 .804.98v1.361a1 1 0 0 1-.804.98l-1.473.295a6.995 6.995 0 0 1-.587 1.416l.834 1.25a1 1 0 0 1-.125 1.262l-.962.962a1 1 0 0 1-1.262.125l-1.25-.834a6.953 6.953 0 0 1-1.416.587l-.294 1.473a1 1 0 0 1-.98.804H9.32a1 1 0 0 1-.98-.804l-.295-1.473a6.995 6.995 0 0 1-1.416-.587l-1.25.834a1 1 0 0 1-1.262-.125l-.962-.962a1 1 0 0 1-.125-1.262l.834-1.25a6.953 6.953 0 0 1-.587-1.416l-1.473-.294A1 1 0 0 1 1 10.68V9.32a1 1 0 0 1 .804-.98l1.473-.295c.144-.497.342-.971.587-1.416l-.834-1.25a1 1 0 0 1 .125-1.262l.962-.962A1 1 0 0 1 5.38 3.03l1.25.834a6.957 6.957 0 0 1 1.416-.587l.294-1.473ZM13 10a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" clipRule="evenodd" /></svg>);
 const StravaIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-        <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.599l2.836 5.598h4.172L10.477 0 4.177 12.173h4.172" />
+        <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.477 0 4.177 12.173h4.172" />
+    </svg>
+);
+const DatabaseIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+        <path d="M2 4.75A2.75 2.75 0 0 1 4.75 2h3.185a.75.75 0 0 1 .53.22l2.25 2.25a.75.75 0 0 0 .53.22h4.005A2.75 2.75 0 0 1 18 7.64v7.61a2.75 2.75 0 0 1-2.75 2.75H4.75A2.75 2.75 0 0 1 2 15.25V4.75Z" />
+    </svg>
+);
+const LoginIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+        <path fillRule="evenodd" d="M3 4.25A2.25 2.25 0 0 1 5.25 2h5.5A2.25 2.25 0 0 1 13 4.25v2a.75.75 0 0 1-1.5 0v-2a.75.75 0 0 0-.75-.75h-5.5a.75.75 0 0 0-.75.75v11.5c0 .414.336.75.75.75h5.5a.75.75 0 0 0 .75-.75v-2a.75.75 0 0 1 1.5 0v2A2.25 2.25 0 0 1 10.75 18h-5.5A2.25 2.25 0 0 1 3 15.75V4.25Z" clipRule="evenodd" />
+        <path fillRule="evenodd" d="M6 10a.75.75 0 0 1 .75-.75h9.546l-1.048-.943a.75.75 0 1 1 1.004-1.114l2.5 2.25a.75.75 0 0 1 0 1.114l-2.5 2.25a.75.75 0 1 1-1.004-1.114l1.048-.943H6.75A.75.75 0 0 1 6 10Z" clipRule="evenodd" />
     </svg>
 );
 
@@ -53,7 +66,7 @@ const LargeLogoIcon = () => (
 const HomeModal: React.FC<HomeModalProps> = ({ 
     onOpenDiary, onOpenExplorer, onOpenHelp, onImportBackup, onExportBackup, 
     onUploadTracks, onClose, trackCount, plannedWorkouts = [], onOpenWorkout, 
-    onOpenProfile, onOpenChangelog, onUploadOpponent, onEnterRaceMode, onManualCloudSave, onCheckAiAccess,
+    onOpenProfile, onOpenSettings, onOpenChangelog, onUploadOpponent, onEnterRaceMode, onManualCloudSave, onCheckAiAccess,
     onLogout, onLogin, isGuest, onOpenStravaConfig, userProfile
 }) => {
     const backupInputRef = useRef<HTMLInputElement>(null);
@@ -215,26 +228,30 @@ const HomeModal: React.FC<HomeModalProps> = ({
                 <div className="px-6 md:px-8 pb-8">
                     {menuStep === 'main' ? <MainMenu /> : menuStep === 'analyze' ? <AnalyzeMenu /> : menuStep === 'plan' ? <PlanMenu /> : <RaceMenu />}
                 </div>
-                <footer className="bg-slate-950/50 p-4 border-t border-slate-800/50 flex justify-between items-center text-[11px] font-black uppercase tracking-widest text-slate-500 relative">
-                    <div className="flex gap-4">
-                        <button onClick={onOpenProfile} className="hover:text-white transition-colors flex items-center gap-1"><SettingsIcon /> Profilo</button>
-                        <button onClick={onOpenHelp} className="hover:text-white transition-colors flex items-center gap-1"><HelpIcon /> Guida</button>
-                        {isGuest ? (
-                            <button onClick={onLogin} className="hover:text-cyan-400 transition-colors flex items-center gap-1 text-cyan-500 font-black"><UserIcon /> Accedi</button>
-                        ) : (
-                            <button onClick={onLogout} className="hover:text-red-400 transition-colors flex items-center gap-1"><LogoutIcon /> Esci</button>
-                        )}
-                    </div>
-                    <div className="flex gap-4">
-                        {onManualCloudSave && !isGuest && (
-                            <button onClick={onManualCloudSave} className="hover:text-green-400 transition-colors flex items-center gap-1" title="Sincronizza ora"><CloudUpIcon /> Cloud</button>
-                        )}
+                
+                <footer className="bg-slate-950/50 p-4 border-t border-slate-800/50 flex flex-col md:flex-row justify-between items-center text-[10px] md:text-[11px] font-black uppercase tracking-widest text-slate-500 relative gap-4 md:gap-0">
+                    <div className="flex w-full md:w-auto justify-between md:justify-start gap-2 md:gap-6">
+                        <button onClick={onOpenProfile} className="hover:text-white transition-colors flex flex-col md:flex-row items-center gap-1">
+                            <UserIcon /> 
+                            <span>Profilo</span>
+                        </button>
+                        <button onClick={onOpenSettings} className="hover:text-white transition-colors flex flex-col md:flex-row items-center gap-1">
+                            <CogIcon /> 
+                            <span>Impostazioni</span>
+                        </button>
+                        <button onClick={onOpenHelp} className="hover:text-white transition-colors flex flex-col md:flex-row items-center gap-1">
+                            <HelpIcon /> 
+                            <span>Guida</span>
+                        </button>
                         <div className="relative">
-                            <button onClick={() => setShowDataMenu(!showDataMenu)} className={`transition-colors flex items-center gap-1 ${showDataMenu ? 'text-white' : 'hover:text-white'}`}>Dati</button>
+                            <button onClick={() => setShowDataMenu(!showDataMenu)} className={`transition-colors flex flex-col md:flex-row items-center gap-1 ${showDataMenu ? 'text-white' : 'hover:text-white'}`}>
+                                <DatabaseIcon />
+                                <span>Dati</span>
+                            </button>
                             {showDataMenu && (
                                 <>
                                     <div className="fixed inset-0 z-0" onClick={() => setShowDataMenu(false)}></div>
-                                    <div className="absolute bottom-full right-0 mb-2 w-32 bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden z-10 animate-fade-in">
+                                    <div className="absolute bottom-full right-0 md:left-0 mb-2 w-32 bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden z-10 animate-fade-in">
                                         <button onClick={() => { backupInputRef.current?.click(); setShowDataMenu(false); }} className="block w-full text-left px-4 py-3 hover:bg-slate-700 text-slate-300 transition-colors border-b border-slate-700/50">Importa</button>
                                         <button onClick={() => { onExportBackup(); setShowDataMenu(false); }} className="block w-full text-left px-4 py-3 hover:bg-slate-700 text-slate-300 transition-colors">Backup</button>
                                     </div>
@@ -242,6 +259,26 @@ const HomeModal: React.FC<HomeModalProps> = ({
                             )}
                             <input type="file" ref={backupInputRef} accept="application/json,.json" className="hidden" onChange={handleFileChange} />
                         </div>
+                    </div>
+                    
+                    <div className="flex w-full md:w-auto justify-center md:justify-end gap-6 md:gap-4 border-t md:border-t-0 border-slate-800/50 pt-3 md:pt-0">
+                        {onManualCloudSave && !isGuest && (
+                            <button onClick={onManualCloudSave} className="hover:text-green-400 transition-colors flex flex-col md:flex-row items-center gap-1" title="Sincronizza ora">
+                                <CloudUpIcon /> 
+                                <span>Cloud</span>
+                            </button>
+                        )}
+                        {isGuest ? (
+                            <button onClick={onLogin} className="hover:text-cyan-400 transition-colors flex flex-col md:flex-row items-center gap-1 text-cyan-500 font-black">
+                                <LoginIcon /> 
+                                <span>Accedi</span>
+                            </button>
+                        ) : (
+                            <button onClick={onLogout} className="hover:text-red-400 transition-colors flex flex-col md:flex-row items-center gap-1">
+                                <LogoutIcon /> 
+                                <span>Esci</span>
+                            </button>
+                        )}
                     </div>
                 </footer>
             </div>

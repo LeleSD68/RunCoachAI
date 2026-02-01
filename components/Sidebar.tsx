@@ -121,7 +121,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
     };
 
     return (
-        <div className="flex flex-col h-full w-full bg-slate-900 text-white overflow-hidden">
+        <div className="flex flex-col h-full w-full bg-slate-900 text-white overflow-hidden relative">
             <div className="p-3 border-b border-slate-800 flex items-center justify-between shrink-0">
                 <h2 className="text-sm font-black text-cyan-400 uppercase italic">Le Mie Corse</h2>
                 <div className="flex gap-2">
@@ -164,7 +164,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                 </div>
             </div>
 
-            <div className="flex-grow overflow-y-auto custom-scrollbar">
+            <div className={`flex-grow overflow-y-auto custom-scrollbar ${raceSelectionIds.size > 0 ? 'pb-20' : ''}`}>
                 {(Object.entries(groupedData) as [string, Track[]][]).map(([groupName, groupTracks]) => (
                     <div key={groupName}>
                         <div className="bg-slate-800/40 px-3 py-1 text-[9px] font-black text-slate-500 uppercase border-b border-slate-800 sticky top-0 z-10 backdrop-blur flex justify-between items-center">
@@ -203,9 +203,9 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                 ))}
             </div>
 
-            {/* COMPACT TOOLBAR */}
+            {/* COMPACT TOOLBAR - ABSOLUTE POSITIONED FOR STABILITY */}
             {raceSelectionIds.size > 0 && (
-                <div className="p-2 border-t border-slate-800 bg-slate-950 shrink-0 flex items-center justify-between gap-2 shadow-[0_-5px_15px_rgba(0,0,0,0.5)] z-20">
+                <div className="absolute bottom-0 left-0 right-0 p-2 border-t border-slate-800 bg-slate-950 flex items-center justify-between gap-2 shadow-[0_-5px_15px_rgba(0,0,0,0.5)] z-50">
                     <div className="flex gap-1 items-center">
                         <Tooltip text="Gara Virtuale" position="top">
                             <button onClick={onStartRace} className="flex items-center gap-2 bg-green-600 hover:bg-green-500 text-white text-[10px] font-black uppercase px-3 py-2 rounded-lg shadow active:scale-95 transition-all">

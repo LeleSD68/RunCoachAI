@@ -45,7 +45,7 @@ const RaceGapChart: React.FC<RaceGapChartProps> = ({ history, tracks, currentTim
         tracks.forEach(t => { if(trackIds.has(t.id)) active.push(t); });
 
         history.forEach(snap => {
-            Object.values(snap.gaps).forEach(gap => { if (gap > maxG) maxG = gap; });
+            Object.values(snap.gaps).forEach((gap: any) => { if ((gap as number) > maxG) maxG = gap as number; });
         });
         currentGaps.forEach(gap => { if (gap && gap > maxG) maxG = gap; });
 

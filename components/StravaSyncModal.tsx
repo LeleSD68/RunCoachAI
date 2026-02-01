@@ -56,7 +56,7 @@ const StravaSyncModal: React.FC<StravaSyncModalProps> = ({ onClose, onImportFini
         
         for (const id of ids) {
             try {
-                const track = await fetchDetailedStravaActivity(id);
+                const track = await fetchDetailedStravaActivity(id as number);
                 if (track) imported.push(track);
             } catch (e) {
                 console.error(`Failed to import ${id}`, e);
