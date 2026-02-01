@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Track, UserProfile, PlannedWorkout, Toast, ActivityType, RaceRunner, RaceResult, TrackStats, Commentary, TrackPoint, ApiUsage } from './types';
+import { Track, UserProfile, PlannedWorkout, Toast, ActivityType, RaceRunner, RaceResult, TrackStats, Commentary, TrackPoint, ApiUsage, RaceGapSnapshot, LeaderStats } from './types';
 import Sidebar from './components/Sidebar';
 import MapDisplay from './components/MapDisplay';
 import TrackEditor from './components/TrackEditor';
@@ -28,6 +28,7 @@ import RaceSummary from './components/RaceSummary';
 import ReminderNotification from './components/ReminderNotification';
 import RaceSetupModal from './components/RaceSetupModal';
 import ResizablePanel from './components/ResizablePanel';
+import RaceGapChart from './components/RaceGapChart'; 
 
 import { 
     saveTracksToDB, loadTracksFromDB, 
@@ -387,9 +388,14 @@ const App: React.FC = () => {
     const [raceRunners, setRaceRunners] = useState<RaceRunner[] | null>(null);
     const [raceResults, setRaceResults] = useState<RaceResult[] | null>(null);
     const [raceGaps, setRaceGaps] = useState<Map<string, number | undefined>>(new Map());
+    const [raceHistory, setRaceHistory] = useState<RaceGapSnapshot[]>([]); 
+    
+    // NEW: Stats for leader tracking
+    const [leadStats, setLeadStats] = useState<Record<string, LeaderStats>>({});
     
     const raceLastTimeRef = useRef<number | null>(null);
     const raceTimeRef = useRef(0);
+    const lastHistoryUpdateRef = useRef(0); 
 
     const openRaceSetup = async () => {
         if (raceSelectionIds.size < 1 && tracks.length > 0) {
@@ -419,14 +425,19 @@ const App: React.FC = () => {
 
         setRaceResults(null);
         raceTimeRef.current = 0;
+        lastHistoryUpdateRef.current = 0;
         setRaceTime(0);
         setRaceState('running');
+        setRaceHistory([]);
+        setLeadStats({}); // Reset Leader Stats
+        
         setRaceRunners(selected.map(t => ({
             trackId: t.id,
             name: t.name,
             position: t.points[0],
             color: t.color,
-            pace: 0
+            pace: 0,
+            finished: false
         })));
         setShowRaceSetup(false);
     };
@@ -436,8 +447,9 @@ const App: React.FC = () => {
         
         const animateRace = (time: number) => {
             if (raceLastTimeRef.current !== null) {
-                const delta = time - raceLastTimeRef.current;
-                const nextTime = raceTimeRef.current + (delta * raceSpeed);
+                const delta = time - raceLastTimeRef.current; // Real time elapsed in ms
+                const timeStep = delta * raceSpeed; // Simulated time elapsed in ms
+                const nextTime = raceTimeRef.current + timeStep;
                 raceTimeRef.current = nextTime;
                 setRaceTime(nextTime);
 
@@ -447,30 +459,97 @@ const App: React.FC = () => {
                 const currentGaps = new Map<string, number>();
 
                 selected.forEach(t => {
-                    const state = getTrackStateAtTime(t, nextTime);
-                    if (state) {
-                        newRunners.push({
-                            trackId: t.id,
-                            name: t.name,
-                            position: state.point,
-                            color: t.color,
-                            pace: state.pace
-                        });
-                        if (state.point.cummulativeDistance < t.distance) allFinished = false;
+                    const prevState = raceRunners?.find(r => r.trackId === t.id);
+                    if (prevState?.finished) {
+                        // Keep finished state
+                        newRunners.push(prevState);
                     } else {
-                        const lastPoint = t.points[t.points.length-1];
-                        newRunners.push({
-                            trackId: t.id, name: t.name, position: lastPoint, color: t.color, pace: 0
-                        });
+                        // Calculate new state
+                        const state = getTrackStateAtTime(t, nextTime);
+                        if (state) {
+                            let isFinished = false;
+                            let finishTime = undefined;
+                            
+                            // Check finish condition: if we exceeded track distance or time
+                            if (state.point.cummulativeDistance >= t.distance || nextTime >= t.duration) {
+                                isFinished = true;
+                                finishTime = t.duration;
+                                // Snap to last point
+                                const lastPt = t.points[t.points.length - 1];
+                                newRunners.push({
+                                    trackId: t.id, name: t.name, position: lastPt, color: t.color, pace: 0,
+                                    finished: true, finishTime: t.duration
+                                });
+                            } else {
+                                newRunners.push({
+                                    trackId: t.id,
+                                    name: t.name,
+                                    position: state.point,
+                                    color: t.color,
+                                    pace: state.pace,
+                                    finished: false
+                                });
+                                allFinished = false;
+                            }
+                        } else {
+                            // Fallback if something weird happens
+                             const lastPt = t.points[t.points.length - 1];
+                             newRunners.push({
+                                trackId: t.id, name: t.name, position: lastPt, color: t.color, pace: 0,
+                                finished: true, finishTime: t.duration
+                            });
+                        }
                     }
                 });
 
+                // --- LEADER STATS CALCULATION ---
                 const sorted = [...newRunners].sort((a,b) => b.position.cummulativeDistance - a.position.cummulativeDistance);
                 if (sorted.length > 0) {
-                    const leaderDist = sorted[0].position.cummulativeDistance;
+                    const leader = sorted[0];
+                    const leaderDist = leader.position.cummulativeDistance;
+                    
+                    // Update Gaps
                     sorted.forEach((r) => {
                         currentGaps.set(r.trackId, (leaderDist - r.position.cummulativeDistance) * 1000);
                     });
+
+                    // Update Leader Stats (Time & Distance in Lead)
+                    // We only accumulate if the race is running and leader is not finished yet (or is finished but still winning)
+                    if (simulationStateRef.current === 'running') {
+                        setLeadStats(prev => {
+                            const next = { ...prev };
+                            if (!next[leader.trackId]) next[leader.trackId] = { timeInLead: 0, distanceInLead: 0 };
+                            
+                            // Add time
+                            next[leader.trackId].timeInLead += timeStep;
+                            
+                            // Add distance (approx: speed * timeStep, or better: diff from last frame)
+                            // We need prev leader pos. Simplest is assuming leader covered some ground this frame.
+                            // However, finding delta distance for specific runner is cleaner.
+                            // Let's approximate using current pace or diff from prev.
+                            // Actually, calculating delta dist is tricky without persistent prev state for logic.
+                            // Let's use leader pace * timeStep.
+                            // Speed (km/h) -> m/ms = (km/h / 3600) * 1000 / 1000 = km/h / 3600
+                            // Actually speed is dist/time. pace is min/km. 
+                            // Distance (m) = (1 / Pace(min/km)) * (Time(min) / 1) * 1000
+                            if (leader.pace > 0) {
+                                const distAddedMeters = (timeStep / 60000) / leader.pace * 1000;
+                                next[leader.trackId].distanceInLead += distAddedMeters;
+                            }
+                            
+                            return next;
+                        });
+                    }
+
+                    // Update Gap History every ~5 seconds of simulated time
+                    if (nextTime - lastHistoryUpdateRef.current > 5000) {
+                        const gapsObj: Record<string, number> = {};
+                        sorted.forEach(r => {
+                            gapsObj[r.trackId] = (leaderDist - r.position.cummulativeDistance) * 1000;
+                        });
+                        setRaceHistory(prev => [...prev, { time: nextTime, gaps: gapsObj }]);
+                        lastHistoryUpdateRef.current = nextTime;
+                    }
                 }
 
                 setRaceRunners(newRunners);
@@ -503,6 +582,10 @@ const App: React.FC = () => {
 
         return () => cancelAnimationFrame(frame);
     }, [raceState, raceSpeed, tracks, raceSelectionIds]);
+
+    // Ref to access state inside animation frame without closure stale
+    const simulationStateRef = useRef(raceState);
+    useEffect(() => { simulationStateRef.current = raceState; }, [raceState]);
 
     const handleUpdateTrackMetadata = async (id: string, metadata: Partial<Track>) => {
         const updatedTracks = tracks.map(t => t.id === id ? { ...t, ...metadata } : t);
@@ -751,40 +834,47 @@ const App: React.FC = () => {
                 <div className="flex-grow flex flex-col lg:flex-row overflow-hidden relative">
                     {/* CONDITIONAL LAYOUT: FULL MAP IF RACING, RESIZABLE IF IDLE */}
                     {isRacing ? (
-                        // RACING LAYOUT (FULL SCREEN MAP)
-                        <div className="w-full h-full relative bg-slate-900">
-                            <MapDisplay 
-                                tracks={tracks} visibleTrackIds={mapVisibleIds} raceRunners={raceRunners}
-                                isAnimationPlaying={raceState === 'running'} fitBoundsCounter={fitBoundsCounter}
-                                runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
-                            />
-                            {/* RACE OVERLAYS */}
-                            <div className={`absolute left-1/2 -translate-x-1/2 z-[4600] ${isDesktop ? 'top-4' : 'top-14'}`}>
-                                <RaceControls 
-                                    simulationState={raceState} simulationTime={raceTime} simulationSpeed={raceSpeed}
-                                    onPause={() => setRaceState('paused')} onResume={() => setRaceState('running')}
-                                    onStop={() => { setRaceState('idle'); setRaceRunners(null); }}
-                                    onSpeedChange={setRaceSpeed}
+                        // RACING LAYOUT (UPDATED: MAP TOP + CHART BOTTOM)
+                        <div className="w-full h-full flex flex-col bg-slate-900">
+                            {/* MAPPA - Occupa lo spazio rimanente */}
+                            <div className="flex-grow relative bg-slate-900 overflow-hidden">
+                                <MapDisplay 
+                                    tracks={tracks} visibleTrackIds={mapVisibleIds} raceRunners={raceRunners}
+                                    isAnimationPlaying={raceState === 'running'} fitBoundsCounter={fitBoundsCounter}
+                                    runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
                                 />
+                                {/* RACE OVERLAYS ON MAP */}
+                                <div className={`absolute left-1/2 -translate-x-1/2 z-[4600] ${isDesktop ? 'top-4' : 'top-14'}`}>
+                                    <RaceControls 
+                                        simulationState={raceState} simulationTime={raceTime} simulationSpeed={raceSpeed}
+                                        onPause={() => setRaceState('paused')} onResume={() => setRaceState('running')}
+                                        onStop={() => { setRaceState('idle'); setRaceRunners(null); }}
+                                        onSpeedChange={setRaceSpeed}
+                                    />
+                                </div>
+                                <div className="absolute top-0 right-0 z-[2000] p-2">
+                                    <button 
+                                        onClick={() => { setRaceState('idle'); setRaceRunners(null); }} 
+                                        className="bg-red-600/90 text-white px-3 py-1 rounded text-xs font-bold uppercase"
+                                    >
+                                        Esci
+                                    </button>
+                                </div>
                             </div>
-                            {raceRunners && isDesktop && (
-                                <div className="absolute top-4 right-4 z-[4600]">
-                                    <RaceLeaderboard racers={tracks.filter(t => raceSelectionIds.has(t.id))} gaps={raceGaps} ranks={new Map()} />
+
+                            {/* GRAFICO GAP - Altezza fissa in basso */}
+                            {raceRunners && raceHistory.length > 0 && (
+                                <div className="h-48 w-full border-t border-slate-700 bg-slate-950 shrink-0 z-30">
+                                    <RaceGapChart 
+                                        history={raceHistory} 
+                                        tracks={tracks.filter(t => raceSelectionIds.has(t.id))} 
+                                        currentTime={raceTime} 
+                                        currentGaps={raceGaps}
+                                        runners={raceRunners}
+                                        leaderStats={leadStats}
+                                    />
                                 </div>
                             )}
-                            {/* Minimal Navigation Dock or just Stop Button above handles exit. 
-                                We show dock on mobile as a fallback to navigate away if user gets stuck,
-                                but visually integrated. 
-                            */}
-                            <div className="absolute bottom-0 w-full z-[2000] bg-slate-900/90 backdrop-blur pb-safe border-t border-slate-800">
-                                <NavigationDock 
-                                    onOpenSidebar={() => setRaceState('idle')} onCloseSidebar={() => {}}
-                                    onOpenExplorer={() => toggleView('explorer')} onOpenDiary={() => toggleView('diary')}
-                                    onOpenPerformance={() => toggleView('performance')} onOpenHub={() => toggleView('hub')}
-                                    onOpenSocial={() => toggleView('social')} onOpenProfile={() => toggleView('profile')}
-                                    onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}} isSidebarOpen={false}
-                                />
-                            </div>
                         </div>
                     ) : (
                         // STANDARD LAYOUT (RESIZABLE)

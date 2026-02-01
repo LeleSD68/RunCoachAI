@@ -199,6 +199,13 @@ export interface RaceRunner {
   position: TrackPoint;
   color: string;
   pace: number;
+  finished?: boolean;
+  finishTime?: number;
+}
+
+export interface LeaderStats {
+    timeInLead: number; // ms
+    distanceInLead: number; // meters
 }
 
 // Fix for: Module '"./types"' has no exported member 'Commentary'.
