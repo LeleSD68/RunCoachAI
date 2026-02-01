@@ -7,6 +7,15 @@ interface ChangelogProps {
 
 const changelogData = [
     {
+        version: 'v1.37',
+        date: '2026-01-29',
+        changes: [
+            '👻 **Sfida Ghost "Effimera"**: Le tracce dei tuoi amici importate dal Social Feed per le gare ora sono temporanee. Rimangono disponibili per la sessione di gara corrente ma non vengono salvate permanentemente nella tua lista personale o nel database, mantenendo il tuo archivio pulito.',
+            '🔄 **Fix Layout**: Corretta la direzione dello split verticale/orizzontale su Desktop e Mobile per una migliore usabilità.',
+            '🧹 **Deduplicazione Intelligente**: Migliorato il sistema di pulizia dei duplicati nel diario degli allenamenti per evitare voci ridondanti.'
+        ]
+    },
+    {
         version: 'v1.34',
         date: '2026-01-28',
         changes: [
