@@ -41,7 +41,7 @@ import { getApiUsage, trackUsage, addTokensToUsage } from './services/usageServi
 import { parseGpx } from './services/gpxService';
 import { parseTcx } from './services/tcxService';
 import { generateSmartTitle } from './services/titleGenerator';
-import { isDuplicateTrack, markStravaTrackAsDeleted, isPreviouslyDeletedStravaTrack } from './services/trackUtils';
+import { isDuplicateTrack, markStravaTrackAsDeleted, isPreviouslyDeletedStravaTrack, getTrackFingerprint } from './services/trackUtils';
 
 const App: React.FC = () => {
     const [tracks, setTracks] = useState<Track[]>([]);
@@ -225,8 +225,32 @@ const App: React.FC = () => {
         try {
             const loadedProfile = await loadProfileFromDB(forceLocal);
             if (loadedProfile) setUserProfile(prev => ({ ...prev, ...loadedProfile }));
+            
             const loadedTracks = await loadTracksFromDB(forceLocal);
-            setTracks(loadedTracks);
+            
+            // DEDUPLICAZIONE AUTOMATICA DURANTE IL CARICAMENTO
+            const uniqueTracks: Track[] = [];
+            const seenFingerprints = new Set<string>();
+            let duplicatesFound = 0;
+
+            loadedTracks.forEach(t => {
+                const fp = getTrackFingerprint(t);
+                if (!seenFingerprints.has(fp)) {
+                    seenFingerprints.add(fp);
+                    uniqueTracks.push(t);
+                } else {
+                    duplicatesFound++;
+                }
+            });
+
+            if (duplicatesFound > 0) {
+                console.log(`Filtrati ${duplicatesFound} tracciati duplicati.`);
+                // Aggiorniamo il DB locale per rimuovere i duplicati se necessario
+                // saveTracksToDB(uniqueTracks);
+            }
+
+            setTracks(uniqueTracks);
+
             const loadedWorkouts = await loadPlannedWorkoutsFromDB(forceLocal);
             setPlannedWorkouts(loadedWorkouts);
         } catch (e) {
