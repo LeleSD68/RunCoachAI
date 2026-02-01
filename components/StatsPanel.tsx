@@ -66,8 +66,11 @@ const StatsPanel: React.FC<StatsPanelProps> = ({ stats, selectedSegment, onSegme
                     <div className="grid grid-cols-2 gap-2 animate-fade-in-down">
                         <StatCard title="Distanza" value={`${stats.totalDistance.toFixed(2)} km`} />
                         <StatCard title="Tempo" value={formatDuration(stats.movingDuration)} subvalue={`Totale: ${formatDuration(stats.totalDuration)}`} />
-                        <StatCard title="Ritmo Medio" value={formatPace(stats.movingAvgPace)} subvalue={`/km`} />
+                        <StatCard title="Ritmo Medio" value={formatPace(stats.movingAvgPace)} subvalue={`Max: ${formatPace(Math.min(...stats.splits.map(s => s.pace)))}`} />
+                        <StatCard title="Velocità" value={`${stats.avgSpeed.toFixed(1)} km/h`} subvalue={`Max: ${stats.maxSpeed.toFixed(1)} km/h`} />
                         <StatCard title="Dislivello" value={`+${Math.round(stats.elevationGain)} m`} subvalue={`Perso: -${Math.round(stats.elevationLoss)} m`} />
+                        {stats.avgHr && <StatCard title="Cardio" value={`${Math.round(stats.avgHr)} bpm`} subvalue={`Max: ${stats.maxHr} bpm`} />}
+                        {stats.avgWatts && <StatCard title="Potenza" value={`${stats.avgWatts} W`} className="col-span-2" />}
                     </div>
                 )}
             </div>
