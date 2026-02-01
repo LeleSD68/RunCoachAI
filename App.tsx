@@ -389,7 +389,7 @@ const App: React.FC = () => {
     const handleAddGhost = (friendTrack: Track) => {
         const ghostTrack: Track = {
             ...friendTrack,
-            id: `ghost-${Date.now()}-${friendTrack.id}`, // Unique ID for every add to allow multiple ghosts of same track if needed
+            id: `ghost-${Date.now()}-${friendTrack.id}`, 
             name: `Ghost: ${friendTrack.userDisplayName || 'Amico'}`,
             isExternal: true,
             color: '#a855f7',
@@ -645,18 +645,18 @@ const App: React.FC = () => {
                     )}
 
                     <main className="flex-grow flex flex-col relative bg-slate-950 min-w-0">
-                        {/* MOBILE SPLIT VIEW (VERTICAL STACK) */}
+                        {/* MOBILE LAYOUT OPTIMIZED */}
                         {!isDesktop ? (
-                            <div className="flex flex-col h-full w-full overflow-hidden">
-                                {/* MAP TOP (40%) */}
-                                <div className="flex-[0.4] min-h-[250px] relative border-b border-slate-800 bg-slate-900">
+                            <div className="flex flex-col h-full w-full overflow-hidden relative">
+                                {/* MAP TAKES PRIORITY SPACE */}
+                                <div className="flex-grow relative bg-slate-900 z-0">
                                     <MapDisplay 
                                         tracks={tracks} visibleTrackIds={mapVisibleIds} raceRunners={raceRunners}
                                         isAnimationPlaying={raceState === 'running'} fitBoundsCounter={fitBoundsCounter}
                                         runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
                                     />
                                     {raceState !== 'idle' && (
-                                        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[4600]">
+                                        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000]">
                                             <RaceControls 
                                                 simulationState={raceState} simulationTime={raceTime} simulationSpeed={raceSpeed}
                                                 onPause={() => setRaceState('paused')} onResume={() => setRaceState('running')}
@@ -667,29 +667,45 @@ const App: React.FC = () => {
                                     )}
                                 </div>
                                 
-                                {/* SIDEBAR BOTTOM (60%) */}
-                                <div className="flex-[0.6] flex flex-col overflow-hidden bg-slate-900">
-                                    <div className="flex-grow overflow-hidden">
-                                         <Sidebar 
-                                            tracks={tracks} visibleTrackIds={mapVisibleIds} focusedTrackId={focusedTrackId} raceSelectionIds={raceSelectionIds}
-                                            onFocusTrack={setFocusedTrackId} onDeselectAll={() => setRaceSelectionIds(new Set())}
-                                            onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
-                                            onStartRace={openRaceSetup}
-                                            onViewDetails={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)}
-                                            onEditTrack={(id) => setEditingTrack(tracks.find(t => t.id === id) || null)}
-                                            onBulkArchive={handleBulkArchive} onDeleteSelected={handleBulkDelete} onMergeSelected={handleMergeSelectedTracks} onToggleFavorite={handleToggleFavorite} onBulkGroup={handleBulkGroup} onFileUpload={handleFileUpload} onToggleArchived={async (id) => { const u = tracks.map(t => t.id === id ? {...t, isArchived: !t.isArchived} : t); setTracks(u); await saveTracksToDB(u); }} onDeleteTrack={() => {}} onSelectAll={() => {}}
-                                         />
+                                {/* LIST AREA - FIXED HEIGHT AT BOTTOM IF NOT RACING, OR COLLAPSIBLE */}
+                                {raceState === 'idle' && (
+                                    <div className="h-[45vh] bg-slate-900 border-t border-slate-800 z-10 flex flex-col shadow-[0_-5px_20px_rgba(0,0,0,0.5)]">
+                                        <div className="flex-grow overflow-hidden">
+                                             <Sidebar 
+                                                tracks={tracks} visibleTrackIds={mapVisibleIds} focusedTrackId={focusedTrackId} raceSelectionIds={raceSelectionIds}
+                                                onFocusTrack={setFocusedTrackId} onDeselectAll={() => setRaceSelectionIds(new Set())}
+                                                onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
+                                                onStartRace={openRaceSetup}
+                                                onViewDetails={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)}
+                                                onEditTrack={(id) => setEditingTrack(tracks.find(t => t.id === id) || null)}
+                                                onBulkArchive={handleBulkArchive} onDeleteSelected={handleBulkDelete} onMergeSelected={handleMergeSelectedTracks} onToggleFavorite={handleToggleFavorite} onBulkGroup={handleBulkGroup} onFileUpload={handleFileUpload} onToggleArchived={async (id) => { const u = tracks.map(t => t.id === id ? {...t, isArchived: !t.isArchived} : t); setTracks(u); await saveTracksToDB(u); }} onDeleteTrack={() => {}} onSelectAll={() => {}}
+                                             />
+                                        </div>
+                                        {/* DOCK INSIDE CONTAINER TO AVOID OVERLAP */}
+                                        <div className="bg-slate-950 border-t border-slate-800 pb-safe">
+                                            <NavigationDock 
+                                                onOpenSidebar={() => {}} onCloseSidebar={() => {}}
+                                                onOpenExplorer={() => toggleView('explorer')} onOpenDiary={() => toggleView('diary')}
+                                                onOpenPerformance={() => toggleView('performance')} onOpenHub={() => toggleView('hub')}
+                                                onOpenSocial={() => toggleView('social')} onOpenProfile={() => toggleView('profile')}
+                                                onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}} isSidebarOpen={true}
+                                            />
+                                        </div>
                                     </div>
-                                    <div className="bg-slate-950 pb-safe">
+                                )}
+                                
+                                {/* DOCK ONLY IF RACING (OVERLAY) OR HANDLED ABOVE */}
+                                {raceState !== 'idle' && (
+                                     <div className="absolute bottom-0 w-full z-[2000] bg-slate-900/90 backdrop-blur pb-safe border-t border-slate-800">
                                         <NavigationDock 
-                                            onOpenSidebar={() => {}} onCloseSidebar={() => {}}
+                                            onOpenSidebar={() => setRaceState('idle')} onCloseSidebar={() => {}}
                                             onOpenExplorer={() => toggleView('explorer')} onOpenDiary={() => toggleView('diary')}
                                             onOpenPerformance={() => toggleView('performance')} onOpenHub={() => toggleView('hub')}
                                             onOpenSocial={() => toggleView('social')} onOpenProfile={() => toggleView('profile')}
-                                            onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}} isSidebarOpen={true}
+                                            onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}} isSidebarOpen={false}
                                         />
                                     </div>
-                                </div>
+                                )}
                             </div>
                         ) : (
                             /* DESKTOP MAIN AREA (MAP ONLY) */
