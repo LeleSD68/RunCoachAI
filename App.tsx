@@ -74,6 +74,7 @@ const App: React.FC = () => {
     const [showPerformance, setShowPerformance] = useState(false);
     const [showSocial, setShowSocial] = useState(false);
     const [showStravaSyncOptions, setShowStravaSyncOptions] = useState(false);
+    const [showStravaConfig, setShowStravaConfig] = useState(false);
     
     const [viewingTrack, setViewingTrack] = useState<Track | null>(null);
     const [editingTrack, setEditingTrack] = useState<Track | null>(null); 
@@ -775,7 +776,13 @@ const App: React.FC = () => {
                     onOpenDiary={() => toggleView('diary')}
                     onOpenExplorer={() => toggleView('explorer')}
                     onOpenHelp={() => toggleView('guide')}
-                    onOpenStravaConfig={() => setShowStravaSyncOptions(true)}
+                    onOpenStravaConfig={() => {
+                        if (isStravaConnected()) {
+                            setShowStravaSyncOptions(true);
+                        } else {
+                            setShowStravaConfig(true);
+                        }
+                    }}
                     onImportBackup={async (f) => { 
                         setIsDataLoading(true);
                         try {
@@ -808,6 +815,12 @@ const App: React.FC = () => {
                     onEnterRaceMode={openRaceSetup}
                     trackCount={tracks.length}
                     userProfile={userProfile}
+                />
+            )}
+
+            {showStravaConfig && (
+                <StravaConfigModal 
+                    onClose={() => setShowStravaConfig(false)} 
                 />
             )}
 
