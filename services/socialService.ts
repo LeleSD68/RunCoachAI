@@ -1,6 +1,6 @@
 
 import { supabase } from './supabaseClient';
-import { UserProfile, FriendRequest, Track, DirectMessage } from '../types';
+import { UserProfile, FriendRequest, Track, DirectMessage, Reaction } from '../types';
 
 export const updatePresence = async (userId: string) => {
     if (!userId) return;
@@ -92,10 +92,13 @@ export const getFriends = async (currentUserId: string): Promise<UserProfile[]> 
 };
 
 export const getFriendsActivityFeed = async (currentUserId: string): Promise<Track[]> => {
-    // Recuperiamo le tracce pubbliche (RLS gestisce l'amicizia se configurata, altrimenti filter esplicito)
+    // Recuperiamo le tracce pubbliche
     const { data: tracks, error } = await supabase
         .from('tracks')
-        .select('id, name, distance_km, duration_ms, start_time, activity_type, color, user_id, points_data, rating')
+        .select(`
+            id, name, distance_km, duration_ms, start_time, activity_type, color, user_id, points_data, rating,
+            activity_reactions (user_id, emoji)
+        `)
         .neq('user_id', currentUserId)
         .eq('is_public', true)
         .order('start_time', { ascending: false })
@@ -111,12 +114,17 @@ export const getFriendsActivityFeed = async (currentUserId: string): Promise<Tra
         let points = [];
         try {
             const allPoints = typeof t.points_data === 'string' ? JSON.parse(t.points_data) : t.points_data;
-            // Campionamento per l'anteprima (max 100 punti)
             if (Array.isArray(allPoints)) {
+                // Keep minimal points for the preview, full points will be fetched or kept in state
                 const step = Math.max(1, Math.floor(allPoints.length / 100));
                 points = allPoints.filter((_, i) => i % step === 0).map(p => ({ ...p, time: new Date(p.time) }));
             }
         } catch (e) {}
+
+        const reactions: Reaction[] = t.activity_reactions?.map((r: any) => ({
+            userId: r.user_id,
+            emoji: r.emoji
+        })) || [];
 
         return {
             id: t.id,
@@ -129,7 +137,8 @@ export const getFriendsActivityFeed = async (currentUserId: string): Promise<Tra
             rating: t.rating,
             userDisplayName: profilesMap.get(t.user_id) || 'Runner',
             userId: t.user_id,
-            startTime: t.start_time
+            startTime: t.start_time,
+            reactions: reactions
         };
     });
 };
@@ -155,4 +164,24 @@ export const getDirectMessages = async (currentUserId: string, friendId: string)
         content: msg.content,
         createdAt: msg.created_at
     }));
+};
+
+export const toggleReaction = async (trackId: string, userId: string, emoji: string) => {
+    // Check if reaction exists
+    const { data } = await supabase
+        .from('activity_reactions')
+        .select('id')
+        .eq('track_id', trackId)
+        .eq('user_id', userId)
+        .single();
+
+    if (data) {
+        // Remove reaction (toggle off)
+        await supabase.from('activity_reactions').delete().eq('id', data.id);
+        return 'removed';
+    } else {
+        // Add reaction
+        await supabase.from('activity_reactions').insert({ track_id: trackId, user_id: userId, emoji });
+        return 'added';
+    }
 };
