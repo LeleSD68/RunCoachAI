@@ -117,6 +117,11 @@ export interface RaceResult {
   rank: number;
 }
 
+export interface RaceGapSnapshot {
+    time: number; // Simulation time in ms
+    gaps: Record<string, number>; // trackId -> meters behind leader
+}
+
 export interface Split {
   splitNumber: number;
   distance: number;
