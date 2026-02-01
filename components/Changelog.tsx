@@ -7,6 +7,15 @@ interface ChangelogProps {
 
 const changelogData = [
     {
+        version: 'v1.38',
+        date: '2026-01-29',
+        changes: [
+            '🔄 **Layout Corretto**: Ripristinata la visualizzazione ottimale (Desktop: Affiancato, Mobile: Impilato).',
+            '👻 **Ghost Mode Pulita**: Le sfide Ghost non sporcano più la tua lista attività.',
+            '🧹 **Pulizia Dati**: Ottimizzazione gestione duplicati.'
+        ]
+    },
+    {
         version: 'v1.37',
         date: '2026-01-29',
         changes: [
