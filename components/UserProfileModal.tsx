@@ -28,6 +28,7 @@ const goalLabels: Record<RunningGoal, string> = {
 };
 
 const personalityLabels: Record<AiPersonality, { label: string, desc: string }> = {
+    'friend_coach': { label: 'Coach AI (Best Friend)', desc: 'Empatico, flessibile, il tuo pilastro di supporto.' },
     'pro_balanced': { label: 'Coach Professionista', desc: 'Feedback realistici ed equilibrati.' },
     'analytic': { label: 'Analitico', desc: 'Freddo e basato sui dati. Solo fatti e statistiche.' },
     'strict': { label: 'Sergente', desc: 'Severo e rigoroso. Non accetta scuse.' }
