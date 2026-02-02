@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { UserProfile } from '../types';
 import { isStravaConnected } from '../services/stravaService';
-import { cleanUpRemoteDuplicates } from '../services/dbService';
+import { cleanUpRemoteDuplicates, deleteUserAccount } from '../services/dbService';
 import { supabase } from '../services/supabaseClient';
 
 interface SettingsModalProps {
@@ -15,6 +15,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, userProfile, onU
     const stravaConnected = isStravaConnected();
     const [isCleaning, setIsCleaning] = useState(false);
     const [cleanupResult, setCleanupResult] = useState<string | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const handleCleanup = async () => {
         setIsCleaning(true);
@@ -34,15 +35,24 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, userProfile, onU
         }
     };
 
+    const handleDeleteAccount = async () => {
+        if (confirm("SEI SICURO? Questa azione cancellerà permanentemente tutti i tuoi dati, tracce, amici e messaggi. Non si può annullare.")) {
+            if (confirm("Confermi l'eliminazione definitiva dell'account?")) {
+                setIsDeleting(true);
+                await deleteUserAccount();
+            }
+        }
+    };
+
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[9000] p-4 animate-fade-in" onClick={onClose}>
-            <div className="bg-slate-900 text-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col border border-slate-700 overflow-hidden" onClick={(e) => e.stopPropagation()}>
-                <header className="p-5 border-b border-slate-800 bg-slate-900 flex justify-between items-center">
+            <div className="bg-slate-900 text-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col border border-slate-700 overflow-hidden max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+                <header className="p-5 border-b border-slate-800 bg-slate-900 flex justify-between items-center shrink-0">
                     <h2 className="text-xl font-black text-white uppercase tracking-tight">Impostazioni</h2>
                     <button onClick={onClose} className="text-slate-400 hover:text-white text-2xl">&times;</button>
                 </header>
 
-                <div className="p-6 space-y-6 bg-slate-900/50">
+                <div className="p-6 space-y-6 bg-slate-900/50 overflow-y-auto custom-scrollbar">
                     
                     {/* CALENDAR PREFERENCE */}
                     <section className="space-y-3">
@@ -108,9 +118,24 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, userProfile, onU
                         </div>
                     </section>
 
+                    {/* DANGER ZONE */}
+                    <section className="space-y-3">
+                        <h3 className="text-xs font-black text-red-600 uppercase tracking-widest border-b border-red-900/30 pb-2">Zona Pericolo</h3>
+                        <div className="bg-red-900/10 p-4 rounded-xl border border-red-900/30">
+                            <p className="text-[10px] text-red-300 mb-3">L'eliminazione dell'account è irreversibile e rimuoverà tutti i tuoi dati.</p>
+                            <button 
+                                onClick={handleDeleteAccount}
+                                disabled={isDeleting}
+                                className="w-full py-3 bg-red-600 hover:bg-red-500 text-white border border-red-500 rounded-lg text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
+                            >
+                                {isDeleting ? 'Eliminazione in corso...' : 'Elimina Account'}
+                            </button>
+                        </div>
+                    </section>
+
                 </div>
 
-                <footer className="p-4 bg-slate-900 border-t border-slate-800 text-center">
+                <footer className="p-4 bg-slate-900 border-t border-slate-800 text-center shrink-0">
                     <button onClick={onClose} className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-xl transition-colors text-xs uppercase tracking-widest">
                         Chiudi
                     </button>
