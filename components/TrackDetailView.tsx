@@ -36,7 +36,7 @@ const formatDuration = (ms: number) => {
     return `${minutes}m ${seconds}s`;
 };
 
-const LAYOUT_KEY = 'track_detail_layout_prefs_v2';
+const LAYOUT_KEY = 'track_detail_layout_prefs_v3';
 
 const TrackDetailView: React.FC<{ 
     track: Track, 
@@ -51,21 +51,20 @@ const TrackDetailView: React.FC<{
     track, userProfile, onExit, allHistory = [], plannedWorkouts = [], 
     onUpdateTrackMetadata, onAddPlannedWorkout, onCheckAiAccess 
 }) => {
-    // Safety check for track data
     if (!track || typeof track.distance !== 'number') {
         return <div className="text-white p-4">Errore caricamento traccia. Dati mancanti. <button onClick={onExit}>Indietro</button></div>;
     }
 
     const [progress, setProgress] = useState(track.distance);
     const [isAnimating, setIsAnimating] = useState(false);
-    const [animSpeed, setAnimSpeed] = useState(15);
+    const [animSpeed, setAnimSpeed] = useState(20);
     const [fitTrigger, setFitTrigger] = useState(0);
     const [hoveredPoint, setHoveredPoint] = useState<TrackPoint | null>(null);
     const [selectedRange, setSelectedRange] = useState<{ startDistance: number; endDistance: number } | null>(null);
     const [highlightedSegments, setHighlightedSegments] = useState<TrackPoint[] | TrackPoint[][] | null>(null);
     const [mapMetric, setMapMetric] = useState<string>('none');
     
-    const [layoutSizes, setLayoutSizes] = useState({ sidebarWidth: 320, mapHeightRatio: 0.55 });
+    const [layoutSizes, setLayoutSizes] = useState({ sidebarWidth: 320, mapHeightRatio: 0.6 });
 
     useEffect(() => {
         const stored = localStorage.getItem(LAYOUT_KEY);
@@ -98,7 +97,6 @@ const TrackDetailView: React.FC<{
         return () => clearTimeout(timer);
     }, []);
 
-    // ANIMAZIONE
     const lastTimeRef = useRef<number | null>(null);
     const progressRef = useRef(progress);
     useEffect(() => { progressRef.current = progress; }, [progress]);
@@ -179,19 +177,50 @@ const TrackDetailView: React.FC<{
     );
 
     const AnimationControlsBar = (
-        <div className="flex items-center gap-3 p-2 bg-slate-900 border-t border-slate-800 shrink-0 h-14 w-full z-30">
-            <button onClick={() => setIsAnimating(!isAnimating)} className="w-8 h-8 bg-cyan-600 hover:bg-cyan-500 rounded flex items-center justify-center transition-colors shadow-lg active:scale-95 text-white">
-                {isAnimating ? '⏸' : '▶'}
+        <div className="flex items-center gap-4 p-3 bg-slate-900 border-t border-slate-800 shrink-0 z-30 select-none">
+            <button 
+                onClick={() => setIsAnimating(!isAnimating)} 
+                className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-lg active:scale-95 ${isAnimating ? 'bg-amber-600 hover:bg-amber-500 text-white' : 'bg-cyan-600 hover:bg-cyan-500 text-white'}`}
+            >
+                {isAnimating ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path fillRule="evenodd" d="M6.75 5.25a.75.75 0 0 1 .75.75v12a.75.75 0 0 1-1.5 0V6a.75.75 0 0 1 .75-.75Zm9 0a.75.75 0 0 1 .75.75v12a.75.75 0 0 1-1.5 0V6a.75.75 0 0 1 .75-.75Z" clipRule="evenodd" /></svg>
+                ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path fillRule="evenodd" d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.647c1.295.742 1.295 2.545 0 3.286L7.279 20.99c-1.25.717-2.779-.217-2.779-1.643V5.653Z" clipRule="evenodd" /></svg>
+                )}
             </button>
-            <div className="flex-grow group relative h-4 flex items-center">
-                <input type="range" min="0" max={track.distance} step="0.001" value={progress} onChange={e => setProgress(parseFloat(e.target.value))} className="w-full h-1 accent-cyan-500 bg-slate-800 rounded cursor-pointer" />
+            
+            <div className="flex-grow flex flex-col justify-center gap-1">
+                <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest pl-1">Avanzamento</span>
+                <div className="relative h-4 flex items-center w-full">
+                    <input 
+                        type="range" 
+                        min="0" 
+                        max={track.distance} 
+                        step="0.001" 
+                        value={progress} 
+                        onChange={e => setProgress(parseFloat(e.target.value))} 
+                        className="w-full h-1.5 accent-cyan-500 bg-slate-700 rounded-lg cursor-pointer" 
+                    />
+                </div>
             </div>
-            <select value={animSpeed} onChange={e => setAnimSpeed(parseInt(e.target.value))} className="bg-slate-800 text-[10px] font-black p-1 rounded uppercase border border-slate-700 outline-none text-slate-300">
-                <option value="5">5x</option>
-                <option value="15">15x</option>
-                <option value="50">50x</option>
-                <option value="100">100x</option>
-            </select>
+
+            <div className="flex flex-col justify-center gap-1 w-24 sm:w-32">
+                <div className="flex justify-between text-[9px] text-slate-500 font-bold uppercase tracking-widest pl-1">
+                    <span>Velocità</span>
+                    <span className="text-cyan-400">{animSpeed}x</span>
+                </div>
+                <div className="relative h-4 flex items-center w-full">
+                    <input 
+                        type="range" 
+                        min="1" 
+                        max="100" 
+                        step="1" 
+                        value={animSpeed} 
+                        onChange={e => setAnimSpeed(parseInt(e.target.value))} 
+                        className="w-full h-1.5 accent-purple-500 bg-slate-700 rounded-lg cursor-pointer" 
+                    />
+                </div>
+            </div>
         </div>
     );
 
@@ -223,36 +252,19 @@ const TrackDetailView: React.FC<{
 
             <div className="flex-grow overflow-hidden relative flex flex-col lg:flex-row h-full">
                 {isMobile ? (
-                    // MOBILE LAYOUT (Stack Rigido per evitare overflow PlayBar)
+                    // MOBILE LAYOUT
                     <div className="flex flex-col w-full h-full overflow-hidden">
-                        {/* Map Section (Fixed Height ~35%) */}
                         <div className="h-[35%] relative border-b border-slate-800 shrink-0">
                             <MapDisplay 
-                                tracks={[track]} 
-                                visibleTrackIds={new Set([track.id])} 
-                                animationTrack={track} 
-                                animationProgress={progress} 
-                                isAnimationPlaying={isAnimating} 
-                                fitBoundsCounter={fitTrigger} 
-                                raceRunners={null} 
-                                hoveredTrackId={null} 
-                                runnerSpeeds={new Map()} 
-                                selectionPoints={selectedRange ? getPointsInDistanceRange(track, selectedRange.startDistance, selectedRange.endDistance) : highlightedSegments} 
-                                mapGradientMetric={mapMetric} 
-                                onGradientChange={setMapMetric}
+                                tracks={[track]} visibleTrackIds={new Set([track.id])} animationTrack={track} animationProgress={progress} 
+                                isAnimationPlaying={isAnimating} fitBoundsCounter={fitTrigger} raceRunners={null} hoveredTrackId={null} 
+                                runnerSpeeds={new Map()} selectionPoints={selectedRange ? getPointsInDistanceRange(track, selectedRange.startDistance, selectedRange.endDistance) : highlightedSegments} 
+                                mapGradientMetric={mapMetric} onGradientChange={setMapMetric}
                             />
                         </div>
-                        
-                        {/* Selection Bar (Condizionale) */}
                         {SelectionStatsBar}
-                        
-                        {/* Stats Section (Flex Grow per riempire spazio) */}
-                        <div className="flex-grow overflow-y-auto bg-slate-950 min-h-0">
-                            {SidebarContent}
-                        </div>
-                        
-                        {/* Chart + Controls (Fixed Height Bottom) */}
-                        <div className="h-56 border-t border-slate-800 bg-slate-900 shrink-0 flex flex-col w-full">
+                        <div className="flex-grow overflow-y-auto bg-slate-950 min-h-0">{SidebarContent}</div>
+                        <div className="h-60 border-t border-slate-800 bg-slate-900 shrink-0 flex flex-col w-full">
                             <div className="flex-grow relative min-h-0 w-full">
                                 <TimelineChart track={track} yAxisMetrics={['pace', 'hr']} onChartHover={setHoveredPoint} hoveredPoint={hoveredPoint} onSelectionChange={setSelectedRange} showPauses={false} pauseSegments={[]} animationProgress={progress} isAnimating={isAnimating} userProfile={userProfile} highlightedRange={selectedRange} />
                             </div>
@@ -260,9 +272,9 @@ const TrackDetailView: React.FC<{
                         </div>
                     </div>
                 ) : (
-                    // DESKTOP LAYOUT (2 Colonne)
+                    // DESKTOP LAYOUT (2 Colonne: Dati a SX, Mappa+Grafico a DX)
                     <ResizablePanel 
-                        direction="horizontal" 
+                        direction="vertical" // Use "vertical" here because ResizablePanel maps "vertical" to flex-row (horizontal layout)
                         initialSize={layoutSizes.sidebarWidth} 
                         minSize={250}
                         onResizeEnd={(s) => saveLayout({ sidebarWidth: s })}
@@ -273,34 +285,28 @@ const TrackDetailView: React.FC<{
                             {SidebarContent}
                         </div>
 
-                        {/* RIGHT: Main Content (Map + Chart + Playbar) */}
+                        {/* RIGHT: Main Content (Map -> Chart -> Playbar) */}
                         <div className="h-full flex flex-col w-full overflow-hidden relative">
                             
                             {/* Resizable: Map vs Chart */}
                             <div className="flex-grow overflow-hidden min-h-0 relative">
                                 <ResizablePanel 
-                                    direction="vertical"
+                                    direction="horizontal" // Use "horizontal" here because ResizablePanel maps "horizontal" to flex-col (vertical layout)
                                     initialSizeRatio={layoutSizes.mapHeightRatio}
                                     minSize={200}
                                     onResizeEnd={(s, r) => saveLayout({ mapHeightRatio: r })}
                                     className="h-full"
                                 >
-                                    {/* TOP: Map (Toolbar is inside MapDisplay) */}
-                                    <div className="h-full relative bg-slate-900 overflow-hidden w-full">
-                                        <MapDisplay 
-                                            tracks={[track]} 
-                                            visibleTrackIds={new Set([track.id])} 
-                                            animationTrack={track} 
-                                            animationProgress={progress} 
-                                            isAnimationPlaying={isAnimating} 
-                                            fitBoundsCounter={fitTrigger} 
-                                            raceRunners={null} 
-                                            hoveredTrackId={null} 
-                                            runnerSpeeds={new Map()} 
-                                            selectionPoints={selectedRange ? getPointsInDistanceRange(track, selectedRange.startDistance, selectedRange.endDistance) : highlightedSegments} 
-                                            mapGradientMetric={mapMetric} 
-                                            onGradientChange={setMapMetric}
-                                        />
+                                    {/* TOP: Map */}
+                                    <div className="h-full relative bg-slate-900 overflow-hidden w-full flex flex-col">
+                                        <div className="flex-grow relative">
+                                            <MapDisplay 
+                                                tracks={[track]} visibleTrackIds={new Set([track.id])} animationTrack={track} animationProgress={progress} 
+                                                isAnimationPlaying={isAnimating} fitBoundsCounter={fitTrigger} raceRunners={null} hoveredTrackId={null} 
+                                                runnerSpeeds={new Map()} selectionPoints={selectedRange ? getPointsInDistanceRange(track, selectedRange.startDistance, selectedRange.endDistance) : highlightedSegments} 
+                                                mapGradientMetric={mapMetric} onGradientChange={setMapMetric}
+                                            />
+                                        </div>
                                     </div>
 
                                     {/* BOTTOM: Chart + Selection Stats */}
