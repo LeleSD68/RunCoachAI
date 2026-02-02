@@ -181,6 +181,16 @@ const App: React.FC = () => {
                     sendNotification("Feed Attività", `${newRecord.name} è appena stata caricata.`);
                 }
             })
+            // 4. Added to a Group
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'social_group_members', filter: `user_id=eq.${userId}` }, async (payload) => {
+                const newMember = payload.new as any;
+                // Fetch group name to show a nice notification
+                const { data: groupData } = await supabase.from('social_groups').select('name').eq('id', newMember.group_id).single();
+                const groupName = groupData?.name || 'un gruppo';
+                const msg = `Sei stato aggiunto al gruppo: ${groupName}`;
+                addToast(msg, "success");
+                sendNotification("Nuovo Gruppo", msg);
+            })
             .subscribe();
 
         return () => {
