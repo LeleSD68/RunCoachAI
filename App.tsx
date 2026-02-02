@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Track, UserProfile, PlannedWorkout, Toast, ActivityType, RaceRunner, RaceResult, TrackStats, Commentary, TrackPoint, ApiUsage, RaceGapSnapshot, LeaderStats } from './types';
 import Sidebar from './components/Sidebar';
@@ -408,14 +407,14 @@ const App: React.FC = () => {
             let workoutDuplicates = 0;
             const duplicateIdsToDelete: string[] = [];
 
-            loadedWorkouts.forEach((w: PlannedWorkout) => {
+            (loadedWorkouts as any[]).forEach((w: PlannedWorkout) => {
                 const d = new Date(w.date);
                 const dateStr = d.toDateString();
                 const key = `${dateStr}|${w.title.trim().toLowerCase()}|${w.activityType}`;
                 
                 if (seenWorkoutKeys.has(key)) {
                     workoutDuplicates++;
-                    duplicateIdsToDelete.push(w.id);
+                    duplicateIdsToDelete.push(w.id as string);
                 } else {
                     seenWorkoutKeys.add(key);
                     uniqueWorkouts.push(w);
@@ -424,7 +423,7 @@ const App: React.FC = () => {
 
             if (workoutDuplicates > 0) {
                 await savePlannedWorkoutsToDB(uniqueWorkouts);
-                duplicateIdsToDelete.forEach((id) => deletePlannedWorkoutFromCloud(id));
+                duplicateIdsToDelete.forEach((id) => deletePlannedWorkoutFromCloud(id as string));
                 addToast(`Rimossi ${workoutDuplicates} allenamenti doppi.`, "info");
             }
 
