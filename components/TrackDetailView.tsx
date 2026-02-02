@@ -9,6 +9,7 @@ import PersonalRecordsPanel from './PersonalRecordsPanel';
 import GeminiTrackAnalysisPanel from './GeminiTrackAnalysisPanel';
 import GeminiSegmentsPanel from './GeminiSegmentsPanel';
 import ResizablePanel from './ResizablePanel';
+import ShareTrackModal from './ShareTrackModal'; 
 import { calculateTrackStats } from '../services/trackStatsService';
 import { calculateSegmentStats, getPointsInDistanceRange } from '../services/trackEditorUtils';
 
@@ -38,6 +39,8 @@ const formatDuration = (ms: number) => {
 
 const LAYOUT_KEY = 'track_detail_layout_prefs_v3';
 
+const ShareIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M13 12a3 3 0 1 1-2.5 1.34l-3.15-1.92a3 3 0 1 1 0-2.83l3.15-1.92a3.001 3.001 0 0 1 5 1.33Z" /></svg>);
+
 const TrackDetailView: React.FC<{ 
     track: Track, 
     userProfile: UserProfile, 
@@ -63,6 +66,7 @@ const TrackDetailView: React.FC<{
     const [selectedRange, setSelectedRange] = useState<{ startDistance: number; endDistance: number } | null>(null);
     const [highlightedSegments, setHighlightedSegments] = useState<TrackPoint[] | TrackPoint[][] | null>(null);
     const [mapMetric, setMapMetric] = useState<string>('none');
+    const [showShareModal, setShowShareModal] = useState(false);
     
     const [layoutSizes, setLayoutSizes] = useState({ sidebarWidth: 320, mapHeightRatio: 0.6 });
 
@@ -221,6 +225,14 @@ const TrackDetailView: React.FC<{
                     />
                 </div>
             </div>
+
+            <button 
+                onClick={() => setShowShareModal(true)}
+                className="w-10 h-10 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-400 hover:text-white flex items-center justify-center transition-colors shadow-lg ml-2"
+                title="Condividi Corsa"
+            >
+                <ShareIcon />
+            </button>
         </div>
     );
 
@@ -272,32 +284,24 @@ const TrackDetailView: React.FC<{
                         </div>
                     </div>
                 ) : (
-                    // DESKTOP LAYOUT (2 Colonne: Dati a SX, Mappa+Grafico a DX)
+                    // DESKTOP LAYOUT
                     <ResizablePanel 
-                        direction="vertical" // Use "vertical" here because ResizablePanel maps "vertical" to flex-row (horizontal layout)
+                        direction="vertical" 
                         initialSize={layoutSizes.sidebarWidth} 
                         minSize={250}
                         onResizeEnd={(s) => saveLayout({ sidebarWidth: s })}
                         className="w-full h-full"
                     >
-                        {/* LEFT: Sidebar (Data) */}
-                        <div className="h-full bg-slate-950 border-r border-slate-800 overflow-hidden">
-                            {SidebarContent}
-                        </div>
-
-                        {/* RIGHT: Main Content (Map -> Chart -> Playbar) */}
+                        <div className="h-full bg-slate-950 border-r border-slate-800 overflow-hidden">{SidebarContent}</div>
                         <div className="h-full flex flex-col w-full overflow-hidden relative">
-                            
-                            {/* Resizable: Map vs Chart */}
                             <div className="flex-grow overflow-hidden min-h-0 relative">
                                 <ResizablePanel 
-                                    direction="horizontal" // Use "horizontal" here because ResizablePanel maps "horizontal" to flex-col (vertical layout)
+                                    direction="horizontal"
                                     initialSizeRatio={layoutSizes.mapHeightRatio}
                                     minSize={200}
                                     onResizeEnd={(s, r) => saveLayout({ mapHeightRatio: r })}
                                     className="h-full"
                                 >
-                                    {/* TOP: Map */}
                                     <div className="h-full relative bg-slate-900 overflow-hidden w-full flex flex-col">
                                         <div className="flex-grow relative">
                                             <MapDisplay 
@@ -308,8 +312,6 @@ const TrackDetailView: React.FC<{
                                             />
                                         </div>
                                     </div>
-
-                                    {/* BOTTOM: Chart + Selection Stats */}
                                     <div className="h-full flex flex-col bg-slate-900 border-t border-slate-800 overflow-hidden w-full">
                                         {SelectionStatsBar}
                                         <div className="flex-grow relative bg-slate-900/50 p-2 min-h-0">
@@ -318,13 +320,12 @@ const TrackDetailView: React.FC<{
                                     </div>
                                 </ResizablePanel>
                             </div>
-
-                            {/* FOOTER: Controls (Fixed Bottom of Right Column) */}
                             {AnimationControlsBar}
                         </div>
                     </ResizablePanel>
                 )}
             </div>
+            {showShareModal && <ShareTrackModal track={track} onClose={() => setShowShareModal(false)} />}
         </div>
     );
 };
