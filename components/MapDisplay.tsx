@@ -269,14 +269,45 @@ const MapDisplay: React.FC<MapDisplayProps & { onGradientChange?: (metric: strin
             map.setView([currentPoint.lat, currentPoint.lon], map.getZoom(), { animate: false });
         }
 
-        const pace = getSmoothedPace(animationTrack, animationProgress, 100);
+        // Determina etichetta e valore in base alla metrica scelta
+        let labelValue = '';
+        let labelUnit = '';
+        let markerColor = '#22d3ee'; // Default cyan
+
+        if (localGradient === 'hr') {
+            const hr = currentPoint.hr || 0;
+            labelValue = Math.round(hr).toString();
+            labelUnit = 'bpm';
+            if (hr < 130) markerColor = '#3b82f6';
+            else if (hr < 160) markerColor = '#22c55e';
+            else markerColor = '#ef4444';
+        } else if (localGradient === 'elevation') {
+            labelValue = Math.round(currentPoint.ele).toString();
+            labelUnit = 'm';
+            markerColor = '#eab308'; // Yellow for elevation
+        } else if (localGradient === 'power') {
+            labelValue = Math.round(currentPoint.power || 0).toString();
+            labelUnit = 'W';
+            markerColor = '#a855f7'; // Purple for power
+        } else {
+            // Default: Pace
+            const pace = getSmoothedPace(animationTrack, animationProgress, 100);
+            labelValue = formatPace(pace);
+            labelUnit = '/km';
+            // Usa colore in base al passo (approssimativo)
+            if (pace < 4.5) markerColor = '#22d3ee'; // Fast cyan
+            else if (pace < 5.5) markerColor = '#22c55e'; // Green
+            else markerColor = '#f59e0b'; // Amber
+        }
+
         const labelId = 'replay-cursor';
         let m = ghostMarkersRef.current.get(labelId);
+        
         const html = `
             <div style="position: relative;">
-                <div class="w-4 h-4 bg-cyan-500 rounded-full border-2 border-white shadow-[0_0_15px_rgba(34,211,238,0.8)]"></div>
-                <div class="bg-cyan-500 text-white px-2 py-1 rounded-full text-[10px] font-black shadow-2xl border border-white/40 whitespace-nowrap animate-pulse" style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);">
-                    ${formatPace(pace)}
+                <div style="width: 16px; height: 16px; background-color: ${markerColor}; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 15px ${markerColor}, 0 2px 4px rgba(0,0,0,0.5);"></div>
+                <div style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background-color: ${markerColor}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 900; white-space: nowrap; box-shadow: 0 2px 5px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.5);">
+                    ${labelValue} <span style="opacity: 0.8; font-size: 8px;">${labelUnit}</span>
                 </div>
             </div>`;
 
@@ -295,7 +326,7 @@ const MapDisplay: React.FC<MapDisplayProps & { onGradientChange?: (metric: strin
             ghostMarkersRef.current.clear();
         }
     }
-  }, [animationProgress, animationTrack, isAnimationPlaying, raceRunners, tracks]);
+  }, [animationProgress, animationTrack, isAnimationPlaying, raceRunners, tracks, localGradient]);
 
   return (
     <div className="flex flex-col h-full w-full bg-slate-900 overflow-hidden relative group">
