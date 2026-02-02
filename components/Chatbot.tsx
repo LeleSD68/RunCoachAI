@@ -24,18 +24,31 @@ const SendIcon = () => (
     </svg>
 );
 
+const TrashIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
+        <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.1499.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149-.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clipRule="evenodd" />
+    </svg>
+);
+
 const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, onClose, isStandalone = false, onAddPlannedWorkout, plannedWorkouts = [] }) => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const [isFullscreen, setIsFullscreen] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const chatSessionRef = useRef<Chat | null>(null);
+    const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
 
     useEffect(() => {
         loadChatFromDB(GLOBAL_CHAT_ID).then(saved => {
             if (saved && saved.length > 0) {
                 setMessages(saved);
+                // Open only the latest date by default
+                const dates = new Set(saved.map(m => new Date(m.timestamp).toLocaleDateString()));
+                // If we want only the last date open:
+                // const lastDate = new Date(saved[saved.length - 1].timestamp).toLocaleDateString();
+                // setExpandedDates(new Set([lastDate]));
+                // If we want all open by default (standard chat behavior usually):
+                setExpandedDates(dates);
             } else {
                 setMessages([{
                     role: 'model',
@@ -43,6 +56,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
                     timestamp: Date.now(),
                     suggestedReplies: ["Analizza il mio stato", "Cosa corro domani?", "Consiglio per maratona"]
                 }]);
+                setExpandedDates(new Set([new Date().toLocaleDateString()]));
             }
         });
     }, [userProfile.name]);
@@ -55,7 +69,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
+    }, [messages, expandedDates]); // Scroll when messages change or dates expand
 
     const generateSystemInstruction = () => {
         const personality = userProfile.aiPersonality || 'pro_balanced';
@@ -70,26 +84,48 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
         const futureContext = plannedWorkouts
             .filter(w => !w.completedTrackId && new Date(w.date) >= new Date())
             .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-            .map(w => `- ${new Date(w.date).toLocaleDateString()}: ${w.title} (${w.activityType})`)
+            .map(w => `- ${new Date(w.date).toLocaleDateString()}: ${w.title} (${w.activityType}) [${w.entryType}]`)
             .join('\n');
 
+        if (personality === 'friend_coach') {
+            return `Agisci come il mio Coach Personale di Corsa e il mio miglior amico. Il tuo nome è COACH AI, hai un tono empatico, sei un supporto costante e mi conosci a fondo. Il tuo obiettivo è portarmi al raggiungimento dei miei obiettivi stagionali (${userProfile.goals?.join(', ')}), adattando costantemente il programma al mio stile di vita reale.
+
+            DATA ODIERNA: ${today}.
+            
+            PROFILO UTENTE:
+            - Nome: ${userName}
+            - Età: ${userProfile.age || 'N/D'} anni
+            - Peso: ${userProfile.weight || 'N/D'} kg
+            - Impara a prevedere le mie reazioni e i miei limiti.
+
+            STORICO RECENTE (Analizza ritmi, cardio, giudizi):
+            ${historyContext || "Nessuna corsa registrata."}
+            
+            DIARIO DI BORDO (Note, Impegni, Programma):
+            ${futureContext || "Nessun impegno futuro."}
+
+            REGOLE DI INTERFACCIA E STILE:
+            1. Integrazione Dati: Analizza costantemente dati tecnici, diario di bordo e storico chat per una visione a 360°.
+            2. Flessibilità Totale: Se noto che una settimana sono libero solo nel weekend o se preferisco correre 2 o 4 volte, adatta il piano istantaneamente senza farmi sentire in colpa, ma motivandomi.
+            3. Sintonia Psicologica: Analizza il mio stile. Se uso ironia, rispondi con ironia. Se sono giù, sii il mio pilastro. Anticipa le mie necessità.
+            4. Evoluzione: Affina il modello su di me man mano che parliamo.
+            5. Se proponi un nuovo allenamento, usa questo formato JSON speciale:
+               :::WORKOUT_PROPOSAL={"title": "Titolo", "activityType": "Lento/Fartlek/Ripetute/Lungo/Gara/Altro", "date": "YYYY-MM-DD", "description": "Dettagli tecnici..."}:::
+            6. Rispondi sempre in ITALIANO.
+            `;
+        }
+
+        // Fallback for other personalities
         return `Sei l'HEAD COACH AI di ${userName} (Personalità: ${personality}).
-        Hai accesso a tutto: storico corse, giudizi AI passati, note dell'atleta e calendario futuro.
-        
         DATA ODIERNA: ${today}.
-        
-        STORICO RECENTE (Ultime 10):
+        STORICO RECENTE:
         ${historyContext || "Nessuna corsa registrata."}
-        
         CALENDARIO FUTURO:
         ${futureContext || "Nessun allenamento pianificato."}
-
         OBIETTIVI: ${userProfile.goals?.join(', ') || 'Miglioramento generale'}.
-
         REGOLE:
-        1. Sii proattivo. Se l'atleta chiede un consiglio, guarda cosa ha fatto negli ultimi giorni.
-        2. Se proponi un nuovo allenamento, usa questo formato JSON speciale per permettere il salvataggio:
-           :::WORKOUT_PROPOSAL={"title": "Titolo", "activityType": "Lento/Fartlek/Ripetute/Lungo/Gara/Altro", "date": "YYYY-MM-DD", "description": "Dettagli tecnici..."}:::
+        1. Sii proattivo.
+        2. Formato JSON per allenamenti: :::WORKOUT_PROPOSAL={"title": "Titolo", "activityType": "Type", "date": "YYYY-MM-DD", "description": "Desc"}:::
         3. Rispondi sempre in ITALIANO.
         `;
     };
@@ -112,10 +148,17 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
     const handleSend = async (text: string) => {
         if (!text.trim() || isLoading) return;
         
-        // Fix for: Property 'gpxApp' does not exist on type 'Window & typeof globalThis'.
         (window as any).gpxApp?.trackApiRequest();
         const userMsg = { role: 'user' as const, text, timestamp: Date.now() };
-        setMessages(prev => [...prev, userMsg]);
+        
+        // Optimistic update
+        setMessages(prev => {
+            const next = [...prev, userMsg];
+            // Ensure today is expanded
+            setExpandedDates(d => new Set(d).add(new Date().toLocaleDateString()));
+            return next;
+        });
+        
         setInput('');
         setIsLoading(true);
 
@@ -124,7 +167,9 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
                 initChat();
                 if (chatSessionRef.current) {
                     const result = await chatSessionRef.current.sendMessageStream({ message: text });
+                    // Placeholder for AI message
                     setMessages(prev => [...prev, { role: 'model', text: '', timestamp: Date.now() }]);
+                    
                     let fullText = '';
                     for await (const chunk of result) {
                         const c = chunk as GenerateContentResponse;
@@ -142,6 +187,16 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const handleDeleteMessage = (indexToDelete: number) => {
+        setMessages(prev => {
+            const next = prev.filter((_, i) => i !== indexToDelete);
+            // We need to re-initialize chat history context next time user sends message
+            // Ideally we should do it immediately or on next send
+            chatSessionRef.current = null; 
+            return next;
+        });
     };
 
     const handleAddProposal = (jsonStr: string) => {
@@ -162,12 +217,41 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
         }
     };
 
+    const toggleDateGroup = (date: string) => {
+        setExpandedDates(prev => {
+            const next = new Set(prev);
+            if (next.has(date)) next.delete(date);
+            else next.add(date);
+            return next;
+        });
+    };
+
+    const groupedMessages = useMemo(() => {
+        const groups: Record<string, { msg: ChatMessage, index: number }[]> = {};
+        messages.forEach((msg, index) => {
+            const date = new Date(msg.timestamp).toLocaleDateString();
+            if (!groups[date]) groups[date] = [];
+            groups[date].push({ msg, index });
+        });
+        return groups;
+    }, [messages]);
+
     const renderMessage = (msg: ChatMessage, index: number) => {
         const parts = msg.text.split(/:::WORKOUT_PROPOSAL=(.*?):::/g);
         
         return (
-            <div key={index} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} mb-4 animate-fade-in`}>
-                <div className={`max-w-[90%] p-3 rounded-2xl text-sm ${msg.role === 'user' ? 'bg-purple-600 text-white rounded-br-none' : 'bg-slate-700 text-slate-100 rounded-bl-none'}`}>
+            <div key={index} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} mb-4 animate-fade-in group relative`}>
+                <div className={`max-w-[90%] p-3 rounded-2xl text-sm relative ${msg.role === 'user' ? 'bg-purple-600 text-white rounded-br-none' : 'bg-slate-700 text-slate-100 rounded-bl-none'}`}>
+                    
+                    {/* Delete Button (Visible on Hover) */}
+                    <button 
+                        onClick={() => handleDeleteMessage(index)}
+                        className={`absolute -top-2 ${msg.role === 'user' ? '-left-2' : '-right-2'} bg-slate-800 text-slate-400 hover:text-red-400 p-1 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity z-10 border border-slate-600`}
+                        title="Elimina messaggio"
+                    >
+                        <TrashIcon />
+                    </button>
+
                     {parts.map((part, i) => {
                         if (i % 2 === 1) { // It's a JSON block
                             try {
@@ -201,14 +285,16 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
         <div className={`flex flex-col bg-slate-900 border border-slate-700 shadow-2xl overflow-hidden ${isStandalone ? 'w-full md:w-[450px] h-[600px] md:rounded-3xl' : 'h-full'}`}>
             <header className="p-4 bg-slate-800 border-b border-slate-700 flex justify-between items-center shrink-0">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg border border-white/10 p-1">
-                        <img src="/logo.png" className="w-full h-full object-contain" alt="Coach" />
+                    <div className="w-10 h-10 bg-purple-600 rounded-xl flex items-center justify-center shadow-lg border border-purple-400/50 p-1">
+                        <img src="/icona.png" alt="AI Coach" className="w-full h-full object-cover rounded-lg" />
                     </div>
                     <div>
-                        <h3 className="font-black text-white uppercase text-sm tracking-tight">Head Coach AI</h3>
+                        <h3 className="font-black text-white uppercase text-sm tracking-tight">Coach AI</h3>
                         <div className="flex items-center gap-1">
                             <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
-                            <span className="text-[9px] text-slate-400 uppercase font-bold tracking-widest">In ascolto...</span>
+                            <span className="text-[9px] text-slate-400 uppercase font-bold tracking-widest">
+                                {userProfile.aiPersonality === 'friend_coach' ? 'Best Friend Mode' : 'Online'}
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -216,8 +302,31 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
             </header>
             
             <div className="flex-grow overflow-y-auto p-4 custom-scrollbar bg-slate-900/50">
-                {messages.map((msg, idx) => renderMessage(msg, idx))}
-                {isLoading && <div className="text-slate-500 text-xs italic animate-pulse p-2">Il coach sta elaborando i dati...</div>}
+                {Object.entries(groupedMessages).map(([date, items]) => (
+                    <div key={date} className="mb-6">
+                        <div 
+                            onClick={() => toggleDateGroup(date)}
+                            className="flex items-center justify-center mb-4 cursor-pointer group"
+                        >
+                            <span className="text-[9px] font-bold text-slate-500 bg-slate-800 px-3 py-1 rounded-full uppercase tracking-widest border border-slate-700 group-hover:border-slate-500 transition-colors">
+                                {date} {expandedDates.has(date) ? '▼' : '▶'}
+                            </span>
+                        </div>
+                        
+                        {expandedDates.has(date) && (
+                            <div className="space-y-2">
+                                {items.map(({ msg, index }) => renderMessage(msg, index))}
+                            </div>
+                        )}
+                    </div>
+                ))}
+                
+                {isLoading && (
+                    <div className="flex items-center gap-2 text-slate-500 text-xs italic p-2 animate-pulse">
+                        <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                        Il coach sta scrivendo...
+                    </div>
+                )}
                 <div ref={messagesEndRef} />
             </div>
 
@@ -226,7 +335,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
                     type="text" 
                     value={input} 
                     onChange={e => setInput(e.target.value)} 
-                    placeholder="Chiedi un consiglio o un programma..."
+                    placeholder="Chiedi un consiglio o aggiorna il coach..."
                     className="flex-grow bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:border-purple-500 outline-none transition-colors"
                 />
                 <button type="submit" disabled={!input.trim() || isLoading} className="bg-purple-600 hover:bg-purple-500 text-white p-3 rounded-xl transition-all shadow-lg"><SendIcon /></button>
