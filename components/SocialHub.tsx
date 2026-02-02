@@ -5,6 +5,7 @@ import { searchUsers, sendFriendRequest, getFriendRequests, acceptFriendRequest,
 import { supabase } from '../services/supabaseClient';
 import TrackPreview from './TrackPreview';
 import RatingStars from './RatingStars';
+import MiniChat from './MiniChat';
 
 interface SocialHubProps {
     onClose: () => void;
@@ -18,24 +19,8 @@ const AddUserIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 
 const ActivityIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM6.75 9.25a.75.75 0 0 0 0 1.5h4.59l-2.1 2.1a.75.75 0 1 0 1.06 1.06l3.38-3.38a.75.75 0 0 0 0-1.06l-3.38-3.38a.75.75 0 1 0-1.06 1.06l2.1 2.1H6.75Z" clipRule="evenodd" /></svg>);
 const SearchIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clipRule="evenodd" /></svg>);
 const ChatBubbleIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M10 2c-2.236 0-4.43.18-6.57.524C1.993 2.755 1 4.014 1 5.426v5.148c0 1.413.993 2.67 2.43 2.902.848.137 1.705.248 2.57.331v3.443a.75.75 0 0 0 1.28.53l3.58-3.579a.78.78 0 0 1 .527-.224 41.202 41.202 0 0 0 5.183-.5c1.437-.232 2.43-1.49 2.43-2.903V5.426c0-1.413-.993-2.67-2.43-2.902A41.289 41.289 0 0 0 10 2Zm0 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM8 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm5 1a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd" /></svg>);
-const SendIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M3.105 2.289a.75.75 0 0 0-.826.95l1.414 4.949a.75.75 0 0 0 .95.95l4.95-1.414a.75.75 0 0 0-.95-.95l-3.539 1.01-1.01-3.54a.75.75 0 0 0-.95-.826ZM12.23 7.77a.75.75 0 0 0-1.06 0l-4.25 4.25a.75.75 0 0 0 0 1.06l4.25 4.25a.75.75 0 0 0 1.06-1.06l-3.72-3.72 3.72-3.72a.75.75 0 0 0 0-1.06ZM15.5 10a.75.75 0 0 1 .75-.75h.01a.75.75 0 0 1 0 1.5H16.25a.75.75 0 0 1-.75-.75Z" /></svg>);
 const GhostIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M10 1a4.5 4.5 0 0 0-4.5 4.5V9H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-.5V5.5A4.5 4.5 0 0 0 10 1Zm3 8V5.5a3 3 0 1 0-6 0V9h6Z" /></svg>);
 const GroupIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M7 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM14.5 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM1.615 16.428a1.224 1.224 0 0 1-.569-1.175 6.002 6.002 0 0 1 11.908 0c.058.467-.172.92-.57 1.174A9.953 9.953 0 0 1 7 18a9.953 9.953 0 0 1-5.385-1.572ZM14.5 16h-.106c.07-.38.106-.772.106-1.175 0-.537-.067-1.054-.191-1.543A7.001 7.001 0 0 1 17 18a9.952 9.952 0 0 1-2.5-2Z" /></svg>);
-
-const getMessageDateLabel = (dateString: string) => {
-    const date = new Date(dateString);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    date.setHours(0,0,0,0);
-    today.setHours(0,0,0,0);
-    yesterday.setHours(0,0,0,0);
-    if (date.getTime() === today.getTime()) return 'Oggi';
-    if (date.getTime() === yesterday.getTime()) return 'Ieri';
-    return date.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' });
-};
-
-const REACTIONS_LIST = ['👍', '🔥', '⚡', '👏', '🏃'];
 
 const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallengeGhost, onReadMessages }) => {
     const [activeTab, setActiveTab] = useState<'feed' | 'friends' | 'groups' | 'add'>('feed');
@@ -46,21 +31,13 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
     const [loading, setLoading] = useState(false);
-    const [message, setMessage] = useState('');
     const [sentRequests, setSentRequests] = useState<Set<string>>(new Set());
     
-    // Group Create State
     const [newGroupName, setNewGroupName] = useState('');
     const [isCreatingGroup, setIsCreatingGroup] = useState(false);
     const [activeGroupFilter, setActiveGroupFilter] = useState<SocialGroup | null>(null);
 
-    // Chat states
     const [activeChatFriend, setActiveChatFriend] = useState<UserProfile | null>(null);
-    const [chatMessages, setChatMessages] = useState<DirectMessage[]>([]);
-    const [newMessage, setNewMessage] = useState('');
-    const chatEndRef = useRef<HTMLDivElement>(null);
-    const pollIntervalRef = useRef<number | null>(null);
-
     const [selectedFeedTrack, setSelectedFeedTrack] = useState<Track | null>(null);
 
     useEffect(() => {
@@ -113,7 +90,7 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
             await createGroup(newGroupName, '', currentUserId);
             setNewGroupName('');
             setIsCreatingGroup(false);
-            loadData(); // Refresh groups
+            loadData();
         } catch (e) {
             alert("Errore creazione gruppo");
         } finally {
@@ -122,20 +99,32 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
     };
 
     const handleGroupClick = (group: SocialGroup) => {
-        // Filter feed by group
         setActiveGroupFilter(group);
         setActiveTab('feed');
     };
 
-    // ... (Existing handlers for chat, requests, etc. remain the same) ...
-    const handleSendRequest = async (userId: string) => { /* ... */ }; 
-    const handleAccept = async (reqId: string) => { await acceptFriendRequest(reqId); loadData(); };
-    const handleReject = async (reqId: string) => { if(confirm("Rifiutare?")) { await rejectFriendRequest(reqId); loadData(); } };
-    const openChat = (friend: UserProfile) => { setActiveChatFriend(friend); setChatMessages([]); };
-    const sendMessage = async (e: React.FormEvent) => { /* ... */ };
-    const handleReaction = async (track: Track, emoji: string) => { /* ... */ };
+    const handleSendRequest = async (userId: string) => {
+        try {
+            await sendFriendRequest(userId, currentUserId);
+            setSentRequests(prev => new Set(prev).add(userId));
+        } catch (e) {
+            alert("Impossibile inviare richiesta.");
+        }
+    };
 
-    // ... (Chat Render logic remains same) ...
+    const handleAccept = async (reqId: string) => {
+        setLoading(true);
+        await acceptFriendRequest(reqId);
+        loadData();
+    };
+
+    const handleReject = async (reqId: string) => {
+        if(confirm("Rifiutare richiesta?")) {
+            setLoading(true);
+            await rejectFriendRequest(reqId);
+            loadData();
+        }
+    };
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[10000] flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
@@ -153,8 +142,13 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
                     <button onClick={() => setActiveTab('add')} className={`flex-1 min-w-[80px] py-3 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${activeTab === 'add' ? 'text-cyan-400 border-b-2 border-cyan-400 bg-slate-800' : 'text-slate-500 hover:text-slate-300'}`}><AddUserIcon /> Cerca</button>
                 </div>
 
-                <div className="flex-grow overflow-y-auto p-4 custom-scrollbar pb-24">
-                    
+                <div className="flex-grow overflow-y-auto p-4 custom-scrollbar pb-24 relative">
+                    {loading && (
+                        <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center z-10">
+                            <div className="w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                    )}
+
                     {activeTab === 'feed' && (
                         <div className="space-y-3">
                             {activeGroupFilter && (
@@ -175,7 +169,15 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
                                     return (
                                         <div 
                                             key={track.id} 
-                                            onClick={() => setSelectedFeedTrack(track)}
+                                            onClick={() => {
+                                                if (onChallengeGhost) {
+                                                    // In a real app we might show track details first
+                                                    if(confirm(`Sfidare ${track.userDisplayName} in modalità Ghost?`)) {
+                                                        onChallengeGhost(track);
+                                                        onClose();
+                                                    }
+                                                }
+                                            }}
                                             className="bg-slate-800/50 border border-slate-700/50 hover:border-slate-600 rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all group cursor-pointer"
                                         >
                                             <div className="flex items-center p-3 gap-3">
@@ -194,6 +196,7 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
                                                 </div>
                                                 <div className="flex flex-col items-end gap-1">
                                                     {reactionCount > 0 && <div className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-purple-900/50 text-purple-300">🔥 {reactionCount}</div>}
+                                                    <button className="text-[10px] bg-purple-600 text-white px-2 py-1 rounded font-bold opacity-0 group-hover:opacity-100 transition-opacity">SFIDA</button>
                                                 </div>
                                             </div>
                                         </div>
@@ -249,21 +252,113 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
                         </div>
                     )}
 
-                    {/* Friends & Add tabs remain largely the same, included for completeness */}
                     {activeTab === 'friends' && (
-                        <div className="space-y-4">
-                            {/* ... existing friends UI ... */}
-                            <p className="text-center text-slate-500 text-xs">Vedi codice precedente per dettagli UI amici.</p>
+                        <div className="space-y-6 animate-fade-in">
+                            {/* Requests */}
+                            {requests.length > 0 && (
+                                <div className="space-y-2">
+                                    <h3 className="text-xs font-black text-cyan-400 uppercase tracking-widest mb-2">Richieste in sospeso</h3>
+                                    {requests.map(req => (
+                                        <div key={req.id} className="flex items-center justify-between p-3 bg-slate-800/80 border border-cyan-500/30 rounded-xl">
+                                            <span className="text-sm font-bold text-white">{req.requester.name}</span>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => handleAccept(req.id)} className="bg-green-600 hover:bg-green-500 text-white p-1.5 rounded-lg transition-colors"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clipRule="evenodd" /></svg></button>
+                                                <button onClick={() => handleReject(req.id)} className="bg-red-900/50 hover:bg-red-900 text-red-400 p-1.5 rounded-lg transition-colors"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" /></svg></button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Friends List */}
+                            <div>
+                                <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3">I tuoi amici ({friends.length})</h3>
+                                {friends.length === 0 ? (
+                                    <div className="text-center py-8 text-slate-500 text-xs">
+                                        <p>Non hai ancora amici connessi.</p>
+                                        <button onClick={() => setActiveTab('add')} className="text-cyan-400 underline mt-1">Cerca qualcuno</button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {friends.map(friend => (
+                                            <div key={friend.id} className="flex items-center justify-between p-3 bg-slate-800 rounded-xl border border-slate-700 hover:border-slate-600 transition-colors group">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="relative">
+                                                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center text-xs font-bold text-white">
+                                                            {friend.name?.substring(0,1)}
+                                                        </div>
+                                                        {friend.isOnline && <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 border-2 border-slate-800 rounded-full"></div>}
+                                                    </div>
+                                                    <span className="text-sm font-bold text-white">{friend.name}</span>
+                                                </div>
+                                                <button 
+                                                    onClick={() => setActiveChatFriend(friend)}
+                                                    className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+                                                >
+                                                    <ChatBubbleIcon />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
+
                     {activeTab === 'add' && (
-                        <div>
-                            {/* ... existing add UI ... */}
-                            <p className="text-center text-slate-500 text-xs">Vedi codice precedente per dettagli UI ricerca.</p>
+                        <div className="space-y-4 animate-fade-in">
+                            <div className="relative">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                                    <SearchIcon />
+                                </div>
+                                <input 
+                                    type="text" 
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Cerca per nome..." 
+                                    className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 pl-10 pr-4 text-sm text-white focus:border-cyan-500 outline-none transition-colors"
+                                    autoFocus
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                {!loading && searchResults.length === 0 && searchQuery.length >= 3 && (
+                                    <div className="text-center text-slate-500 text-xs py-4">Nessun utente trovato.</div>
+                                )}
+
+                                {searchResults.map(user => {
+                                    const isSent = sentRequests.has(user.id || '');
+                                    return (
+                                        <div key={user.id} className="flex items-center justify-between p-3 bg-slate-800 rounded-xl border border-slate-700">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-white">
+                                                    {user.name?.substring(0,1)}
+                                                </div>
+                                                <span className="text-sm font-bold text-white">{user.name}</span>
+                                            </div>
+                                            <button 
+                                                onClick={() => user.id && handleSendRequest(user.id)}
+                                                disabled={isSent}
+                                                className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${isSent ? 'bg-slate-700 text-slate-400' : 'bg-cyan-600 hover:bg-cyan-500 text-white'}`}
+                                            >
+                                                {isSent ? 'Inviata' : 'Aggiungi'}
+                                            </button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
                     )}
                 </div>
             </div>
+
+            {activeChatFriend && (
+                <MiniChat 
+                    currentUser={{ id: currentUserId }} 
+                    friend={activeChatFriend} 
+                    onClose={() => setActiveChatFriend(null)} 
+                />
+            )}
         </div>
     );
 };
