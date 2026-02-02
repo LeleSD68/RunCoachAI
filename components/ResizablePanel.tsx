@@ -58,32 +58,6 @@ const ResizablePanel: React.FC<ResizablePanelProps> = ({ children, direction, in
         });
     }, [direction, minSize, minSizeSecondary]);
     
-    const handleMouseUp = useCallback(() => {
-        if (isResizing.current) {
-            isResizing.current = false;
-            document.removeEventListener('mousemove', handleMouseMove);
-            document.removeEventListener('mouseup', handleMouseUp);
-            document.body.style.cursor = '';
-            document.body.style.userSelect = '';
-            
-            // Emit the final size from state (we need to access the current value, 
-            // but since handleMouseUp is a closure, we might need a ref or rely on the last set state logic)
-            // Ideally we'd pass the specific size, but accessing state here might be stale without deps.
-            // However, `size` update triggers re-render. Let's use a ref for the *latest* size during drag if needed, 
-            // or calculate it one last time.
-            // Simpler approach: We trust the user stopped dragging near where the mouse is.
-            // But calculating exact size here requires the event object which we don't have in this specific callback signature easily 
-            // unless we attach it to window listener.
-            
-            // Better approach: Let the effect or the setState update trigger it? No, that would trigger on every frame.
-            // Let's rely on `size` being reasonably up to date or passed via a ref if strictly necessary.
-            // Actually, we can just trigger it with the current `size` state if we include it in dependency, 
-            // but we only want to trigger ONCE at end.
-            
-            // Hack: trigger a state read via a ref to get latest size without re-rendering loop
-        }
-    }, [handleMouseMove]);
-
     // We use a ref to track the latest size to emit it on mouse up without stale closures
     const sizeRef = useRef(size);
     useEffect(() => { sizeRef.current = size; }, [size]);
