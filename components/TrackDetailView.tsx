@@ -36,7 +36,7 @@ const formatDuration = (ms: number) => {
     return `${minutes}m ${seconds}s`;
 };
 
-const LAYOUT_KEY = 'track_detail_layout_prefs';
+const LAYOUT_KEY = 'track_detail_layout_prefs_v2';
 
 const TrackDetailView: React.FC<{ 
     track: Track, 
@@ -51,6 +51,11 @@ const TrackDetailView: React.FC<{
     track, userProfile, onExit, allHistory = [], plannedWorkouts = [], 
     onUpdateTrackMetadata, onAddPlannedWorkout, onCheckAiAccess 
 }) => {
+    // Safety check for track data
+    if (!track || typeof track.distance !== 'number') {
+        return <div className="text-white p-4">Errore caricamento traccia. Dati mancanti. <button onClick={onExit}>Indietro</button></div>;
+    }
+
     const [progress, setProgress] = useState(track.distance);
     const [isAnimating, setIsAnimating] = useState(false);
     const [animSpeed, setAnimSpeed] = useState(15);
@@ -60,8 +65,7 @@ const TrackDetailView: React.FC<{
     const [highlightedSegments, setHighlightedSegments] = useState<TrackPoint[] | TrackPoint[][] | null>(null);
     const [mapMetric, setMapMetric] = useState<string>('none');
     
-    // Layout State Persistence
-    const [layoutSizes, setLayoutSizes] = useState({ sidebarWidth: 320, mapHeightRatio: 0.6 });
+    const [layoutSizes, setLayoutSizes] = useState({ sidebarWidth: 320, mapHeightRatio: 0.55 });
 
     useEffect(() => {
         const stored = localStorage.getItem(LAYOUT_KEY);
@@ -175,7 +179,7 @@ const TrackDetailView: React.FC<{
     );
 
     const AnimationControlsBar = (
-        <div className="flex items-center gap-3 p-2 bg-slate-900 border-t border-slate-800 shrink-0 h-14">
+        <div className="flex items-center gap-3 p-2 bg-slate-900 border-t border-slate-800 shrink-0 h-14 w-full z-30">
             <button onClick={() => setIsAnimating(!isAnimating)} className="w-8 h-8 bg-cyan-600 hover:bg-cyan-500 rounded flex items-center justify-center transition-colors shadow-lg active:scale-95 text-white">
                 {isAnimating ? '⏸' : '▶'}
             </button>
@@ -219,7 +223,7 @@ const TrackDetailView: React.FC<{
 
             <div className="flex-grow overflow-hidden relative flex flex-col lg:flex-row h-full">
                 {isMobile ? (
-                    // MOBILE LAYOUT (Vertical Stack fixed height logic)
+                    // MOBILE LAYOUT (Stack Rigido per evitare overflow PlayBar)
                     <div className="flex flex-col w-full h-full overflow-hidden">
                         {/* Map Section (Fixed Height ~35%) */}
                         <div className="h-[35%] relative border-b border-slate-800 shrink-0">
@@ -239,23 +243,24 @@ const TrackDetailView: React.FC<{
                             />
                         </div>
                         
+                        {/* Selection Bar (Condizionale) */}
                         {SelectionStatsBar}
                         
-                        {/* Stats Section (Scrollable, takes remaining space) */}
+                        {/* Stats Section (Flex Grow per riempire spazio) */}
                         <div className="flex-grow overflow-y-auto bg-slate-950 min-h-0">
                             {SidebarContent}
                         </div>
                         
-                        {/* Chart + Controls (Fixed Height ~200px) */}
-                        <div className="h-56 border-t border-slate-800 bg-slate-900 shrink-0 flex flex-col">
-                            <div className="flex-grow relative min-h-0">
+                        {/* Chart + Controls (Fixed Height Bottom) */}
+                        <div className="h-56 border-t border-slate-800 bg-slate-900 shrink-0 flex flex-col w-full">
+                            <div className="flex-grow relative min-h-0 w-full">
                                 <TimelineChart track={track} yAxisMetrics={['pace', 'hr']} onChartHover={setHoveredPoint} hoveredPoint={hoveredPoint} onSelectionChange={setSelectedRange} showPauses={false} pauseSegments={[]} animationProgress={progress} isAnimating={isAnimating} userProfile={userProfile} highlightedRange={selectedRange} />
                             </div>
                             {AnimationControlsBar}
                         </div>
                     </div>
                 ) : (
-                    // DESKTOP LAYOUT (Horizontal Split)
+                    // DESKTOP LAYOUT (2 Colonne)
                     <ResizablePanel 
                         direction="horizontal" 
                         initialSize={layoutSizes.sidebarWidth} 
@@ -263,16 +268,16 @@ const TrackDetailView: React.FC<{
                         onResizeEnd={(s) => saveLayout({ sidebarWidth: s })}
                         className="w-full h-full"
                     >
-                        {/* LEFT: Sidebar */}
+                        {/* LEFT: Sidebar (Data) */}
                         <div className="h-full bg-slate-950 border-r border-slate-800 overflow-hidden">
                             {SidebarContent}
                         </div>
 
-                        {/* RIGHT: Flex Column */}
-                        <div className="h-full flex flex-col w-full overflow-hidden">
+                        {/* RIGHT: Main Content (Map + Chart + Playbar) */}
+                        <div className="h-full flex flex-col w-full overflow-hidden relative">
                             
                             {/* Resizable: Map vs Chart */}
-                            <div className="flex-grow overflow-hidden min-h-0">
+                            <div className="flex-grow overflow-hidden min-h-0 relative">
                                 <ResizablePanel 
                                     direction="vertical"
                                     initialSizeRatio={layoutSizes.mapHeightRatio}
@@ -280,8 +285,8 @@ const TrackDetailView: React.FC<{
                                     onResizeEnd={(s, r) => saveLayout({ mapHeightRatio: r })}
                                     className="h-full"
                                 >
-                                    {/* TOP RIGHT: Map */}
-                                    <div className="h-full relative bg-slate-900 overflow-hidden">
+                                    {/* TOP: Map (Toolbar is inside MapDisplay) */}
+                                    <div className="h-full relative bg-slate-900 overflow-hidden w-full">
                                         <MapDisplay 
                                             tracks={[track]} 
                                             visibleTrackIds={new Set([track.id])} 
@@ -298,8 +303,8 @@ const TrackDetailView: React.FC<{
                                         />
                                     </div>
 
-                                    {/* BOTTOM RIGHT: Chart */}
-                                    <div className="h-full flex flex-col bg-slate-900 border-t border-slate-800 overflow-hidden">
+                                    {/* BOTTOM: Chart + Selection Stats */}
+                                    <div className="h-full flex flex-col bg-slate-900 border-t border-slate-800 overflow-hidden w-full">
                                         {SelectionStatsBar}
                                         <div className="flex-grow relative bg-slate-900/50 p-2 min-h-0">
                                             <TimelineChart track={track} yAxisMetrics={['pace', 'hr', 'elevation']} onChartHover={setHoveredPoint} hoveredPoint={hoveredPoint} onSelectionChange={setSelectedRange} showPauses={false} pauseSegments={[]} animationProgress={progress} isAnimating={isAnimating} userProfile={userProfile} highlightedRange={selectedRange} />
@@ -308,7 +313,7 @@ const TrackDetailView: React.FC<{
                                 </ResizablePanel>
                             </div>
 
-                            {/* FOOTER: Controls (Outside resize panel to be fixed bottom) */}
+                            {/* FOOTER: Controls (Fixed Bottom of Right Column) */}
                             {AnimationControlsBar}
                         </div>
                     </ResizablePanel>
