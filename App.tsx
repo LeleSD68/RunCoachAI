@@ -295,7 +295,7 @@ const App: React.FC = () => {
                 await saveTracksToDB(updated);
                 addToast(`Sincronizzazione Auto: importate ${uniqueNew.length} nuove corse.`, "success");
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error("Auto sync failed", e);
         }
     };
@@ -371,7 +371,7 @@ const App: React.FC = () => {
             if (workoutDuplicates > 0) {
                 await savePlannedWorkoutsToDB(uniqueWorkouts);
                 // Clean cloud duplicates in background
-                duplicateIdsToDelete.forEach((id: string) => deletePlannedWorkoutFromCloud(id));
+                duplicateIdsToDelete.forEach((id) => deletePlannedWorkoutFromCloud(id));
                 addToast(`Rimossi ${workoutDuplicates} allenamenti doppi.`, "info");
             }
 
@@ -383,7 +383,7 @@ const App: React.FC = () => {
                 runAutoStravaSync(uniqueTracks);
             }
 
-        } catch (e) {
+        } catch (e: any) {
             addToast("Dati caricati localmente.", "info");
         }
     };
@@ -414,7 +414,7 @@ const App: React.FC = () => {
             try {
                 const feed = await getFriendsActivityFeed(userId);
                 setFriendTracks(feed);
-            } catch (e) {
+            } catch (e: any) {
                 console.warn("Could not load friend tracks for race setup", e);
             }
         }
@@ -797,7 +797,7 @@ const App: React.FC = () => {
                                 addToast(`Importate ${filteredTracks.length} nuove attività.`, "success"); 
                                 setFitBoundsCounter(c => c + 1);
                             }
-                        } catch (e) { addToast("Errore backup.", "error"); } finally { setIsDataLoading(false); }
+                        } catch (e: any) { addToast("Errore backup.", "error"); } finally { setIsDataLoading(false); }
                     }}
                     onExportBackup={async () => { 
                         try {
@@ -806,7 +806,7 @@ const App: React.FC = () => {
                             const u = URL.createObjectURL(b); 
                             const a = document.createElement('a'); a.href=u; a.download=`RunCoachAI_Backup_${new Date().toISOString().split('T')[0]}.json`; a.click(); URL.revokeObjectURL(u);
                             addToast("Backup salvato!", "success");
-                        } catch (e) { addToast("Errore backup.", "error"); }
+                        } catch (e: any) { addToast("Errore backup.", "error"); }
                     }}
                     onUploadTracks={handleFileUpload}
                     onOpenProfile={() => toggleView('profile')}
@@ -911,6 +911,10 @@ const App: React.FC = () => {
                                         isAnimationPlaying={false} fitBoundsCounter={fitBoundsCounter}
                                         runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
                                     />
+                                    {/* Mobile AI Button (Absolute inside map container) */}
+                                    <button onClick={() => setShowGlobalChat(true)} className="absolute bottom-4 right-4 z-[1000] bg-purple-600 hover:bg-purple-500 text-white p-3 rounded-full shadow-2xl active:scale-90 border border-purple-400/50">
+                                        <span className="text-xl">🧠</span>
+                                    </button>
                                 </div>
                                 <div className="bg-slate-950 pb-safe border-t border-slate-800 shrink-0">
                                     <NavigationDock 
@@ -1001,7 +1005,7 @@ const App: React.FC = () => {
                                                 isAnimationPlaying={false} fitBoundsCounter={fitBoundsCounter}
                                                 runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
                                             />
-                                            <button onClick={() => setShowGlobalChat(true)} className="fixed bottom-24 right-4 z-[4000] bg-purple-600 hover:bg-purple-500 text-white p-3 rounded-full shadow-2xl active:scale-90">
+                                            <button onClick={() => setShowGlobalChat(true)} className="fixed bottom-24 right-4 z-[4000] bg-purple-600 hover:bg-purple-500 text-white p-3 rounded-full shadow-2xl active:scale-90 border border-purple-400/50">
                                                 <span className="text-xl">🧠</span>
                                             </button>
                                         </>
@@ -1014,6 +1018,10 @@ const App: React.FC = () => {
                                                     isAnimationPlaying={false} fitBoundsCounter={fitBoundsCounter}
                                                     runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
                                                 />
+                                                {/* Mobile AI Button (Absolute inside map container) */}
+                                                <button onClick={() => setShowGlobalChat(true)} className="absolute bottom-4 right-4 z-[1000] bg-purple-600 hover:bg-purple-500 text-white p-3 rounded-full shadow-2xl active:scale-90 border border-purple-400/50">
+                                                    <span className="text-xl">🧠</span>
+                                                </button>
                                             </div>
                                             <div className="bg-slate-950 pb-safe border-t border-slate-800 shrink-0">
                                                 <NavigationDock 
