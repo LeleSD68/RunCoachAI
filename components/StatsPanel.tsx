@@ -47,8 +47,11 @@ const SectionHeader: React.FC<{ title: string, isOpen: boolean, onToggle: () => 
 const StatsPanel: React.FC<StatsPanelProps> = ({ stats, selectedSegment, onSegmentSelect }) => {
     const [sections, setSections] = useState({ summary: true, splits: true });
 
+    // Safety check for stats object
+    if (!stats) return null;
+
     const { minPace, maxPace, paceRange } = React.useMemo(() => {
-        const fullSplits = stats.splits.filter(s => s.distance > 0.5 && s.pace > 0);
+        const fullSplits = stats.splits ? stats.splits.filter(s => s && s.distance > 0.5 && s.pace > 0) : [];
         if (fullSplits.length < 2) return { minPace: 0, maxPace: 0, paceRange: 0 };
         const paces = fullSplits.map(s => s.pace);
         const minPace = Math.min(...paces);
@@ -67,18 +70,18 @@ const StatsPanel: React.FC<StatsPanelProps> = ({ stats, selectedSegment, onSegme
                 />
                 {sections.summary && (
                     <div className="flex flex-col animate-fade-in-down">
-                        <StatRow title="Distanza" value={`${stats.totalDistance.toFixed(2)} km`} />
+                        <StatRow title="Distanza" value={`${(stats.totalDistance || 0).toFixed(2)} km`} />
                         <StatRow title="Tempo" value={formatDuration(stats.movingDuration)} subvalue={`(Tot ${formatDuration(stats.totalDuration)})`} />
                         <StatRow title="Ritmo Avg" value={`${formatPace(stats.movingAvgPace)}/km`} />
-                        <StatRow title="Velocità" value={`${stats.avgSpeed.toFixed(1)} km/h`} subvalue={`Max ${stats.maxSpeed.toFixed(1)}`} />
-                        <StatRow title="Dislivello" value={`+${Math.round(stats.elevationGain)} m`} subvalue={`-${Math.round(stats.elevationLoss)}m`} />
+                        <StatRow title="Velocità" value={`${(stats.avgSpeed || 0).toFixed(1)} km/h`} subvalue={`Max ${(stats.maxSpeed || 0).toFixed(1)}`} />
+                        <StatRow title="Dislivello" value={`+${Math.round(stats.elevationGain || 0)} m`} subvalue={`-${Math.round(stats.elevationLoss || 0)}m`} />
                         {stats.avgHr && <StatRow title="Cardio" value={`${Math.round(stats.avgHr)} bpm`} subvalue={`Max ${stats.maxHr}`} />}
                         {stats.avgWatts && <StatRow title="Potenza" value={`${stats.avgWatts} W`} />}
                     </div>
                 )}
             </div>
 
-            {stats.splits.length > 0 && (
+            {stats.splits && stats.splits.length > 0 && (
                 <div className="rounded border border-slate-700 overflow-hidden flex flex-col flex-grow min-h-0">
                     <SectionHeader 
                         title="Splits" 
@@ -88,6 +91,7 @@ const StatsPanel: React.FC<StatsPanelProps> = ({ stats, selectedSegment, onSegme
                     {sections.splits && (
                         <div className="bg-slate-900/30 overflow-y-auto custom-scrollbar flex-grow p-1 space-y-0.5">
                             {stats.splits.map(split => {
+                                if (!split) return null;
                                 const isSelected = selectedSegment && 'splitNumber' in selectedSegment && selectedSegment.splitNumber === split.splitNumber;
                                 let barWidthPercent = 0;
                                 if (paceRange > 0 && split.pace > 0) {
