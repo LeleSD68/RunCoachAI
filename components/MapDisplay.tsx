@@ -287,14 +287,14 @@ const MapDisplay: React.FC<MapDisplayProps & { onGradientChange?: (metric: strin
   return (
     <div className="flex flex-col h-full w-full bg-slate-900 overflow-hidden relative group">
       
-      {/* NEW MAP TOOLBAR */}
-      <div className="absolute top-2 left-2 right-2 flex justify-between items-center z-[1001] pointer-events-none">
-          <div className="flex items-center gap-2 pointer-events-auto bg-slate-900/90 backdrop-blur border border-slate-700 p-1 rounded-xl shadow-2xl">
-              <div className="flex items-center gap-0.5 border-r border-slate-700 pr-1 mr-1">
-                  <button onClick={() => mapRef.current?.zoomOut()} className="p-1.5 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition-colors" title="Zoom Out">
+      {/* STATIC MAP TOOLBAR (ABOVE MAP) */}
+      <div className="bg-slate-800 border-b border-slate-700 p-1.5 flex justify-between items-center shrink-0 z-10">
+          <div className="flex items-center gap-2">
+              <div className="flex items-center gap-0.5 border-r border-slate-700 pr-2 mr-1">
+                  <button onClick={() => mapRef.current?.zoomOut()} className="p-1.5 hover:bg-slate-700 text-slate-400 hover:text-white rounded transition-colors" title="Zoom Out">
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M20 12H4"></path></svg>
                   </button>
-                  <button onClick={() => mapRef.current?.zoomIn()} className="p-1.5 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition-colors" title="Zoom In">
+                  <button onClick={() => mapRef.current?.zoomIn()} className="p-1.5 hover:bg-slate-700 text-slate-400 hover:text-white rounded transition-colors" title="Zoom In">
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 4v16m8-8H4"></path></svg>
                   </button>
               </div>
@@ -303,28 +303,29 @@ const MapDisplay: React.FC<MapDisplayProps & { onGradientChange?: (metric: strin
                   <select 
                       value={localGradient}
                       onChange={handleLocalGradientChange}
-                      className="bg-transparent text-[10px] font-bold text-white uppercase outline-none cursor-pointer appearance-none pl-2 pr-4 py-1 hover:bg-slate-800 rounded"
+                      className="bg-slate-900 border border-slate-700 text-[10px] font-bold text-white uppercase outline-none cursor-pointer appearance-none pl-2 pr-6 py-1 rounded hover:border-slate-500 transition-colors"
                   >
                       {GRADIENT_OPTIONS.map(opt => <option key={opt.id} value={opt.id} className="bg-slate-900 text-slate-300">{opt.label}</option>)}
                   </select>
-                  <div className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">▼</div>
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 text-[8px]">▼</div>
               </div>
           </div>
 
-          <div className="pointer-events-auto bg-slate-900/90 backdrop-blur border border-slate-700 p-1 rounded-xl shadow-2xl">
+          <div className="relative">
               <select 
                   value={currentStyle}
                   onChange={(e) => setCurrentStyle(e.target.value as any)}
-                  className="bg-transparent text-[10px] font-bold text-white uppercase outline-none cursor-pointer appearance-none pl-2 pr-4 py-1 hover:bg-slate-800 rounded"
+                  className="bg-slate-900 border border-slate-700 text-[10px] font-bold text-white uppercase outline-none cursor-pointer appearance-none pl-2 pr-6 py-1 rounded hover:border-slate-500 transition-colors"
               >
                   {Object.entries(MAP_STYLES).map(([key, val]) => (
                       <option key={key} value={key} className="bg-slate-900 text-slate-300">{val.label}</option>
                   ))}
               </select>
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 text-[8px]">▼</div>
           </div>
       </div>
 
-      <div ref={mapContainerRef} className="flex-grow w-full h-full z-0" />
+      <div ref={mapContainerRef} className="flex-grow w-full h-full z-0 relative" />
     </div>
   );
 };
