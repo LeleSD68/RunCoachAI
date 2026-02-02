@@ -207,6 +207,21 @@ export const leaveGroup = async (groupId: string, userId: string) => {
     if (error) throw error;
 };
 
+// New function to add a specific user to a group (by owner)
+export const addMemberToGroup = async (groupId: string, userId: string) => {
+    const { error } = await supabase.from('social_group_members').insert({ group_id: groupId, user_id: userId });
+    if (error) {
+        // Ignore duplicate key error (already member) to avoid crash, but maybe throw if needed
+        if (error.code !== '23505') throw error;
+    }
+};
+
+export const getGroupMembers = async (groupId: string): Promise<string[]> => {
+    const { data, error } = await supabase.from('social_group_members').select('user_id').eq('group_id', groupId);
+    if(error) return [];
+    return data.map((m: any) => m.user_id);
+};
+
 // --- SHARING ---
 
 export const updateTrackSharing = async (trackId: string, isPublic: boolean, sharedUsers: string[], sharedGroups: string[]) => {
