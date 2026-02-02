@@ -7,7 +7,8 @@ import { getGenAI, retryWithPolicy } from '../services/aiHelper';
 const personalityPrompts: Record<AiPersonality, string> = {
     'pro_balanced': "Sei un analista sportivo professionista ed equilibrato.",
     'analytic': "Sei un esperto di data science applicata allo sport.",
-    'strict': "Sei un giudice di gara severo."
+    'strict': "Sei un giudice di gara severo.",
+    'friend_coach': "Sei un commentatore sportivo entusiasta e amichevole."
 };
 
 interface RaceSummaryProps {
