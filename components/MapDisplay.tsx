@@ -83,7 +83,7 @@ const MapDisplay: React.FC<MapDisplayProps & { onGradientChange?: (metric: strin
     const relevantTracks = tracks.filter(t => visibleTrackIds.has(t.id));
     if (relevantTracks.length > 0) {
         try {
-            const allPoints = relevantTracks.flatMap(t => t.points.map(p => [p.lat, p.lon]));
+            const allPoints = relevantTracks.flatMap(t => (t.points || []).map(p => [p.lat, p.lon]));
             if (allPoints.length > 0) {
                 const bounds = L.latLngBounds(allPoints);
                 if (bounds.isValid()) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16, animate: !immediate });
@@ -131,7 +131,7 @@ const MapDisplay: React.FC<MapDisplayProps & { onGradientChange?: (metric: strin
     polylinesRef.current.clear();
 
     tracks.forEach(track => {
-        if (!visibleTrackIds.has(track.id)) return;
+        if (!visibleTrackIds.has(track.id) || !track.points) return;
         
         const isRacing = raceRunners && raceRunners.some(r => r.trackId === track.id);
         let layer;
@@ -288,7 +288,7 @@ const MapDisplay: React.FC<MapDisplayProps & { onGradientChange?: (metric: strin
     <div className="flex flex-col h-full w-full bg-slate-900 overflow-hidden relative group">
       
       {/* STATIC MAP TOOLBAR (ABOVE MAP) */}
-      <div className="bg-slate-800 border-b border-slate-700 p-1.5 flex justify-between items-center shrink-0 z-10">
+      <div className="bg-slate-800 border-b border-slate-700 p-1.5 flex justify-between items-center shrink-0 z-10 w-full">
           <div className="flex items-center gap-2">
               <div className="flex items-center gap-0.5 border-r border-slate-700 pr-2 mr-1">
                   <button onClick={() => mapRef.current?.zoomOut()} className="p-1.5 hover:bg-slate-700 text-slate-400 hover:text-white rounded transition-colors" title="Zoom Out">
