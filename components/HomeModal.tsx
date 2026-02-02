@@ -78,7 +78,6 @@ const HomeModal: React.FC<HomeModalProps> = ({
     const trackInputRef = useRef<HTMLInputElement>(null);
     const opponentInputRef = useRef<HTMLInputElement>(null);
     const [menuStep, setMenuStep] = useState<'main' | 'analyze' | 'plan' | 'race'>('main');
-    const [showDataMenu, setShowDataMenu] = useState(false);
     const [isStravaLinked, setIsStravaLinked] = useState(false);
 
     useEffect(() => {
@@ -127,9 +126,9 @@ const HomeModal: React.FC<HomeModalProps> = ({
         <div className="flex flex-col gap-3 md:gap-4 flex-grow md:flex-grow-0">
             <div className="grid grid-cols-2 gap-3 md:gap-4">
                 <button onClick={() => setMenuStep('analyze')} className="flex flex-col items-center justify-center p-4 md:p-6 bg-cyan-600/5 hover:bg-cyan-600/10 border-2 border-cyan-500/20 hover:border-cyan-400 rounded-2xl transition-all group active:scale-95 shadow-lg min-h-[120px]">
-                    <div className="text-3xl md:text-4xl mb-2 group-hover:scale-110 transition-transform">📈</div>
-                    <span className="text-sm md:text-lg font-black text-white uppercase tracking-tight">Analizza</span>
-                    <span className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest mt-1 opacity-60">Studia i tuoi dati</span>
+                    <div className="text-3xl md:text-4xl mb-2 group-hover:scale-110 transition-transform">📥</div>
+                    <span className="text-sm md:text-lg font-black text-white uppercase tracking-tight">Carica Dati</span>
+                    <span className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest mt-1 opacity-60">GPX, Strava, Backup</span>
                 </button>
 
                 <button onClick={() => setMenuStep('plan')} className="flex flex-col items-center justify-center p-4 md:p-6 bg-purple-600/5 hover:bg-purple-600/10 border-2 border-purple-500/20 hover:border-purple-400 rounded-2xl transition-all group active:scale-95 shadow-lg min-h-[120px]">
@@ -160,16 +159,14 @@ const HomeModal: React.FC<HomeModalProps> = ({
 
     const AnalyzeMenu = () => (
         <div className="flex flex-col gap-4 animate-fade-in">
-            <h3 className="text-lg font-black text-white uppercase tracking-tighter mb-2 border-b border-slate-700 pb-2">Analisi Attività</h3>
-            <button onClick={() => { onOpenExplorer(); }} className="p-4 bg-slate-700/30 hover:bg-slate-700 border border-slate-600 rounded-xl text-left transition-all hover:border-cyan-500 group">
-                <span className="block text-sm font-bold text-white group-hover:text-cyan-400 mb-1">📂 Corsa in Archivio</span>
-                <span className="text-xs text-slate-400">Scegli una corsa già caricata per vedere dettagli e statistiche.</span>
-            </button>
+            <h3 className="text-lg font-black text-white uppercase tracking-tighter mb-2 border-b border-slate-700 pb-2">Caricamento & Dati</h3>
+            
             <button onClick={() => trackInputRef.current?.click()} className="p-4 bg-slate-700/30 hover:bg-slate-700 border border-slate-600 rounded-xl text-left transition-all hover:border-green-500 group">
                 <span className="block text-sm font-bold text-white group-hover:text-green-400 mb-1">📤 Nuova Traccia (GPX/TCX)</span>
                 <span className="text-xs text-slate-400">Carica file dal dispositivo per una nuova analisi profonda.</span>
-                <input type="file" ref={trackInputRef} multiple accept=".gpx,.tcx" className="hidden" onChange={handleTrackUploadChange} />
             </button>
+            <input type="file" ref={trackInputRef} multiple accept=".gpx,.tcx" className="hidden" onChange={handleTrackUploadChange} />
+
             {onOpenStravaConfig && (
                 <button onClick={onOpenStravaConfig} className={`p-4 border rounded-xl text-left transition-all group ${isStravaLinked ? 'bg-green-900/10 border-green-500/30 hover:bg-green-900/20' : 'bg-[#fc4c02]/10 border-[#fc4c02]/30 hover:bg-[#fc4c02]/20 hover:border-[#fc4c02]'}`}>
                     <span className={`block text-sm font-bold mb-1 flex items-center gap-2 ${isStravaLinked ? 'text-green-400' : 'text-white group-hover:text-[#fc4c02]'}`}>
@@ -179,6 +176,17 @@ const HomeModal: React.FC<HomeModalProps> = ({
                     <span className="text-xs text-slate-400">{isStravaLinked ? 'Scarica subito le tue ultime corse.' : 'Ottieni automaticamente le tue attività via API.'}</span>
                 </button>
             )}
+
+            <div className="grid grid-cols-2 gap-3 mt-1">
+                <button onClick={() => backupInputRef.current?.click()} className="p-3 bg-slate-800 border border-slate-600 rounded-xl text-center hover:border-purple-500 transition-all text-xs font-bold text-slate-300 hover:text-white">
+                    <DatabaseIcon /> Importa Backup
+                </button>
+                <button onClick={onExportBackup} className="p-3 bg-slate-800 border border-slate-600 rounded-xl text-center hover:border-blue-500 transition-all text-xs font-bold text-slate-300 hover:text-white">
+                    <CloudUpIcon /> Esporta Backup
+                </button>
+            </div>
+            <input type="file" ref={backupInputRef} accept="application/json,.json" className="hidden" onChange={handleFileChange} />
+
             <button onClick={() => setMenuStep('main')} className="text-xs font-black text-slate-500 hover:text-white uppercase mt-2 text-center tracking-widest">Torna al Menu Principale</button>
         </div>
     );
@@ -254,22 +262,6 @@ const HomeModal: React.FC<HomeModalProps> = ({
                             <HelpIcon /> 
                             <span>Guida</span>
                         </button>
-                        <div className="relative">
-                            <button onClick={() => setShowDataMenu(!showDataMenu)} className={`transition-colors flex flex-col md:flex-row items-center gap-1 ${showDataMenu ? 'text-white' : 'hover:text-white'}`}>
-                                <DatabaseIcon />
-                                <span>Dati</span>
-                            </button>
-                            {showDataMenu && (
-                                <>
-                                    <div className="fixed inset-0 z-0" onClick={() => setShowDataMenu(false)}></div>
-                                    <div className="absolute bottom-full right-0 md:left-0 mb-2 w-32 bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden z-10 animate-fade-in">
-                                        <button onClick={() => { backupInputRef.current?.click(); setShowDataMenu(false); }} className="block w-full text-left px-4 py-3 hover:bg-slate-700 text-slate-300 transition-colors border-b border-slate-700/50">Importa</button>
-                                        <button onClick={() => { onExportBackup(); setShowDataMenu(false); }} className="block w-full text-left px-4 py-3 hover:bg-slate-700 text-slate-300 transition-colors">Backup</button>
-                                    </div>
-                                </>
-                            )}
-                            <input type="file" ref={backupInputRef} accept="application/json,.json" className="hidden" onChange={handleFileChange} />
-                        </div>
                     </div>
                     
                     <div className="flex w-full md:w-auto justify-center md:justify-end gap-6 md:gap-4 border-t md:border-t-0 border-slate-800/50 pt-3 md:pt-0">
