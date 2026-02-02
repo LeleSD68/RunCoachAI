@@ -299,9 +299,10 @@ const MapDisplay: React.FC<MapDisplayProps & { onGradientChange?: (metric: strin
 
   return (
     <div className="flex flex-col h-full w-full bg-slate-900 overflow-hidden relative group">
+      <div ref={mapContainerRef} className="flex-grow w-full h-full z-0 relative" />
       
-      {/* STATIC MAP TOOLBAR (ABOVE MAP) */}
-      <div className="bg-slate-800 border-b border-slate-700 p-1.5 flex justify-between items-center shrink-0 z-10 w-full">
+      {/* STATIC MAP TOOLBAR (BELOW MAP) */}
+      <div className="bg-slate-800 border-t border-slate-700 p-1.5 flex justify-between items-center shrink-0 z-10 w-full">
           <div className="flex items-center gap-2">
               <div className="flex items-center gap-0.5 border-r border-slate-700 pr-2 mr-1">
                   <button onClick={() => mapRef.current?.zoomOut()} className="p-1.5 hover:bg-slate-700 text-slate-400 hover:text-white rounded transition-colors" title="Zoom Out">
@@ -337,8 +338,6 @@ const MapDisplay: React.FC<MapDisplayProps & { onGradientChange?: (metric: strin
               <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 text-[8px]">▼</div>
           </div>
       </div>
-
-      <div ref={mapContainerRef} className="flex-grow w-full h-full z-0 relative" />
     </div>
   );
 };
