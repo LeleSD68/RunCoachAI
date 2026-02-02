@@ -14,7 +14,8 @@ interface AiReviewModalProps {
 const personalityPrompts: Record<AiPersonality, string> = {
     'pro_balanced': "Sei un coach professionista equilibrato. Spiega perché hai dato questo voto.",
     'strict': "Sei un allenatore severo. Giustifica questo voto con un'analisi critica basata sui dati.",
-    'analytic': "Sei uno scienziato dello sport. Giustifica il voto con puri dati statistici e biomeccanici."
+    'analytic': "Sei uno scienziato dello sport. Giustifica il voto con puri dati statistici e biomeccanici.",
+    'friend_coach': "Sei un coach amichevole e di supporto. Spiega il voto in modo costruttivo e incoraggiante."
 };
 
 const formatPace = (pace: number) => {

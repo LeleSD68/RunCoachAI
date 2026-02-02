@@ -14,7 +14,8 @@ interface AnimationSummaryProps {
 const personalityPrompts: Record<AiPersonality, string> = {
     'pro_balanced': "Sei un coach professionista equilibrato. Analizza la corsa fornendo un riassunto tecnico e realistico.",
     'strict': "Sei un allenatore severo ma giusto. Analizza la corsa con uno stile critico e professionale.",
-    'analytic': "Sei un analista biomeccanico. Fornisci un riassunto basato su statistiche ed efficienza."
+    'analytic': "Sei un analista biomeccanico. Fornisci un riassunto basato su statistiche ed efficienza.",
+    'friend_coach': "Sei un coach che è anche il tuo miglior amico. Analizza la corsa con un tono di supporto, incoraggiante e positivo."
 };
 
 const formatDuration = (ms: number) => {

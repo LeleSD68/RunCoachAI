@@ -99,3 +99,32 @@ create policy "Users can view own messages" on public.direct_messages
 -- Policy: Inserisci messaggi solo come mittente
 create policy "Users can send messages" on public.direct_messages
   for insert with check (auth.uid() = sender_id);
+
+-- 6. TABELLA REAZIONI ALLE ATTIVITA (EMOJI)
+create table if not exists public.activity_reactions (
+  id uuid default uuid_generate_v4() primary key,
+  track_id text references public.tracks(id) on delete cascade,
+  user_id uuid references auth.users not null,
+  emoji text not null,
+  created_at timestamp with time zone default timezone('utc'::text, now()),
+  unique(track_id, user_id) -- Un utente può mettere una sola reazione per attività (semplificazione, o rimuovi per multiple)
+);
+
+alter table public.activity_reactions enable row level security;
+
+-- Policy reazioni:
+-- Tutti possono vedere le reazioni (se vedono la traccia)
+create policy "View reactions if access to track" on public.activity_reactions
+  for select using (
+    exists (
+      select 1 from public.tracks 
+      where id = activity_reactions.track_id
+    )
+  );
+
+-- Insert e Delete solo per il proprio user
+create policy "Insert own reactions" on public.activity_reactions
+  for insert with check (auth.uid() = user_id);
+
+create policy "Delete own reactions" on public.activity_reactions
+  for delete using (auth.uid() = user_id);
