@@ -365,6 +365,7 @@ const App: React.FC = () => {
                 setIsGuest(false);
                 await loadData();
                 setShowHome(true);
+                setShowAuthSelection(false); // Fix: Ensure Auth Selection is closed on success
             } else {
                 setShowAuthSelection(true);
             }
