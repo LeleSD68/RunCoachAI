@@ -7,11 +7,20 @@ import { getTrackSegmentColors, GradientMetric } from '../services/colorService'
 declare const L: any; 
 
 const MAP_STYLES = {
-    dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    silver: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-    street: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+    dark: { url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', label: 'Dark' },
+    silver: { url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', label: 'Light' },
+    street: { url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', label: 'Street' },
+    satellite: { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', label: 'Satellite' }
 };
+
+const GRADIENT_OPTIONS: { id: string; label: string }[] = [
+    { id: 'none', label: 'Nessuno' },
+    { id: 'pace', label: 'Passo' },
+    { id: 'elevation', label: 'Altitudine' },
+    { id: 'hr', label: 'Cardio' },
+    { id: 'power', label: 'Potenza' },
+    { id: 'speed', label: 'Velocità' }
+];
 
 const formatPace = (pace: number) => {
     if (!isFinite(pace) || pace <= 0) return '--:--';
@@ -20,29 +29,36 @@ const formatPace = (pace: number) => {
     return `${m}:${s.toString().padStart(2, '0')}`;
 };
 
-const MapDisplay: React.FC<MapDisplayProps> = ({ 
+const MapDisplay: React.FC<MapDisplayProps & { onGradientChange?: (metric: string) => void }> = ({ 
     tracks, visibleTrackIds, selectedTrackIds, raceRunners, hoveredTrackId, runnerSpeeds, 
     hoveredPoint, mapGradientMetric = 'none', animationTrack, 
     animationProgress = 0, isAnimationPlaying, fitBoundsCounter = 0,
-    selectionPoints = null 
+    selectionPoints = null, onGradientChange
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const tileLayerRef = useRef<any>(null);
   
   // Layers
-  const polylinesRef = useRef<Map<string, any>>(new Map()); // Background tracks
-  const raceTrailsRef = useRef<Map<string, any>>(new Map()); // Foreground progressive tracks (Race)
-  const trailRef = useRef<any>(null); // Single animation trail
+  const polylinesRef = useRef<Map<string, any>>(new Map()); 
+  const raceTrailsRef = useRef<Map<string, any>>(new Map()); 
+  const trailRef = useRef<any>(null); 
   const selectionLayerRef = useRef<any>(null);
   const ghostMarkersRef = useRef<Map<string, any>>(new Map());
   
   const [localGradient, setLocalGradient] = useState<string>(mapGradientMetric);
   const [currentStyle, setCurrentStyle] = useState<keyof typeof MAP_STYLES>('dark');
 
+  // Sync internal state with props if controlled
   useEffect(() => {
     setLocalGradient(mapGradientMetric);
   }, [mapGradientMetric]);
+
+  const handleLocalGradientChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const val = e.target.value;
+      setLocalGradient(val);
+      if (onGradientChange) onGradientChange(val);
+  };
 
   const fitMapToBounds = useCallback((immediate = false) => {
     const map = mapRef.current;
@@ -83,14 +99,14 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
         zoomControl: false, 
         attributionControl: false 
       }).setView([45, 12], 13);
-      tileLayerRef.current = L.tileLayer(MAP_STYLES[currentStyle]).addTo(mapRef.current);
+      tileLayerRef.current = L.tileLayer(MAP_STYLES[currentStyle].url).addTo(mapRef.current);
     }
   }, []);
 
   useEffect(() => {
     if (mapRef.current && tileLayerRef.current) {
         mapRef.current.removeLayer(tileLayerRef.current);
-        tileLayerRef.current = L.tileLayer(MAP_STYLES[currentStyle]).addTo(mapRef.current);
+        tileLayerRef.current = L.tileLayer(MAP_STYLES[currentStyle].url).addTo(mapRef.current);
     }
   }, [currentStyle]);
 
@@ -181,20 +197,10 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
             let m = ghostMarkersRef.current.get(runner.trackId);
             const pace = runner.pace;
             
-            // HTML personalizzato per il cursore: Più visibile
             const html = `
                 <div style="position: relative;">
-                    <div style="
-                        width: 14px; 
-                        height: 14px; 
-                        background-color: ${runner.color}; 
-                        border: 2px solid white; 
-                        border-radius: 50%; 
-                        box-shadow: 0 0 10px ${runner.color}, 0 2px 4px rgba(0,0,0,0.5);
-                        z-index: 1000;
-                    "></div>
-                    <div class="bg-slate-900/90 text-white px-2 py-0.5 rounded border border-white/20 text-[9px] font-black shadow-xl whitespace-nowrap" 
-                         style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); pointer-events: none; border-left: 3px solid ${runner.color}">
+                    <div style="width: 14px; height: 14px; background-color: ${runner.color}; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 10px ${runner.color}, 0 2px 4px rgba(0,0,0,0.5); z-index: 1000;"></div>
+                    <div class="bg-slate-900/90 text-white px-2 py-0.5 rounded border border-white/20 text-[9px] font-black shadow-xl whitespace-nowrap" style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); pointer-events: none; border-left: 3px solid ${runner.color}">
                         ${runner.name} • ${formatPace(pace)}
                     </div>
                 </div>`;
@@ -209,12 +215,9 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
                 m.setZIndexOffset(1000);
             }
 
-            // 2. Disegna la scia progressiva ("Snake Effect")
-            // Trova la traccia originale
             const track = tracks.find(t => t.id === runner.trackId);
             if (track) {
                 const pointsDone = track.points.filter(p => p.cummulativeDistance <= runner.position.cummulativeDistance);
-                // Aggiungi il punto corrente esatto per fluidità
                 if(pointsDone.length > 0) pointsDone.push(runner.position);
 
                 let trail = raceTrailsRef.current.get(runner.trackId);
@@ -229,23 +232,13 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
             }
         });
         
-        // Pulizia marker e scie di runner non più presenti
         const currentIds = new Set(raceRunners.map(r => r.trackId));
-        ghostMarkersRef.current.forEach((v, k) => {
-            if (!currentIds.has(k)) { map.removeLayer(v); ghostMarkersRef.current.delete(k); }
-        });
-        raceTrailsRef.current.forEach((v, k) => {
-            if (!currentIds.has(k)) { map.removeLayer(v); raceTrailsRef.current.delete(k); }
-        });
-
+        ghostMarkersRef.current.forEach((v, k) => { if (!currentIds.has(k)) { map.removeLayer(v); ghostMarkersRef.current.delete(k); } });
+        raceTrailsRef.current.forEach((v, k) => { if (!currentIds.has(k)) { map.removeLayer(v); raceTrailsRef.current.delete(k); } });
         return;
     } else {
-        // Se non c'è gara, pulisci scie gara
         raceTrailsRef.current.forEach(l => map.removeLayer(l));
         raceTrailsRef.current.clear();
-        
-        // Non puliamo ghostMarkersRef qui se stiamo facendo single animation (sotto), 
-        // ma se siamo proprio idle, puliamo tutto nel blocco else finale
     }
 
     // B. GESTIONE ANIMAZIONE SINGOLA (REPLAY)
@@ -269,8 +262,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
         const html = `
             <div style="position: relative;">
                 <div class="w-4 h-4 bg-cyan-500 rounded-full border-2 border-white shadow-[0_0_15px_rgba(34,211,238,0.8)]"></div>
-                <div class="bg-cyan-500 text-white px-2 py-1 rounded-full text-[10px] font-black shadow-2xl border border-white/40 whitespace-nowrap animate-pulse" 
-                     style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);">
+                <div class="bg-cyan-500 text-white px-2 py-1 rounded-full text-[10px] font-black shadow-2xl border border-white/40 whitespace-nowrap animate-pulse" style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);">
                     ${formatPace(pace)}
                 </div>
             </div>`;
@@ -284,9 +276,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
             m.setIcon(L.divIcon({ className: 'runner-label', html, iconSize: [40, 20], iconAnchor: [20, 10] }));
         }
     } else {
-        // Clean up animation stuff
         if (trailRef.current) { map.removeLayer(trailRef.current); trailRef.current = null; }
-        // Clean up markers if NOT racing
         if (!raceRunners) {
             ghostMarkersRef.current.forEach(m => map.removeLayer(m));
             ghostMarkersRef.current.clear();
@@ -294,44 +284,46 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
     }
   }, [animationProgress, animationTrack, isAnimationPlaying, raceRunners, tracks]);
 
-  const handleCycleStyle = () => {
-    const styles: (keyof typeof MAP_STYLES)[] = ['dark', 'street', 'silver', 'satellite'];
-    const nextIndex = (styles.indexOf(currentStyle) + 1) % styles.length;
-    setCurrentStyle(styles[nextIndex]);
-  };
-
   return (
-    <div className="flex flex-col h-full w-full bg-slate-900 overflow-hidden relative">
-      <div className="absolute top-2 left-2 right-2 flex items-center justify-between z-[1001] gap-1 overflow-x-auto no-scrollbar pointer-events-none">
-        <div className="flex items-center gap-1 bg-slate-900/90 backdrop-blur-sm p-1 rounded-xl border border-white/10 shadow-2xl pointer-events-auto shrink-0">
-            <button onClick={() => mapRef.current?.zoomIn()} className="p-1.5 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 4v16m8-8H4"></path></svg>
-            </button>
-            <button onClick={() => mapRef.current?.zoomOut()} className="p-1.5 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M20 12H4"></path></svg>
-            </button>
-            <div className="w-px h-4 bg-slate-700 mx-0.5"></div>
-            <button onClick={() => { if(mapRef.current) { mapRef.current.invalidateSize(); fitMapToBounds(); } }} className="p-1.5 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-7h.01M9 16h.01"></path></svg>
-            </button>
-        </div>
+    <div className="flex flex-col h-full w-full bg-slate-900 overflow-hidden relative group">
+      
+      {/* NEW MAP TOOLBAR */}
+      <div className="absolute top-2 left-2 right-2 flex justify-between items-center z-[1001] pointer-events-none">
+          <div className="flex items-center gap-2 pointer-events-auto bg-slate-900/90 backdrop-blur border border-slate-700 p-1 rounded-xl shadow-2xl">
+              <div className="flex items-center gap-0.5 border-r border-slate-700 pr-1 mr-1">
+                  <button onClick={() => mapRef.current?.zoomOut()} className="p-1.5 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition-colors" title="Zoom Out">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M20 12H4"></path></svg>
+                  </button>
+                  <button onClick={() => mapRef.current?.zoomIn()} className="p-1.5 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition-colors" title="Zoom In">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 4v16m8-8H4"></path></svg>
+                  </button>
+              </div>
+              
+              <div className="relative group/grad">
+                  <select 
+                      value={localGradient}
+                      onChange={handleLocalGradientChange}
+                      className="bg-transparent text-[10px] font-bold text-white uppercase outline-none cursor-pointer appearance-none pl-2 pr-4 py-1 hover:bg-slate-800 rounded"
+                  >
+                      {GRADIENT_OPTIONS.map(opt => <option key={opt.id} value={opt.id} className="bg-slate-900 text-slate-300">{opt.label}</option>)}
+                  </select>
+                  <div className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">▼</div>
+              </div>
+          </div>
 
-        <div className="flex items-center gap-1 bg-slate-900/90 backdrop-blur-sm p-1 rounded-xl border border-white/10 shadow-2xl pointer-events-auto shrink-0">
-            {[{id:'none',l:'Base'},{id:'hr',l:'❤️'},{id:'pace',l:'⏱️'}].map(m=>(<button key={m.id} onClick={()=>setLocalGradient(m.id)} className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase transition-all ${localGradient===m.id?'bg-cyan-600 text-white':'text-slate-400'}`}>{m.l}</button>))}
-        </div>
-
-        <div className="flex items-center gap-1 bg-slate-900/90 backdrop-blur-sm p-1 rounded-xl border border-white/10 shadow-2xl pointer-events-auto shrink-0">
-             {[{id:'dark',l:'Dark'},{id:'silver',l:'Slvr'},{id:'street',l:'OSM'},{id:'satellite',l:'Sat'}].map((s) => (
-                 <button 
-                    key={s.id} 
-                    onClick={() => setCurrentStyle(s.id as any)} 
-                    className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase transition-all ${currentStyle===s.id ? 'bg-slate-200 text-slate-900' : 'text-slate-400 hover:text-white'}`}
-                 >
-                    {s.l}
-                 </button>
-             ))}
-        </div>
+          <div className="pointer-events-auto bg-slate-900/90 backdrop-blur border border-slate-700 p-1 rounded-xl shadow-2xl">
+              <select 
+                  value={currentStyle}
+                  onChange={(e) => setCurrentStyle(e.target.value as any)}
+                  className="bg-transparent text-[10px] font-bold text-white uppercase outline-none cursor-pointer appearance-none pl-2 pr-4 py-1 hover:bg-slate-800 rounded"
+              >
+                  {Object.entries(MAP_STYLES).map(([key, val]) => (
+                      <option key={key} value={key} className="bg-slate-900 text-slate-300">{val.label}</option>
+                  ))}
+              </select>
+          </div>
       </div>
+
       <div ref={mapContainerRef} className="flex-grow w-full h-full z-0" />
     </div>
   );
