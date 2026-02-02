@@ -6,6 +6,7 @@ import Tooltip from './Tooltip';
 import GearManager from './GearManager';
 import { supabase } from '../services/supabaseClient';
 import { isStravaConnected } from '../services/stravaService';
+import { deleteUserAccount } from '../services/dbService';
 
 interface UserProfileModalProps {
     onClose: () => void;
@@ -75,6 +76,14 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
     const handleSave = () => {
         onSave(profile);
         onClose();
+    };
+
+    const handleDeleteAccount = async () => {
+        if (confirm("SEI SICURO? Questa azione cancellerà permanentemente tutti i tuoi dati, tracce, amici e messaggi. Non si può annullare.")) {
+            if (confirm("Confermi l'eliminazione definitiva dell'account?")) {
+                await deleteUserAccount();
+            }
+        }
     };
 
     return (
@@ -207,9 +216,20 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
                 </div>
 
                 <footer className="p-6 border-t border-slate-800 flex justify-between items-center bg-slate-900 shrink-0">
-                    {onLogout && !isWelcomeMode && (
-                        <button onClick={onLogout} className="text-red-500 text-xs font-black uppercase tracking-widest hover:underline">Esci dall'account</button>
-                    ) || <div></div>}
+                    <div className="flex flex-col items-start gap-2">
+                        {onLogout && !isWelcomeMode && (
+                            <button onClick={onLogout} className="text-slate-400 text-[10px] font-black uppercase tracking-widest hover:text-white flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3"><path fillRule="evenodd" d="M3 4.25A2.25 2.25 0 0 1 5.25 2h5.5A2.25 2.25 0 0 1 13 4.25v2a.75.75 0 0 1-1.5 0v-2a.75.75 0 0 0-.75-.75h-5.5a.75.75 0 0 0-.75.75v11.5c0 .414.336.75.75.75h5.5a.75.75 0 0 0 .75-.75v-2a.75.75 0 0 1 1.5 0v2A2.25 2.25 0 0 1 10.75 18h-5.5A2.25 2.25 0 0 1 3 15.75V4.25Z" clipRule="evenodd" /><path fillRule="evenodd" d="M19 10a.75.75 0 0 0-.75-.75H8.704l1.048-.943a.75.75 0 1 0-1.004-1.114l-2.5 2.25a.75.75 0 0 0 0 1.114l2.5 2.25a.75.75 0 1 0 1.004-1.114l-1.048-.943h9.546A.75.75 0 0 0 19 10Z" clipRule="evenodd" /></svg>
+                                Esci
+                            </button>
+                        )}
+                        {!isWelcomeMode && (
+                            <button onClick={handleDeleteAccount} className="text-red-900 hover:text-red-500 text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3"><path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.1499.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149-.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clipRule="evenodd" /></svg>
+                                Elimina
+                            </button>
+                        )}
+                    </div>
                     <div className="flex gap-3">
                         {!isWelcomeMode && <button type="button" onClick={onClose} className="px-6 py-3 text-slate-400 font-bold text-sm uppercase tracking-widest hover:text-white transition-colors">Annulla</button>}
                         <button onClick={handleSave} className="bg-cyan-600 hover:bg-cyan-500 text-white font-black py-3 px-10 rounded-xl shadow-lg shadow-cyan-900/20 active:scale-95 transition-all uppercase tracking-widest text-sm">Salva Profilo</button>
