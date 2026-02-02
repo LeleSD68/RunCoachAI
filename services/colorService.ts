@@ -19,6 +19,12 @@ const getHrZoneColor = (hr: number, maxHr: number) => {
     return '#ef4444'; // Z5 Red
 };
 
+// Interpolazione HSL helper
+const getHslColor = (ratio: number, startHue: number, endHue: number) => {
+    const hue = startHue + (endHue - startHue) * ratio;
+    return `hsl(${hue}, 90%, 50%)`;
+};
+
 export const getTrackSegmentColors = (track: Track, metric: GradientMetric, defaultColor: string = '#06b6d4'): ColoredSegment[] => {
     if (metric === 'none' || track.points.length < 2) {
         return track.points.slice(1).map((p, i) => ({
@@ -37,15 +43,38 @@ export const getTrackSegmentColors = (track: Track, metric: GradientMetric, defa
         const p1 = track.points[i-1];
         const dist = p.cummulativeDistance - p1.cummulativeDistance;
         const time = (p.time.getTime() - p1.time.getTime()) / 3600000;
+        // Calcolo ritmo min/km (pace)
+        // Se time è troppo piccolo o zero, evitiamo divisioni per zero.
+        if (metric === 'pace') {
+             if (dist > 0.0005 && time > 0) {
+                 return (time * 60) / dist; // min/km
+             }
+             return 0;
+        }
+        
+        // Speed calculation
         const speed = time > 0 ? dist / time : 0;
-        return metric === 'speed' ? speed : (speed > 0.1 ? 60 / speed : 0);
+        return metric === 'speed' ? speed : 0;
     });
 
-    const validValues = values.filter(v => v > 0);
-    const minVal = Math.min(...validValues);
-    const maxVal = Math.max(...validValues);
-    const range = maxVal - minVal || 1;
+    // Filtra valori validi per calcolare min/max sensati
+    // Per il passo, ignoriamo valori assurdi (es. sotto 2:00 o sopra 20:00 per evitare che le pause rovinino il gradiente)
+    let validValues = values.filter(v => v > 0);
+    
+    if (metric === 'pace') {
+        validValues = values.filter(v => v > 2.5 && v < 15); 
+    }
 
+    let minVal = Math.min(...validValues);
+    let maxVal = Math.max(...validValues);
+    
+    // Safety check se tutti i valori sono uguali o vuoti
+    if (!isFinite(minVal) || !isFinite(maxVal) || minVal === maxVal) {
+        minVal = 0; 
+        maxVal = 1;
+    }
+    
+    const range = maxVal - minVal || 1;
     const maxHr = Math.max(...track.points.map(p => p.hr || 0)) || 190;
 
     return track.points.slice(1).map((p, i) => {
@@ -55,22 +84,49 @@ export const getTrackSegmentColors = (track: Track, metric: GradientMetric, defa
         if (metric === 'hr_zones') {
             color = getHrZoneColor(val, maxHr);
         } else {
-            const ratio = Math.max(0, Math.min(1, (val - minVal) / range));
+            // Normalizza tra 0 e 1
+            let ratio = Math.max(0, Math.min(1, (val - minVal) / range));
+            
             if (metric === 'pace') {
-                // Pace: Green (Fast) to Red (Slow)
-                color = `hsl(${(1 - ratio) * 120}, 100%, 50%)`;
+                // PACE: Valori bassi (veloci) -> Colori "Hot" (Viola/Rosso) o "Cool" (Verde/Blu)?
+                // Convenzione Runalize/Strava spesso usa: 
+                // Veloce = Blu/Viola scuro
+                // Medio = Verde/Giallo
+                // Lento = Rosso/Arancio
+                
+                // Quindi invertiamo il ratio se vogliamo che 0 (veloce) sia un colore specifico
+                // Usiamo uno spettro HSL:
+                // 270 (Purple) -> Fast
+                // 120 (Green) -> Medium
+                // 0 (Red) -> Slow
+                
+                // Mapping: MinVal (Veloce) -> Ratio 0 -> HSL 260
+                // MaxVal (Lento) -> Ratio 1 -> HSL 0
+                
+                // Curva non lineare per enfatizzare le variazioni alle velocità medie
+                color = getHslColor(Math.pow(ratio, 0.8), 260, 0); 
+
             } else if (metric === 'speed') {
-                // Speed: Red (Slow) to Green (Fast)
-                color = `hsl(${ratio * 120}, 100%, 50%)`;
+                // Speed: Alto (Veloce) -> Viola/Blu, Basso (Lento) -> Rosso
+                color = getHslColor(1 - ratio, 260, 0);
+                
             } else if (metric === 'hr') {
-                // HR: Blue (Low) to Red (High)
-                color = `hsl(${240 - ratio * 240}, 100%, 50%)`;
+                // HR: Basso -> Blu/Azzurro (200), Alto -> Rosso (0)
+                color = getHslColor(ratio, 200, 0);
+                
             } else if (metric === 'elevation') {
-                // Elevation: Brownish gradient
-                color = `hsl(30, 70%, ${30 + ratio * 40}%)`;
+                // Elevation: Basso -> Verde (120), Alto -> Marrone/Rosso (0)
+                // O Nero -> Bianco per rilievo? Usiamo colori topo: Verde -> Marrone -> Grigio
+                if (ratio < 0.5) {
+                    // Verde (120) a Giallo (60)
+                    color = getHslColor(ratio * 2, 120, 60);
+                } else {
+                    // Giallo (60) a Rosso scuro (0)
+                    color = getHslColor((ratio - 0.5) * 2, 60, 0);
+                }
             } else if (metric === 'power') {
-                // Power: Purple to Yellow
-                color = `hsl(${280 - ratio * 220}, 100%, 50%)`;
+                // Power: Basso -> Giallo, Alto -> Viola
+                color = getHslColor(ratio, 60, 280);
             }
         }
 
