@@ -58,7 +58,19 @@ export interface Track {
   userId?: string; 
   userDisplayName?: string; 
   startTime?: string; 
-  reactions?: Reaction[]; // New field
+  reactions?: Reaction[]; 
+  // Sharing fields
+  sharedWithUsers?: string[]; // Array of User IDs
+  sharedWithGroups?: string[]; // Array of Group IDs
+}
+
+export interface SocialGroup {
+    id: string;
+    name: string;
+    description?: string;
+    ownerId: string;
+    memberCount: number;
+    isMember?: boolean;
 }
 
 export interface PlannedWorkout {
@@ -112,7 +124,6 @@ export interface ApiUsage {
     lastReset: string;
 }
 
-// Fix for: Module '"../types"' has no exported member 'ApiUsageStats'.
 export type ApiUsageStats = ApiUsage;
 
 export interface RaceResult {
@@ -185,7 +196,6 @@ export interface MapDisplayProps {
     animationProgress?: number;
     isAnimationPlaying?: boolean;
     fitBoundsCounter?: number;
-    // Modificato per supportare segmenti multipli (es. zone cardio non contigue)
     selectionPoints?: TrackPoint[] | TrackPoint[][] | null;
     pauseSegments?: PauseSegment[];
     showPauses?: boolean;
@@ -215,14 +225,12 @@ export interface LeaderStats {
     distanceInLead: number; // meters
 }
 
-// Fix for: Module '"./types"' has no exported member 'Commentary'.
 export interface Commentary {
   id: string;
   text: string;
   timestamp: number;
 }
 
-// Fix for: Module '"../types"' has no exported member 'Weather'.
 export interface Weather {
   temperature: number;
   windSpeed: number;
@@ -230,7 +238,6 @@ export interface Weather {
   condition: string;
 }
 
-// Fix for: Module '"../types"' has no exported member 'PersonalRecord'.
 export interface PersonalRecord {
   distance: number;
   time: number;
@@ -239,22 +246,19 @@ export interface PersonalRecord {
   date: string;
 }
 
-// Fix for: Module '"../types"' has no exported member 'WeightEntry'.
 export interface WeightEntry {
   date: string;
   weight: number;
 }
 
-// Fix for: Module '"../types"' has no exported member 'ChatMessage'.
 export interface ChatMessage {
-  id?: string; // Added optional ID for deletion
+  id?: string; 
   role: 'user' | 'model';
   text: string;
   timestamp: number;
   suggestedReplies?: string[];
 }
 
-// Fix for: Module '"../types"' has no exported member 'DirectMessage'.
 export interface DirectMessage {
   id: string;
   senderId: string;
@@ -263,7 +267,6 @@ export interface DirectMessage {
   createdAt: string;
 }
 
-// Fix for: Module '"../types"' has no exported member 'FriendRequest'.
 export interface FriendRequest {
   id: string;
   status: 'pending' | 'accepted' | 'rejected';
