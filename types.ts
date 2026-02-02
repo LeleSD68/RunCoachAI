@@ -1,10 +1,9 @@
 
-
 export type ActivityType = 'Lento' | 'Fartlek' | 'Ripetute' | 'Gara' | 'Lungo' | 'Altro' | 'Nota' | 'Impegno' | 'Recupero';
 
 export type DiaryEntryType = 'workout' | 'note' | 'commitment';
 
-export type AiPersonality = 'pro_balanced' | 'analytic' | 'strict';
+export type AiPersonality = 'pro_balanced' | 'analytic' | 'strict' | 'friend_coach';
 
 export type CalendarPreference = 'google' | 'apple';
 
@@ -248,6 +247,7 @@ export interface WeightEntry {
 
 // Fix for: Module '"../types"' has no exported member 'ChatMessage'.
 export interface ChatMessage {
+  id?: string; // Added optional ID for deletion
   role: 'user' | 'model';
   text: string;
   timestamp: number;
