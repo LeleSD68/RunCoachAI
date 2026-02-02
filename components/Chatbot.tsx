@@ -18,12 +18,6 @@ interface ChatbotProps {
 
 const GLOBAL_CHAT_ID = 'global-coach';
 
-const WhistleIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-white">
-        <path fillRule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-1.99 3.963-4.98 3.963-8.827a8.25 8.25 0 00-16.5 0c0 3.846 2.02 6.837 3.963 8.827a19.58 19.58 0 002.682 2.282 16.975 16.975 0 001.145.742zM12 13.5a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
-    </svg>
-);
-
 const SendIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
       <path d="M3.105 2.289a.75.75 0 0 0-.826.95l1.414 4.949a.75.75 0 0 0 .95.95l4.95-1.414a.75.75 0 0 0-.95-.95l-3.539 1.01-1.01-3.54a.75.75 0 0 0-.95-.826ZM12.23 7.77a.75.75 0 0 0-1.06 0l-4.25 4.25a.75.75 0 0 0 0 1.06l4.25 4.25a.75.75 0 0 0 1.06-1.06l-3.72-3.72 3.72-3.72a.75.75 0 0 0 0-1.06ZM15.5 10a.75.75 0 0 1 .75-.75h.01a.75.75 0 0 1 0 1.5H16.25a.75.75 0 0 1-.75-.75Z" />
@@ -207,7 +201,9 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
         <div className={`flex flex-col bg-slate-900 border border-slate-700 shadow-2xl overflow-hidden ${isStandalone ? 'w-full md:w-[450px] h-[600px] md:rounded-3xl' : 'h-full'}`}>
             <header className="p-4 bg-slate-800 border-b border-slate-700 flex justify-between items-center shrink-0">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-purple-600 rounded-xl flex items-center justify-center shadow-lg"><WhistleIcon /></div>
+                    <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg border border-white/10 p-1">
+                        <img src="/logo.png" className="w-full h-full object-contain" alt="Coach" />
+                    </div>
                     <div>
                         <h3 className="font-black text-white uppercase text-sm tracking-tight">Head Coach AI</h3>
                         <div className="flex items-center gap-1">
