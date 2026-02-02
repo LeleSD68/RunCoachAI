@@ -1,26 +1,25 @@
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Track, RaceRunner, MapDisplayProps, TrackPoint, PauseSegment } from '../types';
-import { getTrackPointAtDistance, getSmoothedPace } from '../services/trackEditorUtils';
-import { getTrackSegmentColors, GradientMetric } from '../services/colorService';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { Track, TrackPoint, UserProfile, PlannedWorkout, PauseSegment, AiSegment, Split } from '../types';
+import MapDisplay from './MapDisplay';
+import TimelineChart from './TimelineChart';
+import StatsPanel from './StatsPanel';
+import HeartRateZonePanel from './HeartRateZonePanel';
+import PersonalRecordsPanel from './PersonalRecordsPanel';
+import GeminiTrackAnalysisPanel from './GeminiTrackAnalysisPanel';
+import GeminiSegmentsPanel from './GeminiSegmentsPanel';
+import ResizablePanel from './ResizablePanel';
+import { calculateTrackStats } from '../services/trackStatsService';
+import { calculateSegmentStats, getPointsInDistanceRange } from '../services/trackEditorUtils';
 
-declare const L: any; 
-
-const MAP_STYLES = {
-    dark: { url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', label: 'Dark' },
-    silver: { url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', label: 'Light' },
-    street: { url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', label: 'Street' },
-    satellite: { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', label: 'Satellite' }
-};
-
-const GRADIENT_OPTIONS: { id: string; label: string }[] = [
-    { id: 'none', label: 'Nessuno' },
-    { id: 'pace', label: 'Passo' },
-    { id: 'elevation', label: 'Altitudine' },
-    { id: 'hr', label: 'Cardio' },
-    { id: 'power', label: 'Potenza' },
-    { id: 'speed', label: 'Velocità' }
-];
+interface SectionState {
+    stats: boolean;
+    records: boolean;
+    zones: boolean;
+    metadata: boolean;
+    aiAnalysis: boolean;
+    aiSegments: boolean;
+}
 
 const formatPace = (pace: number) => {
     if (!isFinite(pace) || pace <= 0) return '--:--';
@@ -29,305 +28,294 @@ const formatPace = (pace: number) => {
     return `${m}:${s.toString().padStart(2, '0')}`;
 };
 
-const MapDisplay: React.FC<MapDisplayProps & { onGradientChange?: (metric: string) => void }> = ({ 
-    tracks, visibleTrackIds, selectedTrackIds, raceRunners, hoveredTrackId, runnerSpeeds, 
-    hoveredPoint, mapGradientMetric = 'none', animationTrack, 
-    animationProgress = 0, isAnimationPlaying, fitBoundsCounter = 0,
-    selectionPoints = null, onGradientChange
-}) => {
-  const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<any>(null);
-  const tileLayerRef = useRef<any>(null);
-  
-  // Layers
-  const polylinesRef = useRef<Map<string, any>>(new Map()); 
-  const raceTrailsRef = useRef<Map<string, any>>(new Map()); 
-  const trailRef = useRef<any>(null); 
-  const selectionLayerRef = useRef<any>(null);
-  const ghostMarkersRef = useRef<Map<string, any>>(new Map());
-  
-  const [localGradient, setLocalGradient] = useState<string>(mapGradientMetric);
-  const [currentStyle, setCurrentStyle] = useState<keyof typeof MAP_STYLES>('dark');
-
-  // Sync internal state with props if controlled
-  useEffect(() => {
-    setLocalGradient(mapGradientMetric);
-  }, [mapGradientMetric]);
-
-  const handleLocalGradientChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-      const val = e.target.value;
-      setLocalGradient(val);
-      if (onGradientChange) onGradientChange(val);
-  };
-
-  const fitMapToBounds = useCallback((immediate = false) => {
-    const map = mapRef.current;
-    if (!map) return;
-
-    if (selectionPoints) {
-        try {
-            const flatPoints = Array.isArray(selectionPoints[0]) 
-                ? (selectionPoints as TrackPoint[][]).flat() 
-                : (selectionPoints as TrackPoint[]);
-            
-            if (flatPoints.length > 0) {
-                const bounds = L.latLngBounds(flatPoints.map(p => [p.lat, p.lon]));
-                if (bounds.isValid()) {
-                    map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16, animate: !immediate });
-                    return;
-                }
-            }
-        } catch (e) {}
-    }
-
-    const relevantTracks = tracks.filter(t => visibleTrackIds.has(t.id));
-    if (relevantTracks.length > 0) {
-        try {
-            const allPoints = relevantTracks.flatMap(t => t.points.map(p => [p.lat, p.lon]));
-            if (allPoints.length > 0) {
-                const bounds = L.latLngBounds(allPoints);
-                if (bounds.isValid()) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16, animate: !immediate });
-            }
-        } catch (e) {}
-    }
-  }, [tracks, visibleTrackIds, selectionPoints]);
-
-  useEffect(() => {
-    if (mapContainerRef.current && !mapRef.current) {
-      mapRef.current = L.map(mapContainerRef.current, { 
-        preferCanvas: true, 
-        zoomControl: false, 
-        attributionControl: false 
-      }).setView([45, 12], 13);
-      tileLayerRef.current = L.tileLayer(MAP_STYLES[currentStyle].url).addTo(mapRef.current);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (mapRef.current && tileLayerRef.current) {
-        mapRef.current.removeLayer(tileLayerRef.current);
-        tileLayerRef.current = L.tileLayer(MAP_STYLES[currentStyle].url).addTo(mapRef.current);
-    }
-  }, [currentStyle]);
-
-  // Gestione Resize e FitBounds dinamico
-  useEffect(() => {
-    if (mapRef.current) {
-        setTimeout(() => {
-            mapRef.current.invalidateSize();
-            if (!isAnimationPlaying && (!raceRunners || raceRunners.length === 0)) {
-                fitMapToBounds(true);
-            }
-        }, 300);
-    }
-  }, [visibleTrackIds, fitBoundsCounter, fitMapToBounds, selectionPoints]);
-
-  // Gestione Disegno Tracce Statiche (Sfondo)
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-
-    polylinesRef.current.forEach(layer => map.removeLayer(layer));
-    polylinesRef.current.clear();
-
-    tracks.forEach(track => {
-        if (!visibleTrackIds.has(track.id)) return;
-        
-        const isRacing = raceRunners && raceRunners.some(r => r.trackId === track.id);
-        let layer;
-        
-        if (isRacing) {
-            // In modalità gara, la traccia di sfondo è grigia/spenta per mostrare il percorso futuro
-            layer = L.polyline(track.points.map(p => [p.lat, p.lon]), { color: '#334155', weight: 3, opacity: 0.3, dashArray: '5, 10' });
-        } else {
-            // Modalità normale
-            const currentMetric = localGradient;
-            if (currentMetric !== 'none') {
-                const segments = getTrackSegmentColors(track, currentMetric as GradientMetric);
-                layer = L.featureGroup(segments.map(seg => L.polyline([[seg.p1.lat, seg.p1.lon], [seg.p2.lat, seg.p2.lon]], { color: seg.color, weight: 4, opacity: 0.9 })));
-            } else {
-                layer = L.polyline(track.points.map(p => [p.lat, p.lon]), { color: track.color, weight: 4, opacity: 0.6 });
-            }
-        }
-        
-        layer.addTo(map);
-        polylinesRef.current.set(track.id, layer);
-    });
-  }, [tracks, visibleTrackIds, localGradient, raceRunners]);
-
-  // Gestione Selezione
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    if (selectionLayerRef.current) map.removeLayer(selectionLayerRef.current);
-
-    if (selectionPoints) {
-        if (Array.isArray(selectionPoints[0])) {
-            const segments = selectionPoints as TrackPoint[][];
-            const group = L.featureGroup();
-            segments.forEach(seg => {
-                if (seg.length > 1) {
-                    const color = (seg[0] as any).highlightColor || '#fde047';
-                    L.polyline(seg.map(p => [p.lat, p.lon]), { color, weight: 8, opacity: 0.95 }).addTo(group);
-                }
-            });
-            selectionLayerRef.current = group.addTo(map);
-        } else {
-            const seg = selectionPoints as TrackPoint[];
-            if (seg.length > 1) {
-                const color = (seg[0] as any).highlightColor || '#fde047';
-                selectionLayerRef.current = L.polyline(seg.map(p => [p.lat, p.lon]), { color, weight: 10, opacity: 0.8 }).addTo(map);
-            }
-        }
-    }
-  }, [selectionPoints]);
-
-  // Gestione Gara e Animazione
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-
-    // A. GESTIONE CORRIDORI (GARA MULTIPLA)
-    if (raceRunners && raceRunners.length > 0) {
-        const bounds = L.latLngBounds(raceRunners.map(r => [r.position.lat, r.position.lon]));
-        map.fitBounds(bounds, { padding: [80, 80], animate: true, duration: 0.5, maxZoom: 17 });
-
-        raceRunners.forEach(runner => {
-            // 1. Aggiorna Marker (Cursore)
-            let m = ghostMarkersRef.current.get(runner.trackId);
-            const pace = runner.pace;
-            
-            const html = `
-                <div style="position: relative;">
-                    <div style="width: 14px; height: 14px; background-color: ${runner.color}; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 10px ${runner.color}, 0 2px 4px rgba(0,0,0,0.5); z-index: 1000;"></div>
-                    <div class="bg-slate-900/90 text-white px-2 py-0.5 rounded border border-white/20 text-[9px] font-black shadow-xl whitespace-nowrap" style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); pointer-events: none; border-left: 3px solid ${runner.color}">
-                        ${runner.name} • ${formatPace(pace)}
-                    </div>
-                </div>`;
-
-            if (!m) {
-                const icon = L.divIcon({ className: 'runner-label', html, iconSize: [20, 20], iconAnchor: [10, 10] });
-                m = L.marker([runner.position.lat, runner.position.lon], { icon, zIndexOffset: 1000 }).addTo(map);
-                ghostMarkersRef.current.set(runner.trackId, m);
-            } else {
-                m.setLatLng([runner.position.lat, runner.position.lon]);
-                m.setIcon(L.divIcon({ className: 'runner-label', html, iconSize: [20, 20], iconAnchor: [10, 10] }));
-                m.setZIndexOffset(1000);
-            }
-
-            const track = tracks.find(t => t.id === runner.trackId);
-            if (track) {
-                const pointsDone = track.points.filter(p => p.cummulativeDistance <= runner.position.cummulativeDistance);
-                if(pointsDone.length > 0) pointsDone.push(runner.position);
-
-                let trail = raceTrailsRef.current.get(runner.trackId);
-                if (pointsDone.length > 1) {
-                    if (!trail) {
-                        trail = L.polyline(pointsDone.map(p => [p.lat, p.lon]), { color: runner.color, weight: 5, opacity: 1 }).addTo(map);
-                        raceTrailsRef.current.set(runner.trackId, trail);
-                    } else {
-                        trail.setLatLngs(pointsDone.map(p => [p.lat, p.lon]));
-                    }
-                }
-            }
-        });
-        
-        const currentIds = new Set(raceRunners.map(r => r.trackId));
-        ghostMarkersRef.current.forEach((v, k) => { if (!currentIds.has(k)) { map.removeLayer(v); ghostMarkersRef.current.delete(k); } });
-        raceTrailsRef.current.forEach((v, k) => { if (!currentIds.has(k)) { map.removeLayer(v); raceTrailsRef.current.delete(k); } });
-        return;
-    } else {
-        raceTrailsRef.current.forEach(l => map.removeLayer(l));
-        raceTrailsRef.current.clear();
-    }
-
-    // B. GESTIONE ANIMAZIONE SINGOLA (REPLAY)
-    if (animationTrack) {
-        const currentPoint = getTrackPointAtDistance(animationTrack, animationProgress);
-        if (!currentPoint) return;
-
-        const pointsDone = animationTrack.points.filter(p => p.cummulativeDistance <= animationProgress);
-        if (pointsDone.length > 1) {
-            if (!trailRef.current) trailRef.current = L.polyline(pointsDone.map(p => [p.lat, p.lon]), { color: '#22d3ee', weight: 6, opacity: 0.9 }).addTo(map);
-            else trailRef.current.setLatLngs(pointsDone.map(p => [p.lat, p.lon]));
-        }
-
-        if (isAnimationPlaying) {
-            map.setView([currentPoint.lat, currentPoint.lon], map.getZoom(), { animate: false });
-        }
-
-        const pace = getSmoothedPace(animationTrack, animationProgress, 100);
-        const labelId = 'replay-cursor';
-        let m = ghostMarkersRef.current.get(labelId);
-        const html = `
-            <div style="position: relative;">
-                <div class="w-4 h-4 bg-cyan-500 rounded-full border-2 border-white shadow-[0_0_15px_rgba(34,211,238,0.8)]"></div>
-                <div class="bg-cyan-500 text-white px-2 py-1 rounded-full text-[10px] font-black shadow-2xl border border-white/40 whitespace-nowrap animate-pulse" style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);">
-                    ${formatPace(pace)}
-                </div>
-            </div>`;
-
-        if (!m) {
-            const icon = L.divIcon({ className: 'runner-label', html, iconSize: [40, 20], iconAnchor: [20, 10] });
-            m = L.marker([currentPoint.lat, currentPoint.lon], { icon, zIndexOffset: 2000 }).addTo(map);
-            ghostMarkersRef.current.set(labelId, m);
-        } else {
-            m.setLatLng([currentPoint.lat, currentPoint.lon]);
-            m.setIcon(L.divIcon({ className: 'runner-label', html, iconSize: [40, 20], iconAnchor: [20, 10] }));
-        }
-    } else {
-        if (trailRef.current) { map.removeLayer(trailRef.current); trailRef.current = null; }
-        if (!raceRunners) {
-            ghostMarkersRef.current.forEach(m => map.removeLayer(m));
-            ghostMarkersRef.current.clear();
-        }
-    }
-  }, [animationProgress, animationTrack, isAnimationPlaying, raceRunners, tracks]);
-
-  return (
-    <div className="flex flex-col h-full w-full bg-slate-900 overflow-hidden relative group">
-      
-      {/* STATIC MAP TOOLBAR (ABOVE MAP) */}
-      <div className="bg-slate-800 border-b border-slate-700 p-1.5 flex justify-between items-center shrink-0 z-10">
-          <div className="flex items-center gap-2">
-              <div className="flex items-center gap-0.5 border-r border-slate-700 pr-2 mr-1">
-                  <button onClick={() => mapRef.current?.zoomOut()} className="p-1.5 hover:bg-slate-700 text-slate-400 hover:text-white rounded transition-colors" title="Zoom Out">
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M20 12H4"></path></svg>
-                  </button>
-                  <button onClick={() => mapRef.current?.zoomIn()} className="p-1.5 hover:bg-slate-700 text-slate-400 hover:text-white rounded transition-colors" title="Zoom In">
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 4v16m8-8H4"></path></svg>
-                  </button>
-              </div>
-              
-              <div className="relative group/grad">
-                  <select 
-                      value={localGradient}
-                      onChange={handleLocalGradientChange}
-                      className="bg-slate-900 border border-slate-700 text-[10px] font-bold text-white uppercase outline-none cursor-pointer appearance-none pl-2 pr-6 py-1 rounded hover:border-slate-500 transition-colors"
-                  >
-                      {GRADIENT_OPTIONS.map(opt => <option key={opt.id} value={opt.id} className="bg-slate-900 text-slate-300">{opt.label}</option>)}
-                  </select>
-                  <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 text-[8px]">▼</div>
-              </div>
-          </div>
-
-          <div className="relative">
-              <select 
-                  value={currentStyle}
-                  onChange={(e) => setCurrentStyle(e.target.value as any)}
-                  className="bg-slate-900 border border-slate-700 text-[10px] font-bold text-white uppercase outline-none cursor-pointer appearance-none pl-2 pr-6 py-1 rounded hover:border-slate-500 transition-colors"
-              >
-                  {Object.entries(MAP_STYLES).map(([key, val]) => (
-                      <option key={key} value={key} className="bg-slate-900 text-slate-300">{val.label}</option>
-                  ))}
-              </select>
-              <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 text-[8px]">▼</div>
-          </div>
-      </div>
-
-      <div ref={mapContainerRef} className="flex-grow w-full h-full z-0 relative" />
-    </div>
-  );
+const formatDuration = (ms: number) => {
+    if (isNaN(ms) || ms < 0) return '00:00';
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}m ${seconds}s`;
 };
 
-export default MapDisplay;
+const LAYOUT_KEY = 'track_detail_layout_prefs';
+
+const TrackDetailView: React.FC<{ 
+    track: Track, 
+    userProfile: UserProfile, 
+    onExit: () => void, 
+    allHistory?: Track[], 
+    plannedWorkouts?: PlannedWorkout[], 
+    onUpdateTrackMetadata?: (id: string, metadata: Partial<Track>) => void, 
+    onAddPlannedWorkout?: any, 
+    onCheckAiAccess?: any 
+}> = ({ 
+    track, userProfile, onExit, allHistory = [], plannedWorkouts = [], 
+    onUpdateTrackMetadata, onAddPlannedWorkout, onCheckAiAccess 
+}) => {
+    const [progress, setProgress] = useState(track.distance);
+    const [isAnimating, setIsAnimating] = useState(false);
+    const [animSpeed, setAnimSpeed] = useState(15);
+    const [fitTrigger, setFitTrigger] = useState(0);
+    const [hoveredPoint, setHoveredPoint] = useState<TrackPoint | null>(null);
+    const [selectedRange, setSelectedRange] = useState<{ startDistance: number; endDistance: number } | null>(null);
+    const [highlightedSegments, setHighlightedSegments] = useState<TrackPoint[] | TrackPoint[][] | null>(null);
+    const [mapMetric, setMapMetric] = useState<string>('none');
+    
+    // Layout State Persistence
+    const [layoutSizes, setLayoutSizes] = useState({ sidebarWidth: 320, mapHeightRatio: 0.6 });
+
+    useEffect(() => {
+        const stored = localStorage.getItem(LAYOUT_KEY);
+        if (stored) {
+            try { setLayoutSizes(JSON.parse(stored)); } catch(e) {}
+        }
+    }, []);
+
+    const saveLayout = (updates: Partial<typeof layoutSizes>) => {
+        const newSizes = { ...layoutSizes, ...updates };
+        setLayoutSizes(newSizes);
+        localStorage.setItem(LAYOUT_KEY, JSON.stringify(newSizes));
+    };
+
+    const [sections, setSections] = useState<SectionState>({
+        stats: true, records: true, zones: true, metadata: true, aiAnalysis: true, aiSegments: true
+    });
+
+    const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth < 1024);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    const stats = useMemo(() => calculateTrackStats(track), [track]);
+
+    useEffect(() => {
+        const timer = setTimeout(() => setFitTrigger(prev => prev + 1), 600);
+        return () => clearTimeout(timer);
+    }, []);
+
+    // ANIMAZIONE
+    const lastTimeRef = useRef<number | null>(null);
+    const progressRef = useRef(progress);
+    useEffect(() => { progressRef.current = progress; }, [progress]);
+
+    useEffect(() => {
+        let frame: number;
+        const animate = (time: number) => {
+            if (lastTimeRef.current !== null) {
+                const delta = time - lastTimeRef.current;
+                const kmPerMs = (1 / 60000) * animSpeed; 
+                const nextProgress = progressRef.current + (kmPerMs * delta);
+                if (nextProgress >= track.distance) {
+                    setProgress(track.distance);
+                    setIsAnimating(false);
+                    lastTimeRef.current = null;
+                    return;
+                }
+                setProgress(nextProgress);
+            }
+            lastTimeRef.current = time;
+            frame = requestAnimationFrame(animate);
+        };
+        if (isAnimating) {
+            if (progressRef.current >= track.distance) {
+                setProgress(0);
+                progressRef.current = 0;
+            }
+            frame = requestAnimationFrame(animate);
+        } else {
+            lastTimeRef.current = null;
+        }
+        return () => cancelAnimationFrame(frame);
+    }, [isAnimating, animSpeed, track.distance]);
+
+    const selectionStats = useMemo(() => {
+        if (!selectedRange) return null;
+        return calculateSegmentStats(track, selectedRange.startDistance, selectedRange.endDistance);
+    }, [track, selectedRange]);
+
+    const toggleSection = (key: keyof SectionState) => setSections(prev => ({ ...prev, [key]: !prev[key] }));
+
+    const handleSplitSelect = (split: Split | PauseSegment | AiSegment | null) => {
+        if (split && 'splitNumber' in split) {
+            const start = (split.splitNumber - 1) * 1.0; 
+            const end = start + split.distance;
+            setSelectedRange({ startDistance: start, endDistance: end });
+            setHighlightedSegments(null); 
+            setFitTrigger(prev => prev + 1);
+        } else if (split === null) {
+            setSelectedRange(null);
+        }
+    };
+
+    const sectionHeader = (title: string, key: keyof SectionState, icon?: string) => (
+        <button onClick={() => toggleSection(key)} className="w-full flex items-center justify-between py-2 border-b border-slate-800 group hover:bg-slate-900/50 px-2 transition-colors">
+            <div className="flex items-center gap-2">
+                {icon && <span className="text-sm">{icon}</span>}
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] group-hover:text-cyan-400 transition-colors">{title}</span>
+            </div>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={`w-3 h-3 text-slate-600 group-hover:text-cyan-400 transition-transform duration-300 ${sections[key] ? '' : '-rotate-90'}`}><path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" /></svg>
+        </button>
+    );
+
+    const SidebarContent = (
+        <div className="h-full w-full bg-slate-950 overflow-y-auto custom-scrollbar p-2 space-y-2">
+            <div className="bg-slate-900/20 rounded border border-slate-800/50">{sectionHeader("Sommario", "stats", "📊")}{sections.stats && <div className="p-2"><StatsPanel stats={stats} selectedSegment={null} onSegmentSelect={handleSplitSelect} /></div>}</div>
+            <div className="bg-slate-900/20 rounded border border-slate-800/50">{sectionHeader("Records", "records", "🏆")}{sections.records && <div className="p-2"><PersonalRecordsPanel track={track} /></div>}</div>
+            <div className="bg-slate-900/20 rounded border border-slate-800/50">{sectionHeader("Zone", "zones", "❤️")}{sections.zones && <div className="p-2"><HeartRateZonePanel track={track} userProfile={userProfile} onZoneSelect={(segs) => { setHighlightedSegments(segs); setSelectedRange(null); if(segs) setFitTrigger(c=>c+1); }} /></div>}</div>
+            <div className="bg-slate-900/20 rounded border border-slate-800/50">{sectionHeader("Note", "metadata", "📝")}{sections.metadata && (
+                <div className="p-3 space-y-3 animate-fade-in"><div className="grid grid-cols-2 gap-2">
+                <div><label className="text-[8px] font-black text-slate-500 block mb-1 uppercase">RPE (1-10)</label><select value={track.rpe || ''} onChange={(e) => onUpdateTrackMetadata?.(track.id, { rpe: parseInt(e.target.value) })} className="w-full bg-slate-800 border border-slate-700 rounded p-1 text-[10px] text-white"><option value="">-</option>{[...Array(10)].map((_, i) => <option key={i+1} value={i+1}>{i+1}</option>)}</select></div>
+                <div><label className="text-[8px] font-black text-slate-500 block mb-1 uppercase">Scarpa</label><select value={track.shoe || ''} onChange={(e) => onUpdateTrackMetadata?.(track.id, { shoe: e.target.value })} className="w-full bg-slate-800 border border-slate-700 rounded p-1 text-[10px] text-white"><option value="">-</option>{userProfile.shoes?.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
+                </div><div><label className="text-[8px] font-black text-slate-500 block mb-1 uppercase">Feedback</label><textarea value={track.notes || ''} onChange={(e) => onUpdateTrackMetadata?.(track.id, { notes: e.target.value })} className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-xs text-white h-16 resize-none outline-none focus:border-cyan-500/50" /></div></div>
+            )}</div>
+            <div className="bg-slate-900/20 rounded border border-slate-800/50">{sectionHeader("Segmenti AI", "aiSegments", "🔍")}{sections.aiSegments && <div className="p-2"><GeminiSegmentsPanel track={track} stats={stats} userProfile={userProfile} onSegmentSelect={() => {}} selectedSegment={null} onCheckAiAccess={onCheckAiAccess} /></div>}</div>
+            <div className="bg-slate-900/20 rounded border border-slate-800/50">{sectionHeader("Coach AI", "aiAnalysis", "🧠")}{sections.aiAnalysis && <div className="p-2"><GeminiTrackAnalysisPanel stats={stats} userProfile={userProfile} track={track} plannedWorkouts={plannedWorkouts} allHistory={allHistory} onAddPlannedWorkout={onAddPlannedWorkout} onUpdateTrackMetadata={onUpdateTrackMetadata} onCheckAiAccess={onCheckAiAccess} /></div>}</div>
+        </div>
+    );
+
+    const AnimationControlsBar = (
+        <div className="flex items-center gap-3 p-2 bg-slate-900 border-t border-slate-800 shrink-0 h-14">
+            <button onClick={() => setIsAnimating(!isAnimating)} className="w-8 h-8 bg-cyan-600 hover:bg-cyan-500 rounded flex items-center justify-center transition-colors shadow-lg active:scale-95 text-white">
+                {isAnimating ? '⏸' : '▶'}
+            </button>
+            <div className="flex-grow group relative h-4 flex items-center">
+                <input type="range" min="0" max={track.distance} step="0.001" value={progress} onChange={e => setProgress(parseFloat(e.target.value))} className="w-full h-1 accent-cyan-500 bg-slate-800 rounded cursor-pointer" />
+            </div>
+            <select value={animSpeed} onChange={e => setAnimSpeed(parseInt(e.target.value))} className="bg-slate-800 text-[10px] font-black p-1 rounded uppercase border border-slate-700 outline-none text-slate-300">
+                <option value="5">5x</option>
+                <option value="15">15x</option>
+                <option value="50">50x</option>
+                <option value="100">100x</option>
+            </select>
+        </div>
+    );
+
+    const SelectionStatsBar = (
+        selectionStats && (
+            <div className="bg-slate-900 border-t border-b border-cyan-500/30 p-1.5 overflow-x-auto no-scrollbar z-50 shadow-xl shrink-0">
+                <div className="flex items-center gap-6 justify-center min-w-max px-4">
+                    <div className="text-center"><span className="block text-[8px] font-black text-slate-500 uppercase tracking-widest">Distanza</span><span className="text-xs font-black text-cyan-400 font-mono">{(selectedRange?.endDistance! - selectedRange?.startDistance!).toFixed(2)} km</span></div>
+                    <div className="w-px h-6 bg-slate-800"></div>
+                    <div className="text-center"><span className="block text-[8px] font-black text-slate-500 uppercase tracking-widest">Tempo</span><span className="text-xs font-bold text-white font-mono">{formatDuration(selectionStats.duration)}</span></div>
+                    <div className="w-px h-6 bg-slate-800"></div>
+                    <div className="text-center"><span className="block text-[8px] font-black text-slate-500 uppercase tracking-widest">Passo</span><span className="text-xs font-bold text-white font-mono">{formatPace(selectionStats.pace)}</span></div>
+                    <div className="w-px h-6 bg-slate-800"></div>
+                    <div className="text-center"><span className="block text-[8px] font-black text-slate-500 uppercase tracking-widest">Dislivello</span><span className="text-xs font-bold text-white font-mono">+{Math.round(selectionStats.elevationGain)}m</span></div>
+                    <button onClick={() => setSelectedRange(null)} className="ml-4 bg-slate-800 hover:bg-slate-700 p-1 rounded-full text-slate-400 transition-colors text-xs">&times;</button>
+                </div>
+            </div>
+        )
+    );
+
+    return (
+        <div className="flex flex-col h-full w-full bg-slate-950 text-white font-sans overflow-hidden z-[10000]">
+            <header className="px-3 py-2 bg-slate-900 border-b border-slate-800 flex justify-between items-center z-[60] shrink-0">
+                <button onClick={onExit} className="flex items-center gap-2 text-slate-400 hover:text-white text-xs font-bold uppercase tracking-widest">
+                    <span className="text-lg">←</span> Indietro
+                </button>
+                <div className="text-xs font-bold text-white truncate max-w-[200px]">{track.name}</div>
+            </header>
+
+            <div className="flex-grow overflow-hidden relative flex flex-col lg:flex-row h-full">
+                {isMobile ? (
+                    // MOBILE LAYOUT (Vertical Stack fixed height logic)
+                    <div className="flex flex-col w-full h-full overflow-hidden">
+                        {/* Map Section (Fixed Height ~35%) */}
+                        <div className="h-[35%] relative border-b border-slate-800 shrink-0">
+                            <MapDisplay 
+                                tracks={[track]} 
+                                visibleTrackIds={new Set([track.id])} 
+                                animationTrack={track} 
+                                animationProgress={progress} 
+                                isAnimationPlaying={isAnimating} 
+                                fitBoundsCounter={fitTrigger} 
+                                raceRunners={null} 
+                                hoveredTrackId={null} 
+                                runnerSpeeds={new Map()} 
+                                selectionPoints={selectedRange ? getPointsInDistanceRange(track, selectedRange.startDistance, selectedRange.endDistance) : highlightedSegments} 
+                                mapGradientMetric={mapMetric} 
+                                onGradientChange={setMapMetric}
+                            />
+                        </div>
+                        
+                        {SelectionStatsBar}
+                        
+                        {/* Stats Section (Scrollable, takes remaining space) */}
+                        <div className="flex-grow overflow-y-auto bg-slate-950 min-h-0">
+                            {SidebarContent}
+                        </div>
+                        
+                        {/* Chart + Controls (Fixed Height ~200px) */}
+                        <div className="h-56 border-t border-slate-800 bg-slate-900 shrink-0 flex flex-col">
+                            <div className="flex-grow relative min-h-0">
+                                <TimelineChart track={track} yAxisMetrics={['pace', 'hr']} onChartHover={setHoveredPoint} hoveredPoint={hoveredPoint} onSelectionChange={setSelectedRange} showPauses={false} pauseSegments={[]} animationProgress={progress} isAnimating={isAnimating} userProfile={userProfile} highlightedRange={selectedRange} />
+                            </div>
+                            {AnimationControlsBar}
+                        </div>
+                    </div>
+                ) : (
+                    // DESKTOP LAYOUT (Horizontal Split)
+                    <ResizablePanel 
+                        direction="horizontal" 
+                        initialSize={layoutSizes.sidebarWidth} 
+                        minSize={250}
+                        onResizeEnd={(s) => saveLayout({ sidebarWidth: s })}
+                        className="w-full h-full"
+                    >
+                        {/* LEFT: Sidebar */}
+                        <div className="h-full bg-slate-950 border-r border-slate-800 overflow-hidden">
+                            {SidebarContent}
+                        </div>
+
+                        {/* RIGHT: Flex Column */}
+                        <div className="h-full flex flex-col w-full overflow-hidden">
+                            
+                            {/* Resizable: Map vs Chart */}
+                            <div className="flex-grow overflow-hidden min-h-0">
+                                <ResizablePanel 
+                                    direction="vertical"
+                                    initialSizeRatio={layoutSizes.mapHeightRatio}
+                                    minSize={200}
+                                    onResizeEnd={(s, r) => saveLayout({ mapHeightRatio: r })}
+                                    className="h-full"
+                                >
+                                    {/* TOP RIGHT: Map */}
+                                    <div className="h-full relative bg-slate-900 overflow-hidden">
+                                        <MapDisplay 
+                                            tracks={[track]} 
+                                            visibleTrackIds={new Set([track.id])} 
+                                            animationTrack={track} 
+                                            animationProgress={progress} 
+                                            isAnimationPlaying={isAnimating} 
+                                            fitBoundsCounter={fitTrigger} 
+                                            raceRunners={null} 
+                                            hoveredTrackId={null} 
+                                            runnerSpeeds={new Map()} 
+                                            selectionPoints={selectedRange ? getPointsInDistanceRange(track, selectedRange.startDistance, selectedRange.endDistance) : highlightedSegments} 
+                                            mapGradientMetric={mapMetric} 
+                                            onGradientChange={setMapMetric}
+                                        />
+                                    </div>
+
+                                    {/* BOTTOM RIGHT: Chart */}
+                                    <div className="h-full flex flex-col bg-slate-900 border-t border-slate-800 overflow-hidden">
+                                        {SelectionStatsBar}
+                                        <div className="flex-grow relative bg-slate-900/50 p-2 min-h-0">
+                                            <TimelineChart track={track} yAxisMetrics={['pace', 'hr', 'elevation']} onChartHover={setHoveredPoint} hoveredPoint={hoveredPoint} onSelectionChange={setSelectedRange} showPauses={false} pauseSegments={[]} animationProgress={progress} isAnimating={isAnimating} userProfile={userProfile} highlightedRange={selectedRange} />
+                                        </div>
+                                    </div>
+                                </ResizablePanel>
+                            </div>
+
+                            {/* FOOTER: Controls (Outside resize panel to be fixed bottom) */}
+                            {AnimationControlsBar}
+                        </div>
+                    </ResizablePanel>
+                )}
+            </div>
+        </div>
+    );
+};
+
+export default TrackDetailView;
