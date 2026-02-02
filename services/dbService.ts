@@ -90,8 +90,12 @@ export const saveTracksToDB = async (tracks: Track[], options: { skipCloud?: boo
     if (session) {
       for (const t of tracks.filter(t => !t.isExternal)) {
         const payload = mapTrackToSupabase(t, session.user.id);
-        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t.id);
-        if (isUUID) await supabase.from('tracks').upsert({ id: t.id, ...payload });
+        // FIX: Allow both standard UUIDs AND Strava IDs (format: strava-12345) to be saved
+        const isPersistentId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t.id) || t.id.startsWith('strava-');
+        
+        if (isPersistentId) {
+            await supabase.from('tracks').upsert({ id: t.id, ...payload });
+        }
       }
     }
   }
@@ -263,8 +267,13 @@ export const syncTrackToCloud = async (track: Track) => {
     if (!isSupabaseConfigured()) return;
     const { data: { session } } = await supabase.auth.getSession();
     if (!session || track.isExternal) return;
+    
     const payload = mapTrackToSupabase(track, session.user.id);
-    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(track.id)) {
+    
+    // FIX: Allow both standard UUIDs AND Strava IDs (format: strava-12345) to be saved directly
+    const isPersistentId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(track.id) || track.id.startsWith('strava-');
+
+    if (isPersistentId) {
         await supabase.from('tracks').upsert({ id: track.id, ...payload });
     } else {
         const { data, error } = await supabase.from('tracks').insert(payload).select().single();
