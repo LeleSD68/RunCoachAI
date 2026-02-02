@@ -2,12 +2,15 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Track } from '../types';
 import { calculateTrackStats } from '../services/trackStatsService';
+import TrackPreview from './TrackPreview';
 
 interface ExplorerViewProps {
     tracks: Track[];
     onClose: () => void;
     onSelectTrack: (id: string) => void;
 }
+
+const EXPLORER_COLS_KEY = 'runcoach_explorer_cols_pref_v2';
 
 const formatDuration = (ms: number) => {
     const totalSeconds = Math.floor(ms / 1000);
@@ -43,7 +46,7 @@ const RotatePhoneIcon = () => (
 );
 
 // Definizione colonne disponibili
-type ColumnKey = 'date' | 'name' | 'distance' | 'duration' | 'totalDuration' | 'pace' | 'hr' | 'elevation' | 'cadence' | 'steps' | 'calories';
+type ColumnKey = 'preview' | 'date' | 'name' | 'distance' | 'duration' | 'totalDuration' | 'pace' | 'hr' | 'elevation' | 'cadence' | 'steps' | 'calories';
 
 interface ColumnConfig {
     key: ColumnKey;
@@ -54,6 +57,7 @@ interface ColumnConfig {
 }
 
 const COLUMNS: ColumnConfig[] = [
+    { key: 'preview', label: 'Anteprima', shortLabel: 'Mappa', align: 'center', minWidth: '60px' },
     { key: 'date', label: 'Data', align: 'left', minWidth: '80px' },
     { key: 'name', label: 'Nome Attività', align: 'left', minWidth: '180px' },
     { key: 'distance', label: 'Distanza', shortLabel: 'Dist.', align: 'right', minWidth: '60px' },
@@ -69,7 +73,18 @@ const COLUMNS: ColumnConfig[] = [
 
 const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTrack }) => {
     const [searchTerm, setSearchTerm] = useState('');
-    const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(new Set(['date', 'name', 'distance', 'duration', 'pace', 'elevation']));
+    
+    // Initialize columns from localStorage or default
+    const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => {
+        const saved = localStorage.getItem(EXPLORER_COLS_KEY);
+        if (saved) {
+            try {
+                return new Set(JSON.parse(saved) as ColumnKey[]);
+            } catch (e) {}
+        }
+        return new Set(['preview', 'date', 'name', 'distance', 'duration', 'pace', 'elevation']);
+    });
+
     const [sortConfig, setSortConfig] = useState<{ key: ColumnKey; direction: 'asc' | 'desc' }>({ key: 'date', direction: 'desc' });
     const [showColumnMenu, setShowColumnMenu] = useState(false);
 
@@ -108,8 +123,10 @@ const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTr
         }
 
         data.sort((a, b) => {
-            let valA = a[sortConfig.key] as any;
-            let valB = b[sortConfig.key] as any;
+            let valA = a[sortConfig.key as keyof typeof a] as any;
+            let valB = b[sortConfig.key as keyof typeof b] as any;
+
+            if (sortConfig.key === 'preview') return 0; // No sort for preview
 
             // Handle strings
             if (typeof valA === 'string') valA = valA.toLowerCase();
@@ -124,6 +141,7 @@ const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTr
     }, [enrichedTracks, sortConfig, searchTerm]);
 
     const handleSort = (key: ColumnKey) => {
+        if (key === 'preview') return;
         setSortConfig(prev => ({
             key,
             direction: prev.key === key && prev.direction === 'desc' ? 'asc' : 'desc'
@@ -135,6 +153,9 @@ const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTr
             const next = new Set(prev);
             if (next.has(key)) next.delete(key);
             else next.add(key);
+            
+            // Persist to localStorage
+            localStorage.setItem(EXPLORER_COLS_KEY, JSON.stringify(Array.from(next)));
             return next;
         });
     };
@@ -240,6 +261,13 @@ const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTr
                                         let className = `p-3 whitespace-nowrap text-${col.align} `;
 
                                         switch(col.key) {
+                                            case 'preview':
+                                                content = (
+                                                    <div className="w-10 h-8 bg-slate-950 rounded border border-slate-700 overflow-hidden relative">
+                                                        <TrackPreview points={row.track.points} color={row.track.color} className="w-full h-full opacity-80" />
+                                                    </div>
+                                                );
+                                                break;
                                             case 'date': 
                                                 content = new Date(row.date).toLocaleDateString(); 
                                                 className += 'text-slate-500 font-mono';
