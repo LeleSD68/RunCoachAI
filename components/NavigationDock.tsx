@@ -112,7 +112,12 @@ const NavigationDock: React.FC<NavigationDockProps> = ({
                 <Tooltip text="Social" subtext="Crew" position="top">
                     <button onClick={onOpenSocial} className="p-3 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-pink-400 transition-all active:scale-95 relative">
                         <UserGroupIcon />
-                        {onlineCount > 0 && (
+                        {unreadCount > 0 && (
+                            <span className="absolute top-1 right-1 bg-red-500 text-white text-[8px] font-black w-3.5 h-3.5 flex items-center justify-center rounded-full border border-slate-900 animate-pulse">
+                                {unreadCount > 9 ? '!' : unreadCount}
+                            </span>
+                        )}
+                        {onlineCount > 0 && unreadCount === 0 && (
                             <span className="absolute top-1 right-1 bg-green-500 text-slate-900 text-[8px] font-black w-3.5 h-3.5 flex items-center justify-center rounded-full border border-slate-950">{onlineCount}</span>
                         )}
                     </button>

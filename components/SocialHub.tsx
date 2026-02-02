@@ -10,6 +10,7 @@ interface SocialHubProps {
     onClose: () => void;
     currentUserId: string;
     onChallengeGhost?: (track: Track) => void;
+    onReadMessages?: () => void; // New Prop
 }
 
 const UserIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M10 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM3.465 14.493a1.23 1.23 0 0 0 .41 1.412A9.957 9.957 0 0 0 10 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 0 0-13.074.003Z" /></svg>);
@@ -37,16 +38,9 @@ const getMessageDateLabel = (dateString: string) => {
     return date.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' });
 };
 
-const formatPace = (pace: number) => {
-    if (!isFinite(pace) || pace <= 0) return '-:--';
-    const m = Math.floor(pace);
-    const s = Math.round((pace - m) * 60);
-    return `${m}:${s.toString().padStart(2, '0')}`;
-};
-
 const REACTIONS_LIST = ['👍', '🔥', '⚡', '👏', '🏃'];
 
-const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallengeGhost }) => {
+const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallengeGhost, onReadMessages }) => {
     const [activeTab, setActiveTab] = useState<'feed' | 'friends' | 'add'>('feed');
     const [friends, setFriends] = useState<UserProfile[]>([]);
     const [requests, setRequests] = useState<FriendRequest[]>([]);
@@ -72,6 +66,11 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
     }, [activeTab]);
 
     useEffect(() => {
+        // Reset unread count when opening social hub
+        if (onReadMessages) onReadMessages();
+    }, []);
+
+    useEffect(() => {
         if (activeTab !== 'add') return;
         const timer = setTimeout(() => {
             if (searchQuery.length >= 3) handleSearch();
@@ -88,6 +87,8 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages', filter: `receiver_id=eq.${currentUserId}` }, (payload) => {
                 if (payload.new.sender_id === activeChatFriend.id) {
                     setChatMessages(prev => prev.some(m => m.id === payload.new.id) ? prev : [...prev, { id: payload.new.id, senderId: payload.new.sender_id, receiverId: payload.new.receiver_id, content: payload.new.content, createdAt: payload.new.created_at }]);
+                    // Read messages instantly when chat is open
+                    if (onReadMessages) onReadMessages();
                 }
             }).subscribe();
             return () => { if (pollIntervalRef.current) clearInterval(pollIntervalRef.current); supabase.removeChannel(channel); };
@@ -201,10 +202,19 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
                     <header className="bg-slate-800 p-4 border-b border-slate-700 flex justify-between items-center shrink-0">
                         <div className="flex items-center gap-3">
                             <button onClick={() => setActiveChatFriend(null)} className="text-slate-400 hover:text-white mr-2">&larr;</button>
-                            <div className="w-8 h-8 bg-slate-700 rounded-full flex items-center justify-center text-white font-bold text-xs border border-slate-600">{activeChatFriend.name?.substring(0,1)}</div>
+                            <div className="w-8 h-8 bg-slate-700 rounded-full flex items-center justify-center text-white font-bold text-xs border border-slate-600 relative">
+                                {activeChatFriend.name?.substring(0,1)}
+                                {activeChatFriend.isOnline && (
+                                    <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 border-2 border-slate-800 rounded-full"></div>
+                                )}
+                            </div>
                             <div>
                                 <h3 className="font-bold text-white text-sm">{activeChatFriend.name}</h3>
-                                {activeChatFriend.isOnline && <p className="text-[10px] text-green-400">Online</p>}
+                                {activeChatFriend.isOnline ? (
+                                    <p className="text-[10px] text-green-400 font-bold">Online</p>
+                                ) : (
+                                    <p className="text-[10px] text-slate-500">Offline</p>
+                                )}
                             </div>
                         </div>
                         <button onClick={onClose} className="text-slate-400 hover:text-white text-xl">&times;</button>
@@ -324,7 +334,13 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
                                 {friends.length === 0 ? (<p className="text-slate-500 text-sm italic">Cerca qualcuno nella tab "Aggiungi"!</p>) : (
                                     friends.map(friend => (
                                         <div key={friend.id} className="flex items-center justify-between p-3 bg-slate-800/30 rounded-lg border border-slate-700/50 mb-2">
-                                            <div className="flex items-center gap-3"><div className="relative"><div className="w-9 h-9 bg-slate-700 rounded-full flex items-center justify-center text-slate-300 font-bold border border-slate-600">{friend.name?.substring(0,1)}</div>{friend.isOnline && <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-slate-900 rounded-full shadow-lg"></div>}</div><span className="text-slate-200 font-medium text-sm">{friend.name}</span></div>
+                                            <div className="flex items-center gap-3">
+                                                <div className="relative">
+                                                    <div className="w-9 h-9 bg-slate-700 rounded-full flex items-center justify-center text-slate-300 font-bold border border-slate-600">{friend.name?.substring(0,1)}</div>
+                                                    {friend.isOnline && <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-slate-900 rounded-full shadow-lg"></div>}
+                                                </div>
+                                                <span className="text-slate-200 font-medium text-sm">{friend.name}</span>
+                                            </div>
                                             <div className="flex items-center gap-2"><button onClick={() => openChat(friend)} className="bg-slate-700 hover:bg-cyan-600 text-slate-300 hover:text-white p-2 rounded-lg transition-colors border border-slate-600"><ChatBubbleIcon /></button></div>
                                         </div>
                                     ))
@@ -356,7 +372,7 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
                                 onClick={() => setSelectedFeedTrack(null)}
                                 className="absolute top-3 right-3 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 backdrop-blur-md transition-colors z-20"
                             >
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" /></svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" /></svg>
                             </button>
 
                             {/* Info Overlay */}

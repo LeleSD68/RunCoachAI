@@ -30,6 +30,18 @@ const TrashIcon = () => (
     </svg>
 );
 
+const ExpandIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+        <path fillRule="evenodd" d="M3.25 3.25a.75.75 0 0 1 .75.75v3.25a.25.25 0 0 0 .25.25h3.25a.75.75 0 0 1 0 1.5H4.25A1.75 1.75 0 0 1 2.5 7.25V4a.75.75 0 0 1 .75-.75Zm13.5 0a.75.75 0 0 1 .75.75v3.25a1.75 1.75 0 0 1-1.75 1.75h-3.25a.75.75 0 0 1 0-1.5h3.25a.25.25 0 0 0 .25-.25V4a.75.75 0 0 1 .75-.75Zm-13.5 13.5a.75.75 0 0 1 .75-.75h3.25a.75.75 0 0 1 0 1.5H4.25a.25.25 0 0 0-.25.25v3.25a.75.75 0 0 1-1.5 0v-3.25a1.75 1.75 0 0 1 1.75-1.75Zm13.5 0a.75.75 0 0 1-.75.75h-3.25a.75.75 0 0 1 0-1.5h3.25a.25.25 0 0 0 .25.25v-3.25a.75.75 0 0 1 1.5 0v3.25a1.75 1.75 0 0 1-1.75 1.75Z" clipRule="evenodd" />
+    </svg>
+);
+
+const CollapseIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+        <path fillRule="evenodd" d="M9.75 2.5a.75.75 0 0 1 .75.75v3.25a.25.25 0 0 0 .25.25h3.25a.75.75 0 0 1 0 1.5h-3.25a1.75 1.75 0 0 1-1.75-1.75V3.25a.75.75 0 0 1 .75-.75Zm-7 7.75a.75.75 0 0 1 .75-.75h3.25a.25.25 0 0 0 .25-.25V6a.75.75 0 0 1 1.5 0v3.25a1.75 1.75 0 0 1-1.75 1.75H3.5a.75.75 0 0 1-.75-.75Zm13.5 6.5a.75.75 0 0 1 .75-.75v-3.25a1.75 1.75 0 0 1-1.75-1.75h-3.25a.75.75 0 0 1 0-1.5h3.25a.25.25 0 0 0 .25.25v3.25a.75.75 0 0 1-.75.75Zm-7-7.75a.75.75 0 0 1-.75.75H5.25a.25.25 0 0 0-.25.25v3.25a.75.75 0 0 1-1.5 0v-3.25a1.75 1.75 0 0 1 1.75-1.75h3.25a.75.75 0 0 1 .75.75Z" clipRule="evenodd" />
+    </svg>
+);
+
 const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, onClose, isStandalone = false, onAddPlannedWorkout, plannedWorkouts = [] }) => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState('');
@@ -37,6 +49,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const chatSessionRef = useRef<Chat | null>(null);
     const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
+    const [isExpanded, setIsExpanded] = useState(false);
 
     useEffect(() => {
         loadChatFromDB(GLOBAL_CHAT_ID).then(saved => {
@@ -44,10 +57,6 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
                 setMessages(saved);
                 // Open only the latest date by default
                 const dates = new Set(saved.map(m => new Date(m.timestamp).toLocaleDateString()));
-                // If we want only the last date open:
-                // const lastDate = new Date(saved[saved.length - 1].timestamp).toLocaleDateString();
-                // setExpandedDates(new Set([lastDate]));
-                // If we want all open by default (standard chat behavior usually):
                 setExpandedDates(dates);
             } else {
                 setMessages([{
@@ -69,7 +78,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages, expandedDates]); // Scroll when messages change or dates expand
+    }, [messages, expandedDates, isExpanded]); 
 
     const generateSystemInstruction = () => {
         const personality = userProfile.aiPersonality || 'pro_balanced';
@@ -281,8 +290,12 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
         );
     };
 
+    const containerClasses = isExpanded 
+        ? "fixed inset-0 z-[13000] w-full h-full rounded-none" 
+        : `relative ${isStandalone ? 'w-full md:w-[450px] h-[600px] md:rounded-3xl' : 'h-full'}`;
+
     return (
-        <div className={`flex flex-col bg-slate-900 border border-slate-700 shadow-2xl overflow-hidden ${isStandalone ? 'w-full md:w-[450px] h-[600px] md:rounded-3xl' : 'h-full'}`}>
+        <div className={`flex flex-col bg-slate-900 border border-slate-700 shadow-2xl overflow-hidden transition-all duration-300 ease-in-out ${containerClasses}`}>
             <header className="p-4 bg-slate-800 border-b border-slate-700 flex justify-between items-center shrink-0">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-purple-600 rounded-xl flex items-center justify-center shadow-lg border border-purple-400/50 p-1">
@@ -298,7 +311,16 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
                         </div>
                     </div>
                 </div>
-                <button onClick={onClose} className="text-slate-400 hover:text-white text-2xl">&times;</button>
+                <div className="flex items-center gap-2">
+                    <button 
+                        onClick={() => setIsExpanded(!isExpanded)} 
+                        className="text-slate-400 hover:text-white p-2 rounded-lg hover:bg-slate-700 transition-colors"
+                        title={isExpanded ? "Comprimi" : "Espandi a tutto schermo"}
+                    >
+                        {isExpanded ? <CollapseIcon /> : <ExpandIcon />}
+                    </button>
+                    <button onClick={onClose} className="text-slate-400 hover:text-white text-2xl p-2 rounded-lg hover:bg-slate-700 transition-colors leading-none">&times;</button>
+                </div>
             </header>
             
             <div className="flex-grow overflow-y-auto p-4 custom-scrollbar bg-slate-900/50">
@@ -315,7 +337,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
                         
                         {expandedDates.has(date) && (
                             <div className="space-y-2">
-                                {items.map(({ msg, index }) => renderMessage(msg, index))}
+                                {items.map(({ msg, index }: { msg: ChatMessage, index: number }) => renderMessage(msg, index))}
                             </div>
                         )}
                     </div>

@@ -11,7 +11,7 @@ import LoginModal from './components/LoginModal';
 import HomeModal from './components/HomeModal';
 import WelcomeModal from './components/WelcomeModal';
 import UserProfileModal from './components/UserProfileModal';
-import SettingsModal from './components/SettingsModal'; // New Import
+import SettingsModal from './components/SettingsModal';
 import Changelog from './components/Changelog';
 import NavigationDock from './components/NavigationDock';
 import Chatbot from './components/Chatbot';
@@ -46,9 +46,8 @@ import { parseGpx } from './services/gpxService';
 import { parseTcx } from './services/tcxService';
 import { generateSmartTitle } from './services/titleGenerator';
 import { isDuplicateTrack, markStravaTrackAsDeleted, isPreviouslyDeletedStravaTrack, getTrackFingerprint } from './services/trackUtils';
-import { getFriendsActivityFeed } from './services/socialService';
+import { getFriendsActivityFeed, updatePresence, getFriends } from './services/socialService';
 
-// Changed key to reset layout preferences for the layout fix v6
 const LAYOUT_PREFS_KEY = 'runcoach_layout_prefs_v6';
 
 const App: React.FC = () => {
@@ -66,7 +65,7 @@ const App: React.FC = () => {
     const [showLoginModal, setShowLoginModal] = useState(false);
     const [showHome, setShowHome] = useState(false);
     const [showProfile, setShowProfile] = useState(false);
-    const [showSettings, setShowSettings] = useState(false); // New State
+    const [showSettings, setShowSettings] = useState(false);
     const [showChangelog, setShowChangelog] = useState(false);
     const [showGuide, setShowGuide] = useState(false);
     const [showExplorer, setShowExplorer] = useState(false);
@@ -88,8 +87,12 @@ const App: React.FC = () => {
     const [fitBoundsCounter, setFitBoundsCounter] = useState(0);
     const [showRaceSetup, setShowRaceSetup] = useState(false);
     const [friendTracks, setFriendTracks] = useState<Track[]>([]);
+    
+    // Notifications State
+    const [unreadMessages, setUnreadMessages] = useState<number>(0);
+    const friendsIdRef = useRef<Set<string>>(new Set());
 
-    // Layout Preferences - Default mobile list ratio 0.7 (70% List / 30% Map)
+    // Layout Preferences
     const [layoutPrefs, setLayoutPrefs] = useState<{ desktopSidebar: number, mobileListRatio: number }>({ desktopSidebar: 320, mobileListRatio: 0.7 });
 
     useEffect(() => {
@@ -99,33 +102,87 @@ const App: React.FC = () => {
         }
     }, []);
 
-    // --- NOTIFICATION SYSTEM START ---
+    // --- NOTIFICATION & PRESENCE SYSTEM START ---
+    const sendNotification = (title: string, body: string, icon: string = '/logo.png') => {
+        if ('Notification' in window) {
+            if (Notification.permission === 'granted') {
+                new Notification(title, { body, icon });
+            } else if (Notification.permission !== 'denied') {
+                Notification.requestPermission().then(permission => {
+                    if (permission === 'granted') {
+                        new Notification(title, { body, icon });
+                    }
+                });
+            }
+        }
+    };
+
     useEffect(() => {
-        // Request notification permission on mount
-        if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+        // Request permissions immediately on load
+        if ('Notification' in window && Notification.permission !== 'granted') {
             Notification.requestPermission();
         }
     }, []);
 
+    // Presence Heartbeat
+    useEffect(() => {
+        if (!userId || userId === 'guest') return;
+        
+        // Initial update
+        updatePresence(userId);
+        
+        // Update every 2 minutes
+        const interval = setInterval(() => {
+            updatePresence(userId);
+        }, 2 * 60 * 1000);
+
+        return () => clearInterval(interval);
+    }, [userId]);
+
+    // Load Friends List for Notifications filtering
+    useEffect(() => {
+        const loadFriendsSet = async () => {
+            if (!userId || userId === 'guest') return;
+            const friends = await getFriends(userId);
+            friendsIdRef.current = new Set(friends.map(f => f.id).filter(id => id !== undefined) as string[]);
+        };
+        loadFriendsSet();
+    }, [userId]);
+
+    // Global Subscriptions
     useEffect(() => {
         if (!userId || userId === 'guest') return;
 
-        // Subscribe to Realtime events
         const channel = supabase.channel('global_notifications')
-            // Listen for new messages
+            // 1. New Message
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages', filter: `receiver_id=eq.${userId}` }, (payload) => {
-                const msg = "Nuovo messaggio ricevuto!";
-                addToast(msg, "info");
-                if (Notification.permission === 'granted') {
-                    new Notification("RunCoachAI Social", { body: "Hai ricevuto un nuovo messaggio privato.", icon: '/logo.png' });
+                // If social is open, we let the inner components handle it unless it's minimized
+                if (!showSocial) {
+                    const msg = "Nuovo messaggio ricevuto!";
+                    addToast(msg, "info");
+                    setUnreadMessages(prev => prev + 1);
+                    sendNotification("RunCoachAI Social", "Hai ricevuto un nuovo messaggio privato.");
+                } else {
+                    // Even if social is open, if we are not looking at that specific chat, we might want a badge?
+                    // For now, simpler: increment badge only if social closed
+                    setUnreadMessages(prev => prev + 1);
                 }
             })
-            // Listen for friend requests
+            // 2. Friend Request
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'friends', filter: `user_id_2=eq.${userId}` }, (payload) => {
                 const msg = "Nuova richiesta di amicizia!";
                 addToast(msg, "info");
-                if (Notification.permission === 'granted') {
-                    new Notification("RunCoachAI Crew", { body: "Qualcuno vuole aggiungerti agli amici!", icon: '/logo.png' });
+                sendNotification("RunCoachAI Crew", "Qualcuno vuole aggiungerti agli amici!");
+            })
+            // 3. New Track from Friend
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tracks' }, (payload) => {
+                // RLS allows seeing friends tracks. Check if the sender is a friend.
+                // Explicitly cast payload.new to any to access user_id safely
+                const newRecord = payload.new as any;
+                if (friendsIdRef.current.has(newRecord.user_id as string)) {
+                    const msg = `Un amico ha caricato una nuova corsa: ${newRecord.name}`;
+                    addToast(msg, "info");
+                    sendNotification("Feed Attività", `${newRecord.name} è appena stata caricata.`);
                 }
             })
             .subscribe();
@@ -133,7 +190,7 @@ const App: React.FC = () => {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [userId]);
+    }, [userId, showSocial]);
     // --- NOTIFICATION SYSTEM END ---
 
     const saveLayoutPrefs = (newPrefs: Partial<{ desktopSidebar: number, mobileListRatio: number }>) => {
@@ -144,7 +201,6 @@ const App: React.FC = () => {
 
     const mapVisibleIds = useMemo(() => {
         if (raceSelectionIds.size === 0) {
-            // FIX: Filter out ghosts (isExternal) from default view. They only appear when explicitly selected.
             return new Set(tracks.filter(t => !t.isArchived && !t.isExternal).map(t => t.id));
         }
         return raceSelectionIds;
@@ -152,16 +208,17 @@ const App: React.FC = () => {
 
     const todayEntries = useMemo(() => {
         const today = new Date().toDateString();
+        // Check for Notes, Commitments AND Workouts not completed
         const entries = plannedWorkouts.filter(w => 
             new Date(w.date).toDateString() === today && 
-            (w.entryType === 'commitment' || w.entryType === 'note')
+            (w.entryType === 'commitment' || w.entryType === 'note' || (w.entryType === 'workout' && !w.completedTrackId))
         );
+        
         // Trigger notification for diary entries if loaded
-        if (entries.length > 0 && Notification.permission === 'granted') {
-             // Basic debounce using session storage to avoid spamming on every render/reload
-             const notifiedKey = `notified_diary_${today}`;
+        if (entries.length > 0) {
+             const notifiedKey = `notified_diary_${today}_${entries.length}`;
              if (!sessionStorage.getItem(notifiedKey)) {
-                 new Notification("RunCoachAI Agenda", { body: `Hai ${entries.length} note o impegni per oggi.`, icon: '/logo.png' });
+                 sendNotification("RunCoachAI Agenda", `Hai ${entries.length} attività in programma per oggi.`);
                  sessionStorage.setItem(notifiedKey, 'true');
              }
         }
@@ -281,7 +338,6 @@ const App: React.FC = () => {
 
     const runAutoStravaSync = async (currentTracks: Track[]) => {
         try {
-            // Check last 10 activities to catch up quickly without overwhelming
             const newTracks = await fetchRecentStravaActivities(10);
             if (newTracks.length === 0) return;
 
@@ -346,7 +402,6 @@ const App: React.FC = () => {
 
             setTracks(uniqueTracks);
             
-            // WORKOUT DEDUPLICATION
             const loadedWorkouts = await loadPlannedWorkoutsFromDB(forceLocal);
             const uniqueWorkouts: PlannedWorkout[] = [];
             const seenWorkoutKeys = new Set<string>();
@@ -354,7 +409,6 @@ const App: React.FC = () => {
             const duplicateIdsToDelete: string[] = [];
 
             loadedWorkouts.forEach((w: PlannedWorkout) => {
-                // Key composite: Date + Title + Type
                 const d = new Date(w.date);
                 const dateStr = d.toDateString();
                 const key = `${dateStr}|${w.title.trim().toLowerCase()}|${w.activityType}`;
@@ -370,16 +424,13 @@ const App: React.FC = () => {
 
             if (workoutDuplicates > 0) {
                 await savePlannedWorkoutsToDB(uniqueWorkouts);
-                // Clean cloud duplicates in background
                 duplicateIdsToDelete.forEach((id) => deletePlannedWorkoutFromCloud(id));
                 addToast(`Rimossi ${workoutDuplicates} allenamenti doppi.`, "info");
             }
 
             setPlannedWorkouts(uniqueWorkouts);
 
-            // AUTO SYNC STRAVA CHECK
             if (loadedProfile?.stravaAutoSync && isStravaConnected()) {
-                // Run in background to not block UI
                 runAutoStravaSync(uniqueTracks);
             }
 
@@ -396,7 +447,6 @@ const App: React.FC = () => {
     const [raceGaps, setRaceGaps] = useState<Map<string, number | undefined>>(new Map());
     const [raceHistory, setRaceHistory] = useState<RaceGapSnapshot[]>([]); 
     
-    // NEW: Stats for leader tracking
     const [leadStats, setLeadStats] = useState<Record<string, LeaderStats>>({});
     
     const raceLastTimeRef = useRef<number | null>(null);
@@ -409,7 +459,6 @@ const App: React.FC = () => {
             return;
         }
         setShowRaceSetup(true);
-        // Load Friend Tracks for selection
         if (userId) {
             try {
                 const feed = await getFriendsActivityFeed(userId);
@@ -424,7 +473,6 @@ const App: React.FC = () => {
         const selected = tracks.filter(t => raceSelectionIds.has(t.id));
         if (selected.length < 1) return;
         
-        // Apply names
         selected.forEach(t => {
             if (renamedMap[t.id]) t.name = renamedMap[t.id];
         });
@@ -435,7 +483,7 @@ const App: React.FC = () => {
         setRaceTime(0);
         setRaceState('running');
         setRaceHistory([]);
-        setLeadStats({}); // Reset Leader Stats
+        setLeadStats({}); 
         
         setRaceRunners(selected.map(t => ({
             trackId: t.id,
@@ -453,8 +501,8 @@ const App: React.FC = () => {
         
         const animateRace = (time: number) => {
             if (raceLastTimeRef.current !== null) {
-                const delta = time - raceLastTimeRef.current; // Real time elapsed in ms
-                const timeStep = delta * raceSpeed; // Simulated time elapsed in ms
+                const delta = time - raceLastTimeRef.current;
+                const timeStep = delta * raceSpeed;
                 const nextTime = raceTimeRef.current + timeStep;
                 raceTimeRef.current = nextTime;
                 setRaceTime(nextTime);
@@ -467,20 +515,14 @@ const App: React.FC = () => {
                 selected.forEach(t => {
                     const prevState = raceRunners?.find(r => r.trackId === t.id);
                     if (prevState?.finished) {
-                        // Keep finished state
                         newRunners.push(prevState);
                     } else {
-                        // Calculate new state
                         const state = getTrackStateAtTime(t, nextTime);
                         if (state) {
                             let isFinished = false;
-                            let finishTime = undefined;
                             
-                            // Check finish condition: if we exceeded track distance or time
                             if (state.point.cummulativeDistance >= t.distance || nextTime >= t.duration) {
                                 isFinished = true;
-                                finishTime = t.duration;
-                                // Snap to last point
                                 const lastPt = t.points[t.points.length - 1];
                                 newRunners.push({
                                     trackId: t.id, name: t.name, position: lastPt, color: t.color, pace: 0,
@@ -498,7 +540,6 @@ const App: React.FC = () => {
                                 allFinished = false;
                             }
                         } else {
-                            // Fallback if something weird happens
                              const lastPt = t.points[t.points.length - 1];
                              newRunners.push({
                                 trackId: t.id, name: t.name, position: lastPt, color: t.color, pace: 0,
@@ -508,38 +549,28 @@ const App: React.FC = () => {
                     }
                 });
 
-                // --- LEADER STATS CALCULATION ---
                 const sorted = [...newRunners].sort((a,b) => b.position.cummulativeDistance - a.position.cummulativeDistance);
                 if (sorted.length > 0) {
                     const leader = sorted[0];
                     const leaderDist = leader.position.cummulativeDistance;
                     
-                    // Update Gaps
                     sorted.forEach((r) => {
                         currentGaps.set(r.trackId, (leaderDist - r.position.cummulativeDistance) * 1000);
                     });
 
-                    // Update Leader Stats (Time & Distance in Lead)
-                    // We only accumulate if the race is running and leader is not finished yet (or is finished but still winning)
                     if (simulationStateRef.current === 'running') {
                         setLeadStats(prev => {
                             const next = { ...prev };
                             if (!next[leader.trackId]) next[leader.trackId] = { timeInLead: 0, distanceInLead: 0 };
-                            
-                            // Add time
                             next[leader.trackId].timeInLead += timeStep;
-                            
-                            // Add distance (approx: speed * timeStep, or better: diff from last frame)
                             if (leader.pace > 0) {
                                 const distAddedMeters = (timeStep / 60000) / leader.pace * 1000;
                                 next[leader.trackId].distanceInLead += distAddedMeters;
                             }
-                            
                             return next;
                         });
                     }
 
-                    // Update Gap History every ~5 seconds of simulated time
                     if (nextTime - lastHistoryUpdateRef.current > 5000) {
                         const gapsObj: Record<string, number> = {};
                         sorted.forEach(r => {
@@ -581,7 +612,6 @@ const App: React.FC = () => {
         return () => cancelAnimationFrame(frame);
     }, [raceState, raceSpeed, tracks, raceSelectionIds]);
 
-    // Ref to access state inside animation frame without closure stale
     const simulationStateRef = useRef(raceState);
     useEffect(() => { simulationStateRef.current = raceState; }, [raceState]);
 
@@ -596,12 +626,10 @@ const App: React.FC = () => {
             ...friendTrack,
             id: `ghost-${Date.now()}-${friendTrack.id}`, 
             name: `Ghost: ${friendTrack.userDisplayName || 'Amico'}`,
-            isExternal: true, // IMPORTANT: Marked as external so it won't be saved to DB/Sidebar
+            isExternal: true, 
             color: '#a855f7',
         };
 
-        // We add to state so it renders on map/race setup, BUT we do NOT call saveTracksToDB.
-        // It will be ephemeral.
         setTracks(prev => [ghostTrack, ...prev]);
         setRaceSelectionIds(prev => {
             const next = new Set(prev);
@@ -614,7 +642,6 @@ const App: React.FC = () => {
     const handleChallengeGhost = (friendTrack: Track) => {
         handleAddGhost(friendTrack);
         setShowSocial(false);
-        // Don't auto open sidebar, just let user go to race setup
         openRaceSetup();
     };
 
@@ -702,7 +729,7 @@ const App: React.FC = () => {
         const newTracks: Track[] = [];
         for (const file of files) {
             const text = await file.text();
-            let parsed = null;
+            let parsed: { name: string; points: TrackPoint[]; distance: number; duration: number; } | null = null;
             if (file.name.toLowerCase().endsWith('.gpx')) parsed = parseGpx(text, file.name);
             else if (file.name.toLowerCase().endsWith('.tcx')) parsed = parseTcx(text, file.name);
             if (parsed) {
@@ -856,18 +883,14 @@ const App: React.FC = () => {
 
             {!showHome && !showAuthSelection && (
                 <div className="flex-grow flex flex-col lg:flex-row overflow-hidden relative">
-                    {/* CONDITIONAL LAYOUT: FULL MAP IF RACING, RESIZABLE IF IDLE */}
                     {isRacing ? (
-                        // RACING LAYOUT (UPDATED: MAP TOP + CHART BOTTOM)
                         <div className="w-full h-full flex flex-col bg-slate-900">
-                            {/* MAPPA - Occupa lo spazio rimanente */}
                             <div className="flex-grow relative bg-slate-900 overflow-hidden">
                                 <MapDisplay 
                                     tracks={tracks} visibleTrackIds={mapVisibleIds} raceRunners={raceRunners}
                                     isAnimationPlaying={raceState === 'running'} fitBoundsCounter={fitBoundsCounter}
                                     runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
                                 />
-                                {/* RACE OVERLAYS ON MAP */}
                                 <div className={`absolute left-1/2 -translate-x-1/2 z-[4600] ${isDesktop ? 'top-4' : 'top-14'}`}>
                                     <RaceControls 
                                         simulationState={raceState} simulationTime={raceTime} simulationSpeed={raceSpeed}
@@ -886,7 +909,6 @@ const App: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* GRAFICO GAP - Altezza fissa in basso */}
                             {raceRunners && raceHistory.length > 0 && (
                                 <div className="h-48 w-full border-t border-slate-700 bg-slate-950 shrink-0 z-30">
                                     <RaceGapChart 
@@ -901,9 +923,7 @@ const App: React.FC = () => {
                             )}
                         </div>
                     ) : (
-                        // IDLE LAYOUT
                         (!isDesktop && !isSidebarOpen) ? (
-                            // MOBILE FULL SCREEN MAP
                             <div className="w-full h-full flex flex-col bg-slate-950 relative">
                                 <div className="flex-grow relative bg-slate-900">
                                     <MapDisplay 
@@ -911,7 +931,6 @@ const App: React.FC = () => {
                                         isAnimationPlaying={false} fitBoundsCounter={fitBoundsCounter}
                                         runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
                                     />
-                                    {/* Mobile AI Button (Absolute inside map container) */}
                                     <button onClick={() => setShowGlobalChat(true)} className="absolute bottom-4 right-4 z-[1000] bg-purple-600 hover:bg-purple-500 text-white p-1 rounded-2xl shadow-2xl active:scale-90 border border-purple-400/50 transition-all">
                                         <img src="/icona.png" alt="AI" className="w-12 h-12 object-cover rounded-xl" />
                                     </button>
@@ -925,11 +944,11 @@ const App: React.FC = () => {
                                         onOpenSocial={() => toggleView('social')} onOpenProfile={() => toggleView('profile')}
                                         onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}} 
                                         isSidebarOpen={isSidebarOpen}
+                                        unreadCount={unreadMessages}
                                     />
                                 </div>
                             </div>
                         ) : (
-                            // STANDARD LAYOUT (RESIZABLE) - Desktop or Mobile Split
                             <ResizablePanel
                                 direction={isDesktop ? 'vertical' : 'horizontal'}
                                 initialSize={isDesktop ? layoutPrefs.desktopSidebar : undefined}
@@ -938,9 +957,7 @@ const App: React.FC = () => {
                                 onResizeEnd={handleResizeEnd}
                                 className="w-full h-full"
                             >
-                                {/* PANEL 1: SIDEBAR (Desktop) OR LIST (Mobile - Top) */}
                                 {isDesktop ? (
-                                    // DESKTOP: LEFT PANEL IS SIDEBAR
                                     <aside className="h-full bg-slate-900 border-r border-slate-800 flex flex-col w-full">
                                         {isSidebarOpen ? (
                                             <>
@@ -970,6 +987,7 @@ const App: React.FC = () => {
                                                         onOpenPerformance={() => toggleView('performance')} onOpenHub={() => toggleView('hub')}
                                                         onOpenSocial={() => toggleView('social')} onOpenProfile={() => toggleView('profile')}
                                                         onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}} isSidebarOpen={isSidebarOpen}
+                                                        unreadCount={unreadMessages}
                                                     />
                                                 </div>
                                             </>
@@ -980,7 +998,6 @@ const App: React.FC = () => {
                                         )}
                                     </aside>
                                 ) : (
-                                    // MOBILE: TOP PANEL IS LIST
                                     <div className="flex-grow overflow-hidden bg-slate-900 border-b border-slate-800 w-full h-full relative">
                                          <Sidebar 
                                             tracks={tracks.filter(t => !t.isExternal)} 
@@ -995,10 +1012,8 @@ const App: React.FC = () => {
                                     </div>
                                 )}
 
-                                {/* PANEL 2: MAP (Desktop) OR MAP+DOCK (Mobile) */}
                                 <div className="h-full w-full relative bg-slate-950 flex flex-col overflow-hidden">
                                     {isDesktop ? (
-                                        // DESKTOP: RIGHT PANEL IS MAP
                                         <>
                                             <MapDisplay 
                                                 tracks={tracks} visibleTrackIds={mapVisibleIds} raceRunners={raceRunners}
@@ -1010,7 +1025,6 @@ const App: React.FC = () => {
                                             </button>
                                         </>
                                     ) : (
-                                        // MOBILE: BOTTOM PANEL IS MAP + DOCK
                                         <>
                                             <div className="flex-grow relative bg-slate-900">
                                                 <MapDisplay 
@@ -1018,7 +1032,6 @@ const App: React.FC = () => {
                                                     isAnimationPlaying={false} fitBoundsCounter={fitBoundsCounter}
                                                     runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
                                                 />
-                                                {/* Mobile AI Button (Absolute inside map container) */}
                                                 <button onClick={() => setShowGlobalChat(true)} className="absolute bottom-4 right-4 z-[1000] bg-purple-600 hover:bg-purple-500 text-white p-1 rounded-2xl shadow-2xl active:scale-90 border border-purple-400/50 transition-all">
                                                     <img src="/icona.png" alt="AI" className="w-12 h-12 object-cover rounded-xl" />
                                                 </button>
@@ -1031,6 +1044,7 @@ const App: React.FC = () => {
                                                     onOpenPerformance={() => toggleView('performance')} onOpenHub={() => toggleView('hub')}
                                                     onOpenSocial={() => toggleView('social')} onOpenProfile={() => toggleView('profile')}
                                                     onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}} isSidebarOpen={isSidebarOpen}
+                                                    unreadCount={unreadMessages}
                                                 />
                                             </div>
                                         </>
@@ -1096,7 +1110,7 @@ const App: React.FC = () => {
 
             {showExplorer && <ExplorerView tracks={tracks} onClose={() => toggleView('explorer')} onSelectTrack={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)} />}
             {showPerformance && <PerformanceAnalysisPanel tracks={tracks} userProfile={userProfile} onClose={() => toggleView('performance')} />}
-            {showSocial && userId && <SocialHub onClose={() => toggleView('social')} currentUserId={userId} onChallengeGhost={handleChallengeGhost} />}
+            {showSocial && userId && <SocialHub onClose={() => toggleView('social')} currentUserId={userId} onChallengeGhost={handleChallengeGhost} onReadMessages={() => setUnreadMessages(0)} />}
             {showChangelog && <Changelog onClose={() => setShowChangelog(false)} />}
             {showGuide && <GuideModal onClose={() => toggleView('guide')} />}
             {raceResults && <RaceSummary results={raceResults} racerStats={new Map()} onClose={() => setRaceResults(null)} userProfile={userProfile} tracks={tracks} />}

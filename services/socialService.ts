@@ -85,9 +85,13 @@ export const getFriends = async (currentUserId: string): Promise<UserProfile[]> 
     if (friendIds.length === 0) return [];
 
     const { data: profiles } = await supabase.from('profiles').select('id, name, last_seen_at').in('id', friendIds);
+    
+    // Calculate online status here based on 5 minute threshold
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    
     return profiles?.map((p: any) => ({
         ...p,
-        isOnline: p.last_seen_at && (new Date().getTime() - new Date(p.last_seen_at).getTime() < 2 * 60 * 1000)
+        isOnline: p.last_seen_at ? new Date(p.last_seen_at) > fiveMinutesAgo : false
     })) || [];
 };
 
