@@ -175,7 +175,7 @@ const TrackDetailView: React.FC<{
     );
 
     const AnimationControlsBar = (
-        <div className="flex items-center gap-3 p-2 bg-slate-900 border-t border-slate-800 shrink-0">
+        <div className="flex items-center gap-3 p-2 bg-slate-900 border-t border-slate-800 shrink-0 h-14">
             <button onClick={() => setIsAnimating(!isAnimating)} className="w-8 h-8 bg-cyan-600 hover:bg-cyan-500 rounded flex items-center justify-center transition-colors shadow-lg active:scale-95 text-white">
                 {isAnimating ? '⏸' : '▶'}
             </button>
@@ -217,12 +217,12 @@ const TrackDetailView: React.FC<{
                 <div className="text-xs font-bold text-white truncate max-w-[200px]">{track.name}</div>
             </header>
 
-            <div className="flex-grow overflow-hidden relative flex">
+            <div className="flex-grow overflow-hidden relative flex flex-col lg:flex-row h-full">
                 {isMobile ? (
-                    // MOBILE LAYOUT (Stack)
-                    <div className="flex flex-col w-full h-full">
-                        {/* Map Section (Fixed Height) */}
-                        <div className="h-[40%] relative border-b border-slate-800 shrink-0">
+                    // MOBILE LAYOUT (Vertical Stack fixed height logic)
+                    <div className="flex flex-col w-full h-full overflow-hidden">
+                        {/* Map Section (Fixed Height ~35%) */}
+                        <div className="h-[35%] relative border-b border-slate-800 shrink-0">
                             <MapDisplay 
                                 tracks={[track]} 
                                 visibleTrackIds={new Set([track.id])} 
@@ -238,21 +238,24 @@ const TrackDetailView: React.FC<{
                                 onGradientChange={setMapMetric}
                             />
                         </div>
+                        
                         {SelectionStatsBar}
-                        {/* Stats Section (Scrollable) */}
-                        <div className="flex-grow overflow-y-auto bg-slate-950">
+                        
+                        {/* Stats Section (Scrollable, takes remaining space) */}
+                        <div className="flex-grow overflow-y-auto bg-slate-950 min-h-0">
                             {SidebarContent}
                         </div>
-                        {/* Chart + Controls (Fixed Bottom) */}
-                        <div className="h-40 border-t border-slate-800 bg-slate-900 shrink-0 flex flex-col">
-                            <div className="flex-grow relative">
+                        
+                        {/* Chart + Controls (Fixed Height ~200px) */}
+                        <div className="h-56 border-t border-slate-800 bg-slate-900 shrink-0 flex flex-col">
+                            <div className="flex-grow relative min-h-0">
                                 <TimelineChart track={track} yAxisMetrics={['pace', 'hr']} onChartHover={setHoveredPoint} hoveredPoint={hoveredPoint} onSelectionChange={setSelectedRange} showPauses={false} pauseSegments={[]} animationProgress={progress} isAnimating={isAnimating} userProfile={userProfile} highlightedRange={selectedRange} />
                             </div>
                             {AnimationControlsBar}
                         </div>
                     </div>
                 ) : (
-                    // DESKTOP LAYOUT (Resizable Panels)
+                    // DESKTOP LAYOUT (Horizontal Split)
                     <ResizablePanel 
                         direction="horizontal" 
                         initialSize={layoutSizes.sidebarWidth} 
@@ -261,46 +264,52 @@ const TrackDetailView: React.FC<{
                         className="w-full h-full"
                     >
                         {/* LEFT: Sidebar */}
-                        <div className="h-full bg-slate-950 border-r border-slate-800">
+                        <div className="h-full bg-slate-950 border-r border-slate-800 overflow-hidden">
                             {SidebarContent}
                         </div>
 
-                        {/* RIGHT: Map & Chart */}
-                        <div className="h-full flex flex-col">
-                            <ResizablePanel 
-                                direction="vertical"
-                                initialSizeRatio={layoutSizes.mapHeightRatio}
-                                minSize={200}
-                                onResizeEnd={(s, r) => saveLayout({ mapHeightRatio: r })}
-                                className="h-full"
-                            >
-                                {/* TOP RIGHT: Map */}
-                                <div className="h-full relative bg-slate-900">
-                                    <MapDisplay 
-                                        tracks={[track]} 
-                                        visibleTrackIds={new Set([track.id])} 
-                                        animationTrack={track} 
-                                        animationProgress={progress} 
-                                        isAnimationPlaying={isAnimating} 
-                                        fitBoundsCounter={fitTrigger} 
-                                        raceRunners={null} 
-                                        hoveredTrackId={null} 
-                                        runnerSpeeds={new Map()} 
-                                        selectionPoints={selectedRange ? getPointsInDistanceRange(track, selectedRange.startDistance, selectedRange.endDistance) : highlightedSegments} 
-                                        mapGradientMetric={mapMetric} 
-                                        onGradientChange={setMapMetric}
-                                    />
-                                </div>
-
-                                {/* BOTTOM RIGHT: Chart & Controls */}
-                                <div className="h-full flex flex-col bg-slate-900 border-t border-slate-800">
-                                    {SelectionStatsBar}
-                                    <div className="flex-grow relative bg-slate-900/50 p-2">
-                                        <TimelineChart track={track} yAxisMetrics={['pace', 'hr', 'elevation']} onChartHover={setHoveredPoint} hoveredPoint={hoveredPoint} onSelectionChange={setSelectedRange} showPauses={false} pauseSegments={[]} animationProgress={progress} isAnimating={isAnimating} userProfile={userProfile} highlightedRange={selectedRange} />
+                        {/* RIGHT: Flex Column */}
+                        <div className="h-full flex flex-col w-full overflow-hidden">
+                            
+                            {/* Resizable: Map vs Chart */}
+                            <div className="flex-grow overflow-hidden min-h-0">
+                                <ResizablePanel 
+                                    direction="vertical"
+                                    initialSizeRatio={layoutSizes.mapHeightRatio}
+                                    minSize={200}
+                                    onResizeEnd={(s, r) => saveLayout({ mapHeightRatio: r })}
+                                    className="h-full"
+                                >
+                                    {/* TOP RIGHT: Map */}
+                                    <div className="h-full relative bg-slate-900 overflow-hidden">
+                                        <MapDisplay 
+                                            tracks={[track]} 
+                                            visibleTrackIds={new Set([track.id])} 
+                                            animationTrack={track} 
+                                            animationProgress={progress} 
+                                            isAnimationPlaying={isAnimating} 
+                                            fitBoundsCounter={fitTrigger} 
+                                            raceRunners={null} 
+                                            hoveredTrackId={null} 
+                                            runnerSpeeds={new Map()} 
+                                            selectionPoints={selectedRange ? getPointsInDistanceRange(track, selectedRange.startDistance, selectedRange.endDistance) : highlightedSegments} 
+                                            mapGradientMetric={mapMetric} 
+                                            onGradientChange={setMapMetric}
+                                        />
                                     </div>
-                                    {AnimationControlsBar}
-                                </div>
-                            </ResizablePanel>
+
+                                    {/* BOTTOM RIGHT: Chart */}
+                                    <div className="h-full flex flex-col bg-slate-900 border-t border-slate-800 overflow-hidden">
+                                        {SelectionStatsBar}
+                                        <div className="flex-grow relative bg-slate-900/50 p-2 min-h-0">
+                                            <TimelineChart track={track} yAxisMetrics={['pace', 'hr', 'elevation']} onChartHover={setHoveredPoint} hoveredPoint={hoveredPoint} onSelectionChange={setSelectedRange} showPauses={false} pauseSegments={[]} animationProgress={progress} isAnimating={isAnimating} userProfile={userProfile} highlightedRange={selectedRange} />
+                                        </div>
+                                    </div>
+                                </ResizablePanel>
+                            </div>
+
+                            {/* FOOTER: Controls (Outside resize panel to be fixed bottom) */}
+                            {AnimationControlsBar}
                         </div>
                     </ResizablePanel>
                 )}
