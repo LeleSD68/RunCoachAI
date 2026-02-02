@@ -110,15 +110,26 @@ const NavigationDock: React.FC<NavigationDockProps> = ({
                 </Tooltip>
 
                 <Tooltip text="Social" subtext="Crew" position="top">
-                    <button onClick={onOpenSocial} className="p-3 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-pink-400 transition-all active:scale-95 relative">
+                    <button onClick={onOpenSocial} className="p-3 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-pink-400 transition-all active:scale-95 relative group">
                         <UserGroupIcon />
+                        
+                        {/* 1. Unread Messages Badge (Highest Priority) */}
                         {unreadCount > 0 && (
-                            <span className="absolute top-1 right-1 bg-red-500 text-white text-[8px] font-black w-3.5 h-3.5 flex items-center justify-center rounded-full border border-slate-900 animate-pulse">
+                            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-black w-4 h-4 flex items-center justify-center rounded-full border-2 border-slate-900 animate-pulse shadow-md z-20">
                                 {unreadCount > 9 ? '!' : unreadCount}
                             </span>
                         )}
+
+                        {/* 2. Online Friends Badge (If no messages) */}
                         {onlineCount > 0 && unreadCount === 0 && (
-                            <span className="absolute top-1 right-1 bg-green-500 text-slate-900 text-[8px] font-black w-3.5 h-3.5 flex items-center justify-center rounded-full border border-slate-950">{onlineCount}</span>
+                            <span className="absolute -top-1 -right-1 bg-green-500 text-white text-[9px] font-black w-4 h-4 flex items-center justify-center rounded-full border-2 border-slate-900 shadow-md z-20">
+                                {onlineCount}
+                            </span>
+                        )}
+
+                        {/* 3. Secondary Online Indicator (If messages exist, show small dot) */}
+                        {onlineCount > 0 && unreadCount > 0 && (
+                            <span className="absolute bottom-1 right-1 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-slate-900 z-10"></span>
                         )}
                     </button>
                 </Tooltip>
