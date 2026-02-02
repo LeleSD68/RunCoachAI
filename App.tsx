@@ -90,6 +90,7 @@ const App: React.FC = () => {
     
     // Notifications State
     const [unreadMessages, setUnreadMessages] = useState<number>(0);
+    const [onlineFriendsCount, setOnlineFriendsCount] = useState<number>(0);
     const friendsIdRef = useRef<Set<string>>(new Set());
 
     // Layout Preferences
@@ -124,29 +125,29 @@ const App: React.FC = () => {
         }
     }, []);
 
-    // Presence Heartbeat
+    // Presence Heartbeat & Friend Monitoring
     useEffect(() => {
         if (!userId || userId === 'guest') return;
         
-        // Initial update
-        updatePresence(userId);
-        
-        // Update every 2 minutes
-        const interval = setInterval(() => {
+        const heartbeatAndCheckFriends = async () => {
             updatePresence(userId);
-        }, 2 * 60 * 1000);
+            try {
+                const friends = await getFriends(userId);
+                const onlineCount = friends.filter(f => f.isOnline).length;
+                setOnlineFriendsCount(onlineCount);
+                friendsIdRef.current = new Set(friends.map(f => f.id).filter(id => id !== undefined) as string[]);
+            } catch (e) {
+                console.error("Friend poll error", e);
+            }
+        };
+
+        // Initial check
+        heartbeatAndCheckFriends();
+        
+        // Update every minute
+        const interval = setInterval(heartbeatAndCheckFriends, 60 * 1000);
 
         return () => clearInterval(interval);
-    }, [userId]);
-
-    // Load Friends List for Notifications filtering
-    useEffect(() => {
-        const loadFriendsSet = async () => {
-            if (!userId || userId === 'guest') return;
-            const friends = await getFriends(userId);
-            friendsIdRef.current = new Set(friends.map(f => f.id).filter(id => id !== undefined) as string[]);
-        };
-        loadFriendsSet();
     }, [userId]);
 
     // Global Subscriptions
@@ -156,15 +157,12 @@ const App: React.FC = () => {
         const channel = supabase.channel('global_notifications')
             // 1. New Message
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages', filter: `receiver_id=eq.${userId}` }, (payload) => {
-                // If social is open, we let the inner components handle it unless it's minimized
                 if (!showSocial) {
                     const msg = "Nuovo messaggio ricevuto!";
                     addToast(msg, "info");
                     setUnreadMessages(prev => prev + 1);
                     sendNotification("RunCoachAI Social", "Hai ricevuto un nuovo messaggio privato.");
                 } else {
-                    // Even if social is open, if we are not looking at that specific chat, we might want a badge?
-                    // For now, simpler: increment badge only if social closed
                     setUnreadMessages(prev => prev + 1);
                 }
             })
@@ -176,8 +174,6 @@ const App: React.FC = () => {
             })
             // 3. New Track from Friend
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tracks' }, (payload) => {
-                // RLS allows seeing friends tracks. Check if the sender is a friend.
-                // Explicitly cast payload.new to any to access user_id safely
                 const newRecord = payload.new as any;
                 if (friendsIdRef.current.has(newRecord.user_id as string)) {
                     const msg = `Un amico ha caricato una nuova corsa: ${newRecord.name}`;
@@ -365,7 +361,7 @@ const App: React.FC = () => {
                 setIsGuest(false);
                 await loadData();
                 setShowHome(true);
-                setShowAuthSelection(false); // Fix: Ensure Auth Selection is closed on success
+                setShowAuthSelection(false); 
             } else {
                 setShowAuthSelection(true);
             }
@@ -946,6 +942,7 @@ const App: React.FC = () => {
                                         onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}} 
                                         isSidebarOpen={isSidebarOpen}
                                         unreadCount={unreadMessages}
+                                        onlineCount={onlineFriendsCount}
                                     />
                                 </div>
                             </div>
@@ -989,6 +986,7 @@ const App: React.FC = () => {
                                                         onOpenSocial={() => toggleView('social')} onOpenProfile={() => toggleView('profile')}
                                                         onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}} isSidebarOpen={isSidebarOpen}
                                                         unreadCount={unreadMessages}
+                                                        onlineCount={onlineFriendsCount}
                                                     />
                                                 </div>
                                             </>
@@ -1046,6 +1044,7 @@ const App: React.FC = () => {
                                                     onOpenSocial={() => toggleView('social')} onOpenProfile={() => toggleView('profile')}
                                                     onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}} isSidebarOpen={isSidebarOpen}
                                                     unreadCount={unreadMessages}
+                                                    onlineCount={onlineFriendsCount}
                                                 />
                                             </div>
                                         </>
