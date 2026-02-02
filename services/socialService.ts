@@ -1,6 +1,6 @@
 
 import { supabase } from './supabaseClient';
-import { UserProfile, FriendRequest, Track, DirectMessage, Reaction } from '../types';
+import { UserProfile, FriendRequest, Track, DirectMessage, Reaction, SocialGroup } from '../types';
 
 export const updatePresence = async (userId: string) => {
     if (!userId) return;
@@ -95,18 +95,30 @@ export const getFriends = async (currentUserId: string): Promise<UserProfile[]> 
     })) || [];
 };
 
-export const getFriendsActivityFeed = async (currentUserId: string): Promise<Track[]> => {
-    // Recuperiamo le tracce pubbliche
-    const { data: tracks, error } = await supabase
+export const getFriendsActivityFeed = async (currentUserId: string, groupId?: string): Promise<Track[]> => {
+    // Basic Query: Tracks that are public OR shared with me
+    // Note: RLS policies on the server handle the "OR" logic (is_public OR shared_with_users OR shared_with_groups)
+    // We just select all tracks not owned by us (to filter out our own if needed, or keep them)
+    
+    let query = supabase
         .from('tracks')
         .select(`
             id, name, distance_km, duration_ms, start_time, activity_type, color, user_id, points_data, rating,
+            shared_with_users, shared_with_groups, is_public,
             activity_reactions (user_id, emoji)
         `)
-        .neq('user_id', currentUserId)
-        .eq('is_public', true)
         .order('start_time', { ascending: false })
-        .limit(20);
+        .limit(30);
+
+    if (groupId) {
+        // Filter for tracks shared with this specific group
+        query = query.contains('shared_with_groups', [groupId]);
+    } else {
+        // General Feed: Exclude own tracks to avoid clutter
+        query = query.neq('user_id', currentUserId);
+    }
+
+    const { data: tracks, error } = await query;
 
     if (error || !tracks) return [];
 
@@ -119,7 +131,7 @@ export const getFriendsActivityFeed = async (currentUserId: string): Promise<Tra
         try {
             const allPoints = typeof t.points_data === 'string' ? JSON.parse(t.points_data) : t.points_data;
             if (Array.isArray(allPoints)) {
-                // Keep minimal points for the preview, full points will be fetched or kept in state
+                // Keep minimal points for the preview
                 const step = Math.max(1, Math.floor(allPoints.length / 100));
                 points = allPoints.filter((_, i) => i % step === 0).map(p => ({ ...p, time: new Date(p.time) }));
             }
@@ -142,9 +154,69 @@ export const getFriendsActivityFeed = async (currentUserId: string): Promise<Tra
             userDisplayName: profilesMap.get(t.user_id) || 'Runner',
             userId: t.user_id,
             startTime: t.start_time,
-            reactions: reactions
+            reactions: reactions,
+            isPublic: t.is_public,
+            sharedWithUsers: t.shared_with_users,
+            sharedWithGroups: t.shared_with_groups
         };
     });
+};
+
+// --- GROUP MANAGEMENT ---
+
+export const createGroup = async (name: string, description: string, ownerId: string): Promise<SocialGroup | null> => {
+    const { data, error } = await supabase.from('social_groups').insert({ name, description, owner_id: ownerId }).select().single();
+    if (error) throw error;
+    // Auto-join owner
+    await supabase.from('social_group_members').insert({ group_id: data.id, user_id: ownerId });
+    return { ...data, memberCount: 1, isMember: true };
+};
+
+export const getGroups = async (currentUserId: string): Promise<SocialGroup[]> => {
+    // Fetch all groups
+    const { data: allGroups, error } = await supabase.from('social_groups').select('*').order('created_at', { ascending: false });
+    if(error) return [];
+
+    // Fetch my memberships
+    const { data: myMemberships } = await supabase.from('social_group_members').select('group_id').eq('user_id', currentUserId);
+    const myGroupIds = new Set(myMemberships?.map((m:any) => m.group_id));
+
+    // Get counts (simplified)
+    // For a scalable app, this should be a view or aggregated query
+    const { data: allMembers } = await supabase.from('social_group_members').select('group_id');
+    const counts = new Map();
+    allMembers?.forEach((m:any) => counts.set(m.group_id, (counts.get(m.group_id)||0)+1));
+
+    return allGroups.map((g: any) => ({
+        id: g.id,
+        name: g.name,
+        description: g.description,
+        ownerId: g.owner_id,
+        memberCount: counts.get(g.id) || 0,
+        isMember: myGroupIds.has(g.id)
+    }));
+};
+
+export const joinGroup = async (groupId: string, userId: string) => {
+    const { error } = await supabase.from('social_group_members').insert({ group_id: groupId, user_id: userId });
+    if (error) throw error;
+};
+
+export const leaveGroup = async (groupId: string, userId: string) => {
+    const { error } = await supabase.from('social_group_members').delete().match({ group_id: groupId, user_id: userId });
+    if (error) throw error;
+};
+
+// --- SHARING ---
+
+export const updateTrackSharing = async (trackId: string, isPublic: boolean, sharedUsers: string[], sharedGroups: string[]) => {
+    const { error } = await supabase.from('tracks').update({
+        is_public: isPublic,
+        shared_with_users: sharedUsers,
+        shared_with_groups: sharedGroups
+    }).eq('id', trackId);
+    
+    if (error) throw error;
 };
 
 export const sendDirectMessage = async (senderId: string, receiverId: string, content: string) => {
@@ -171,7 +243,6 @@ export const getDirectMessages = async (currentUserId: string, friendId: string)
 };
 
 export const toggleReaction = async (trackId: string, userId: string, emoji: string) => {
-    // Check if reaction exists
     const { data } = await supabase
         .from('activity_reactions')
         .select('id')
@@ -180,11 +251,9 @@ export const toggleReaction = async (trackId: string, userId: string, emoji: str
         .single();
 
     if (data) {
-        // Remove reaction (toggle off)
         await supabase.from('activity_reactions').delete().eq('id', data.id);
         return 'removed';
     } else {
-        // Add reaction
         await supabase.from('activity_reactions').insert({ track_id: trackId, user_id: userId, emoji });
         return 'added';
     }
