@@ -6,6 +6,8 @@ import { getTrackSegmentColors, GradientMetric } from '../services/colorService'
 
 declare const L: any; 
 
+const MAP_STYLE_KEY = 'runcoach_map_style_pref';
+
 const MAP_STYLES = {
     dark: { url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', label: 'Dark' },
     silver: { url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', label: 'Light' },
@@ -47,7 +49,12 @@ const MapDisplay: React.FC<MapDisplayProps & { onGradientChange?: (metric: strin
   const ghostMarkersRef = useRef<Map<string, any>>(new Map());
   
   const [localGradient, setLocalGradient] = useState<string>(mapGradientMetric);
-  const [currentStyle, setCurrentStyle] = useState<keyof typeof MAP_STYLES>('dark');
+  
+  // Initialize style from localStorage or default to 'dark'
+  const [currentStyle, setCurrentStyle] = useState<keyof typeof MAP_STYLES>(() => {
+      const saved = localStorage.getItem(MAP_STYLE_KEY);
+      return (saved && MAP_STYLES[saved as keyof typeof MAP_STYLES]) ? (saved as keyof typeof MAP_STYLES) : 'dark';
+  });
 
   // Sync internal state with props if controlled
   useEffect(() => {
@@ -58,6 +65,12 @@ const MapDisplay: React.FC<MapDisplayProps & { onGradientChange?: (metric: strin
       const val = e.target.value;
       setLocalGradient(val);
       if (onGradientChange) onGradientChange(val);
+  };
+
+  const handleStyleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const newStyle = e.target.value as keyof typeof MAP_STYLES;
+      setCurrentStyle(newStyle);
+      localStorage.setItem(MAP_STYLE_KEY, newStyle);
   };
 
   const fitMapToBounds = useCallback((immediate = false) => {
@@ -314,7 +327,7 @@ const MapDisplay: React.FC<MapDisplayProps & { onGradientChange?: (metric: strin
           <div className="relative">
               <select 
                   value={currentStyle}
-                  onChange={(e) => setCurrentStyle(e.target.value as any)}
+                  onChange={handleStyleChange}
                   className="bg-slate-900 border border-slate-700 text-[10px] font-bold text-white uppercase outline-none cursor-pointer appearance-none pl-2 pr-6 py-1 rounded hover:border-slate-500 transition-colors"
               >
                   {Object.entries(MAP_STYLES).map(([key, val]) => (
