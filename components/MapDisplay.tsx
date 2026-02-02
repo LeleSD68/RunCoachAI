@@ -50,10 +50,10 @@ const MapDisplay: React.FC<MapDisplayProps & { onGradientChange?: (metric: strin
   
   const [localGradient, setLocalGradient] = useState<string>(mapGradientMetric);
   
-  // Initialize style from localStorage or default to 'dark'
+  // Initialize style from localStorage or default to 'silver'
   const [currentStyle, setCurrentStyle] = useState<keyof typeof MAP_STYLES>(() => {
       const saved = localStorage.getItem(MAP_STYLE_KEY);
-      return (saved && MAP_STYLES[saved as keyof typeof MAP_STYLES]) ? (saved as keyof typeof MAP_STYLES) : 'dark';
+      return (saved && MAP_STYLES[saved as keyof typeof MAP_STYLES]) ? (saved as keyof typeof MAP_STYLES) : 'silver';
   });
 
   // Sync internal state with props if controlled
