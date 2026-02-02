@@ -16,7 +16,7 @@ interface HomeModalProps {
     plannedWorkouts?: PlannedWorkout[];
     onOpenWorkout?: (workoutId: string) => void; 
     onOpenProfile?: () => void;
-    onOpenSettings?: () => void; // New prop
+    onOpenSettings?: () => void; 
     onOpenChangelog?: () => void;
     onUploadOpponent?: (files: File[]) => void;
     onEnterRaceMode?: () => void;
@@ -27,6 +27,9 @@ interface HomeModalProps {
     isGuest?: boolean;
     onOpenStravaConfig?: () => void;
     userProfile?: UserProfile; 
+    onOpenSocial?: () => void;
+    unreadCount?: number;
+    onlineCount?: number;
 }
 
 const SettingsIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M7.84 1.804A1 1 0 0 1 8.82 1h2.36a1 1 0 0 1 .98.804l.331 1.652a6.993 6.993 0 0 1 1.929 1.115l1.598-.54a1 1 0 0 1 1.186.447l1.18 2.044a1 1 0 0 1-.205 1.251l-1.267 1.113a7.047 7.047 0 0 1 0 2.228l1.267 1.113a1 1 0 0 1 .206 1.25l-1.18 2.045a1 1 0 0 1 1.187-.447l1.598.54a6.993 6.993 0 0 1 7.51 3.456l.33-1.652ZM10 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" clipRule="evenodd" /></svg>);
@@ -61,6 +64,11 @@ const ReloadIcon = () => (
         <path fillRule="evenodd" d="M15.312 11.424a5.5 5.5 0 0 1-9.201 2.466l-.312-.311h2.433a.75.75 0 0 0 0-1.5H3.989a.75.75 0 0 0-.75.75v4.242a.75.75 0 0 0 1.5 0v-2.43l.31.31a7 7 0 0 0 11.712-3.138.75.75 0 0 0-1.449-.39Zm1.23-3.723a.75.75 0 0 0 .219-.53V2.929a.75.75 0 0 0-1.5 0V5.36l-.31-.31A7 7 0 0 0 3.239 8.188a.75.75 0 1 0 1.448.389A5.5 5.5 0 0 1 13.89 6.11l.311.31h-2.432a.75.75 0 0 0 0 1.5h4.243a.75.75 0 0 0 .53-.219Z" clipRule="evenodd" />
     </svg>
 );
+const UserGroupIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+        <path d="M7 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM14.5 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM1.615 16.428a1.224 1.224 0 0 1-.569-1.175 6.002 6.002 0 0 1 11.908 0c.058.467-.172.92-.57 1.174A9.953 9.953 0 0 1 7 18a9.953 9.953 0 0 1-5.385-1.572ZM14.5 16h-.106c.07-.38.106-.772.106-1.175 0-.537-.067-1.054-.191-1.543A7.001 7.001 0 0 1 17 18a9.952 9.952 0 0 1-2.5-2Z" />
+    </svg>
+);
 
 const LargeLogoIcon = () => (
     <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-2xl border-2 border-cyan-500/20 relative z-10 p-2">
@@ -72,7 +80,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
     onOpenDiary, onOpenExplorer, onOpenHelp, onImportBackup, onExportBackup, 
     onUploadTracks, onClose, trackCount, plannedWorkouts = [], onOpenWorkout, 
     onOpenProfile, onOpenSettings, onOpenChangelog, onUploadOpponent, onEnterRaceMode, onManualCloudSave, onCheckAiAccess,
-    onLogout, onLogin, isGuest, onOpenStravaConfig, userProfile
+    onLogout, onLogin, isGuest, onOpenStravaConfig, userProfile, onOpenSocial, unreadCount = 0, onlineCount = 0
 }) => {
     const backupInputRef = useRef<HTMLInputElement>(null);
     const trackInputRef = useRef<HTMLInputElement>(null);
@@ -148,12 +156,27 @@ const HomeModal: React.FC<HomeModalProps> = ({
                     <span className="text-sm md:text-lg font-black text-white uppercase tracking-tight">Gareggia</span>
                     <span className="text-[10px] text-green-400 font-bold uppercase tracking-widest mt-1 opacity-60">Simulazione Live</span>
                 </button>
-            </div>
 
-            <button onClick={onClose} className="w-full bg-gradient-to-r from-slate-800 to-slate-800 hover:from-slate-700 hover:to-slate-700 border border-slate-600 hover:border-cyan-500/50 text-white font-bold py-3 md:py-4 rounded-2xl transition-all shadow-lg flex items-center justify-center gap-3 group active:scale-95">
-                <span className="text-xl group-hover:scale-110 transition-transform">🗺️</span>
-                <span className="uppercase tracking-widest text-sm text-slate-200 group-hover:text-white font-black">Esplora Mappa</span>
-            </button>
+                <button onClick={onOpenSocial} className="flex flex-col items-center justify-center p-4 md:p-6 bg-pink-600/5 hover:bg-pink-600/10 border-2 border-pink-500/20 hover:border-pink-400 rounded-2xl transition-all group active:scale-95 shadow-lg min-h-[120px] relative col-span-2 sm:col-span-1">
+                    <div className="text-3xl md:text-4xl mb-2 group-hover:scale-110 transition-transform"><UserGroupIcon /></div>
+                    <span className="text-sm md:text-lg font-black text-white uppercase tracking-tight">Social Hub</span>
+                    <div className="flex items-center gap-2 mt-1">
+                        <span className="text-[10px] text-pink-400 font-bold uppercase tracking-widest opacity-60">Amici & Chat</span>
+                        {onlineCount > 0 && <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.8)]"></span>}
+                    </div>
+                    {unreadCount > 0 && (
+                        <div className="absolute top-3 right-3 bg-red-500 text-white text-[10px] font-black w-5 h-5 flex items-center justify-center rounded-full shadow-lg border-2 border-slate-900 animate-bounce">
+                            {unreadCount > 9 ? '!' : unreadCount}
+                        </div>
+                    )}
+                </button>
+
+                <button onClick={onClose} className="flex flex-col items-center justify-center p-4 md:p-6 bg-gradient-to-br from-slate-800 to-slate-700 border-2 border-slate-600/50 hover:border-cyan-400/50 rounded-2xl transition-all group active:scale-95 shadow-lg min-h-[120px] col-span-2 sm:col-span-1">
+                    <div className="text-3xl md:text-4xl mb-2 group-hover:scale-110 transition-transform">🗺️</div>
+                    <span className="text-sm md:text-lg font-black text-white uppercase tracking-tight">Esplora Mappa</span>
+                    <span className="text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-1 opacity-60">Visuale Completa</span>
+                </button>
+            </div>
         </div>
     );
 
