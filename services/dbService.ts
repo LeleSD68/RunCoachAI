@@ -406,3 +406,34 @@ export const cleanUpRemoteDuplicates = async (userId: string): Promise<number> =
 
     return idsToDelete.length;
 };
+
+export const deleteUserAccount = async (): Promise<void> => {
+    if (!isSupabaseConfigured()) {
+        // Local mock mode
+        localStorage.removeItem('mock-session');
+        window.location.reload();
+        return;
+    }
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    const uid = session.user.id;
+
+    // Delete dependent data first
+    await supabase.from('activity_reactions').delete().eq('user_id', uid);
+    await supabase.from('direct_messages').delete().or(`sender_id.eq.${uid},receiver_id.eq.${uid}`);
+    await supabase.from('social_group_members').delete().eq('user_id', uid);
+    await supabase.from('friends').delete().or(`user_id_1.eq.${uid},user_id_2.eq.${uid}`);
+    
+    await supabase.from('planned_workouts').delete().eq('user_id', uid);
+    await supabase.from('chats').delete().eq('user_id', uid);
+    
+    // Tracks usually have many points data, might be heavy.
+    await supabase.from('tracks').delete().eq('user_id', uid);
+
+    // Finally profile if policy allows
+    await supabase.from('profiles').delete().eq('id', uid);
+
+    await supabase.auth.signOut();
+    window.location.reload();
+};
