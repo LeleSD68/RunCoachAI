@@ -839,6 +839,10 @@ const App: React.FC = () => {
                     onEnterRaceMode={openRaceSetup}
                     trackCount={tracks.length}
                     userProfile={userProfile}
+                    // Passaggio props per Social Hub
+                    onOpenSocial={() => toggleView('social')}
+                    unreadCount={unreadMessages}
+                    onlineCount={onlineFriendsCount}
                 />
             )}
 
