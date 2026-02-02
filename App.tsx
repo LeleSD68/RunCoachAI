@@ -912,8 +912,8 @@ const App: React.FC = () => {
                                         runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
                                     />
                                     {/* Mobile AI Button (Absolute inside map container) */}
-                                    <button onClick={() => setShowGlobalChat(true)} className="absolute bottom-4 right-4 z-[1000] p-2 bg-slate-900/50 backdrop-blur-sm rounded-full border border-white/20 active:scale-95 transition-all">
-                                        <img src="/logo.png" alt="AI Coach" className="w-8 h-8 object-contain drop-shadow-md" />
+                                    <button onClick={() => setShowGlobalChat(true)} className="absolute bottom-4 right-4 z-[1000] bg-purple-600 hover:bg-purple-500 text-white p-3 rounded-full shadow-2xl active:scale-90 border border-purple-400/50">
+                                        <img src="/icona.png" alt="AI" className="w-6 h-6 object-contain" />
                                     </button>
                                 </div>
                                 <div className="bg-slate-950 pb-safe border-t border-slate-800 shrink-0">
@@ -1005,8 +1005,8 @@ const App: React.FC = () => {
                                                 isAnimationPlaying={false} fitBoundsCounter={fitBoundsCounter}
                                                 runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
                                             />
-                                            <button onClick={() => setShowGlobalChat(true)} className="fixed bottom-24 right-4 z-[4000] p-3 bg-slate-900/50 backdrop-blur-sm rounded-full border border-white/20 shadow-2xl active:scale-95 transition-all hover:bg-slate-900/80">
-                                                <img src="/logo.png" alt="AI Coach" className="w-10 h-10 object-contain drop-shadow-md" />
+                                            <button onClick={() => setShowGlobalChat(true)} className="fixed bottom-24 right-4 z-[4000] bg-purple-600 hover:bg-purple-500 text-white p-3 rounded-full shadow-2xl active:scale-90 border border-purple-400/50">
+                                                <img src="/icona.png" alt="AI" className="w-6 h-6 object-contain" />
                                             </button>
                                         </>
                                     ) : (
@@ -1019,8 +1019,8 @@ const App: React.FC = () => {
                                                     runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
                                                 />
                                                 {/* Mobile AI Button (Absolute inside map container) */}
-                                                <button onClick={() => setShowGlobalChat(true)} className="absolute bottom-4 right-4 z-[1000] p-2 bg-slate-900/50 backdrop-blur-sm rounded-full border border-white/20 active:scale-95 transition-all">
-                                                    <img src="/logo.png" alt="AI Coach" className="w-8 h-8 object-contain drop-shadow-md" />
+                                                <button onClick={() => setShowGlobalChat(true)} className="absolute bottom-4 right-4 z-[1000] bg-purple-600 hover:bg-purple-500 text-white p-3 rounded-full shadow-2xl active:scale-90 border border-purple-400/50">
+                                                    <img src="/icona.png" alt="AI" className="w-6 h-6 object-contain" />
                                                 </button>
                                             </div>
                                             <div className="bg-slate-950 pb-safe border-t border-slate-800 shrink-0">
