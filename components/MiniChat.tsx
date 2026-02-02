@@ -127,7 +127,10 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose }) => 
     }, [messages]);
 
     return (
-        <div className="fixed bottom-0 right-4 w-72 sm:w-80 bg-slate-900 border border-slate-700 rounded-t-xl shadow-2xl z-[10000] flex flex-col animate-slide-up h-96">
+        <div 
+            className="fixed bottom-0 right-4 w-72 sm:w-80 bg-slate-900 border border-slate-700 rounded-t-xl shadow-2xl z-[10000] flex flex-col animate-slide-up h-96"
+            onClick={(e) => e.stopPropagation()} // FIX: Stop propagation to prevent closing parent modal
+        >
             {/* Header */}
             <div className="flex items-center justify-between p-3 bg-slate-800 border-b border-slate-700 rounded-t-xl cursor-pointer" onClick={onClose}>
                 <div className="flex items-center gap-2">
