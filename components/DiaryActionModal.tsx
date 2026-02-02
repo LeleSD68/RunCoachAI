@@ -70,7 +70,7 @@ const DiaryActionModal: React.FC<DiaryActionModalProps> = ({ date, onClose, onAd
                     {step === 'choice' && (
                         <div className="grid gap-3">
                             <button onClick={() => setStep('ai-mode')} className="flex items-center gap-4 p-4 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/40 rounded-2xl text-left transition-all group">
-                                <span className="text-2xl group-hover:scale-110 transition-transform">🧠</span>
+                                <img src="/icona.png" alt="AI" className="w-8 h-8 object-contain group-hover:scale-110 transition-transform" />
                                 <div>
                                     <div className="font-black text-purple-400 text-sm uppercase">Allenamento AI</div>
                                     <div className="text-[10px] text-slate-400">Lascia che il coach crei una sessione su misura.</div>
