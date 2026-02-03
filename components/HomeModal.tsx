@@ -38,7 +38,12 @@ const CogIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 2
 const HelpIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12Zm11.378-3.917c-.89-.777-2.366-.777-3.255 0a.75.75 0 0 1-.988-1.129c1.454-1.272 3.776-1.272 5.23 0 1.513 1.324 1.513 3.518 0 4.842a3.75 3.75 0 0 1-.837.552c-.676.328-1.028.774-1.028 1.152v.202a.75.75 0 0 1-1.5 0v-.202c0-1.009.9-1.97 2.028-2.48a5.25 5.25 0 0 0 1.12-.737c.89-.777.89-2.036 0-2.814Zm.122 7.132a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" clipRule="evenodd" /></svg>);
 const LogoutIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path fillRule="evenodd" d="M7.5 3.75A1.5 1.5 0 0 0 6 5.25v13.5a1.5 1.5 0 0 0 1.5 1.5h6a1.5 1.5 0 0 0 1.5-1.5V15a.75.75 0 0 1 1.5 0v3.75a3 3 0 0 1-3 3h-6a3 3 0 0 1-3-3V5.25a3 3 0 0 1 3-3h6a3 3 0 0 1 3 3V9A.75.75 0 0 1 13.5 9V5.25a1.5 1.5 0 0 0-1.5-1.5h-6Zm10.72 4.72a.75.75 0 0 1 1.06 0l3 3a.75.75 0 0 1 0 1.06l-3 3a.75.75 0 1 1-1.06-1.06l1.72-1.72H9a.75.75 0 0 1 0-1.5h10.94l-1.72-1.72a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" /></svg>);
 const MapIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path fillRule="evenodd" d="M8.157 2.176a1.5 1.5 0 0 1 1.186-.672h1.314a1.5 1.5 0 0 1 1.186.672l2.36 3.54A1.5 1.5 0 0 1 13.888 7.5H12.5V14a1.5 1.5 0 0 1-1.5 1.5h-2A1.5 1.5 0 0 1 7.5 14V7.5H6.112a1.5 1.5 0 0 1-1.315-1.784l2.36-3.54Z" clipRule="evenodd" /><path d="M15.5 8.5a.75.75 0 0 0-.75.75v4.5a.75.75 0 0 1-.75.75h-8a.75.75 0 0 1-.75-.75v-4.5a.75.75 0 0 0-1.5 0v4.5A2.25 2.25 0 0 0 6 16h8a2.25 2.25 0 0 0 2.25-2.25v-4.5a.75.75 0 0 0-.75-.75Z" /></svg>);
-const SocialIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path fillRule="evenodd" d="M8.25 6.75a3.75 3.75 0 1 1 7.5 0 3.75 3.75 0 0 1-7.5 0ZM15.75 9.75a3 3 0 1 1 6 0 3 3 0 0 1-6 0ZM2.25 9.75a3 3 0 1 1 6 0 3 3 0 0 1-6 0ZM6.31 15.117A6.745 6.745 0 0 1 12 12a6.745 6.745 0 0 1 6.709 7.498.75.75 0 0 1-.372.568A12.696 12.696 0 0 1 12 21.75c-2.305 0-4.47-.612-6.337-1.684a.75.75 0 0 1-.372-.568 6.787 6.787 0 0 1 1.019-4.38Z" clipRule="evenodd" /><path d="M5.082 14.254a6.741 6.741 0 0 0-3.75 5.501.75.75 0 1 1-1.5 0c0-1.46.508-2.81 1.369-3.898.342.204.75.37 1.194.49 1.027.278 2.118.397 3.237.397a13.325 13.325 0 0 0 3.468-.453c-.732-.32-1.399-.752-1.97-1.272a12.68 12.68 0 0 1-2.048.235Z" /><path d="M22.669 19.755c0 1.46-.508 2.81-1.369 3.898-.342-.204-.75-.37-1.194-.49-1.027-.278-2.118-.397-3.237-.397-1.19 0-2.345.133-3.468.453.732.32 1.399.752 1.97 1.272a12.68 12.68 0 0 1 2.048-.235c3.27 0 6.195.968 8.197 2.613a.75.75 0 0 0 1.15-.647 6.741 6.741 0 0 0-4.097-6.467Z" /></svg>);
+const ChatSocialIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+        <path d="M4.913 2.658c2.075-.27 4.19-.408 6.337-.408 2.147 0 4.262.139 6.337.408 1.922.25 3.291 1.861 3.405 3.727a4.403 4.403 0 0 0-1.032-.211 50.89 50.89 0 0 0-8.42 0c-2.358.196-4.04 2.19-4.04 4.434v4.286a4.47 4.47 0 0 0 2.433 3.984L7.28 21.53A.75.75 0 0 1 6 21v-2.351a4.494 4.494 0 0 0-2.139-3.862 13.946 13.946 0 0 0-1.106-6.502c.433-2.615 2.139-5.402 2.158-5.627Zm6.077 8.01c-1.355 0-2.54.89-2.54 1.989v.213c0 1.098 1.185 1.989 2.54 1.989 1.355 0 2.54-.89 2.54-1.99v-.212c0-1.098-1.185-1.989-2.54-1.989Z" />
+        <path fillRule="evenodd" d="M12.552 6.533a3.507 3.507 0 0 0-1.047-.134 49.337 49.337 0 0 0-8.42 0C2.463 6.452 1.5 6.945 1.5 8.07 1.5 10.521 3.262 12.7 5 14.163a2.535 2.535 0 0 0 1.13.435 6.402 6.402 0 0 1-.954.912c-1.294 1.077-1.43 2.164-.26 2.37.917.158 1.93.308 2.87.308.286 0 .584-.04.915-.12a6.47 6.47 0 0 1 3.844-3.513v-8.02Z" clipRule="evenodd" />
+    </svg>
+);
 const CloudIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path fillRule="evenodd" d="M4.5 9.75a6 6 0 0 1 11.573-2.226 3.75 3.75 0 0 1 4.133 4.303A4.5 4.5 0 0 1 18 20.25H6.75a5.25 5.25 0 0 1-2.25-10.5Z" clipRule="evenodd" /></svg>);
 const RaceIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path fillRule="evenodd" d="M3 2.25a.75.75 0 0 1 .75.75v.54l1.838-.46a9.75 9.75 0 0 1 6.725.738l.108.054a8.25 8.25 0 0 0 5.58.652l3.109-.732a.75.75 0 0 1 .917.81 47.784 47.784 0 0 0 .005 10.337.75.75 0 0 1-.574.812l-3.123.733a9.75 9.75 0 0 1-6.594-.652l-.108-.054a8.25 8.25 0 0 0-5.71-.737l-1.839.46a.75.75 0 0 1-.933-.726V3a.75.75 0 0 1 .75-.75Z" clipRule="evenodd" /></svg>);
 const CalendarIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M12.75 12.75a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM7.5 15.75a.75.75 0 1 0 0-1.5 .75.75 0 0 0 0 1.5ZM8.25 17.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM9.75 15.75a.75.75 0 1 0 0-1.5 .75.75 0 0 0 0 1.5ZM10.5 17.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12 15.75a.75.75 0 1 0 0-1.5 .75.75 0 0 0 0 1.5ZM12.75 17.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM14.25 15.75a.75.75 0 1 0 0-1.5 .75.75 0 0 0 0 1.5ZM15 17.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM16.5 15.75a.75.75 0 1 0 0-1.5 .75.75 0 0 0 0 1.5ZM15 12.75a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM16.5 13.5a.75.75 0 1 0 0-1.5 .75.75 0 0 0 0 1.5Z" /><path fillRule="evenodd" d="M6.75 2.25A.75.75 0 0 1 7.5 3v1.5h9V3A.75.75 0 0 1 18 3v1.5h.75a3 3 0 0 1 3 3v11.25a3 3 0 0 1-3 3H5.25a3 3 0 0 1-3-3V7.5a3 3 0 0 1 3-3H6V3a.75.75 0 0 1 .75-.75Zm13.5 9a1.5 1.5 0 0 0-1.5-1.5H5.25a1.5 1.5 0 0 0-1.5 1.5v7.5a1.5 1.5 0 0 0 1.5 1.5h13.5a1.5 1.5 0 0 0 1.5-1.5v-7.5Z" clipRule="evenodd" /></svg>);
@@ -124,17 +129,19 @@ const HomeModal: React.FC<HomeModalProps> = ({
                         </div>
                     </div>
                     
-                    {/* Desktop Close Button */}
+                    {/* Header Controls (Mappa visibile anche su mobile ora) */}
                     <button 
                         onClick={onClose} 
-                        className="hidden md:flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl font-bold text-sm transition-all border border-slate-700"
+                        className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-3 py-2 md:px-4 md:py-2 rounded-xl font-bold text-xs md:text-sm transition-all border border-slate-700"
                     >
-                        <MapIcon /> Mappa
+                        <MapIcon /> 
+                        <span className="hidden md:inline">Mappa</span>
+                        <span className="md:hidden">Mappa</span>
                     </button>
                 </header>
 
                 {/* --- MAIN CONTENT AREA (BENTO GRID) --- */}
-                <div className="flex-grow p-4 md:p-8 overflow-y-auto custom-scrollbar z-10">
+                <div className="flex-grow p-4 md:p-8 overflow-y-auto custom-scrollbar z-10 pb-32 md:pb-8">
                     {activeSection === 'main' ? (
                         <div className="grid grid-cols-2 md:grid-cols-4 md:grid-rows-2 gap-3 md:gap-4 h-full md:h-auto min-h-[400px]">
                             
@@ -198,11 +205,11 @@ const HomeModal: React.FC<HomeModalProps> = ({
                                 className="col-span-1 bg-slate-800/50 hover:bg-slate-800 border border-slate-700 hover:border-pink-500 rounded-3xl p-5 relative group transition-all text-left flex flex-col justify-between"
                             >
                                 <div className="flex justify-between w-full">
-                                    <div className="p-2 bg-pink-500/20 rounded-xl text-pink-400 w-fit mb-2"><SocialIcon /></div>
+                                    <div className="p-2 bg-pink-500/20 rounded-xl text-pink-400 w-fit mb-2"><ChatSocialIcon /></div>
                                     {unreadCount > 0 && <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full h-fit shadow-lg animate-pulse">{unreadCount}</span>}
                                 </div>
                                 <div>
-                                    <h3 className="text-base font-bold text-white">Crew</h3>
+                                    <h3 className="text-base font-bold text-white">Social Friends</h3>
                                     <p className="text-[10px] text-slate-400 mt-1">{onlineCount} amici online</p>
                                 </div>
                             </button>
@@ -262,8 +269,8 @@ const HomeModal: React.FC<HomeModalProps> = ({
                     ) : null}
                 </div>
 
-                {/* --- FOOTER DOCK (Desktop Only) --- */}
-                <div className="hidden md:block p-4 md:p-6 border-t border-slate-800 bg-slate-900/90 backdrop-blur shrink-0 z-20">
+                {/* --- FOOTER DOCK (Visible on Mobile & Desktop) --- */}
+                <div className="p-4 md:p-6 border-t border-slate-800 bg-slate-900/90 backdrop-blur shrink-0 z-20 absolute bottom-0 left-0 right-0 md:relative">
                     <div className="flex justify-between items-center max-w-2xl mx-auto md:mx-0 w-full">
                         <div className="flex gap-1 md:gap-2">
                             <button onClick={onOpenProfile} className="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white transition-colors w-16 md:w-auto">
