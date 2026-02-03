@@ -50,6 +50,7 @@ import { isDuplicateTrack, markStravaTrackAsDeleted, isPreviouslyDeletedStravaTr
 import { getFriendsActivityFeed, updatePresence, getFriends } from './services/socialService';
 
 const LAYOUT_PREFS_KEY = 'runcoach_layout_prefs_v6';
+const SESSION_ACTIVE_KEY = 'runcoach_session_active';
 
 const App: React.FC = () => {
     const [tracks, setTracks] = useState<Track[]>([]);
@@ -58,9 +59,9 @@ const App: React.FC = () => {
     const [toasts, setToasts] = useState<Toast[]>([]);
     const [usage, setUsage] = useState<ApiUsage>({ requests: 0, tokens: 0, lastReset: '' });
     
-    // States for startup flow
-    const [showSplash, setShowSplash] = useState(true);
-    const [showInfographic, setShowInfographic] = useState(false); // Nuovo stato per l'infografica
+    // States for startup flow - Modified to check session storage immediately
+    const [showSplash, setShowSplash] = useState(() => !sessionStorage.getItem(SESSION_ACTIVE_KEY));
+    const [showInfographic, setShowInfographic] = useState(false); 
     
     const [isDataLoading, setIsDataLoading] = useState(false); 
     const [authLimitReached, setAuthLimitReached] = useState(false);
@@ -100,6 +101,14 @@ const App: React.FC = () => {
     // Layout Preferences
     const [layoutPrefs, setLayoutPrefs] = useState<{ desktopSidebar: number, mobileListRatio: number }>({ desktopSidebar: 320, mobileListRatio: 0.7 });
 
+    // --- AUTO-RESUME LOGIC ---
+    useEffect(() => {
+        // If the session is already active (e.g. reload or background return), skip splash and load data
+        if (sessionStorage.getItem(SESSION_ACTIVE_KEY)) {
+            checkSession();
+        }
+    }, []);
+
     // --- HISTORY API HANDLING FOR MOBILE BACK BUTTON ---
     const resetNavigation = useCallback(() => {
         setShowHome(false);
@@ -129,10 +138,6 @@ const App: React.FC = () => {
                 // Ensure sidebar logic for desktop remains consistent if needed
                 if (!isDesktop) setIsSidebarOpen(false); 
             } else {
-                // If we popped to a specific view state (rare in this logic, mostly we pop back to map)
-                // handle re-opening? Usually we just want to close overlays.
-                // For simplicity, any popstate that isn't explicitly handling forward navigation
-                // should probably just close current overlays if they are open.
                 resetNavigation();
             }
         };
@@ -383,11 +388,12 @@ const App: React.FC = () => {
     const handleSplashFinish = () => {
         setShowSplash(false);
         setShowInfographic(true); // Mostra l'infografica
-        checkSession(); // Avvia il caricamento dati in background
     };
 
     const handleInfographicNext = () => {
         setShowInfographic(false);
+        sessionStorage.setItem(SESSION_ACTIVE_KEY, 'true'); // Flag session as active
+        checkSession(); // Avvia il caricamento dati in background
     };
 
     const runAutoStravaSync = async (currentTracks: Track[]) => {
@@ -1095,7 +1101,8 @@ const App: React.FC = () => {
             )}
 
             {/* GLOBAL MOBILE DOCK - Fixed at bottom, high z-index, visible on ALL screens if mobile */}
-            {!isDesktop && !showSplash && !showInfographic && (
+            {/* Added !showHome to prevent overlay on Hub */}
+            {!isDesktop && !showSplash && !showInfographic && !showHome && (
                 <div className="fixed bottom-0 left-0 right-0 z-[12000] bg-slate-950 border-t border-slate-800 pb-safe">
                     <NavigationDock 
                         onOpenSidebar={() => { setIsSidebarOpen(true); pushViewState('sidebar'); }} 
@@ -1158,19 +1165,58 @@ const App: React.FC = () => {
                         <DiaryView 
                             tracks={tracks} plannedWorkouts={plannedWorkouts} userProfile={userProfile} 
                             onClose={() => toggleView('diary')} onSelectTrack={(id) => { setViewingTrack(tracks.find(t => t.id === id) || null); pushViewState('trackDetail'); }} 
-                            onAddPlannedWorkout={handleAddPlannedWorkout} onUpdatePlannedWorkout={handleUpdatePlannedWorkout} onDeletePlannedWorkout={handleDeletePlannedWorkout} onCheckAiAccess={onCheckAiAccess} 
+                            onAddPlannedWorkout={handleAddPlannedWorkout} onUpdatePlannedWorkout={handleUpdatePlannedWorkout} 
+                            onDeletePlannedWorkout={handleDeletePlannedWorkout}
+                            onCheckAiAccess={onCheckAiAccess}
                         />
                     </div>
                 </div>
             )}
 
-            {showExplorer && <ExplorerView tracks={tracks} onClose={() => toggleView('explorer')} onSelectTrack={(id) => { setViewingTrack(tracks.find(t => t.id === id) || null); pushViewState('trackDetail'); }} />}
-            {showPerformance && <PerformanceAnalysisPanel tracks={tracks} userProfile={userProfile} onClose={() => toggleView('performance')} />}
-            {showSocial && userId && <SocialHub onClose={() => toggleView('social')} currentUserId={userId} onChallengeGhost={handleChallengeGhost} onReadMessages={() => setUnreadMessages(0)} />}
+            {showExplorer && (
+                <div className="fixed inset-0 z-[9000] bg-slate-900">
+                    <ExplorerView 
+                        tracks={tracks} 
+                        onClose={() => toggleView('explorer')} 
+                        onSelectTrack={(id) => { setViewingTrack(tracks.find(t => t.id === id) || null); pushViewState('trackDetail'); }} 
+                    />
+                </div>
+            )}
+
+            {showPerformance && (
+                <PerformanceAnalysisPanel 
+                    tracks={tracks} 
+                    userProfile={userProfile} 
+                    onClose={() => toggleView('performance')} 
+                />
+            )}
+
+            {showSocial && (
+                <SocialHub 
+                    onClose={() => toggleView('social')} 
+                    currentUserId={userId || 'guest'} 
+                    onChallengeGhost={handleChallengeGhost}
+                    onReadMessages={() => setUnreadMessages(0)}
+                />
+            )}
+
             {showChangelog && <Changelog onClose={() => setShowChangelog(false)} />}
+            
             {showGuide && <GuideModal onClose={() => toggleView('guide')} />}
-            {raceResults && <RaceSummary results={raceResults} racerStats={new Map()} onClose={() => setRaceResults(null)} userProfile={userProfile} tracks={tracks} />}
-            {showGlobalChat && <div className="fixed inset-0 z-[13000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"><Chatbot onClose={() => setShowGlobalChat(false)} userProfile={userProfile} tracksToAnalyze={tracks} plannedWorkouts={plannedWorkouts} onAddPlannedWorkout={handleAddPlannedWorkout} isStandalone={true} /></div>}
+
+            {showGlobalChat && (
+                <div className="fixed bottom-20 right-4 z-[13000] md:bottom-4 animate-slide-up">
+                    <Chatbot 
+                        userProfile={userProfile} 
+                        tracksToAnalyze={tracks.slice(0, 5)}
+                        onClose={() => setShowGlobalChat(false)}
+                        isStandalone={true}
+                        onAddPlannedWorkout={handleAddPlannedWorkout}
+                        plannedWorkouts={plannedWorkouts}
+                    />
+                </div>
+            )}
+
         </div>
     );
 };
