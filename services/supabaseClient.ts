@@ -50,10 +50,23 @@ if (!supabaseInstance) {
             update: () => builder,
             delete: () => builder,
             eq: () => builder,
+            neq: () => builder,
+            gt: () => builder,
+            lt: () => builder,
+            gte: () => builder,
+            lte: () => builder,
+            in: () => builder,
+            is: () => builder,
+            like: () => builder,
+            ilike: () => builder,
+            contains: () => builder,
+            or: () => builder,
+            match: () => builder,
             order: () => builder,
             limit: () => builder,
             // .single() deve ritornare una Promise che risolve in { data, error }
             single: () => Promise.resolve({ data: Array.isArray(data) ? data[0] : data, error: null }),
+            maybeSingle: () => Promise.resolve({ data: Array.isArray(data) ? data[0] : data, error: null }),
             then: (resolve: any) => resolve({ data: Array.isArray(data) ? data : [data], error: null })
         };
         return builder;
@@ -81,15 +94,30 @@ if (!supabaseInstance) {
             signOut: async () => {
                 localStorage.removeItem(mockSessionKey);
                 return { error: null };
+            },
+            resend: async () => {
+                return { error: null };
+            },
+            resetPasswordForEmail: async () => {
+                return { error: null };
             }
         },
         from: (table: string) => {
             // Ritorna dati mock basati sulla tabella richiesta per evitare crash
-            if (table === 'profiles') return createMockBuilder({ name: 'Utente Locale' });
+            if (table === 'profiles') return createMockBuilder([{ name: 'Utente Locale', id: 'local-user-id' }]);
             if (table === 'tracks') return createMockBuilder([]);
             if (table === 'planned_workouts') return createMockBuilder([]);
+            if (table === 'friends') return createMockBuilder([]);
+            if (table === 'direct_messages') return createMockBuilder([]);
+            if (table === 'social_groups') return createMockBuilder([]);
+            if (table === 'social_group_members') return createMockBuilder([]);
             return createMockBuilder([]);
-        }
+        },
+        channel: () => ({
+            on: () => ({ on: () => ({ on: () => ({ subscribe: () => {} }) }) }),
+            subscribe: () => {}
+        }),
+        removeChannel: () => {}
     };
 }
 
