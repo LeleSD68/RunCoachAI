@@ -7,6 +7,15 @@ interface ChangelogProps {
 
 const changelogData = [
     {
+        version: 'v1.42',
+        date: '2026-01-31',
+        changes: [
+            '🧠 **Coach AI nel Dock**: L\'accesso al tuo assistente intelligente è ora integrato direttamente nella barra di navigazione inferiore per un accesso più rapido e comodo.',
+            '✨ **UI Pulita**: Rimossi i pulsanti fluttuanti che coprivano la mappa per una visualizzazione più chiara.',
+            '🔎 **Accesso Rapido**: Il nuovo pulsante AI è evidenziato e sempre a portata di mano per consultare il coach in qualsiasi momento.'
+        ]
+    },
+    {
         version: 'v1.41',
         date: '2026-01-30',
         changes: [
