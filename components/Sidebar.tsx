@@ -9,7 +9,6 @@ import MergeConfirmationModal from './MergeConfirmationModal';
 const PencilIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="m2.695 14.762-1.262 3.155a.5.5 0 0 0 .65.65l3.155-1.262a4 4 0 0 0 1.343-.886L17.5 5.501a2.121 2.121 0 0 0-3-3L3.58 13.419a4 4 0 0 0-.885 1.343Z" /></svg>);
 const TrashIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.1499.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149-.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clipRule="evenodd" /></svg>);
 const ArchiveBoxIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M2 3a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3Z" /><path fillRule="evenodd" d="M13 9a1 1 0 1 0 0 2h-6a1 1 0 1 0 0-2h6ZM2.75 7A.75.75 0 0 0 2 7.75v8.5c0 .69.56 1.25 1.25 1.25h13.5c.69 0 1.25-.56 1.25-1.25v-8.5A.75.75 0 0 0 17.25 7H2.75Z" clipRule="evenodd" /></svg>);
-const UnarchiveIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M10 2c-1.716 0-3.408.106-5.07.31C3.806 2.45 3 3.414 3 4.517V17.25a.75.75 0 0 0 1.075.676L10 15.08l5.925 2.847A.75.75 0 0 0 17 17.25V4.517c0-1.103-.806-2.068-1.93-2.207A41.403 41.403 0 0 0 10 2Z" clipRule="evenodd" /><path d="M10 6a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 6Z" /><path d="M7.75 8.25a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 0 1.5h-3a.75.75 0 0 1-.75-.75Z" /></svg>); // Simplified visual for restore
 const MergeIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M3.75 3a.75.75 0 0 0-1.5 0v4a6.5 6.5 0 0 0 6.5 6.5h4.19l-1.72 1.72a.75.75 0 1 0 1.06 1.06l3-3a.75.75 0 0 0 0-1.06l-3-3a.75.75 0 1 0-1.06 1.06l1.72 1.72H8.75A5 5 0 0 1 3.75 7V3Z" clipRule="evenodd" /></svg>);
 const FolderIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M2 4.75A2.75 2.75 0 0 1 4.75 2h3.185a.75.75 0 0 1 .53.22l2.25 2.25a.75.75 0 0 0 .53.22h4.005A2.75 2.75 0 0 1 18 7.64v7.61a2.75 2.75 0 0 1-2.75 2.75H4.75A2.75 2.75 0 0 1 2 15.25V4.75Z" /></svg>);
 const FlagIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M3.5 2A1.5 1.5 0 0 0 2 3.5V15a3 3 0 1 0 6 0V3.5A1.5 1.5 0 0 0 6.5 2h-3Zm11.753 3.29a1 1 0 0 0-1.242-.92l-4.215.91a4.5 4.5 0 0 1-1.796 0l-.603-.13a3 3 0 0 0-3.627 2.112l-.028.113c-.308 1.23.473 2.453 1.726 2.657l.012.002.493.08a4.5 4.5 0 0 1 1.93 5.432l.06-.239c.29-1.157 1.492-1.874 2.645-1.577l4.331 1.116a1 1 0 0 0 1.229-1.233l-.915-8.325Z" clipRule="evenodd" /></svg>);
@@ -76,8 +75,9 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
         });
 
         list.sort((a, b) => {
-            const timeA = new Date(a.points[0].time).getTime();
-            const timeB = new Date(b.points[0].time).getTime();
+            const timeA = a.points?.[0]?.time ? new Date(a.points[0].time).getTime() : 0;
+            const timeB = b.points?.[0]?.time ? new Date(b.points[0].time).getTime() : 0;
+            
             switch(sort) {
                 case 'date_desc': return timeB - timeA;
                 case 'date_asc': return timeA - timeB;
@@ -95,7 +95,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
         const groups: Record<string, Track[]> = {};
         processedTracks.forEach(t => {
             let key = 'Altro';
-            if (grouping === 'date') key = new Date(t.points[0].time).toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
+            if (grouping === 'date' && t.points?.[0]?.time) key = new Date(t.points[0].time).toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
             else if (grouping === 'distance') {
                 if (t.distance < 5) key = '< 5 km';
                 else if (t.distance < 10) key = '5 - 10 km';
@@ -126,16 +126,25 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
 
     return (
         <div className="flex flex-col h-full w-full bg-slate-900 text-white overflow-hidden relative">
-            <div className="p-3 border-b border-slate-800 flex items-center justify-between shrink-0">
-                <h2 className="text-sm font-black text-cyan-400 uppercase italic">Le Mie Corse</h2>
+            {/* Header: Enhanced visual for Archive Mode */}
+            <div className={`p-4 border-b flex items-center justify-between shrink-0 transition-colors duration-300 ${showArchived ? 'bg-purple-900/20 border-purple-500/30 shadow-inner' : 'bg-slate-900 border-slate-800'}`}>
+                <div className="flex items-center gap-2">
+                    <h2 className={`text-sm font-black uppercase italic tracking-wide ${showArchived ? 'text-purple-400' : 'text-cyan-400'}`}>
+                        {showArchived ? '🗄️ ARCHIVIO' : 'Le Mie Corse'}
+                    </h2>
+                    {showArchived && <span className="text-[9px] bg-purple-500 text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-wider shadow-sm animate-pulse-slow">MODE ON</span>}
+                </div>
+                
                 <div className="flex gap-2">
                     <Tooltip text={showOnlyFavorites ? "Mostra Tutte" : "Mostra Preferiti"}>
-                        <button onClick={() => setShowOnlyFavorites(!showOnlyFavorites)} className={`p-1 rounded transition-colors ${showOnlyFavorites ? 'text-amber-400 bg-amber-900/20' : 'text-slate-500 hover:text-white'}`}>
+                        <button onClick={() => setShowOnlyFavorites(!showOnlyFavorites)} className={`p-1.5 rounded-lg transition-colors ${showOnlyFavorites ? 'text-amber-400 bg-amber-900/20 border border-amber-500/30' : 'text-slate-500 hover:text-white bg-slate-800 border border-slate-700'}`}>
                             <StarIcon filled={showOnlyFavorites} />
                         </button>
                     </Tooltip>
-                    <Tooltip text={showArchived ? "Vedi Attive" : "Vedi Archivio"}>
-                        <button onClick={() => setShowArchived(!showArchived)} className={`p-1 rounded transition-colors ${showArchived ? 'bg-slate-700 text-white' : 'text-slate-500'}`}><ArchiveBoxIcon /></button>
+                    <Tooltip text={showArchived ? "Torna a Corse Attive" : "Apri Archivio"}>
+                        <button onClick={() => setShowArchived(!showArchived)} className={`p-1.5 rounded-lg transition-all border ${showArchived ? 'bg-purple-600 text-white border-purple-400 shadow-lg shadow-purple-900/50' : 'text-slate-500 hover:bg-slate-700 hover:text-white bg-slate-800 border-slate-700'}`}>
+                            <ArchiveBoxIcon />
+                        </button>
                     </Tooltip>
                 </div>
             </div>
@@ -188,16 +197,18 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                                     
                                     <div onClick={() => onViewDetails(track.id)} className="w-10 h-8 bg-slate-950 rounded border border-slate-700 overflow-hidden mr-2 shrink-0 cursor-pointer opacity-70 hover:opacity-100 transition-opacity relative group/prev">
                                         <TrackPreview points={track.points} color={track.color} className="w-full h-full" />
+                                        {track.isArchived && <div className="absolute inset-0 bg-purple-900/40 flex items-center justify-center"><ArchiveBoxIcon /></div>}
                                     </div>
 
                                     <div className="flex-grow min-w-0 cursor-pointer" onClick={() => onFocusTrack(track.id)}>
                                         <div className="flex items-center gap-1.5 min-w-0">
-                                            <div className="text-[11px] font-bold truncate group-hover:text-cyan-400">{track.name}</div>
+                                            {track.isArchived && <span className="text-purple-400 text-xs shrink-0" title="Archiviata">🗄️</span>}
+                                            <div className={`text-[11px] font-bold truncate ${track.isArchived ? 'text-purple-300' : 'group-hover:text-cyan-400'}`}>{track.name}</div>
                                             {isStrava && <StravaSmallIcon />}
                                             {track.isFavorite && <StarIcon filled={true} />}
                                         </div>
-                                        <div className="text-[9px] text-slate-500 font-mono">
-                                            {track.distance.toFixed(1)}km • {new Date(track.points[0].time).toLocaleDateString()}
+                                        <div className="text-[9px] text-slate-500 font-mono flex items-center gap-1">
+                                            {track.distance.toFixed(1)}km • {track.points?.[0]?.time ? new Date(track.points[0].time).toLocaleDateString() : 'N/A'}
                                         </div>
                                     </div>
 
