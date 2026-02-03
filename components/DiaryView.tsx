@@ -121,7 +121,7 @@ const DiaryView: React.FC<DiaryViewProps> = ({
     };
 
     return (
-        <div className="flex flex-col h-full w-full bg-slate-900 overflow-hidden relative">
+        <div className="flex flex-col h-full w-full bg-slate-900 overflow-hidden relative pb-24 md:pb-0">
             <header className="p-4 bg-slate-800 border-b border-slate-700 flex justify-between items-center shrink-0 shadow-lg z-10">
                 <button onClick={onClose} className="text-slate-400 hover:text-white font-bold flex items-center gap-2 transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M17 10a.75.75 0 0 1-.75.75H5.612l4.158 3.96a.75.75 0 1 1-1.04 1.08l-5.5-5.25a.75.75 0 0 1 0-1.08l5.5-5.25a.75.75 0 1 1 1.04 1.08L5.612 9.25H16.25A.75.75 0 0 1 17 10Z" clipRule="evenodd" /></svg>
@@ -156,9 +156,9 @@ const DiaryView: React.FC<DiaryViewProps> = ({
                             <div 
                                 key={idx} 
                                 onClick={() => handleDayClick(cell.date)}
-                                className={`min-h-[100px] p-1 relative overflow-hidden flex flex-col transition-colors cursor-pointer ${isToday ? 'bg-slate-800/80' : 'bg-slate-900 hover:bg-slate-800/40'}`}
+                                className={`min-h-[100px] p-1 relative overflow-hidden flex flex-col transition-colors cursor-pointer ${isToday ? 'bg-slate-800/90 border-cyan-500/50 shadow-[inset_0_0_10px_rgba(6,182,212,0.1)]' : 'bg-slate-800 border-slate-700/50 hover:bg-slate-700/50'}`}
                             >
-                                <span className={`text-[10px] font-black mb-1 px-1 ${isToday ? 'text-cyan-400' : 'text-slate-600'}`}>{cell.day}</span>
+                                <span className={`text-[10px] sm:text-sm font-black mb-1 px-1 ${isToday ? 'text-cyan-400' : 'text-slate-600'}`}>{cell.day}</span>
                                 <div className="space-y-1 overflow-y-auto no-scrollbar flex-grow">
                                     {cell.planned.map(w => {
                                         const isNote = w.entryType === 'note';
