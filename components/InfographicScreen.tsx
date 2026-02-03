@@ -36,7 +36,7 @@ const InfographicScreen: React.FC<InfographicScreenProps> = ({ onNext, isLoading
                 ) : (
                     <button 
                         onClick={onNext}
-                        className="bg-cyan-600 hover:bg-cyan-500 text-white font-black uppercase tracking-widest text-sm py-4 px-12 rounded-full shadow-[0_0_20px_rgba(8,145,178,0.5)] transition-all transform hover:scale-105 active:scale-95 animate-bounce-subtle border border-cyan-400/50"
+                        className="bg-cyan-600 hover:bg-cyan-500 text-white font-black uppercase tracking-widest text-sm py-4 px-12 rounded-full shadow-[0_0_20px_rgba(8,145,178,0.5)] transition-all transform hover:scale-105 active:scale-95 animate-bounce-subtle border border-cyan-400/50 animate-fade-in-up"
                     >
                         Avanti &rarr;
                     </button>
@@ -48,8 +48,15 @@ const InfographicScreen: React.FC<InfographicScreenProps> = ({ onNext, isLoading
                     0%, 100% { transform: translateY(0); }
                     50% { transform: translateY(-5px); }
                 }
+                @keyframes fade-in-up {
+                    from { opacity: 0; transform: translateY(10px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
                 .animate-bounce-subtle {
                     animation: bounce-subtle 2s infinite ease-in-out;
+                }
+                .animate-fade-in-up {
+                    animation: fade-in-up 0.5s ease-out forwards;
                 }
             `}</style>
         </div>
