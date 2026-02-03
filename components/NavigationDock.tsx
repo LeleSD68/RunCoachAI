@@ -49,13 +49,6 @@ const ListIcon = () => (
     </svg>
 );
 
-const MapIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-        <path fillRule="evenodd" d="M8.157 2.176a1.5 1.5 0 0 1 1.186-.672h1.314a1.5 1.5 0 0 1 1.186.672l2.36 3.54A1.5 1.5 0 0 1 13.888 7.5H12.5V14a1.5 1.5 0 0 1-1.5 1.5h-2A1.5 1.5 0 0 1 7.5 14V7.5H6.112a1.5 1.5 0 0 1-1.315-1.784l2.36-3.54Z" clipRule="evenodd" />
-        <path d="M15.5 8.5a.75.75 0 0 0-.75.75v4.5a.75.75 0 0 1-.75.75h-8a.75.75 0 0 1-.75-.75v-4.5a.75.75 0 0 0-1.5 0v4.5A2.25 2.25 0 0 0 6 16h8a2.25 2.25 0 0 0 2.25-2.25v-4.5a.75.75 0 0 0-.75-.75Z" />
-    </svg>
-);
-
 const UserGroupIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
         <path d="M7 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM14.5 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM1.615 16.428a1.224 1.224 0 0 1-.569-1.175 6.002 6.002 0 0 1 11.908 0c.058.467-.172.92-.57 1.174A9.953 9.953 0 0 1 7 18a9.953 9.953 0 0 1-5.385-1.572ZM14.5 16h-.106c.07-.38.106-.772.106-1.175 0-.537-.067-1.054-.191-1.543A7.001 7.001 0 0 1 17 18a9.952 9.952 0 0 1-2.5-2Z" />
@@ -74,15 +67,6 @@ const NavigationDock: React.FC<NavigationDockProps> = ({
                         className="p-3 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-cyan-400 transition-all active:scale-95"
                     >
                         <HomeIcon />
-                    </button>
-                </Tooltip>
-
-                <Tooltip text="Mappa" subtext="Visuale Piena" position="top">
-                    <button 
-                        onClick={onCloseSidebar} 
-                        className={`p-3 rounded-lg hover:bg-slate-800 transition-all active:scale-95 ${!isSidebarOpen ? 'text-white bg-slate-800 ring-1 ring-white/10' : 'text-slate-400 hover:text-white'}`}
-                    >
-                        <MapIcon />
                     </button>
                 </Tooltip>
 
