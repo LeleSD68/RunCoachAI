@@ -116,7 +116,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
                                 <h1 className="text-xl md:text-3xl font-black italic tracking-tighter uppercase text-white">
                                     RunCoach <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">AI</span>
                                 </h1>
-                                <button onClick={onOpenChangelog} className="bg-slate-800 text-[9px] font-black text-slate-400 px-2 py-0.5 rounded border border-slate-700 hover:text-white transition-colors">v1.41</button>
+                                <button onClick={onOpenChangelog} className="bg-slate-800 text-[9px] font-black text-slate-400 px-2 py-0.5 rounded border border-slate-700 hover:text-white transition-colors">v1.42</button>
                             </div>
                             <div className="flex items-center gap-2 mt-1">
                                 <span className="text-xs md:text-sm font-medium text-slate-300">Ciao, {userProfile?.name || 'Atleta'}</span>
