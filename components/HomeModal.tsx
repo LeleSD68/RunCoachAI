@@ -61,6 +61,11 @@ const DatabaseIcon = () => (
         <path d="M12 18.75c2.685 0 5.19-.504 7.078-1.426a.75.75 0 0 0 .397-.677v-2.066c0 2.406-3.722 4.42-8.225 4.42-4.503 0-8.225-2.014-8.225-4.42v2.066c0 .262.15.501.397.677C5.31 18.246 7.815 18.75 12 18.75Z" />
     </svg>
 );
+const SparklesIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+        <path d="M10.89 2.11a.75.75 0 0 0-1.78 0l-1.5 3.22-3.53.51a.75.75 0 0 0-.42 1.28l2.55 2.49-.6 3.52a.75.75 0 0 0 1.09.79l3.16-1.66 3.16 1.66a.75.75 0 0 0 1.09-.79l-.6-3.52 2.55-2.49a.75.75 0 0 0-.42-1.28l-3.53-.51-1.5-3.22Z" />
+    </svg>
+);
 
 const LargeLogoIcon = () => (
     <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-2xl border border-white/10 p-2">
@@ -108,22 +113,27 @@ const HomeModal: React.FC<HomeModalProps> = ({
                 <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-purple-600/10 rounded-full blur-[100px] translate-y-1/3 -translate-x-1/3 pointer-events-none"></div>
 
                 {/* --- HEADER --- */}
-                <header className="p-5 md:p-8 flex justify-between items-start z-10 shrink-0 bg-slate-900/50 backdrop-blur-sm border-b border-slate-800/50">
-                    <div className="flex items-center gap-4">
+                <header className="p-4 md:p-8 flex justify-between items-start z-10 shrink-0 bg-slate-900/50 backdrop-blur-sm border-b border-slate-800/50">
+                    <div className="flex items-center gap-3 md:gap-4">
                         <LargeLogoIcon />
                         <div>
                             <div className="flex items-center gap-2">
-                                <h1 className="text-xl md:text-3xl font-black italic tracking-tighter uppercase text-white">
+                                <h1 className="text-lg md:text-3xl font-black italic tracking-tighter uppercase text-white leading-tight">
                                     RunCoach <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">AI</span>
                                 </h1>
-                                <button onClick={onOpenChangelog} className="bg-slate-800 text-[9px] font-black text-slate-400 px-2 py-0.5 rounded border border-slate-700 hover:text-white transition-colors">v1.42</button>
+                                <button 
+                                    onClick={onOpenChangelog}
+                                    className="bg-slate-800 hover:bg-slate-700 text-[10px] font-black text-slate-400 hover:text-white px-2 py-0.5 rounded border border-slate-700 select-none cursor-pointer transition-colors"
+                                >
+                                    v1.43
+                                </button>
                             </div>
                             <div className="flex items-center gap-2 mt-1">
                                 <span className="text-xs md:text-sm font-medium text-slate-300">Ciao, {userProfile?.name || 'Atleta'}</span>
                                 {isGuest ? (
-                                    <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded border border-amber-500/30 uppercase font-bold tracking-wider">Ospite</span>
+                                    <span className="text-[9px] md:text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/30 uppercase font-bold tracking-wider">Ospite</span>
                                 ) : (
-                                    <span className="text-[10px] bg-green-500/20 text-green-300 px-2 py-0.5 rounded border border-green-500/30 uppercase font-bold tracking-wider">Cloud Sync</span>
+                                    <span className="text-[9px] md:text-[10px] bg-green-500/20 text-green-300 px-1.5 py-0.5 rounded border border-green-500/30 uppercase font-bold tracking-wider">Cloud Sync</span>
                                 )}
                             </div>
                         </div>
@@ -131,7 +141,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
                     
                     <button 
                         onClick={onClose} 
-                        className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-3 py-2 md:px-4 md:py-2 rounded-xl font-bold text-xs md:text-sm transition-all border border-slate-700"
+                        className="hidden md:flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-3 py-2 md:px-4 md:py-2 rounded-xl font-bold text-xs md:text-sm transition-all border border-slate-700"
                     >
                         <MapIcon /> 
                         <span>Mappa</span>
@@ -139,25 +149,25 @@ const HomeModal: React.FC<HomeModalProps> = ({
                 </header>
 
                 {/* --- MAIN GRID CONTENT --- */}
-                <div className="flex-grow p-4 md:p-8 overflow-y-auto custom-scrollbar z-10 pb-4 md:pb-8">
+                <div className="flex-grow p-3 md:p-8 overflow-y-auto custom-scrollbar z-10 pb-20 md:pb-8 flex flex-col justify-center">
                     {activeSection === 'main' ? (
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 auto-rows-min">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 auto-rows-min w-full max-w-4xl mx-auto">
                             
                             {/* 1. UPLOAD (Hero) */}
                             <button 
                                 onClick={handleUploadClick}
-                                className="col-span-2 md:row-span-2 bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 hover:border-cyan-500 rounded-3xl p-6 relative group overflow-hidden transition-all duration-300 hover:shadow-[0_0_20px_rgba(6,182,212,0.15)] flex flex-col justify-between text-left min-h-[160px] md:min-h-auto"
+                                className="col-span-2 md:row-span-2 bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 hover:border-cyan-500 rounded-2xl md:rounded-3xl p-4 md:p-6 relative group overflow-hidden transition-all duration-300 hover:shadow-[0_0_20px_rgba(6,182,212,0.15)] flex flex-col justify-between text-left min-h-[120px] md:min-h-auto"
                             >
-                                <div className="absolute top-0 right-0 p-4 opacity-50 group-hover:opacity-100 transition-opacity">
-                                    <div className="bg-cyan-500/20 p-2 rounded-full text-cyan-400"><PlusIcon /></div>
+                                <div className="absolute top-0 right-0 p-3 md:p-4 opacity-50 group-hover:opacity-100 transition-opacity">
+                                    <div className="bg-cyan-500/20 p-1.5 md:p-2 rounded-full text-cyan-400"><PlusIcon /></div>
                                 </div>
                                 <div>
-                                    <h3 className="text-xl sm:text-2xl md:text-3xl font-black text-white uppercase tracking-tight mb-2 leading-tight">Carica <br/>& Analizza</h3>
-                                    <p className="text-xs md:text-sm text-slate-400 font-medium max-w-[200px]">Importa GPX, collega Strava o carica backup.</p>
+                                    <h3 className="text-lg sm:text-2xl md:text-3xl font-black text-white uppercase tracking-tight mb-1 md:mb-2 leading-tight">Carica <br/>& Analizza</h3>
+                                    <p className="text-[10px] md:text-sm text-slate-400 font-medium max-w-[200px] leading-tight">Importa GPX, collega Strava o carica backup.</p>
                                 </div>
-                                <div className="mt-4">
-                                    <div className="flex items-center gap-2 text-xs font-bold text-cyan-400 uppercase tracking-widest">
-                                        Nuova Attività <span className="text-lg">→</span>
+                                <div className="mt-2 md:mt-4">
+                                    <div className="flex items-center gap-2 text-[10px] md:text-xs font-bold text-cyan-400 uppercase tracking-widest">
+                                        Nuova Attività <span className="text-sm md:text-lg">→</span>
                                     </div>
                                 </div>
                             </button>
@@ -165,21 +175,21 @@ const HomeModal: React.FC<HomeModalProps> = ({
                             {/* 2. DIARY */}
                             <button 
                                 onClick={onOpenDiary}
-                                className="col-span-1 md:row-span-2 bg-slate-800/50 hover:bg-slate-800 border border-slate-700 hover:border-purple-500 rounded-3xl p-4 md:p-5 relative group transition-all text-left flex flex-col justify-between"
+                                className="col-span-1 md:row-span-2 bg-slate-800/50 hover:bg-slate-800 border border-slate-700 hover:border-purple-500 rounded-2xl md:rounded-3xl p-3 md:p-5 relative group transition-all text-left flex flex-col justify-between min-h-[100px] md:min-h-auto"
                             >
-                                <div className="flex justify-between items-start mb-2">
-                                    <div className="p-2 bg-purple-500/20 rounded-xl text-purple-400"><CalendarIcon /></div>
+                                <div className="flex justify-between items-start mb-1 md:mb-2">
+                                    <div className="p-1.5 md:p-2 bg-purple-500/20 rounded-xl text-purple-400"><CalendarIcon /></div>
                                 </div>
                                 <div>
-                                    <h3 className="text-base md:text-lg font-bold text-white mb-1">Diario</h3>
+                                    <h3 className="text-sm md:text-lg font-bold text-white mb-1">Diario</h3>
                                     {nextWorkout ? (
-                                        <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-700/50 mt-2">
+                                        <div className="bg-slate-900/80 p-1.5 md:p-2 rounded-lg border border-slate-700/50 mt-1 md:mt-2 hidden sm:block">
                                             <p className="text-[9px] text-purple-400 font-black uppercase mb-0.5">Prossimo:</p>
                                             <p className="text-[10px] md:text-xs text-white truncate font-bold">{nextWorkout.title}</p>
                                             <p className="text-[9px] text-slate-400">{new Date(nextWorkout.date).toLocaleDateString()}</p>
                                         </div>
                                     ) : (
-                                        <p className="text-[10px] text-slate-400 mt-1">Pianifica con AI.</p>
+                                        <p className="text-[9px] md:text-[10px] text-slate-400 mt-1">Pianifica con AI.</p>
                                     )}
                                 </div>
                             </button>
@@ -187,61 +197,73 @@ const HomeModal: React.FC<HomeModalProps> = ({
                             {/* 3. EXPLORER */}
                             <button 
                                 onClick={onOpenExplorer}
-                                className="col-span-1 md:row-span-2 bg-slate-800/30 hover:bg-slate-800 border border-slate-700 hover:border-slate-500 rounded-3xl p-4 flex flex-col justify-between group transition-all text-left"
+                                className="col-span-1 md:row-span-2 bg-slate-800/30 hover:bg-slate-800 border border-slate-700 hover:border-slate-500 rounded-2xl md:rounded-3xl p-3 md:p-4 flex flex-col justify-between group transition-all text-left min-h-[100px] md:min-h-auto"
                             >
-                                <div className="p-2 bg-slate-700 rounded-xl text-slate-300 group-hover:text-white w-fit"><ArchiveIcon /></div>
+                                <div className="p-1.5 md:p-2 bg-slate-700 rounded-xl text-slate-300 group-hover:text-white w-fit"><ArchiveIcon /></div>
                                 <div>
-                                    <h3 className="text-base md:text-lg font-bold text-white">Archivio</h3>
-                                    <p className="text-[10px] text-slate-400">{trackCount} attività salvate</p>
+                                    <h3 className="text-sm md:text-lg font-bold text-white">Archivio</h3>
+                                    <p className="text-[9px] md:text-[10px] text-slate-400">{trackCount} attività salvate</p>
                                 </div>
                             </button>
 
                             {/* 4. SOCIAL */}
                             <button 
                                 onClick={onOpenSocial}
-                                className="col-span-1 bg-slate-800/50 hover:bg-slate-800 border border-slate-700 hover:border-pink-500 rounded-3xl p-4 relative group transition-all text-left flex flex-col justify-between h-[120px] md:h-auto"
+                                className="col-span-1 bg-slate-800/50 hover:bg-slate-800 border border-slate-700 hover:border-pink-500 rounded-2xl md:rounded-3xl p-3 md:p-4 relative group transition-all text-left flex flex-col justify-between min-h-[80px] md:h-auto"
                             >
                                 <div className="flex justify-between w-full">
-                                    <div className="p-2 bg-pink-500/20 rounded-xl text-pink-400 w-fit mb-2"><ChatSocialIcon /></div>
+                                    <div className="p-1.5 md:p-2 bg-pink-500/20 rounded-xl text-pink-400 w-fit mb-1 md:mb-2"><ChatSocialIcon /></div>
                                     {unreadCount > 0 && <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full h-fit shadow-lg animate-pulse">{unreadCount}</span>}
                                 </div>
                                 <div>
-                                    <h3 className="text-sm font-bold text-white">Social</h3>
-                                    <p className="text-[10px] text-slate-400">{onlineCount} online</p>
+                                    <h3 className="text-xs md:text-sm font-bold text-white">Social</h3>
+                                    <p className="text-[9px] md:text-[10px] text-slate-400">{onlineCount} online</p>
                                 </div>
                             </button>
 
-                            {/* 5. RACE */}
+                            {/* 5. NEWS / CHANGELOG (NEW) */}
+                            <button 
+                                onClick={onOpenChangelog}
+                                className="col-span-1 bg-slate-800/50 hover:bg-slate-800 border border-slate-700 hover:border-amber-500 rounded-2xl md:rounded-3xl p-3 md:p-4 relative group transition-all text-left flex flex-col justify-between min-h-[80px] md:h-auto"
+                            >
+                                <div className="p-1.5 md:p-2 bg-amber-500/20 rounded-xl text-amber-400 w-fit mb-1 md:mb-2"><SparklesIcon /></div>
+                                <div>
+                                    <h3 className="text-xs md:text-sm font-bold text-white">Novità</h3>
+                                    <p className="text-[9px] md:text-[10px] text-slate-400">Aggiornamento v1.43</p>
+                                </div>
+                            </button>
+
+                            {/* 6. RACE */}
                             <button 
                                 onClick={onEnterRaceMode}
-                                className="col-span-1 bg-slate-800/50 hover:bg-slate-800 border border-slate-700 hover:border-green-500 rounded-3xl p-4 relative group transition-all text-left flex flex-col justify-between h-[120px] md:h-auto"
+                                className="col-span-2 md:col-span-1 bg-slate-800/50 hover:bg-slate-800 border border-slate-700 hover:border-green-500 rounded-2xl md:rounded-3xl p-3 md:p-4 relative group transition-all text-left flex flex-col justify-between min-h-[80px] md:h-auto"
                             >
-                                <div className="p-2 bg-green-500/20 rounded-xl text-green-400 w-fit mb-2"><RaceIcon /></div>
+                                <div className="p-1.5 md:p-2 bg-green-500/20 rounded-xl text-green-400 w-fit mb-1 md:mb-2"><RaceIcon /></div>
                                 <div>
-                                    <h3 className="text-sm font-bold text-white">Gara</h3>
-                                    <p className="text-[10px] text-slate-400">Simulazione 3D</p>
+                                    <h3 className="text-xs md:text-sm font-bold text-white">Gara</h3>
+                                    <p className="text-[9px] md:text-[10px] text-slate-400">Simulazione 3D</p>
                                 </div>
                             </button>
 
                             {/* SYSTEM & SETTINGS BAR (Desktop & Mobile Unified) */}
-                            <div className="col-span-2 md:col-span-4 mt-2 grid grid-cols-4 md:grid-cols-6 gap-2">
-                                <button onClick={onOpenProfile} className="bg-slate-800/60 hover:bg-slate-700 border border-slate-700 rounded-2xl p-3 flex flex-col items-center justify-center gap-1 transition-colors">
-                                    <UserIcon /> <span className="text-[9px] font-bold uppercase text-slate-400">Profilo</span>
+                            <div className="col-span-2 md:col-span-4 mt-1 md:mt-2 grid grid-cols-4 md:grid-cols-6 gap-2">
+                                <button onClick={onOpenProfile} className="bg-slate-800/60 hover:bg-slate-700 border border-slate-700 rounded-xl md:rounded-2xl p-2 md:p-3 flex flex-col items-center justify-center gap-1 transition-colors">
+                                    <UserIcon /> <span className="text-[8px] md:text-[9px] font-bold uppercase text-slate-400">Profilo</span>
                                 </button>
-                                <button onClick={onOpenSettings} className="bg-slate-800/60 hover:bg-slate-700 border border-slate-700 rounded-2xl p-3 flex flex-col items-center justify-center gap-1 transition-colors">
-                                    <CogIcon /> <span className="text-[9px] font-bold uppercase text-slate-400">Settings</span>
+                                <button onClick={onOpenSettings} className="bg-slate-800/60 hover:bg-slate-700 border border-slate-700 rounded-xl md:rounded-2xl p-2 md:p-3 flex flex-col items-center justify-center gap-1 transition-colors">
+                                    <CogIcon /> <span className="text-[8px] md:text-[9px] font-bold uppercase text-slate-400">Settings</span>
                                 </button>
-                                <button onClick={onOpenHelp} className="bg-slate-800/60 hover:bg-slate-700 border border-slate-700 rounded-2xl p-3 flex flex-col items-center justify-center gap-1 transition-colors">
-                                    <HelpIcon /> <span className="text-[9px] font-bold uppercase text-slate-400">Aiuto</span>
+                                <button onClick={onOpenHelp} className="bg-slate-800/60 hover:bg-slate-700 border border-slate-700 rounded-xl md:rounded-2xl p-2 md:p-3 flex flex-col items-center justify-center gap-1 transition-colors">
+                                    <HelpIcon /> <span className="text-[8px] md:text-[9px] font-bold uppercase text-slate-400">Aiuto</span>
                                 </button>
-                                <button onClick={isGuest ? onLogin : onLogout} className="bg-slate-800/60 hover:bg-red-900/20 border border-slate-700 hover:border-red-900/50 rounded-2xl p-3 flex flex-col items-center justify-center gap-1 transition-colors group">
+                                <button onClick={isGuest ? onLogin : onLogout} className="bg-slate-800/60 hover:bg-red-900/20 border border-slate-700 hover:border-red-900/50 rounded-xl md:rounded-2xl p-2 md:p-3 flex flex-col items-center justify-center gap-1 transition-colors group">
                                     <span className="text-red-400"><LogoutIcon /></span> 
-                                    <span className="text-[9px] font-bold uppercase text-slate-400 group-hover:text-red-400">{isGuest ? 'Login' : 'Esci'}</span>
+                                    <span className="text-[8px] md:text-[9px] font-bold uppercase text-slate-400 group-hover:text-red-400">{isGuest ? 'Login' : 'Esci'}</span>
                                 </button>
                                 {onManualCloudSave && !isGuest && (
-                                    <button onClick={onManualCloudSave} className="hidden md:flex bg-slate-800/60 hover:bg-green-900/20 border border-slate-700 hover:border-green-900/50 rounded-2xl p-3 flex-col items-center justify-center gap-1 transition-colors group">
+                                    <button onClick={onManualCloudSave} className="hidden md:flex bg-slate-800/60 hover:bg-green-900/20 border border-slate-700 hover:border-green-900/50 rounded-xl md:rounded-2xl p-2 md:p-3 flex-col items-center justify-center gap-1 transition-colors group">
                                         <span className="text-green-500"><CloudIcon /></span> 
-                                        <span className="text-[9px] font-bold uppercase text-slate-400 group-hover:text-green-400">Sync</span>
+                                        <span className="text-[8px] md:text-[9px] font-bold uppercase text-slate-400 group-hover:text-green-400">Sync</span>
                                     </button>
                                 )}
                             </div>
@@ -249,41 +271,51 @@ const HomeModal: React.FC<HomeModalProps> = ({
                         </div>
                     ) : (
                         // UPLOAD SUB-MENU
-                        <div className="h-full flex flex-col animate-fade-in-right">
-                            <div className="flex items-center gap-3 mb-6">
+                        <div className="h-full flex flex-col animate-fade-in-right justify-center max-w-2xl mx-auto w-full">
+                            <div className="flex items-center gap-3 mb-4 md:mb-6">
                                 <button onClick={handleBack} className="p-2 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white transition-colors">←</button>
-                                <h2 className="text-xl font-black text-white uppercase tracking-tight">Carica Attività</h2>
+                                <h2 className="text-lg md:text-xl font-black text-white uppercase tracking-tight">Carica Attività</h2>
                             </div>
                             
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <button onClick={() => trackInputRef.current?.click()} className="bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-2xl p-6 text-left transition-all group">
-                                    <div className="text-3xl mb-2">📂</div>
-                                    <h3 className="font-bold text-white">File GPX / TCX</h3>
-                                    <p className="text-xs text-slate-400 mt-1">Carica file dal tuo dispositivo.</p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                                <button onClick={() => trackInputRef.current?.click()} className="bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-2xl p-4 md:p-6 text-left transition-all group">
+                                    <div className="text-2xl md:text-3xl mb-1 md:mb-2">📂</div>
+                                    <h3 className="font-bold text-white text-sm md:text-base">File GPX / TCX</h3>
+                                    <p className="text-[10px] md:text-xs text-slate-400 mt-1">Carica file dal tuo dispositivo.</p>
                                 </button>
                                 <input type="file" ref={trackInputRef} multiple accept=".gpx,.tcx" className="hidden" onChange={(e) => { if(e.target.files?.length) onUploadTracks(Array.from(e.target.files)); handleBack(); }} />
 
-                                <button onClick={onOpenStravaConfig} className={`bg-slate-800 hover:bg-slate-700 border rounded-2xl p-6 text-left transition-all group ${isStravaLinked ? 'border-[#fc4c02]/50' : 'border-slate-600'}`}>
-                                    <div className="text-3xl mb-2 text-[#fc4c02]"><StravaIcon /></div>
-                                    <h3 className="font-bold text-white">Strava Sync</h3>
-                                    <p className="text-xs text-slate-400 mt-1">{isStravaLinked ? 'Account collegato. Clicca per sincronizzare.' : 'Collega il tuo account Strava.'}</p>
+                                <button onClick={onOpenStravaConfig} className={`bg-slate-800 hover:bg-slate-700 border rounded-2xl p-4 md:p-6 text-left transition-all group ${isStravaLinked ? 'border-[#fc4c02]/50' : 'border-slate-600'}`}>
+                                    <div className="text-2xl md:text-3xl mb-1 md:mb-2 text-[#fc4c02]"><StravaIcon /></div>
+                                    <h3 className="font-bold text-white text-sm md:text-base">Strava Sync</h3>
+                                    <p className="text-[10px] md:text-xs text-slate-400 mt-1">{isStravaLinked ? 'Account collegato. Clicca per sincronizzare.' : 'Collega il tuo account Strava.'}</p>
                                 </button>
 
-                                <button onClick={() => backupInputRef.current?.click()} className="bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-2xl p-6 text-left transition-all group">
-                                    <div className="text-3xl mb-2 text-purple-400"><DatabaseIcon /></div>
-                                    <h3 className="font-bold text-white">Ripristina Backup</h3>
-                                    <p className="text-xs text-slate-400 mt-1">Carica un file .json completo.</p>
+                                <button onClick={() => backupInputRef.current?.click()} className="bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-2xl p-4 md:p-6 text-left transition-all group">
+                                    <div className="text-2xl md:text-3xl mb-1 md:mb-2 text-purple-400"><DatabaseIcon /></div>
+                                    <h3 className="font-bold text-white text-sm md:text-base">Ripristina Backup</h3>
+                                    <p className="text-[10px] md:text-xs text-slate-400 mt-1">Carica un file .json completo.</p>
                                 </button>
                                 <input type="file" ref={backupInputRef} accept=".json" className="hidden" onChange={(e) => { if(e.target.files?.[0]) onImportBackup(e.target.files[0]); handleBack(); }} />
                                 
-                                <button onClick={onExportBackup} className="bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-2xl p-6 text-left transition-all group">
-                                    <div className="text-3xl mb-2 text-blue-400"><CloudIcon /></div>
-                                    <h3 className="font-bold text-white">Salva Backup</h3>
-                                    <p className="text-xs text-slate-400 mt-1">Scarica tutti i tuoi dati.</p>
+                                <button onClick={onExportBackup} className="bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-2xl p-4 md:p-6 text-left transition-all group">
+                                    <div className="text-2xl md:text-3xl mb-1 md:mb-2 text-blue-400"><CloudIcon /></div>
+                                    <h3 className="font-bold text-white text-sm md:text-base">Salva Backup</h3>
+                                    <p className="text-[10px] md:text-xs text-slate-400 mt-1">Scarica tutti i tuoi dati.</p>
                                 </button>
                             </div>
                         </div>
                     )}
+                </div>
+
+                {/* Mobile Floating Map Button - Visible only on mobile */}
+                <div className="md:hidden absolute bottom-6 left-1/2 -translate-x-1/2 z-50">
+                    <button 
+                        onClick={onClose} 
+                        className="bg-cyan-600 hover:bg-cyan-500 text-white px-6 py-3 rounded-full font-black text-xs uppercase tracking-widest shadow-[0_0_20px_rgba(8,145,178,0.5)] flex items-center gap-2 transition-transform active:scale-95 animate-bounce-subtle border border-cyan-400/50"
+                    >
+                        <MapIcon /> MAPPA
+                    </button>
                 </div>
 
             </div>
@@ -293,6 +325,14 @@ const HomeModal: React.FC<HomeModalProps> = ({
                 
                 @keyframes fade-in-right { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
                 .animate-fade-in-right { animation: fade-in-right 0.2s ease-out forwards; }
+
+                @keyframes bounce-subtle {
+                    0%, 100% { transform: translate(-50%, 0); }
+                    50% { transform: translate(-50%, -5px); }
+                }
+                .animate-bounce-subtle {
+                    animation: bounce-subtle 2s infinite ease-in-out;
+                }
             `}</style>
         </div>
     );
