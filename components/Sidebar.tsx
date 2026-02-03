@@ -197,12 +197,12 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                                     
                                     <div onClick={() => onViewDetails(track.id)} className="w-10 h-8 bg-slate-950 rounded border border-slate-700 overflow-hidden mr-2 shrink-0 cursor-pointer opacity-70 hover:opacity-100 transition-opacity relative group/prev">
                                         <TrackPreview points={track.points} color={track.color} className="w-full h-full" />
-                                        {track.isArchived && <div className="absolute inset-0 bg-purple-900/40 flex items-center justify-center"><ArchiveBoxIcon /></div>}
+                                        {track.isArchived && !showArchived && <div className="absolute inset-0 bg-purple-900/40 flex items-center justify-center"><ArchiveBoxIcon /></div>}
                                     </div>
 
                                     <div className="flex-grow min-w-0 cursor-pointer" onClick={() => onFocusTrack(track.id)}>
                                         <div className="flex items-center gap-1.5 min-w-0">
-                                            {track.isArchived && <span className="text-purple-400 text-xs shrink-0" title="Archiviata">🗄️</span>}
+                                            {track.isArchived && !showArchived && <span className="text-purple-400 text-xs shrink-0" title="Archiviata">🗄️</span>}
                                             <div className={`text-[11px] font-bold truncate ${track.isArchived ? 'text-purple-300' : 'group-hover:text-cyan-400'}`}>{track.name}</div>
                                             {isStrava && <StravaSmallIcon />}
                                             {track.isFavorite && <StarIcon filled={true} />}
