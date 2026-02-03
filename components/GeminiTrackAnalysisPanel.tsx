@@ -1,9 +1,5 @@
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Chat, GenerateContentResponse } from '@google/genai';
-import { TrackStats, UserProfile, Track, ChatMessage, AiPersonality, PlannedWorkout } from '../types';
-import { getHeartRateZoneInfo } from './HeartRateZonePanel';
-import FormattedAnalysis from './FormattedAnalysis';
+// ... existing imports ...
 import { calculateTrackStats } from '../services/trackStatsService';
 import { loadChatFromDB, saveChatToDB } from '../services/dbService';
 import { getGenAI, retryWithPolicy, isAuthError, ensureApiKey, samplePointsForAi } from '../services/aiHelper';
@@ -14,6 +10,8 @@ const personalityPrompts: Record<AiPersonality, string> = {
     'strict': "Sei un coach militare. Non tolleri debolezze. Analizza gli errori senza pietà. Rispondi rigorosamente in ITALIANO.",
     'friend_coach': "Sei un coach empatico e di supporto. Usa un tono amichevole e motivante. Focalizzati sui progressi e sul benessere. Rispondi rigorosamente in ITALIANO."
 };
+
+// ... existing helper functions (formatDuration, formatPace, Icons) ...
 
 const formatDuration = (ms: number) => {
   if (isNaN(ms) || ms < 0) return '00:00';
@@ -118,9 +116,14 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
             workoutContext = `ALLENAMENTO PIANIFICATO: "${w?.title}" (${w?.activityType}). DESC: "${w?.description}"`;
         }
 
+        const userNotes = track.notes && track.notes.trim() !== "" 
+            ? `NOTE ATLETA: "${track.notes}" (IMPORTANTE: Leggi queste note con priorità assoluta per capire il contesto e le sensazioni soggettive)` 
+            : "NOTE ATLETA: Nessuna nota inserita.";
+
         return `${personality}
         
         PROTOCOLLO DI ANALISI:
+        0. CONTESTO SOGGETTIVO (CRITICO): ${userNotes}. Se l'atleta menziona problemi fisici, meteo, stanchezza o altri fattori, usali per giustificare le deviazioni dai dati puri. NON ignorare mai le note dell'atleta.
         1. Confronta la sessione con l'obiettivo: ${workoutContext || "Corsa libera."}
         2. Analizza i micro-trend dai punti campionati: ${JSON.stringify(sampledPoints)}
         3. Valuta la tabella chilometrica per regolarità e sforzo.
@@ -129,11 +132,10 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
         Zone Cardio: ${hrDistribution}.
         Sforzo Percepito (RPE): ${track.rpe ?? 'N/D'}/10.
         Scarpe: ${track.shoe ?? 'N/D'}.
-        Note: "${track.notes ?? ''}"
 
         ${splitTable}
 
-        STILE: Rispondi in ITALIANO tecnico. Max 450 parole.
+        STILE: Rispondi in ITALIANO tecnico. Max 450 parole. Sii specifico sui dati ma empatico verso le note soggettive.
         `;
     };
 
@@ -163,6 +165,7 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
         initOrRestoreChat();
     }, [CHAT_ID, matchedWorkout, track.linkedWorkout, userProfile.name]);
 
+    // ... existing rest of component code ...
     useEffect(() => {
         if (messages.length > 0) {
             saveChatToDB(CHAT_ID, messages).catch(console.error);
