@@ -40,7 +40,7 @@ import {
     deletePlannedWorkoutFromCloud
 } from './services/dbService';
 import { supabase } from './services/supabaseClient';
-import { handleStravaCallback, fetchRecentStravaActivities, isStravaConnected } from './services/stravaService';
+import { handleStravaCallback, fetchStravaActivitiesMetadata, isStravaConnected } from './services/stravaService';
 import { getTrackStateAtTime, mergeTracks } from './services/trackEditorUtils';
 import { getApiUsage, trackUsage, addTokensToUsage } from './services/usageService';
 import { parseGpx } from './services/gpxService';
@@ -78,6 +78,7 @@ const App: React.FC = () => {
     const [showPerformance, setShowPerformance] = useState(false);
     const [showSocial, setShowSocial] = useState(false);
     const [showStravaSyncOptions, setShowStravaSyncOptions] = useState(false);
+    const [stravaAutoModal, setStravaAutoModal] = useState(false); // Flag per avvio automatico modale
     const [showStravaConfig, setShowStravaConfig] = useState(false);
     
     const [viewingTrack, setViewingTrack] = useState<Track | null>(null);
@@ -398,21 +399,30 @@ const App: React.FC = () => {
 
     const runAutoStravaSync = async (currentTracks: Track[]) => {
         try {
-            const newTracks = await fetchRecentStravaActivities(10);
-            if (newTracks.length === 0) return;
+            // Find most recent track date
+            const lastTrack = currentTracks.length > 0 ? currentTracks[0] : null;
+            const after = lastTrack ? Math.floor(lastTrack.points[0].time.getTime() / 1000) : undefined;
 
-            const uniqueNew = newTracks.filter(t => 
-                !isDuplicateTrack(t, currentTracks) && !isPreviouslyDeletedStravaTrack(t)
-            );
-            
+            const activities = await fetchStravaActivitiesMetadata(after, undefined, 10);
+            const runningOnly = activities.filter((a: any) => ['Run', 'TrailRun', 'VirtualRun'].includes(a.type));
+
+            // Check if we have anything new that is not already in DB or deleted list
+            const uniqueNew = runningOnly.filter((a: any) => {
+                // Strava IDs are usually prefixed
+                const stravaId = `strava-${a.id}`;
+                const exists = currentTracks.some(t => t.id === stravaId);
+                const isDeleted = isPreviouslyDeletedStravaTrack({ ...a, id: stravaId } as any); // Lightweight check
+                return !exists && !isDeleted;
+            });
+
             if (uniqueNew.length > 0) {
-                const updated = [...uniqueNew, ...currentTracks];
-                setTracks(updated);
-                await saveTracksToDB(updated);
-                addToast(`Sincronizzazione Auto: importate ${uniqueNew.length} nuove corse.`, "success");
+                addToast(`Trovate ${uniqueNew.length} nuove attività su Strava.`, "info");
+                // Open Modal in "Auto Start" mode
+                setStravaAutoModal(true);
+                setShowStravaSyncOptions(true);
             }
         } catch (e: any) {
-            console.error("Auto sync failed", e);
+            console.error("Auto check failed", e);
         }
     };
 
@@ -920,9 +930,10 @@ const App: React.FC = () => {
 
             {showStravaSyncOptions && (
                 <StravaSyncModal 
-                    onClose={() => setShowStravaSyncOptions(false)} 
-                    onImportFinished={handleStravaImportFinished} 
-                    lastSyncDate={tracks.length > 0 ? new Date(tracks[0].points[0].time) : null} 
+                    onClose={() => { setShowStravaSyncOptions(false); setStravaAutoModal(false); }} 
+                    onImportFinished={(imported) => { handleStravaImportFinished(imported); setStravaAutoModal(false); }} 
+                    lastSyncDate={tracks.length > 0 ? new Date(tracks[0].points[0].time) : null}
+                    autoStart={stravaAutoModal} // Pass flag for auto-start
                 />
             )}
 
