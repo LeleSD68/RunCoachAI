@@ -65,6 +65,7 @@ const App: React.FC = () => {
     // States for startup flow
     const [showSplash, setShowSplash] = useState(() => !sessionStorage.getItem(SESSION_ACTIVE_KEY));
     const [showInfographic, setShowInfographic] = useState(false); 
+    const [isAppReady, setIsAppReady] = useState(false); // NEW: Tracks if background loading is done
     
     // PWA Install State
     const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -149,10 +150,10 @@ const App: React.FC = () => {
         sessionStorage.setItem(INSTALL_PROMPT_DISMISSED_KEY, 'true');
     };
 
+    // --- BACKGROUND INIT & LOADING ---
+    // This runs immediately on mount, in parallel with Splash/Infographics
     useEffect(() => {
-        if (sessionStorage.getItem(SESSION_ACTIVE_KEY)) {
-            checkSession();
-        }
+        checkSession();
     }, []);
 
     const resetNavigation = useCallback(() => {
@@ -289,7 +290,7 @@ const App: React.FC = () => {
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'friends', filter: `user_id_2=eq.${userId}` }, (payload) => {
                 const msg = "Nuova richiesta di amicizia!";
                 addToast(msg, "info");
-                setUnreadMessages(prev => prev + 1); // Also increment counter for friend requests
+                setUnreadMessages(prev => prev + 1); 
                 sendNotification("RunCoachAI Crew", "Qualcuno vuole aggiungerti agli amici!");
             })
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tracks' }, (payload) => {
@@ -408,7 +409,15 @@ const App: React.FC = () => {
     const handleInfographicNext = () => {
         setShowInfographic(false);
         sessionStorage.setItem(SESSION_ACTIVE_KEY, 'true'); 
-        checkSession(); 
+        
+        // After Splash, determine where to go based on session state
+        // If session exists, HomeModal will show. If not, AuthSelection.
+        if (userId) {
+            setShowHome(true);
+            setShowAuthSelection(false);
+        } else {
+            setShowAuthSelection(true);
+        }
     };
 
     const checkAndPromptWorkoutMatch = (newTracks: Track[]) => {
@@ -492,14 +501,15 @@ const App: React.FC = () => {
             if (session) {
                 setUserId(session.user.id);
                 setIsGuest(false);
+                // Start loading in background, show home logic will happen in handleInfographicNext or immediately if no splash
                 await loadData();
-                setShowHome(true);
-                setShowAuthSelection(false); 
             } else {
-                setShowAuthSelection(true);
+                // Not logged in yet
+                setIsAppReady(true);
             }
         } catch (e) {
-            setShowAuthSelection(true);
+            // Error checking session, assume not logged in but ready to show Auth
+            setIsAppReady(true);
         } finally {
             setIsDataLoading(false);
         }
@@ -526,7 +536,7 @@ const App: React.FC = () => {
             });
 
             if (duplicatesFound > 0) {
-                addToast(`Rimossi ${duplicatesFound} file duplicati dal database.`, "info");
+                // Clean up duplicates if found
                 await saveTracksToDB(uniqueTracks);
             }
 
@@ -535,37 +545,31 @@ const App: React.FC = () => {
             const loadedWorkouts = await loadPlannedWorkoutsFromDB(forceLocal);
             const uniqueWorkouts: PlannedWorkout[] = [];
             const seenWorkoutKeys = new Set<string>();
-            let workoutDuplicates = 0;
-            const duplicateIdsToDelete: string[] = [];
-
+            
             (loadedWorkouts as any[]).forEach((w: PlannedWorkout) => {
                 const d = new Date(w.date);
                 const dateStr = d.toDateString();
                 const key = `${dateStr}|${w.title.trim().toLowerCase()}|${w.activityType}`;
                 
-                if (seenWorkoutKeys.has(key)) {
-                    workoutDuplicates++;
-                    duplicateIdsToDelete.push(w.id as string);
-                } else {
+                if (!seenWorkoutKeys.has(key)) {
                     seenWorkoutKeys.add(key);
                     uniqueWorkouts.push(w);
                 }
             });
 
-            if (workoutDuplicates > 0) {
-                await savePlannedWorkoutsToDB(uniqueWorkouts);
-                duplicateIdsToDelete.forEach((id: string) => deletePlannedWorkoutFromCloud(id));
-                addToast(`Rimossi ${workoutDuplicates} allenamenti doppi.`, "info");
-            }
-
             setPlannedWorkouts(uniqueWorkouts);
 
+            // Auto-Import from Strava Logic
+            // Must check if profile has it enabled AND if connected
             if (loadedProfile?.stravaAutoSync && isStravaConnected()) {
-                runAutoStravaSync(uniqueTracks);
+                await runAutoStravaSync(uniqueTracks);
             }
 
         } catch (e: any) {
-            addToast("Dati caricati localmente.", "info");
+            // Fail silently/gracefully
+        } finally {
+            // Signal that background loading is complete
+            setIsAppReady(true);
         }
     };
 
@@ -806,7 +810,7 @@ const App: React.FC = () => {
         const next = plannedWorkouts.filter(w => w.id !== id);
         setPlannedWorkouts(next);
         await savePlannedWorkoutsToDB(next);
-        await deletePlannedWorkoutFromCloud(String(id));
+        await deletePlannedWorkoutFromCloud(id);
         addToast("Rimossa dal diario.", "info");
     };
 
@@ -822,7 +826,7 @@ const App: React.FC = () => {
             if (file.name.toLowerCase().endsWith('.gpx')) parsed = parseGpx(text, file.name);
             else if (file.name.toLowerCase().endsWith('.tcx')) parsed = parseTcx(text, file.name);
             if (parsed) {
-                const { title, activityType, folder } = generateSmartTitle(parsed.points, parsed.distance, String(parsed.name));
+                const { title, activityType, folder } = generateSmartTitle(parsed.points, parsed.distance, parsed.name);
                 const tempTrack: Track = { id: crypto.randomUUID(), name: title, points: parsed.points, distance: parsed.distance, duration: parsed.duration, color: `hsl(${Math.random() * 360}, 70%, 60%)`, activityType, folder };
                 if (!isDuplicateTrack(tempTrack, [...tracks, ...newTracks])) { newTracks.push(tempTrack); newCount++; } 
                 else skipCount++;
@@ -886,13 +890,15 @@ const App: React.FC = () => {
         />
     );
 
-    if (showInfographic) return <InfographicScreen isLoading={isDataLoading} onNext={handleInfographicNext} />;
+    // Pass 'isReady' prop to control button appearance
+    if (showInfographic) return <InfographicScreen isLoading={!isAppReady} onNext={handleInfographicNext} />;
 
     return (
         <div className="h-screen w-screen flex flex-col overflow-hidden bg-slate-950 text-white font-sans">
             <ToastContainer toasts={toasts} setToasts={setToasts} />
             <ReminderNotification entries={todayEntries} />
 
+            {/* General Loading Overlay (Non-blocking usually, but for specific actions) */}
             {isDataLoading && !showInfographic && (
                 <div className="fixed inset-0 z-[99999] bg-slate-950/80 flex flex-col items-center justify-center">
                     <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mb-4"></div>
@@ -1000,8 +1006,10 @@ const App: React.FC = () => {
                 />
             )}
 
+            {/* ... Rest of components ... */}
             {!showHome && !showAuthSelection && !showInfographic && (
                 <div className="flex-grow flex flex-col lg:flex-row overflow-hidden relative">
+                    {/* ... Map and Sidebar logic remains same ... */}
                     {isRacing ? (
                         <div className="w-full h-full flex flex-col bg-slate-900">
                             <div className="flex-grow relative bg-slate-900 overflow-hidden">
@@ -1169,6 +1177,7 @@ const App: React.FC = () => {
                 </div>
             )}
 
+            {/* Other Modals... (no changes needed) */}
             {showRaceSetup && (
                 <RaceSetupModal 
                     tracks={tracks}
