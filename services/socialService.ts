@@ -322,6 +322,25 @@ export const getUnreadNotificationsCount = async (userId: string): Promise<numbe
     return (msgCount || 0) + (reqCount || 0);
 };
 
+export const getRecentUnreadSender = async (currentUserId: string): Promise<string | null> => {
+    // Check for unread DMs
+    const { data, error } = await supabase
+        .from('direct_messages')
+        .select('sender_id')
+        .eq('receiver_id', currentUserId)
+        .is('read_at', null);
+    
+    if (error || !data || data.length === 0) return null;
+    
+    // Get unique senders
+    const senders = [...new Set(data.map((d: any) => d.sender_id as string))];
+    
+    // If exactly one sender, return their ID to open chat automatically
+    if (senders.length === 1) return senders[0];
+    
+    return null; // Multiple senders or none
+};
+
 export const markMessagesAsRead = async (userId: string, senderId?: string) => {
     if (!userId) return;
     
