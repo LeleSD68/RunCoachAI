@@ -50,6 +50,7 @@ import { parseTcx } from './services/tcxService';
 import { generateSmartTitle } from './services/titleGenerator';
 import { isDuplicateTrack, markStravaTrackAsDeleted, isPreviouslyDeletedStravaTrack, getTrackFingerprint } from './services/trackUtils';
 import { getFriendsActivityFeed, updatePresence, getFriends, getUnreadNotificationsCount, markMessagesAsRead } from './services/socialService';
+import { calculateTrackStats } from './services/trackStatsService';
 
 const LAYOUT_PREFS_KEY = 'runcoach_layout_prefs_v6';
 const SESSION_ACTIVE_KEY = 'runcoach_session_active';
@@ -185,7 +186,7 @@ const App: React.FC = () => {
         };
         window.addEventListener('popstate', handlePopState);
         return () => window.removeEventListener('popstate', handlePopState);
-    }, [resetNavigation]);
+    }, [resetNavigation, isDesktop]); // Added isDesktop dependency
 
     const pushViewState = (viewName: string) => {
         window.history.pushState({ view: viewName }, '');
@@ -967,231 +968,312 @@ const App: React.FC = () => {
                 />
             )}
 
-            {showStravaConfig && (
-                <StravaConfigModal 
-                    onClose={() => setShowStravaConfig(false)} 
-                />
-            )}
-
-            {showStravaSyncOptions && (
-                <StravaSyncModal 
-                    onClose={() => { setShowStravaSyncOptions(false); setStravaAutoModal(false); }} 
-                    onImportFinished={(imported) => { handleStravaImportFinished(imported); setStravaAutoModal(false); }} 
-                    lastSyncDate={tracks.length > 0 ? new Date(tracks[0].points[0].time) : null}
-                    autoStart={stravaAutoModal} 
-                />
-            )}
-
             {showProfile && (
-                <UserProfileModal 
-                    onClose={() => toggleView('profile')} 
-                    onSave={async (p) => { setUserProfile(p); await saveProfileToDB(p); addToast("Profilo salvato!", "success"); }} 
-                    currentProfile={userProfile} 
+                <UserProfileModal
+                    onClose={() => toggleView('profile')}
+                    onSave={async (p) => {
+                        setUserProfile(p);
+                        await saveProfileToDB(p);
+                        addToast("Profilo aggiornato", "success");
+                    }}
+                    currentProfile={userProfile}
                     tracks={tracks}
-                    onLogout={async () => { await supabase.auth.signOut(); setShowAuthSelection(true); setIsGuest(false); setUserId(null); }}
+                    onLogout={async () => {
+                        await supabase.auth.signOut();
+                        window.location.reload();
+                    }}
                 />
             )}
 
             {showSettings && (
-                <SettingsModal 
-                    onClose={() => toggleView('settings')} 
+                <SettingsModal
+                    onClose={() => toggleView('settings')}
                     userProfile={userProfile}
                     onUpdateProfile={async (updates) => {
                         const newProfile = { ...userProfile, ...updates };
                         setUserProfile(newProfile);
                         await saveProfileToDB(newProfile);
-                        addToast("Impostazioni aggiornate!", "success");
                     }}
                 />
             )}
 
-            {/* ... Rest of components ... */}
-            {!showHome && !showAuthSelection && !showInfographic && (
-                <div className="flex-grow flex flex-col lg:flex-row overflow-hidden relative">
-                    {/* ... Map and Sidebar logic remains same ... */}
-                    {isRacing ? (
-                        <div className="w-full h-full flex flex-col bg-slate-900">
-                            <div className="flex-grow relative bg-slate-900 overflow-hidden">
-                                <MapDisplay 
-                                    tracks={tracks} visibleTrackIds={mapVisibleIds} raceRunners={raceRunners}
-                                    isAnimationPlaying={raceState === 'running'} fitBoundsCounter={fitBoundsCounter}
-                                    runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
-                                />
-                                <div className={`absolute left-1/2 -translate-x-1/2 z-[4600] ${isDesktop ? 'top-4' : 'top-14'}`}>
+            {showChangelog && <Changelog onClose={() => setShowChangelog(false)} />}
+            {showGuide && <GuideModal onClose={() => setShowGuide(false)} />}
+            
+            {showStravaConfig && <StravaConfigModal onClose={() => setShowStravaConfig(false)} />}
+            
+            {(showStravaSyncOptions || stravaAutoModal) && (
+                <StravaSyncModal 
+                    onClose={() => { setShowStravaSyncOptions(false); setStravaAutoModal(false); }}
+                    onImportFinished={handleStravaImportFinished}
+                    lastSyncDate={tracks.length > 0 ? new Date(Math.max(...tracks.map(t => new Date(t.points[0].time).getTime()))) : null}
+                    autoStart={stravaAutoModal}
+                />
+            )}
+
+            {showExplorer && (
+                <ExplorerView 
+                    tracks={tracks}
+                    onClose={() => toggleView('explorer')}
+                    onSelectTrack={(id) => {
+                        const t = tracks.find(tr => tr.id === id);
+                        if (t) { setViewingTrack(t); toggleView('explorer'); }
+                    }}
+                />
+            )}
+
+            {showDiary && (
+                <DiaryView 
+                    tracks={tracks}
+                    plannedWorkouts={plannedWorkouts}
+                    userProfile={userProfile}
+                    onClose={() => toggleView('diary')}
+                    onSelectTrack={(id) => {
+                        const t = tracks.find(tr => tr.id === id);
+                        if (t) { setViewingTrack(t); toggleView('diary'); }
+                    }}
+                    onAddPlannedWorkout={handleAddPlannedWorkout}
+                    onUpdatePlannedWorkout={handleUpdatePlannedWorkout}
+                    onDeletePlannedWorkout={handleDeletePlannedWorkout}
+                    onMassUpdatePlannedWorkouts={async (updated) => {
+                        const next = plannedWorkouts.map(w => {
+                            const up = updated.find(u => u.id === w.id);
+                            return up || w;
+                        });
+                        setPlannedWorkouts(next);
+                        await savePlannedWorkoutsToDB(next);
+                        addToast("Diario aggiornato", "success");
+                    }}
+                    onOpenTrackChat={(id) => {
+                        // TODO: Implement direct chat open from diary if needed
+                    }}
+                    onCheckAiAccess={onCheckAiAccess}
+                />
+            )}
+
+            {showPerformance && (
+                <PerformanceAnalysisPanel 
+                    tracks={tracks}
+                    userProfile={userProfile}
+                    onClose={() => toggleView('performance')}
+                />
+            )}
+
+            {showSocial && (
+                <SocialHub 
+                    onClose={() => toggleView('social')}
+                    currentUserId={userId || 'guest'}
+                    onChallengeGhost={handleChallengeGhost}
+                    onReadMessages={() => setUnreadMessages(0)}
+                />
+            )}
+
+            {/* RACE SETUP */}
+            {showRaceSetup && (
+                <RaceSetupModal 
+                    tracks={tracks}
+                    friendTracks={friendTracks}
+                    initialSelection={raceSelectionIds}
+                    onSelectionChange={setRaceSelectionIds}
+                    onConfirm={startRaceAnimation}
+                    onCancel={() => setShowRaceSetup(false)}
+                    onAddOpponent={handleFileUpload}
+                    onAddGhostFromFeed={handleAddGhost}
+                    onRemoveTrack={(id) => {
+                        setRaceSelectionIds(prev => {
+                            const next = new Set(prev);
+                            next.delete(id);
+                            return next;
+                        });
+                    }}
+                />
+            )}
+
+            {/* MAIN CONTENT AREA */}
+            <div className="flex-grow flex overflow-hidden relative">
+                
+                {/* Editing View */}
+                {editingTrack ? (
+                    <TrackEditor 
+                        initialTracks={[editingTrack]} 
+                        onExit={(updated) => {
+                            if (updated) {
+                                const next = tracks.map(t => t.id === editingTrack.id ? updated : t);
+                                setTracks(next);
+                                saveTracksToDB(next);
+                            }
+                            setEditingTrack(null);
+                        }}
+                        addToast={addToast}
+                    />
+                ) : viewingTrack ? (
+                    <TrackDetailView 
+                        track={viewingTrack}
+                        userProfile={userProfile}
+                        onExit={() => setViewingTrack(null)}
+                        allHistory={tracks}
+                        plannedWorkouts={plannedWorkouts}
+                        onUpdateTrackMetadata={handleUpdateTrackMetadata}
+                        onAddPlannedWorkout={handleAddPlannedWorkout}
+                        onCheckAiAccess={onCheckAiAccess}
+                    />
+                ) : (
+                    /* Default Dashboard Layout */
+                    <ResizablePanel 
+                        direction={isDesktop ? 'horizontal' : 'vertical'}
+                        initialSize={isDesktop ? layoutPrefs.desktopSidebar : undefined}
+                        initialSizeRatio={!isDesktop ? layoutPrefs.mobileListRatio : undefined}
+                        minSize={200}
+                        onResizeEnd={handleResizeEnd}
+                        className="w-full h-full"
+                    >
+                        {/* Panel 1: Sidebar / List */}
+                        {isSidebarOpen ? (
+                            <Sidebar 
+                                tracks={tracks}
+                                visibleTrackIds={mapVisibleIds}
+                                focusedTrackId={focusedTrackId}
+                                onFocusTrack={setFocusedTrackId}
+                                raceSelectionIds={raceSelectionIds}
+                                onToggleRaceSelection={(id) => {
+                                    setRaceSelectionIds(prev => {
+                                        const next = new Set(prev);
+                                        if (next.has(id)) next.delete(id); else next.add(id);
+                                        return next;
+                                    });
+                                }}
+                                onSelectAll={() => setRaceSelectionIds(new Set(tracks.map(t => t.id)))}
+                                onDeselectAll={() => setRaceSelectionIds(new Set())}
+                                onStartRace={openRaceSetup}
+                                onViewDetails={(id) => {
+                                    const t = tracks.find(tr => tr.id === id);
+                                    if(t) setViewingTrack(t);
+                                }}
+                                onEditTrack={(id) => {
+                                    const t = tracks.find(tr => tr.id === id);
+                                    if(t) setEditingTrack(t);
+                                }}
+                                onDeleteTrack={async (id) => {
+                                    if(confirm("Eliminare questa corsa?")) {
+                                        const t = tracks.find(tr => tr.id === id);
+                                        if(t) markStravaTrackAsDeleted(t);
+                                        const next = tracks.filter(t => t.id !== id);
+                                        setTracks(next);
+                                        await saveTracksToDB(next);
+                                        await deleteTrackFromCloud(id);
+                                        addToast("Corsa eliminata", "info");
+                                    }
+                                }}
+                                onDeleteSelected={handleBulkDelete}
+                                onFileUpload={handleFileUpload}
+                                onBulkArchive={handleBulkArchive}
+                                onToggleArchived={async (id) => {
+                                    const t = tracks.find(tr => tr.id === id);
+                                    if(t) {
+                                        await handleUpdateTrackMetadata(id, { isArchived: !t.isArchived });
+                                        addToast(t.isArchived ? "Ripristinata" : "Archiviata", "info");
+                                    }
+                                }}
+                                onMergeSelected={handleMergeSelectedTracks}
+                                onToggleFavorite={handleToggleFavorite}
+                                onBulkGroup={handleBulkGroup}
+                            />
+                        ) : (
+                            <div className="hidden"></div> 
+                        )}
+
+                        {/* Panel 2: Map */}
+                        <div className="relative w-full h-full">
+                            <MapDisplay 
+                                tracks={tracks}
+                                visibleTrackIds={mapVisibleIds}
+                                raceRunners={raceRunners}
+                                hoveredTrackId={hoveredTrackId}
+                                runnerSpeeds={new Map()}
+                                fitBoundsCounter={fitBoundsCounter}
+                                isAnimationPlaying={raceState === 'running'}
+                                onTrackClick={(id) => {
+                                    setFocusedTrackId(id);
+                                    if(!isSidebarOpen) setIsSidebarOpen(true);
+                                }}
+                            />
+                            
+                            {/* Race Overlays */}
+                            {raceState !== 'idle' && (
+                                <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000]">
                                     <RaceControls 
-                                        simulationState={raceState} simulationTime={raceTime} simulationSpeed={raceSpeed}
-                                        onPause={() => setRaceState('paused')} onResume={() => setRaceState('running')}
+                                        simulationState={raceState}
+                                        simulationTime={raceTime}
+                                        simulationSpeed={raceSpeed}
+                                        onPause={() => setRaceState('paused')}
+                                        onResume={() => setRaceState('running')}
                                         onStop={() => { setRaceState('idle'); setRaceRunners(null); }}
                                         onSpeedChange={setRaceSpeed}
                                     />
                                 </div>
-                                <div className="absolute top-0 right-0 z-[2000] p-2">
-                                    <button 
-                                        onClick={() => { setRaceState('idle'); setRaceRunners(null); }} 
-                                        className="bg-red-600/90 text-white px-3 py-1 rounded text-xs font-bold uppercase"
-                                    >
-                                        Esci
-                                    </button>
-                                </div>
-                            </div>
-
-                            {raceRunners && raceHistory.length > 0 && (
-                                <div className="h-48 w-full border-t border-slate-700 bg-slate-950 shrink-0 z-30">
-                                    <RaceGapChart 
-                                        history={raceHistory} 
-                                        tracks={tracks.filter(t => raceSelectionIds.has(t.id))} 
-                                        currentTime={raceTime} 
-                                        currentGaps={raceGaps}
-                                        runners={raceRunners}
-                                        leaderStats={leadStats}
+                            )}
+                            
+                            {raceRunners && (
+                                <div className="absolute top-20 left-4 z-[1000]">
+                                    <RaceLeaderboard 
+                                        racers={tracks.filter(t => raceSelectionIds.has(t.id))}
+                                        ranks={new Map(raceResults?.map(r => [r.trackId, r.rank]) || [])}
+                                        gaps={raceGaps}
                                     />
                                 </div>
                             )}
-                        </div>
-                    ) : (
-                        (!isDesktop && !isSidebarOpen) ? (
-                            <div className="w-full h-full flex flex-col bg-slate-950 relative pb-16 md:pb-0">
-                                <div className="flex-grow relative bg-slate-900">
-                                    <MapDisplay 
-                                        tracks={tracks} visibleTrackIds={mapVisibleIds} raceRunners={raceRunners}
-                                        isAnimationPlaying={false} fitBoundsCounter={fitBoundsCounter}
-                                        runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
-                                        onToggleFullScreen={() => setIsSidebarOpen(true)} // Torna alla sidebar
-                                        isFullScreen={true}
-                                    />
+
+                            {raceHistory.length > 0 && raceState !== 'idle' && (
+                                <div className="absolute bottom-20 left-0 right-0 h-40 z-[900] pointer-events-none">
+                                    {/* Optional Race Gap Chart Overlay */}
                                 </div>
+                            )}
+
+                            {/* Navigation Dock */}
+                            <div className="absolute bottom-0 left-0 right-0 z-[1100]">
+                                <NavigationDock 
+                                    onOpenSidebar={() => setIsSidebarOpen(true)}
+                                    onCloseSidebar={() => setIsSidebarOpen(false)}
+                                    onOpenExplorer={() => toggleView('explorer')}
+                                    onOpenDiary={() => toggleView('diary')}
+                                    onOpenPerformance={() => toggleView('performance')}
+                                    onOpenHub={() => toggleView('hub')}
+                                    onOpenSocial={() => toggleView('social')}
+                                    onOpenProfile={() => toggleView('profile')}
+                                    onOpenGuide={() => toggleView('guide')}
+                                    onExportBackup={() => {}} 
+                                    isSidebarOpen={isSidebarOpen}
+                                    onOpenGlobalChat={() => setShowGlobalChat(true)}
+                                    onlineCount={onlineFriendsCount}
+                                    unreadCount={unreadMessages}
+                                />
                             </div>
-                        ) : (
-                            <ResizablePanel
-                                direction={isDesktop ? 'vertical' : 'horizontal'}
-                                initialSize={isDesktop ? layoutPrefs.desktopSidebar : undefined}
-                                initialSizeRatio={isDesktop ? undefined : layoutPrefs.mobileListRatio}
-                                minSize={250} 
-                                onResizeEnd={handleResizeEnd}
-                                className="w-full h-full"
-                            >
-                                {isDesktop ? (
-                                    <aside className="h-full bg-slate-900 border-r border-slate-800 flex flex-col w-full">
-                                        {isSidebarOpen ? (
-                                            <>
-                                                <div className="flex-grow overflow-hidden">
-                                                    <Sidebar 
-                                                        tracks={tracks.filter(t => !t.isExternal)} 
-                                                        visibleTrackIds={mapVisibleIds} 
-                                                        onFocusTrack={setFocusedTrackId} focusedTrackId={focusedTrackId}
-                                                        raceSelectionIds={raceSelectionIds} 
-                                                        onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
-                                                        onDeselectAll={() => setRaceSelectionIds(new Set())}
-                                                        onSelectAll={() => setRaceSelectionIds(new Set(tracks.filter(t => !t.isArchived).map(t => t.id)))}
-                                                        onStartRace={openRaceSetup}
-                                                        onViewDetails={(id) => { setViewingTrack(tracks.find(t => t.id === id) || null); pushViewState('trackDetail'); }}
-                                                        onEditTrack={(id) => setEditingTrack(tracks.find(t => t.id === id) || null)}
-                                                        onDeleteTrack={async (id) => { 
-                                                            const track = tracks.find(t => t.id === id); if (track) markStravaTrackAsDeleted(track);
-                                                            const u = tracks.filter(t => t.id !== id); setTracks(u); await saveTracksToDB(u); await deleteTrackFromCloud(id); 
-                                                        }}
-                                                        onBulkArchive={handleBulkArchive} onDeleteSelected={handleBulkDelete} onMergeSelected={handleMergeSelectedTracks} onToggleFavorite={handleToggleFavorite} onBulkGroup={handleBulkGroup} onFileUpload={handleFileUpload} onToggleArchived={async (id) => { const u = tracks.map(t => t.id === id ? {...t, isArchived: !t.isArchived} : t); setTracks(u); await saveTracksToDB(u); }}
-                                                    />
-                                                </div>
-                                                <div className="bg-slate-950 shrink-0">
-                                                    <NavigationDock 
-                                                        onOpenSidebar={() => setIsSidebarOpen(true)} onCloseSidebar={() => setIsSidebarOpen(false)}
-                                                        onOpenExplorer={() => toggleView('explorer')} onOpenDiary={() => toggleView('diary')}
-                                                        onOpenPerformance={() => toggleView('performance')} onOpenHub={() => toggleView('hub')}
-                                                        onOpenSocial={() => toggleView('social')} onOpenProfile={() => toggleView('profile')}
-                                                        onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}} isSidebarOpen={isSidebarOpen}
-                                                        unreadCount={unreadMessages}
-                                                        onlineCount={onlineFriendsCount}
-                                                        onOpenGlobalChat={() => setShowGlobalChat(true)}
-                                                    />
-                                                </div>
-                                            </>
-                                        ) : (
-                                            <div className="h-full flex items-center justify-center bg-slate-900">
-                                                <button onClick={() => setIsSidebarOpen(true)} className="p-4 text-slate-500 hover:text-white transform rotate-90 whitespace-nowrap font-bold uppercase tracking-widest text-xs">Apri Sidebar</button>
-                                            </div>
-                                        )}
-                                    </aside>
-                                ) : (
-                                    <div className="flex-grow overflow-hidden bg-slate-900 border-b border-slate-800 w-full h-full relative pb-16 md:pb-0">
-                                         <Sidebar 
-                                            tracks={tracks.filter(t => !t.isExternal)} 
-                                            visibleTrackIds={mapVisibleIds} focusedTrackId={focusedTrackId} raceSelectionIds={raceSelectionIds}
-                                            onFocusTrack={setFocusedTrackId} onDeselectAll={() => setRaceSelectionIds(new Set())}
-                                            onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
-                                            onStartRace={openRaceSetup}
-                                            onViewDetails={(id) => { setViewingTrack(tracks.find(t => t.id === id) || null); pushViewState('trackDetail'); }}
-                                            onEditTrack={(id) => setEditingTrack(tracks.find(t => t.id === id) || null)}
-                                            onBulkArchive={handleBulkArchive} onDeleteSelected={handleBulkDelete} onMergeSelected={handleMergeSelectedTracks} onToggleFavorite={handleToggleFavorite} onBulkGroup={handleBulkGroup} onFileUpload={handleFileUpload} onToggleArchived={async (id) => { const u = tracks.map(t => t.id === id ? {...t, isArchived: !t.isArchived} : t); setTracks(u); await saveTracksToDB(u); }} onDeleteTrack={() => {}} onSelectAll={() => {}}
-                                         />
-                                    </div>
-                                )}
+                        </div>
+                    </ResizablePanel>
+                )}
+            </div>
 
-                                <div className="h-full w-full relative bg-slate-950 flex flex-col overflow-hidden">
-                                    {isDesktop ? (
-                                        <>
-                                            <MapDisplay 
-                                                tracks={tracks} visibleTrackIds={mapVisibleIds} raceRunners={raceRunners}
-                                                isAnimationPlaying={false} fitBoundsCounter={fitBoundsCounter}
-                                                runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
-                                                onToggleFullScreen={() => setIsSidebarOpen(prev => !prev)}
-                                                isFullScreen={!isSidebarOpen}
-                                            />
-                                        </>
-                                    ) : (
-                                        <>
-                                            <div className="flex-grow relative bg-slate-900 pb-16 md:pb-0">
-                                                <MapDisplay 
-                                                    tracks={tracks} visibleTrackIds={mapVisibleIds} raceRunners={raceRunners}
-                                                    isAnimationPlaying={false} fitBoundsCounter={fitBoundsCounter}
-                                                    runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
-                                                    onToggleFullScreen={() => setIsSidebarOpen(false)} 
-                                                    isFullScreen={false} 
-                                                />
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-                            </ResizablePanel>
-                        )
-                    )}
-                </div>
-            )}
-
-            {/* GLOBAL MOBILE DOCK */}
-            {!isDesktop && !showSplash && !showInfographic && !showHome && !showInstallPrompt && !showAuthSelection && !showLoginModal && (
-                <div className="fixed bottom-0 left-0 right-0 z-[12000] bg-slate-950 border-t border-slate-800 pb-safe">
-                    <NavigationDock 
-                        onOpenSidebar={() => { setIsSidebarOpen(true); pushViewState('sidebar'); }} 
-                        onCloseSidebar={() => { setIsSidebarOpen(false); resetNavigation(); }}
-                        onOpenExplorer={() => toggleView('explorer')} onOpenDiary={() => toggleView('diary')}
-                        onOpenPerformance={() => toggleView('performance')} onOpenHub={() => toggleView('hub')}
-                        onOpenSocial={() => toggleView('social')} onOpenProfile={() => toggleView('profile')}
-                        onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}} 
-                        isSidebarOpen={isSidebarOpen}
-                        unreadCount={unreadMessages}
-                        onlineCount={onlineFriendsCount}
-                        onOpenGlobalChat={() => setShowGlobalChat(true)}
+            {/* GLOBAL ELEMENTS */}
+            {showGlobalChat && (
+                <div className="fixed bottom-20 right-4 z-[12000]">
+                    <Chatbot 
+                        userProfile={userProfile}
+                        onClose={() => setShowGlobalChat(false)}
+                        tracksToAnalyze={tracks}
+                        plannedWorkouts={plannedWorkouts}
+                        onAddPlannedWorkout={handleAddPlannedWorkout}
+                        isStandalone={true}
                     />
                 </div>
             )}
 
-            {/* Other Modals... (no changes needed) */}
-            {showRaceSetup && (
-                <RaceSetupModal 
+            {raceResults && raceState === 'finished' && (
+                <RaceSummary 
+                    results={raceResults}
+                    racerStats={new Map(tracks.filter(t => raceSelectionIds.has(t.id)).map(t => [t.id, calculateTrackStats(t)]))}
+                    onClose={() => { setRaceResults(null); setRaceState('idle'); }}
+                    userProfile={userProfile}
                     tracks={tracks}
-                    initialSelection={raceSelectionIds}
-                    onSelectionChange={setRaceSelectionIds}
-                    friendTracks={friendTracks}
-                    onAddGhostFromFeed={handleAddGhost}
-                    onAddOpponent={(files) => handleFileUpload(files)}
-                    onConfirm={startRaceAnimation}
-                    onCancel={() => setShowRaceSetup(false)}
-                    onRemoveTrack={(id) => {
-                        if (id.startsWith('ghost-')) {
-                            setTracks(prev => prev.filter(t => t.id !== id));
-                        }
-                    }}
                 />
             )}
 
@@ -1201,86 +1283,6 @@ const App: React.FC = () => {
                     onConfirm={confirmWorkoutMatch}
                     onCancel={cancelWorkoutMatch}
                 />
-            )}
-
-            {viewingTrack && (
-                <div className="fixed inset-0 z-[10000] bg-slate-900 pb-16 md:pb-0">
-                    <TrackDetailView 
-                        track={viewingTrack} userProfile={userProfile} onExit={() => { setViewingTrack(null); window.history.back(); }} 
-                        plannedWorkouts={plannedWorkouts} onAddPlannedWorkout={handleAddPlannedWorkout} 
-                        onUpdateTrackMetadata={handleUpdateTrackMetadata} onCheckAiAccess={onCheckAiAccess} 
-                    />
-                </div>
-            )}
-
-            {editingTrack && (
-                <div className="fixed inset-0 z-[10000] bg-slate-900">
-                    <TrackEditor 
-                        initialTracks={[editingTrack]} addToast={addToast}
-                        onExit={async (updated) => { 
-                            if (updated) { const u = tracks.map(t => t.id === updated.id ? updated : t); setTracks(u); await saveTracksToDB(u); }
-                            setEditingTrack(null); 
-                        }} 
-                    />
-                </div>
-            )}
-
-            {showDiary && (
-                <div className="fixed inset-0 z-[9000] bg-slate-900 flex flex-col">
-                    <div className="flex-grow overflow-hidden">
-                        <DiaryView 
-                            tracks={tracks} plannedWorkouts={plannedWorkouts} userProfile={userProfile} 
-                            onClose={() => toggleView('diary')} onSelectTrack={(id) => { setViewingTrack(tracks.find(t => t.id === id) || null); pushViewState('trackDetail'); }} 
-                            onAddPlannedWorkout={handleAddPlannedWorkout} onUpdatePlannedWorkout={handleUpdatePlannedWorkout} 
-                            onDeletePlannedWorkout={handleDeletePlannedWorkout}
-                            onCheckAiAccess={onCheckAiAccess}
-                        />
-                    </div>
-                </div>
-            )}
-
-            {showExplorer && (
-                <div className="fixed inset-0 z-[9000] bg-slate-900">
-                    <ExplorerView 
-                        tracks={tracks} 
-                        onClose={() => toggleView('explorer')} 
-                        onSelectTrack={(id) => { setViewingTrack(tracks.find(t => t.id === id) || null); pushViewState('trackDetail'); }} 
-                    />
-                </div>
-            )}
-
-            {showPerformance && (
-                <PerformanceAnalysisPanel 
-                    tracks={tracks} 
-                    userProfile={userProfile} 
-                    onClose={() => toggleView('performance')} 
-                />
-            )}
-
-            {showSocial && (
-                <SocialHub 
-                    onClose={() => toggleView('social')} 
-                    currentUserId={userId || 'guest'} 
-                    onChallengeGhost={handleChallengeGhost}
-                    onReadMessages={fetchUnreadCount}
-                />
-            )}
-
-            {showChangelog && <Changelog onClose={() => setShowChangelog(false)} />}
-            
-            {showGuide && <GuideModal onClose={() => toggleView('guide')} />}
-
-            {showGlobalChat && (
-                <div className="fixed bottom-20 right-4 z-[13000] md:bottom-4 animate-slide-up">
-                    <Chatbot 
-                        userProfile={userProfile} 
-                        tracksToAnalyze={tracks.slice(0, 5)}
-                        onClose={() => setShowGlobalChat(false)}
-                        isStandalone={true}
-                        onAddPlannedWorkout={handleAddPlannedWorkout}
-                        plannedWorkouts={plannedWorkouts}
-                    />
-                </div>
             )}
 
         </div>
