@@ -189,7 +189,7 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                             <span>{groupName}</span>
                             <span className="opacity-50">{groupTracks.length}</span>
                         </div>
-                        {groupTracks.map(track => {
+                        {groupTracks.filter(t => t && t.id).map(track => {
                             const isStrava = track.id.startsWith('strava-') || track.tags?.includes('Strava');
                             return (
                                 <div key={track.id} className={`flex items-center p-2 hover:bg-slate-800 transition-all group ${focusedTrackId === track.id ? 'bg-slate-800/80 border-l-2 border-cyan-500' : ''} ${track.isFavorite ? 'ring-1 ring-amber-500/20 ring-inset' : ''}`}>
