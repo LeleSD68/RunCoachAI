@@ -1,8 +1,11 @@
-
-// ... existing imports ...
+import React, { useState, useEffect, useRef } from 'react';
+import { GoogleGenAI, Chat, GenerateContentResponse } from "@google/genai";
+import { Track, TrackStats, UserProfile, PlannedWorkout, ChatMessage, AiPersonality } from '../types';
 import { calculateTrackStats } from '../services/trackStatsService';
 import { loadChatFromDB, saveChatToDB } from '../services/dbService';
 import { getGenAI, retryWithPolicy, isAuthError, ensureApiKey, samplePointsForAi } from '../services/aiHelper';
+import FormattedAnalysis from './FormattedAnalysis';
+import { getHeartRateZoneInfo } from './HeartRateZonePanel';
 
 const personalityPrompts: Record<AiPersonality, string> = {
     'pro_balanced': "Sei un analista delle prestazioni d'élite. Sii chirurgico, diretto e basati esclusivamente sui numeri. Rispondi rigorosamente in ITALIANO.",
@@ -10,8 +13,6 @@ const personalityPrompts: Record<AiPersonality, string> = {
     'strict': "Sei un coach militare. Non tolleri debolezze. Analizza gli errori senza pietà. Rispondi rigorosamente in ITALIANO.",
     'friend_coach': "Sei un coach empatico e di supporto. Usa un tono amichevole e motivante. Focalizzati sui progressi e sul benessere. Rispondi rigorosamente in ITALIANO."
 };
-
-// ... existing helper functions (formatDuration, formatPace, Icons) ...
 
 const formatDuration = (ms: number) => {
   if (isNaN(ms) || ms < 0) return '00:00';
@@ -165,7 +166,6 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
         initOrRestoreChat();
     }, [CHAT_ID, matchedWorkout, track.linkedWorkout, userProfile.name]);
 
-    // ... existing rest of component code ...
     useEffect(() => {
         if (messages.length > 0) {
             saveChatToDB(CHAT_ID, messages).catch(console.error);
