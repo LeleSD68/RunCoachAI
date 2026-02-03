@@ -1,293 +1,348 @@
 
-import React, { useMemo, useState, useEffect } from 'react';
-import { Track, UserProfile } from '../types';
-import { calculatePerformanceMetrics, calculatePredictions, calculatePerformanceHistory, HistoryPoint } from '../services/performanceService';
-import Tooltip from './Tooltip';
-import SimpleLineChart from './SimpleLineChart';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Track } from '../types';
+import { calculateTrackStats } from '../services/trackStatsService';
+import TrackPreview from './TrackPreview';
 
-interface PerformanceAnalysisPanelProps {
+interface ExplorerViewProps {
     tracks: Track[];
-    userProfile: UserProfile;
     onClose: () => void;
+    onSelectTrack: (id: string) => void;
 }
 
-const formatDurationFromSeconds = (totalSeconds: number) => {
+const EXPLORER_COLS_KEY = 'runcoach_explorer_cols_pref_v2';
+
+const formatDuration = (ms: number) => {
+    const totalSeconds = Math.floor(ms / 1000);
     const h = Math.floor(totalSeconds / 3600);
     const m = Math.floor((totalSeconds % 3600) / 60);
-    const s = Math.floor(totalSeconds % 60);
+    const s = totalSeconds % 60;
+    return h > 0 ? `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}` : `${m}:${s.toString().padStart(2, '0')}`;
+};
+
+const formatPace = (pace: number) => {
+    if (!isFinite(pace) || pace <= 0) return '-:--';
+    const m = Math.floor(pace);
+    const s = Math.round((pace - m) * 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+};
+
+const StravaSmallIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-2.5 h-2.5 text-[#fc4c02]">
+        <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.477 0 4.177 12.173h4.172" />
+    </svg>
+);
+
+const AdjustmentsIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+        <path d="M10 3.75a2 2 0 1 0-4 0 2 2 0 0 0 4 0ZM17.25 4.5a.75.75 0 0 0 0-1.5h-5.5a.75.75 0 0 0 0 1.5h5.5ZM5 3.75a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5h1.5a.75.75 0 0 1 .75.75ZM4.25 17a.75.75 0 0 0 0-1.5h-1.5a.75.75 0 0 0 0 1.5h1.5ZM17.25 17a.75.75 0 0 0 0-1.5h-5.5a.75.75 0 0 0 0 1.5h5.5ZM9 10a.75.75 0 0 1-.75.75h-5.5a.75.75 0 0 1 0-1.5h5.5A.75.75 0 0 1 9 10ZM17.25 10.75a.75.75 0 0 0 0-1.5h-1.5a.75.75 0 0 0 0 1.5h1.5ZM14 10a2 2 0 1 0-4 0 2 2 0 0 0 4 0ZM10 16.25a2 2 0 1 0-4 0 2 2 0 0 0 4 0Z" />
+    </svg>
+);
+
+const RotatePhoneIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 animate-spin-slow">
+        <path fillRule="evenodd" d="M2 3.75A.75.75 0 0 1 2.75 3h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 3.75Zm0 12.5a.75.75 0 0 1 .75-.75h14.5a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1-.75-.75Zm9-3.75a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1-.75-.75ZM2 12.5a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1-.75-.75ZM2 8.75a.75.75 0 0 1 .75-.75h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 8.75Z" clipRule="evenodd" />
+    </svg>
+);
+
+// Definizione colonne disponibili
+type ColumnKey = 'preview' | 'date' | 'name' | 'distance' | 'duration' | 'totalDuration' | 'pace' | 'hr' | 'elevation' | 'cadence' | 'steps' | 'calories';
+
+interface ColumnConfig {
+    key: ColumnKey;
+    label: string;
+    shortLabel?: string;
+    align: 'left' | 'right' | 'center';
+    minWidth?: string;
+}
+
+const COLUMNS: ColumnConfig[] = [
+    { key: 'preview', label: 'Anteprima', shortLabel: 'Mappa', align: 'center', minWidth: '60px' },
+    { key: 'date', label: 'Data', align: 'left', minWidth: '80px' },
+    { key: 'name', label: 'Nome Attività', align: 'left', minWidth: '180px' },
+    { key: 'distance', label: 'Distanza', shortLabel: 'Dist.', align: 'right', minWidth: '60px' },
+    { key: 'duration', label: 'Tempo (Mov)', shortLabel: 'Mov.', align: 'right', minWidth: '70px' },
+    { key: 'totalDuration', label: 'Tempo Totale', shortLabel: 'Totale', align: 'right', minWidth: '70px' },
+    { key: 'pace', label: 'Passo Medio', shortLabel: 'Passo', align: 'right', minWidth: '60px' },
+    { key: 'hr', label: 'Freq. Cardiaca', shortLabel: 'FC', align: 'center', minWidth: '50px' },
+    { key: 'elevation', label: 'Dislivello', shortLabel: 'Disl.', align: 'right', minWidth: '60px' },
+    { key: 'cadence', label: 'Cadenza', shortLabel: 'Cad.', align: 'center', minWidth: '50px' },
+    { key: 'steps', label: 'Passi Totali', shortLabel: 'Passi', align: 'right', minWidth: '70px' },
+    { key: 'calories', label: 'Calorie (Stima)', shortLabel: 'Kcal', align: 'right', minWidth: '60px' },
+];
+
+const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTrack }) => {
+    const [searchTerm, setSearchTerm] = useState('');
     
-    if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-};
-
-const formatPace = (paceMinKm: number) => {
-    const m = Math.floor(paceMinKm);
-    const s = Math.round((paceMinKm - m) * 60);
-    return `${m}:${s.toString().padStart(2, '0')}/km`;
-};
-
-const ProgressBar: React.FC<{ value: number, max?: number, colorClass: string, inverse?: boolean, showPercentLabel?: boolean }> = ({ value, max = 150, colorClass, inverse = false, showPercentLabel = false }) => {
-    let width = 0;
-    
-    if (inverse) {
-        // TSB range: usually -50 to +30. Center at 0.
-        const absMax = 50;
-        const clamped = Math.max(-absMax, Math.min(absMax, value));
-        const percentageOffset = (clamped / absMax) * 50; // -50 to +50
-        
-        return (
-            <div className="flex-grow h-4 bg-slate-100 rounded-sm overflow-hidden relative border border-slate-200">
-                <div className="absolute top-0 bottom-0 w-0.5 bg-slate-400 left-1/2 z-10"></div>
-                <div 
-                    className={`absolute top-0 bottom-0 ${value >= 0 ? 'bg-green-500' : 'bg-red-500'}`} 
-                    style={{ 
-                        left: value >= 0 ? '50%' : `${50 + percentageOffset}%`,
-                        width: `${Math.abs(percentageOffset)}%`
-                    }}
-                ></div>
-            </div>
-        );
-    } else {
-        width = Math.min(100, (value / max) * 100);
-        return (
-            <div className="flex-grow h-4 bg-slate-100 rounded-sm overflow-hidden relative border border-slate-200">
-                <div className={`h-full ${colorClass}`} style={{ width: `${width}%` }}></div>
-            </div>
-        );
-    }
-};
-
-const PerformanceAnalysisPanel: React.FC<PerformanceAnalysisPanelProps> = ({ tracks, userProfile, onClose }) => {
-    const [viewMode, setViewMode] = useState<'table' | 'charts'>('table');
-    const [historyData, setHistoryData] = useState<HistoryPoint[]>([]);
-
-    const metrics = useMemo(() => calculatePerformanceMetrics(tracks, userProfile), [tracks, userProfile]);
-    const predictions = useMemo(() => calculatePredictions(tracks), [tracks]);
-
-    useEffect(() => {
-        if (viewMode === 'charts' && historyData.length === 0) {
-            // Delay calculation slightly to allow UI render
-            setTimeout(() => {
-                const history = calculatePerformanceHistory(tracks, userProfile);
-                setHistoryData(history);
-            }, 50);
+    // Initialize columns from localStorage or default
+    const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => {
+        const saved = localStorage.getItem(EXPLORER_COLS_KEY);
+        if (saved) {
+            try {
+                return new Set(JSON.parse(saved) as ColumnKey[]);
+            } catch (e) {}
         }
-    }, [viewMode, tracks, userProfile, historyData.length]);
+        return new Set(['preview', 'date', 'name', 'distance', 'duration', 'pace', 'elevation']);
+    });
 
-    const renderCharts = () => {
-        if (historyData.length === 0) return <div className="p-8 text-center text-slate-500">Generazione grafici in corso...</div>;
+    const [sortConfig, setSortConfig] = useState<{ key: ColumnKey; direction: 'asc' | 'desc' }>({ key: 'date', direction: 'desc' });
+    const [showColumnMenu, setShowColumnMenu] = useState(false);
 
-        // Simplify data for charts (e.g. 1 point per week if too many points? For now keep daily)
-        return (
-            <div className="p-3 space-y-4 bg-[#f3efea] min-h-[400px]">
-                <SimpleLineChart 
-                    data={historyData.map(h => ({ date: h.date, value: h.evolutionScore }))} 
-                    color1="#1e3a45" 
-                    title="Evoluzione Punteggio" 
-                    yLabel="Score" 
-                />
-                <SimpleLineChart 
-                    data={historyData.map(h => ({ date: h.date, value: h.ctl, value2: h.atl }))} 
-                    color1="#1e6b76" 
-                    color2="#e0915f" 
-                    title="Fitness (CTL) & Fatica (ATL)" 
-                    yLabel="Fitness" 
-                    label2="Fatica"
-                />
-                <SimpleLineChart 
-                    data={historyData.map(h => ({ date: h.date, value: h.vo2max }))} 
-                    color1="#186a76" 
-                    title="VO2max Stimato" 
-                    yLabel="VO2" 
-                />
-            </div>
-        );
+    // Pre-calculate derived data for sorting
+    const enrichedTracks = useMemo(() => {
+        return tracks.map(t => {
+            const s = calculateTrackStats(t);
+            const steps = s.avgCadence ? Math.round(s.avgCadence * (s.movingDuration / 60000)) : 0;
+            const calories = Math.round(t.distance * 70); // Rough estimate 1kcal/kg/km assuming 70kg
+            return {
+                id: t.id,
+                track: t,
+                stats: s,
+                date: new Date(t.points[0].time).getTime(),
+                name: t.name,
+                distance: t.distance,
+                duration: s.movingDuration,
+                totalDuration: s.totalDuration,
+                pace: s.movingAvgPace,
+                hr: s.avgHr || 0,
+                elevation: s.elevationGain,
+                cadence: s.avgCadence || 0,
+                steps: steps,
+                calories: calories
+            };
+        });
+    }, [tracks]);
+
+    // Sorting Logic
+    const sortedTracks = useMemo(() => {
+        let data = [...enrichedTracks];
+        
+        if (searchTerm) {
+            const lowerSearch = searchTerm.toLowerCase();
+            data = data.filter(d => d.name.toLowerCase().includes(lowerSearch));
+        }
+
+        data.sort((a, b) => {
+            let valA = a[sortConfig.key as keyof typeof a] as any;
+            let valB = b[sortConfig.key as keyof typeof b] as any;
+
+            if (sortConfig.key === 'preview') return 0; // No sort for preview
+
+            // Handle strings
+            if (typeof valA === 'string') valA = valA.toLowerCase();
+            if (typeof valB === 'string') valB = valB.toLowerCase();
+
+            if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+        return data;
+    }, [enrichedTracks, sortConfig, searchTerm]);
+
+    const handleSort = (key: ColumnKey) => {
+        if (key === 'preview') return;
+        setSortConfig(prev => ({
+            key,
+            direction: prev.key === key && prev.direction === 'desc' ? 'asc' : 'desc'
+        }));
+    };
+
+    const toggleColumn = (key: ColumnKey) => {
+        setVisibleColumns(prev => {
+            const next = new Set(prev);
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
+            
+            // Persist to localStorage
+            localStorage.setItem(EXPLORER_COLS_KEY, JSON.stringify(Array.from(next)));
+            return next;
+        });
     };
 
     return (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[5000] flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
-            <div className="bg-[#fdfbf7] text-slate-800 rounded shadow-2xl w-full max-w-lg overflow-hidden border-2 border-[#8c6b4f] max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="absolute inset-0 z-[3000] bg-slate-900 flex flex-col font-sans text-white animate-fade-in overflow-hidden pb-24 lg:pb-0">
+            {/* Header */}
+            <header className="p-4 bg-slate-800 border-b border-slate-700 flex flex-wrap gap-4 justify-between items-center shrink-0 z-20 shadow-md">
+                <div className="flex items-center gap-4">
+                    <button onClick={onClose} className="p-2 bg-slate-700 hover:bg-slate-600 rounded-full transition-colors">◀</button>
+                    <h2 className="text-xl font-black text-cyan-400 uppercase italic flex items-center gap-2">
+                        Data Explorer
+                        <span className="text-[10px] bg-slate-900 text-slate-400 px-2 py-0.5 rounded-full not-italic font-mono border border-slate-700">{tracks.length}</span>
+                    </h2>
+                </div>
                 
-                {/* Header Section */}
-                <div className="flex bg-[#fdfbf7] border-b border-slate-300 shrink-0">
-                    <div className="px-4 py-3 font-bold text-[#a0303b] text-sm uppercase tracking-wider flex-grow">
-                        PERFORMANCE
+                <div className="flex gap-2 flex-grow sm:flex-grow-0 justify-end">
+                    <div className="relative flex-grow sm:w-64">
+                        <input 
+                            type="text" 
+                            placeholder="Cerca nome..." 
+                            value={searchTerm} 
+                            onChange={e => setSearchTerm(e.target.value)} 
+                            className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-xs outline-none focus:border-cyan-500 transition-all" 
+                        />
                     </div>
-                    <div className="flex items-center gap-2 pr-2">
+                    
+                    <div className="relative">
                         <button 
-                            onClick={() => setViewMode('table')} 
-                            className={`px-3 py-1 text-xs font-bold rounded-full transition-colors ${viewMode === 'table' ? 'bg-[#a0303b] text-white' : 'bg-slate-200 text-slate-500 hover:bg-slate-300'}`}
+                            onClick={() => setShowColumnMenu(!showColumnMenu)} 
+                            className={`p-2 rounded-lg border transition-all ${showColumnMenu ? 'bg-cyan-600 border-cyan-500 text-white' : 'bg-slate-700 border-slate-600 text-slate-300 hover:text-white'}`}
+                            title="Scegli Colonne"
                         >
-                            Tabella
+                            <AdjustmentsIcon />
                         </button>
-                        <button 
-                            onClick={() => setViewMode('charts')} 
-                            className={`px-3 py-1 text-xs font-bold rounded-full transition-colors ${viewMode === 'charts' ? 'bg-[#a0303b] text-white' : 'bg-slate-200 text-slate-500 hover:bg-slate-300'}`}
-                        >
-                            Grafici
-                        </button>
-                    </div>
-                    <div className="flex border-l border-slate-300">
-                        <button onClick={onClose} className="px-3 py-2 text-slate-500 hover:bg-slate-100 hover:text-red-500">
-                            &times;
-                        </button>
+                        
+                        {/* Column Selector Dropdown */}
+                        {showColumnMenu && (
+                            <>
+                                <div className="fixed inset-0 z-30" onClick={() => setShowColumnMenu(false)}></div>
+                                <div className="absolute right-0 top-full mt-2 w-48 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-40 overflow-hidden animate-fade-in-up">
+                                    <div className="p-2 border-b border-slate-700 bg-slate-900/50">
+                                        <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Colonne Visibili</p>
+                                    </div>
+                                    <div className="max-h-64 overflow-y-auto custom-scrollbar p-2 space-y-1">
+                                        {COLUMNS.map(col => (
+                                            <button 
+                                                key={col.key}
+                                                onClick={() => toggleColumn(col.key)}
+                                                className={`w-full flex items-center justify-between px-3 py-2 text-xs font-bold rounded-lg transition-colors ${visibleColumns.has(col.key) ? 'bg-cyan-900/30 text-cyan-400' : 'text-slate-400 hover:bg-slate-700'}`}
+                                            >
+                                                <span>{col.label}</span>
+                                                {visibleColumns.has(col.key) && <span className="text-cyan-500">✓</span>}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
+            </header>
 
-                <div className="overflow-y-auto custom-scrollbar flex-grow">
-                    {/* Evolution Score Header Widget (Always Visible in Table, Optional in Charts?) - Let's keep it consistent or just in table */}
-                    {metrics.evolutionScore > 0 && viewMode === 'table' && (
-                        <div className="bg-[#f3efea] border-b border-slate-200 p-3 flex items-center justify-between">
-                            <div className="flex flex-col">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Punteggio Evoluzione</span>
-                                    <Tooltip 
-                                        text="Indice di Efficienza" 
-                                        subtext="Basato su Formula di Riegel (Normalizzato 10k). ⬆️ SALE SE: Migliori il ritmo a parità di distanza O aumenti la distanza mantenendo il ritmo. ⬇️ SCENDE SE: Corri più lentamente del tuo potenziale." 
-                                        position="bottom"
-                                    >
-                                        <div className="w-3.5 h-3.5 rounded-full border border-slate-400 text-slate-500 text-[9px] flex items-center justify-center cursor-help hover:bg-slate-200">?</div>
-                                    </Tooltip>
-                                </div>
-                                <div className="flex items-baseline gap-2">
-                                    <span className="text-3xl font-black text-[#1e3a45]">{metrics.evolutionScore}</span>
-                                    <span className="text-[10px] text-slate-400 font-mono">pts</span>
-                                </div>
-                            </div>
-                            <div className={`flex flex-col items-end ${metrics.evolutionTrend >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                                <div className="flex items-center font-bold text-lg">
-                                    {metrics.evolutionTrend > 0 ? '▲' : metrics.evolutionTrend < 0 ? '▼' : '−'} 
-                                    {Math.abs(metrics.evolutionTrend).toFixed(1)}%
-                                </div>
-                                <span className="text-[9px] text-slate-500 uppercase">vs 60gg prec.</span>
-                            </div>
-                        </div>
-                    )}
-
-                    {viewMode === 'table' ? (
-                        <>
-                            {/* Calculations Body */}
-                            <div className="p-1 bg-[#fdfbf7] text-sm">
-                                <div className="grid grid-cols-[24px_1fr_80px_50px] gap-2 items-center px-2 py-1.5 border-b border-slate-100 hover:bg-slate-50">
-                                    <Tooltip text="VO2max Stimato" subtext="Stima VDOT basata sulle migliori prestazioni recenti." position="right">
-                                        <div className="w-4 h-4 rounded-full border border-slate-300 flex items-center justify-center text-[9px] text-slate-500 font-serif cursor-help hover:bg-slate-200">?</div>
-                                    </Tooltip>
-                                    <span className="font-bold text-[#1e3a45]">VO2max Effettivo</span>
-                                    <ProgressBar value={metrics.vo2max} max={85} colorClass="bg-[#186a76]" />
-                                    <span className="text-right text-slate-600 font-mono">{metrics.vo2max}</span>
-                                </div>
-
-                                <div className="grid grid-cols-[24px_1fr_80px_50px] gap-2 items-center px-2 py-1.5 border-b border-slate-100 hover:bg-slate-50">
-                                    <Tooltip text="Forma Maratona" subtext="Punteggio 0-100% basato sul volume e i lunghi delle ultime 10 settimane." position="right">
-                                        <div className="w-4 h-4 rounded-full border border-slate-300 flex items-center justify-center text-[9px] text-slate-500 font-serif cursor-help hover:bg-slate-200">?</div>
-                                    </Tooltip>
-                                    <span className="font-bold text-[#1e3a45]">Forma Maratona</span>
-                                    <ProgressBar value={metrics.marathonShape} max={100} colorClass="bg-[#186a76]" />
-                                    <span className="text-right text-slate-600 font-mono">{metrics.marathonShape} %</span>
-                                </div>
-
-                                <div className="grid grid-cols-[24px_1fr_80px_50px] gap-2 items-center px-2 py-1.5 border-b border-slate-100 hover:bg-slate-50">
-                                    <Tooltip text="Fatica (ATL)" subtext="Acute Training Load: carico medio pesato degli ultimi 7 giorni." position="right">
-                                        <div className="w-4 h-4 rounded-full border border-slate-300 flex items-center justify-center text-[9px] text-slate-500 font-serif cursor-help hover:bg-slate-200">?</div>
-                                    </Tooltip>
-                                    <span className="font-bold text-[#1e3a45]">Affaticamento <span className="text-xs font-normal text-slate-400">(ATL)</span></span>
-                                    <ProgressBar value={metrics.atl} max={150} colorClass="bg-[#246a73]" />
-                                    <span className="text-right text-slate-600 font-mono">{metrics.atl}</span>
-                                </div>
-
-                                <div className="grid grid-cols-[24px_1fr_80px_50px] gap-2 items-center px-2 py-1.5 border-b border-slate-100 hover:bg-slate-50">
-                                    <Tooltip text="Fitness (CTL)" subtext="Chronic Training Load: carico medio pesato degli ultimi 42 giorni." position="right">
-                                        <div className="w-4 h-4 rounded-full border border-slate-300 flex items-center justify-center text-[9px] text-slate-500 font-serif cursor-help hover:bg-slate-200">?</div>
-                                    </Tooltip>
-                                    <span className="font-bold text-[#1e3a45]">Fitness <span className="text-xs font-normal text-slate-400">(CTL)</span></span>
-                                    <ProgressBar value={metrics.ctl} max={150} colorClass="bg-[#1e6b76]" />
-                                    <span className="text-right text-slate-600 font-mono">{metrics.ctl}</span>
-                                </div>
-
-                                <div className="grid grid-cols-[24px_1fr_80px_50px] gap-2 items-center px-2 py-1.5 border-b border-slate-100 hover:bg-slate-50">
-                                    <Tooltip text="Training Stress Balance" subtext="TSB = CTL - ATL. Positivo indica freschezza, negativo indica carico accumulato." position="right">
-                                        <div className="w-4 h-4 rounded-full border border-slate-300 flex items-center justify-center text-[9px] text-slate-500 font-serif cursor-help hover:bg-slate-200">?</div>
-                                    </Tooltip>
-                                    <span className="font-bold text-[#1e3a45]">Bilanciamento stress <span className="text-xs font-normal text-slate-400">(TSB)</span></span>
-                                    <ProgressBar value={metrics.tsb} inverse={true} colorClass="" />
-                                    <span className={`text-right font-mono ${metrics.tsb >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                        {metrics.tsb > 0 ? `+${metrics.tsb}` : metrics.tsb}
-                                    </span>
-                                </div>
-
-                                <div className="grid grid-cols-[24px_1fr_80px_50px] gap-2 items-center px-2 py-1.5 border-b border-slate-100 hover:bg-slate-50">
-                                    <Tooltip text="Rapporto A:C" subtext="ATL diviso CTL. Ottimale tra 0.8 e 1.3. Sopra 1.5 rischio infortuni." position="right">
-                                        <div className="w-4 h-4 rounded-full border border-slate-300 flex items-center justify-center text-[9px] text-slate-500 font-serif cursor-help hover:bg-slate-200">?</div>
-                                    </Tooltip>
-                                    <span className="font-bold text-[#1e3a45]">Rapp. Carico Lavoro <span className="text-xs font-normal text-slate-400">(A:C)</span></span>
-                                    <div className="flex-grow h-4 bg-slate-100 border border-slate-200 relative">
-                                         <div className="absolute top-0 bottom-0 bg-green-500 opacity-50" style={{ left: '30%', width: '40%' }}></div> {/* 0.8 to 1.5 approx scaled to 2.0 max */}
-                                         <div className="absolute h-full w-0.5 bg-black" style={{ left: `${Math.min(100, (metrics.workloadRatio / 2.5) * 100)}%` }}></div>
-                                    </div>
-                                    <span className="text-right text-slate-600 font-mono">{metrics.workloadRatio}</span>
-                                </div>
-
-                                <div className="grid grid-cols-[24px_1fr_80px_50px] gap-2 items-center px-2 py-1.5 border-b border-slate-100 hover:bg-slate-50">
-                                    <Tooltip text="TRIMP" subtext="Training Impulse dell'ultima sessione." position="right">
-                                        <div className="w-4 h-4 rounded-full border border-slate-300 flex items-center justify-center text-[9px] text-slate-500 font-serif cursor-help hover:bg-slate-200">?</div>
-                                    </Tooltip>
-                                    <span className="font-bold text-[#1e3a45]">TRIMP (Ultimo)</span>
-                                    <ProgressBar value={metrics.lastTrimp} max={300} colorClass="bg-[#5d9ca4]" />
-                                    <span className="text-right text-slate-600 font-mono">{metrics.lastTrimp}</span>
-                                </div>
-
-                                <div className="grid grid-cols-[24px_1fr_80px_50px] gap-2 items-center px-2 py-1.5 border-b border-slate-100 hover:bg-slate-50">
-                                    <Tooltip text="Monotonia" subtext="Indice di variabilità del carico. Sopra il 60% indica allenamenti troppo simili." position="right">
-                                        <div className="w-4 h-4 rounded-full border border-slate-300 flex items-center justify-center text-[9px] text-slate-500 font-serif cursor-help hover:bg-slate-200">?</div>
-                                    </Tooltip>
-                                    <span className="font-bold text-[#1e3a45]">Tasso di monotonia</span>
-                                    <ProgressBar value={metrics.monotony} max={100} colorClass="bg-[#e0915f]" />
-                                    <span className="text-right text-slate-600 font-mono">{metrics.monotony}%</span>
-                                </div>
-
-                                <div className="grid grid-cols-[24px_1fr_80px_50px] gap-2 items-center px-2 py-1.5 hover:bg-slate-50">
-                                    <Tooltip text="Somma TRIMP Settimanale" subtext="Carico totale degli ultimi 7 giorni." position="right">
-                                        <div className="w-4 h-4 rounded-full border border-slate-300 flex items-center justify-center text-[9px] text-slate-500 font-serif cursor-help hover:bg-slate-200">?</div>
-                                    </Tooltip>
-                                    <span className="font-bold text-[#1e3a45]">Carico settimanale</span>
-                                    <ProgressBar value={metrics.trainingLoad} max={1000} colorClass="bg-[#6dbf62]" />
-                                    <span className="text-right text-slate-600 font-mono">{metrics.trainingLoad}</span>
-                                </div>
-                            </div>
-
-                            {/* Predictions Header */}
-                            <div className="flex bg-[#fdfbf7] border-t border-b border-[#a0303b]/30 mt-1">
-                                <div className="px-4 py-2 font-bold text-[#a0303b] text-sm uppercase tracking-wider flex-grow">
-                                    PREVISIONI
-                                </div>
-                            </div>
-
-                            {/* Predictions Body */}
-                            <div className="p-1 bg-[#fdfbf7] text-sm pb-4">
-                                {predictions.length > 0 ? predictions.map((pred, i) => (
-                                    <div key={i} className="flex justify-between items-center px-4 py-2 border-b border-slate-100 hover:bg-slate-50">
-                                        <span className="font-bold text-[#333333] text-base">{pred.label}</span>
-                                        <div className="text-right">
-                                            <span className="text-xs text-slate-500 mr-2">stima</span>
-                                            <span className="font-bold text-[#333333] text-base">{formatDurationFromSeconds(pred.timeSeconds)}</span>
-                                            <span className="text-xs text-slate-500 ml-2">({formatPace(pred.pace)})</span>
-                                        </div>
-                                    </div>
-                                )) : (
-                                    <div className="p-4 text-center text-slate-500 italic">
-                                        Dati storici insufficienti per generare previsioni (serve almeno una corsa {'>'} 3km recente).
-                                    </div>
-                                )}
-                            </div>
-                        </>
-                    ) : (
-                        renderCharts()
-                    )}
-                </div>
-
+            {/* Landscape Hint for Mobile */}
+            <div className="bg-amber-900/20 text-amber-200 text-[10px] font-bold text-center py-1 border-b border-amber-900/30 flex items-center justify-center gap-2 lg:hidden">
+                <RotatePhoneIcon /> Ruota il dispositivo per vedere più colonne
             </div>
+
+            {/* Table Container */}
+            <div className="flex-grow overflow-auto custom-scrollbar bg-slate-900 relative">
+                <table className="w-full text-left text-[11px] border-collapse relative min-w-full">
+                    <thead className="bg-slate-800 text-slate-400 uppercase font-black sticky top-0 z-10 shadow-sm">
+                        <tr>
+                            {COLUMNS.map(col => {
+                                if (!visibleColumns.has(col.key)) return null;
+                                return (
+                                    <th 
+                                        key={col.key} 
+                                        onClick={() => handleSort(col.key)}
+                                        className={`p-3 cursor-pointer hover:text-white hover:bg-slate-700 transition-colors select-none whitespace-nowrap text-${col.align}`}
+                                        style={{ minWidth: col.minWidth }}
+                                    >
+                                        <div className={`flex items-center gap-1 ${col.align === 'right' ? 'justify-end' : col.align === 'center' ? 'justify-center' : 'justify-start'}`}>
+                                            {col.shortLabel || col.label}
+                                            {sortConfig.key === col.key && (
+                                                <span className="text-cyan-400">{sortConfig.direction === 'asc' ? '▲' : '▼'}</span>
+                                            )}
+                                        </div>
+                                    </th>
+                                );
+                            })}
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800">
+                        {sortedTracks.map(row => {
+                            const isStrava = row.id.startsWith('strava-') || row.track.tags?.includes('Strava');
+                            return (
+                                <tr key={row.id} onClick={() => onSelectTrack(row.id)} className="hover:bg-slate-800/50 cursor-pointer group transition-colors">
+                                    {COLUMNS.map(col => {
+                                        if (!visibleColumns.has(col.key)) return null;
+                                        
+                                        let content: React.ReactNode = '-';
+                                        let className = `p-3 whitespace-nowrap text-${col.align} `;
+
+                                        switch(col.key) {
+                                            case 'preview':
+                                                content = (
+                                                    <div className="w-10 h-8 bg-slate-950 rounded border border-slate-700 overflow-hidden relative">
+                                                        <TrackPreview points={row.track.points} color={row.track.color} className="w-full h-full opacity-80" />
+                                                    </div>
+                                                );
+                                                break;
+                                            case 'date': 
+                                                content = new Date(row.date).toLocaleDateString(); 
+                                                className += 'text-slate-500 font-mono';
+                                                break;
+                                            case 'name': 
+                                                content = (
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="font-bold text-white group-hover:text-cyan-400 truncate max-w-[200px] sm:max-w-[300px]" title={row.name}>{row.name}</span>
+                                                        {isStrava && <StravaSmallIcon />}
+                                                    </div>
+                                                );
+                                                break;
+                                            case 'distance': 
+                                                content = `${row.distance.toFixed(2)} km`; 
+                                                className += 'font-mono text-white font-bold';
+                                                break;
+                                            case 'duration': 
+                                                content = formatDuration(row.duration); 
+                                                className += 'font-mono text-slate-300';
+                                                break;
+                                            case 'totalDuration': 
+                                                content = formatDuration(row.totalDuration); 
+                                                className += 'font-mono text-slate-400';
+                                                break;
+                                            case 'pace': 
+                                                content = formatPace(row.pace); 
+                                                className += 'font-mono text-cyan-200 font-bold';
+                                                break;
+                                            case 'hr': 
+                                                content = row.hr > 0 ? Math.round(row.hr) : '-'; 
+                                                className += row.hr > 0 ? 'font-mono text-red-300 font-bold' : 'text-slate-600';
+                                                break;
+                                            case 'elevation': 
+                                                content = `+${Math.round(row.elevation)} m`; 
+                                                className += 'font-mono text-amber-200';
+                                                break;
+                                            case 'cadence': 
+                                                content = row.cadence > 0 ? Math.round(row.cadence) : '-'; 
+                                                className += 'font-mono text-purple-300';
+                                                break;
+                                            case 'steps':
+                                                content = row.steps > 0 ? row.steps.toLocaleString() : '-';
+                                                className += 'font-mono text-slate-300';
+                                                break;
+                                            case 'calories':
+                                                content = row.calories > 0 ? `~${row.calories}` : '-';
+                                                className += 'font-mono text-slate-400';
+                                                break;
+                                        }
+
+                                        return (
+                                            <td key={col.key} className={className}>
+                                                {content}
+                                            </td>
+                                        );
+                                    })}
+                                </tr>
+                            );
+                        })}
+                        {sortedTracks.length === 0 && (
+                            <tr>
+                                <td colSpan={visibleColumns.size} className="p-8 text-center text-slate-500 italic">
+                                    Nessuna attività trovata.
+                                </td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
+            <style>{`
+                .animate-spin-slow { animation: spin 4s linear infinite; }
+                @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+            `}</style>
         </div>
     );
 };
 
-export default PerformanceAnalysisPanel;
+export default ExplorerView;
