@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Track, PlannedWorkout, UserProfile, Toast, ApiUsage } from './types';
 import { supabase } from './services/supabaseClient';
-import { updatePresence, getFriends, getUnreadNotificationsCount } from './services/socialService';
+import { updatePresence, getFriends, getUnreadNotificationsCount, getRecentUnreadSender } from './services/socialService';
 import { getApiUsage, trackUsage, addTokensToUsage } from './services/usageService';
 import { loadTracksFromDB, loadPlannedWorkoutsFromDB, loadProfileFromDB, saveTracksToDB, saveProfileToDB, savePlannedWorkoutsToDB, syncTrackToCloud } from './services/dbService';
 import { parseGpx } from './services/gpxService';
@@ -62,6 +62,7 @@ const App: React.FC = () => {
     const [raceSelectionIds, setRaceSelectionIds] = useState<Set<string>>(new Set());
     const [unreadMessages, setUnreadMessages] = useState(0);
     const [onlineFriendsCount, setOnlineFriendsCount] = useState(0);
+    const [socialInitialUser, setSocialInitialUser] = useState<string | null>(null);
     
     // PWA & Platform
     const [isIOS, setIsIOS] = useState(false);
@@ -185,6 +186,27 @@ const App: React.FC = () => {
         }
     };
 
+    const handleSmartSocialOpen = async () => {
+        // If guest or no user, just open social hub
+        if (!userId || userId === 'guest') {
+            setShowSocial(true);
+            return;
+        }
+
+        // If we have unread messages, we try to be smart
+        // Case 1: Is it a message from a specific person?
+        const singleSenderId = await getRecentUnreadSender(userId);
+        
+        if (singleSenderId) {
+            setSocialInitialUser(singleSenderId);
+            setShowSocial(true);
+        } else {
+            // Case 2: Multiple senders OR General notification (like friend request) -> Go to Hub
+            setSocialInitialUser(null);
+            setShowSocial(true);
+        }
+    };
+
     const [layoutPrefs, setLayoutPrefs] = useState<{ desktopSidebar: number, mobileListRatio: number }>({ desktopSidebar: 320, mobileListRatio: 0.7 });
 
     const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
@@ -292,7 +314,7 @@ const App: React.FC = () => {
                 case 'diary': setShowDiary(true); break;
                 case 'explorer': setShowExplorer(true); break;
                 case 'performance': setShowPerformance(true); break;
-                case 'social': setShowSocial(true); break;
+                case 'social': handleSmartSocialOpen(); break; // Use smart opener for social
                 case 'hub': setShowHome(true); break;
                 case 'profile': setShowProfile(true); break;
                 case 'settings': setShowSettings(true); break;
@@ -493,7 +515,7 @@ const App: React.FC = () => {
                     onOpenDiary={() => toggleView('diary')}
                     onOpenPerformance={() => toggleView('performance')}
                     onOpenHub={() => toggleView('hub')}
-                    onOpenSocial={() => toggleView('social')}
+                    onOpenSocial={handleSmartSocialOpen} // Use smart opener
                     onOpenProfile={() => toggleView('profile')}
                     onOpenGuide={() => toggleView('guide')}
                     onExportBackup={() => {}} // Handle in hub
@@ -547,7 +569,7 @@ const App: React.FC = () => {
                     onOpenProfile={() => setShowProfile(true)}
                     onOpenSettings={() => setShowSettings(true)}
                     onOpenChangelog={() => setShowChangelog(true)}
-                    onOpenSocial={() => toggleView('social')}
+                    onOpenSocial={handleSmartSocialOpen} // Use smart opener
                     isGuest={userId === 'guest'}
                     onLogout={() => setUserId(null)}
                     onLogin={() => setUserId('guest')} // Trigger auth modal logic usually
@@ -576,6 +598,7 @@ const App: React.FC = () => {
                     onClose={() => window.history.back()} 
                     currentUserId={userId || 'guest'}
                     onReadMessages={fetchUnreadCount}
+                    initialChatUserId={socialInitialUser} // Pass prop
                 />
             )}
             
