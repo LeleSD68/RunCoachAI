@@ -23,7 +23,7 @@ import DiaryView from './components/DiaryView';
 import PerformanceAnalysisPanel from './components/PerformanceAnalysisPanel';
 import SocialHub from './components/SocialHub';
 import SplashScreen from './components/SplashScreen';
-import InfographicScreen from './components/InfographicScreen'; // Importazione InfographicScreen
+import InfographicScreen from './components/InfographicScreen';
 import RaceControls from './components/RaceControls';
 import RaceLeaderboard from './components/RacePaceBar';
 import RaceSummary from './components/RaceSummary';
@@ -31,6 +31,7 @@ import ReminderNotification from './components/ReminderNotification';
 import RaceSetupModal from './components/RaceSetupModal';
 import ResizablePanel from './components/ResizablePanel';
 import RaceGapChart from './components/RaceGapChart'; 
+import WorkoutConfirmationModal from './components/WorkoutConfirmationModal'; // Import Modale Conferma
 
 import { 
     saveTracksToDB, loadTracksFromDB, 
@@ -59,7 +60,7 @@ const App: React.FC = () => {
     const [toasts, setToasts] = useState<Toast[]>([]);
     const [usage, setUsage] = useState<ApiUsage>({ requests: 0, tokens: 0, lastReset: '' });
     
-    // States for startup flow - Modified to check session storage immediately
+    // States for startup flow
     const [showSplash, setShowSplash] = useState(() => !sessionStorage.getItem(SESSION_ACTIVE_KEY));
     const [showInfographic, setShowInfographic] = useState(false); 
     
@@ -78,9 +79,12 @@ const App: React.FC = () => {
     const [showPerformance, setShowPerformance] = useState(false);
     const [showSocial, setShowSocial] = useState(false);
     const [showStravaSyncOptions, setShowStravaSyncOptions] = useState(false);
-    const [stravaAutoModal, setStravaAutoModal] = useState(false); // Flag per avvio automatico modale
+    const [stravaAutoModal, setStravaAutoModal] = useState(false);
     const [showStravaConfig, setShowStravaConfig] = useState(false);
     
+    // Stato per il match automatico allenamento
+    const [pendingWorkoutMatch, setPendingWorkoutMatch] = useState<{ track: Track, workout: PlannedWorkout } | null>(null);
+
     const [viewingTrack, setViewingTrack] = useState<Track | null>(null);
     const [editingTrack, setEditingTrack] = useState<Track | null>(null); 
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -104,7 +108,6 @@ const App: React.FC = () => {
 
     // --- AUTO-RESUME LOGIC ---
     useEffect(() => {
-        // If the session is already active (e.g. reload or background return), skip splash and load data
         if (sessionStorage.getItem(SESSION_ACTIVE_KEY)) {
             checkSession();
         }
@@ -127,22 +130,17 @@ const App: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        // Initialize history state
         window.history.replaceState({ view: 'map' }, '');
-
         const handlePopState = (event: PopStateEvent) => {
             const state = event.state;
             const view = state?.view || 'map';
-            
             if (view === 'map') {
                 resetNavigation();
-                // Ensure sidebar logic for desktop remains consistent if needed
                 if (!isDesktop) setIsSidebarOpen(false); 
             } else {
                 resetNavigation();
             }
         };
-
         window.addEventListener('popstate', handlePopState);
         return () => window.removeEventListener('popstate', handlePopState);
     }, [resetNavigation]);
@@ -153,23 +151,14 @@ const App: React.FC = () => {
 
     const toggleView = (view: 'diary' | 'explorer' | 'performance' | 'social' | 'hub' | 'profile' | 'settings' | 'guide') => {
         const currentStates = {
-            diary: showDiary,
-            explorer: showExplorer,
-            performance: showPerformance,
-            social: showSocial,
-            hub: showHome,
-            profile: showProfile,
-            settings: showSettings,
-            guide: showGuide
+            diary: showDiary, explorer: showExplorer, performance: showPerformance,
+            social: showSocial, hub: showHome, profile: showProfile,
+            settings: showSettings, guide: showGuide
         };
-        
         const isOpen = currentStates[view];
-        
-        // If opening a new view, push state
         if (!isOpen) {
             pushViewState(view);
-            resetNavigation(); // Close others first visualy
-            
+            resetNavigation(); 
             switch(view) {
                 case 'diary': setShowDiary(true); break;
                 case 'explorer': setShowExplorer(true); break;
@@ -181,49 +170,37 @@ const App: React.FC = () => {
                 case 'guide': setShowGuide(true); break;
             }
         } else {
-            // If closing, we act like "Back"
             window.history.back();
         }
-
         if (view === 'hub' && !isOpen && isDesktop) {
             setIsSidebarOpen(true);
         }
     };
-    // --- END HISTORY API ---
 
     useEffect(() => {
         const stored = localStorage.getItem(LAYOUT_PREFS_KEY);
-        if (stored) {
-            try { setLayoutPrefs(JSON.parse(stored)); } catch(e) {}
-        }
+        if (stored) { try { setLayoutPrefs(JSON.parse(stored)); } catch(e) {} }
     }, []);
 
-    // --- NOTIFICATION & PRESENCE SYSTEM START ---
+    // --- NOTIFICATION & PRESENCE SYSTEM ---
     const sendNotification = (title: string, body: string, icon: string = '/logo.png') => {
         if ('Notification' in window) {
             if (Notification.permission === 'granted') {
                 new Notification(title, { body, icon });
             } else if (Notification.permission !== 'denied') {
                 Notification.requestPermission().then(permission => {
-                    if (permission === 'granted') {
-                        new Notification(title, { body, icon });
-                    }
+                    if (permission === 'granted') new Notification(title, { body, icon });
                 });
             }
         }
     };
 
     useEffect(() => {
-        // Request permissions immediately on load
-        if ('Notification' in window && Notification.permission !== 'granted') {
-            Notification.requestPermission();
-        }
+        if ('Notification' in window && Notification.permission !== 'granted') Notification.requestPermission();
     }, []);
 
-    // Presence Heartbeat & Friend Monitoring
     useEffect(() => {
         if (!userId || userId === 'guest') return;
-        
         const heartbeatAndCheckFriends = async () => {
             updatePresence(userId);
             try {
@@ -231,43 +208,29 @@ const App: React.FC = () => {
                 const onlineCount = friends.filter(f => f.isOnline).length;
                 setOnlineFriendsCount(onlineCount);
                 friendsIdRef.current = new Set(friends.map(f => f.id).filter(id => id !== undefined) as string[]);
-            } catch (e) {
-                console.error("Friend poll error", e);
-            }
+            } catch (e) { console.error("Friend poll error", e); }
         };
-
-        // Initial check
         heartbeatAndCheckFriends();
-        
-        // Update every minute
         const interval = setInterval(heartbeatAndCheckFriends, 60 * 1000);
-
         return () => clearInterval(interval);
     }, [userId]);
 
-    // Global Subscriptions
     useEffect(() => {
         if (!userId || userId === 'guest') return;
-
         const channel = supabase.channel('global_notifications')
-            // 1. New Message
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages', filter: `receiver_id=eq.${userId}` }, (payload) => {
                 if (!showSocial) {
                     const msg = "Nuovo messaggio ricevuto!";
                     addToast(msg, "info");
                     setUnreadMessages(prev => prev + 1);
                     sendNotification("RunCoachAI Social", "Hai ricevuto un nuovo messaggio privato.");
-                } else {
-                    setUnreadMessages(prev => prev + 1);
-                }
+                } else { setUnreadMessages(prev => prev + 1); }
             })
-            // 2. Friend Request
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'friends', filter: `user_id_2=eq.${userId}` }, (payload) => {
                 const msg = "Nuova richiesta di amicizia!";
                 addToast(msg, "info");
                 sendNotification("RunCoachAI Crew", "Qualcuno vuole aggiungerti agli amici!");
             })
-            // 3. New Track from Friend
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tracks' }, (payload) => {
                 const newRecord = payload.new as { user_id: string; name: string };
                 if (friendsIdRef.current.has(newRecord.user_id)) {
@@ -276,10 +239,8 @@ const App: React.FC = () => {
                     sendNotification("Feed Attività", `${newRecord.name} è appena stata caricata.`);
                 }
             })
-            // 4. Added to a Group
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'social_group_members', filter: `user_id=eq.${userId}` }, async (payload) => {
                 const newMember = payload.new as any;
-                // Fetch group name to show a nice notification
                 const { data: groupData } = await supabase.from('social_groups').select('name').eq('id', newMember.group_id).single();
                 const groupName = groupData?.name || 'un gruppo';
                 const msg = `Sei stato aggiunto al gruppo: ${groupName}`;
@@ -287,12 +248,8 @@ const App: React.FC = () => {
                 sendNotification("Nuovo Gruppo", msg);
             })
             .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
+        return () => { supabase.removeChannel(channel); };
     }, [userId, showSocial]);
-    // --- NOTIFICATION SYSTEM END ---
 
     const saveLayoutPrefs = (newPrefs: Partial<{ desktopSidebar: number, mobileListRatio: number }>) => {
         const updated = { ...layoutPrefs, ...newPrefs };
@@ -301,21 +258,16 @@ const App: React.FC = () => {
     };
 
     const mapVisibleIds = useMemo(() => {
-        if (raceSelectionIds.size === 0) {
-            return new Set(tracks.filter(t => !t.isArchived && !t.isExternal).map(t => t.id));
-        }
+        if (raceSelectionIds.size === 0) return new Set(tracks.filter(t => !t.isArchived && !t.isExternal).map(t => t.id));
         return raceSelectionIds;
     }, [tracks, raceSelectionIds]);
 
     const todayEntries = useMemo(() => {
         const today = new Date().toDateString();
-        // Check for Notes, Commitments AND Workouts not completed
         const entries = plannedWorkouts.filter(w => 
             new Date(w.date).toDateString() === today && 
             (w.entryType === 'commitment' || w.entryType === 'note' || (w.entryType === 'workout' && !w.completedTrackId))
         );
-        
-        // Trigger notification for diary entries if loaded
         if (entries.length > 0) {
              const notifiedKey = `notified_diary_${today}_${entries.length}`;
              if (!sessionStorage.getItem(notifiedKey)) {
@@ -329,14 +281,8 @@ const App: React.FC = () => {
     useEffect(() => {
         setUsage(getApiUsage());
         (window as any).gpxApp = {
-            addTokens: (count: number) => {
-                const u = addTokensToUsage(count);
-                setUsage(u);
-            },
-            trackApiRequest: () => {
-                const u = trackUsage(0);
-                setUsage(u);
-            },
+            addTokens: (count: number) => { const u = addTokensToUsage(count); setUsage(u); },
+            trackApiRequest: () => { const u = trackUsage(0); setUsage(u); },
             getUsage: () => getApiUsage()
         };
     }, []);
@@ -388,36 +334,86 @@ const App: React.FC = () => {
 
     const handleSplashFinish = () => {
         setShowSplash(false);
-        setShowInfographic(true); // Mostra l'infografica
+        setShowInfographic(true); 
     };
 
     const handleInfographicNext = () => {
         setShowInfographic(false);
-        sessionStorage.setItem(SESSION_ACTIVE_KEY, 'true'); // Flag session as active
-        checkSession(); // Avvia il caricamento dati in background
+        sessionStorage.setItem(SESSION_ACTIVE_KEY, 'true'); 
+        checkSession(); 
     };
+
+    // --- CHECK FOR WORKOUT MATCH LOGIC ---
+    const checkAndPromptWorkoutMatch = (newTracks: Track[]) => {
+        for (const track of newTracks) {
+            const trackDate = new Date(track.points[0].time).toDateString();
+            const match = plannedWorkouts.find(w => 
+                new Date(w.date).toDateString() === trackDate && 
+                !w.completedTrackId && 
+                w.entryType === 'workout'
+            );
+            
+            if (match) {
+                setPendingWorkoutMatch({ track, workout: match });
+                return; // Prompt for the first one found
+            }
+        }
+    };
+
+    const confirmWorkoutMatch = async () => {
+        if (!pendingWorkoutMatch) return;
+        const { track, workout } = pendingWorkoutMatch;
+
+        // 1. Rename track to match workout title
+        const updatedTrack: Track = {
+            ...track,
+            name: workout.title, // Apply rename
+            linkedWorkout: {
+                title: workout.title,
+                description: workout.description,
+                activityType: workout.activityType
+            }
+        };
+
+        // 2. Mark workout as completed
+        const updatedWorkout: PlannedWorkout = {
+            ...workout,
+            completedTrackId: track.id
+        };
+
+        // 3. Save updates
+        const nextTracks = tracks.map(t => t.id === track.id ? updatedTrack : t);
+        setTracks(nextTracks);
+        await saveTracksToDB(nextTracks);
+
+        const nextWorkouts = plannedWorkouts.map(w => w.id === workout.id ? updatedWorkout : w);
+        setPlannedWorkouts(nextWorkouts);
+        await savePlannedWorkoutsToDB(nextWorkouts);
+
+        setPendingWorkoutMatch(null);
+        addToast(`Corsa rinominata: "${workout.title}"`, "success");
+    };
+
+    const cancelWorkoutMatch = () => {
+        setPendingWorkoutMatch(null);
+    };
+    // -------------------------------------
 
     const runAutoStravaSync = async (currentTracks: Track[]) => {
         try {
-            // Find most recent track date
             const lastTrack = currentTracks.length > 0 ? currentTracks[0] : null;
             const after = lastTrack ? Math.floor(lastTrack.points[0].time.getTime() / 1000) : undefined;
-
             const activities = await fetchStravaActivitiesMetadata(after, undefined, 10);
             const runningOnly = activities.filter((a: any) => ['Run', 'TrailRun', 'VirtualRun'].includes(a.type));
-
-            // Check if we have anything new that is not already in DB or deleted list
             const uniqueNew = runningOnly.filter((a: any) => {
-                // Strava IDs are usually prefixed
                 const stravaId = `strava-${a.id}`;
                 const exists = currentTracks.some(t => t.id === stravaId);
-                const isDeleted = isPreviouslyDeletedStravaTrack({ ...a, id: stravaId } as any); // Lightweight check
+                const isDeleted = isPreviouslyDeletedStravaTrack({ ...a, id: stravaId } as any);
                 return !exists && !isDeleted;
             });
 
             if (uniqueNew.length > 0) {
                 addToast(`Trovate ${uniqueNew.length} nuove attività su Strava.`, "info");
-                // Open Modal in "Auto Start" mode
                 setStravaAutoModal(true);
                 setShowStravaSyncOptions(true);
             }
@@ -510,6 +506,7 @@ const App: React.FC = () => {
         }
     };
 
+    // --- RACE LOGIC ---
     const [raceState, setRaceState] = useState<'idle' | 'running' | 'paused' | 'finished'>('idle');
     const [raceTime, setRaceTime] = useState(0);
     const [raceSpeed, setRaceSpeed] = useState(10);
@@ -517,7 +514,6 @@ const App: React.FC = () => {
     const [raceResults, setRaceResults] = useState<RaceResult[] | null>(null);
     const [raceGaps, setRaceGaps] = useState<Map<string, number | undefined>>(new Map());
     const [raceHistory, setRaceHistory] = useState<RaceGapSnapshot[]>([]); 
-    
     const [leadStats, setLeadStats] = useState<Record<string, LeaderStats>>({});
     
     const raceLastTimeRef = useRef<number | null>(null);
@@ -543,11 +539,7 @@ const App: React.FC = () => {
     const startRaceAnimation = (renamedMap: Record<string, string>) => {
         const selected = tracks.filter(t => raceSelectionIds.has(t.id));
         if (selected.length < 1) return;
-        
-        selected.forEach(t => {
-            if (renamedMap[t.id]) t.name = renamedMap[t.id];
-        });
-
+        selected.forEach(t => { if (renamedMap[t.id]) t.name = renamedMap[t.id]; });
         setRaceResults(null);
         raceTimeRef.current = 0;
         lastHistoryUpdateRef.current = 0;
@@ -555,21 +547,12 @@ const App: React.FC = () => {
         setRaceState('running');
         setRaceHistory([]);
         setLeadStats({}); 
-        
-        setRaceRunners(selected.map(t => ({
-            trackId: t.id,
-            name: t.name,
-            position: t.points[0],
-            color: t.color,
-            pace: 0,
-            finished: false
-        })));
+        setRaceRunners(selected.map(t => ({ trackId: t.id, name: t.name, position: t.points[0], color: t.color, pace: 0, finished: false })));
         setShowRaceSetup(false);
     };
 
     useEffect(() => {
         let frame: number;
-        
         const animateRace = (time: number) => {
             if (raceLastTimeRef.current !== null) {
                 const delta = time - raceLastTimeRef.current;
@@ -591,31 +574,17 @@ const App: React.FC = () => {
                         const state = getTrackStateAtTime(t, nextTime);
                         if (state) {
                             let isFinished = false;
-                            
                             if (state.point.cummulativeDistance >= t.distance || nextTime >= t.duration) {
                                 isFinished = true;
                                 const lastPt = t.points[t.points.length - 1];
-                                newRunners.push({
-                                    trackId: t.id, name: t.name, position: lastPt, color: t.color, pace: 0,
-                                    finished: true, finishTime: t.duration
-                                });
+                                newRunners.push({ trackId: t.id, name: t.name, position: lastPt, color: t.color, pace: 0, finished: true, finishTime: t.duration });
                             } else {
-                                newRunners.push({
-                                    trackId: t.id,
-                                    name: t.name,
-                                    position: state.point,
-                                    color: t.color,
-                                    pace: state.pace,
-                                    finished: false
-                                });
+                                newRunners.push({ trackId: t.id, name: t.name, position: state.point, color: t.color, pace: state.pace, finished: false });
                                 allFinished = false;
                             }
                         } else {
                              const lastPt = t.points[t.points.length - 1];
-                             newRunners.push({
-                                trackId: t.id, name: t.name, position: lastPt, color: t.color, pace: 0,
-                                finished: true, finishTime: t.duration
-                            });
+                             newRunners.push({ trackId: t.id, name: t.name, position: lastPt, color: t.color, pace: 0, finished: true, finishTime: t.duration });
                         }
                     }
                 });
@@ -624,10 +593,7 @@ const App: React.FC = () => {
                 if (sorted.length > 0) {
                     const leader = sorted[0];
                     const leaderDist = leader.position.cummulativeDistance;
-                    
-                    sorted.forEach((r) => {
-                        currentGaps.set(r.trackId, (leaderDist - r.position.cummulativeDistance) * 1000);
-                    });
+                    sorted.forEach((r) => { currentGaps.set(r.trackId, (leaderDist - r.position.cummulativeDistance) * 1000); });
 
                     if (simulationStateRef.current === 'running') {
                         setLeadStats(prev => {
@@ -644,9 +610,7 @@ const App: React.FC = () => {
 
                     if (nextTime - lastHistoryUpdateRef.current > 5000) {
                         const gapsObj: Record<string, number> = {};
-                        sorted.forEach(r => {
-                            gapsObj[r.trackId] = (leaderDist - r.position.cummulativeDistance) * 1000;
-                        });
+                        sorted.forEach(r => { gapsObj[r.trackId] = (leaderDist - r.position.cummulativeDistance) * 1000; });
                         setRaceHistory(prev => [...prev, { time: nextTime, gaps: gapsObj }]);
                         lastHistoryUpdateRef.current = nextTime;
                     }
@@ -657,14 +621,7 @@ const App: React.FC = () => {
 
                 if (allFinished) {
                     setRaceState('finished');
-                    const results = selected.map(t => ({
-                        trackId: t.id,
-                        name: t.name,
-                        finishTime: t.duration,
-                        distance: t.distance,
-                        rank: 0
-                    })).sort((a,b) => a.finishTime - b.finishTime)
-                       .map((r, i) => ({ ...r, rank: i + 1 }));
+                    const results = selected.map(t => ({ trackId: t.id, name: t.name, finishTime: t.duration, distance: t.distance, rank: 0 })).sort((a,b) => a.finishTime - b.finishTime).map((r, i) => ({ ...r, rank: i + 1 }));
                     setRaceResults(results);
                     raceLastTimeRef.current = null;
                     return;
@@ -679,7 +636,6 @@ const App: React.FC = () => {
         } else {
             raceLastTimeRef.current = null;
         }
-
         return () => cancelAnimationFrame(frame);
     }, [raceState, raceSpeed, tracks, raceSelectionIds]);
 
@@ -700,7 +656,6 @@ const App: React.FC = () => {
             isExternal: true, 
             color: '#a855f7',
         };
-
         setTracks(prev => [ghostTrack, ...prev]);
         setRaceSelectionIds(prev => {
             const next = new Set(prev);
@@ -810,7 +765,13 @@ const App: React.FC = () => {
                 else skipCount++;
             }
         }
-        if (newCount > 0) { const updated = [...newTracks, ...tracks]; setTracks(updated); await saveTracksToDB(updated); addToast(`Caricate ${newCount} nuove corse.`, "success"); }
+        if (newCount > 0) { 
+            const updated = [...newTracks, ...tracks]; 
+            setTracks(updated); 
+            await saveTracksToDB(updated); 
+            addToast(`Caricate ${newCount} nuove corse.`, "success"); 
+            checkAndPromptWorkoutMatch(newTracks); // Check for match
+        }
         if (skipCount > 0) addToast(`${skipCount} attività già presenti ignorate.`, "info");
         setIsDataLoading(false);
         setFitBoundsCounter(c => c + 1);
@@ -826,7 +787,13 @@ const App: React.FC = () => {
             else if (isPreviouslyDeletedStravaTrack(track)) previouslyDeletedCount++;
             else { toAdd.push(track); importedCount++; }
         }
-        if (importedCount > 0) { const updated = [...toAdd, ...tracks]; setTracks(updated); await saveTracksToDB(updated); addToast(`Importate con successo ${importedCount} corse da Strava.`, "success"); }
+        if (importedCount > 0) { 
+            const updated = [...toAdd, ...tracks]; 
+            setTracks(updated); 
+            await saveTracksToDB(updated); 
+            addToast(`Importate con successo ${importedCount} corse da Strava.`, "success");
+            checkAndPromptWorkoutMatch(toAdd); // Check for match
+        }
         if (skippedCount > 0) addToast(`${skippedCount} attività Strava ignorate perché già presenti.`, "info");
         if (previouslyDeletedCount > 0) addToast(`${previouslyDeletedCount} attività Strava ignorate perché eliminate in passato.`, "info");
         setIsDataLoading(false);
@@ -1145,6 +1112,15 @@ const App: React.FC = () => {
                             setTracks(prev => prev.filter(t => t.id !== id));
                         }
                     }}
+                />
+            )}
+
+            {/* CONFIRM MATCH MODAL */}
+            {pendingWorkoutMatch && (
+                <WorkoutConfirmationModal 
+                    workout={pendingWorkoutMatch.workout}
+                    onConfirm={confirmWorkoutMatch}
+                    onCancel={cancelWorkoutMatch}
                 />
             )}
 

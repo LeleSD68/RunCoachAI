@@ -94,11 +94,12 @@ const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTr
             const s = calculateTrackStats(t);
             const steps = s.avgCadence ? Math.round(s.avgCadence * (s.movingDuration / 60000)) : 0;
             const calories = Math.round(t.distance * 70); // Rough estimate 1kcal/kg/km assuming 70kg
+            const date = t.points?.[0]?.time ? new Date(t.points[0].time).getTime() : 0;
             return {
                 id: t.id,
                 track: t,
                 stats: s,
-                date: new Date(t.points[0].time).getTime(),
+                date: date,
                 name: t.name,
                 distance: t.distance,
                 duration: s.movingDuration,
@@ -161,13 +162,15 @@ const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTr
     };
 
     return (
-        <div className="absolute inset-0 z-[3000] bg-slate-900 flex flex-col font-sans text-white animate-fade-in overflow-hidden pb-24 lg:pb-0">
+        <div className="absolute inset-0 z-[3000] bg-slate-900 flex flex-col font-sans text-white animate-fade-in overflow-hidden pb-16 lg:pb-0">
             {/* Header */}
             <header className="p-4 bg-slate-800 border-b border-slate-700 flex flex-wrap gap-4 justify-between items-center shrink-0 z-20 shadow-md">
                 <div className="flex items-center gap-4">
-                    <button onClick={onClose} className="p-2 bg-slate-700 hover:bg-slate-600 rounded-full transition-colors">◀</button>
+                    <button onClick={onClose} className="flex items-center gap-2 text-slate-400 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors">
+                        <span className="text-lg">←</span> Indietro
+                    </button>
                     <h2 className="text-xl font-black text-cyan-400 uppercase italic flex items-center gap-2">
-                        Data Explorer
+                        Archivio Completo
                         <span className="text-[10px] bg-slate-900 text-slate-400 px-2 py-0.5 rounded-full not-italic font-mono border border-slate-700">{tracks.length}</span>
                     </h2>
                 </div>
@@ -265,16 +268,18 @@ const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTr
                                                 content = (
                                                     <div className="w-10 h-8 bg-slate-950 rounded border border-slate-700 overflow-hidden relative">
                                                         <TrackPreview points={row.track.points} color={row.track.color} className="w-full h-full opacity-80" />
+                                                        {row.track.isArchived && <div className="absolute inset-0 bg-amber-900/40 flex items-center justify-center"><span className="text-xs">🗄️</span></div>}
                                                     </div>
                                                 );
                                                 break;
                                             case 'date': 
-                                                content = new Date(row.date).toLocaleDateString(); 
+                                                content = row.date > 0 ? new Date(row.date).toLocaleDateString() : '-'; 
                                                 className += 'text-slate-500 font-mono';
                                                 break;
                                             case 'name': 
                                                 content = (
                                                     <div className="flex items-center gap-1.5">
+                                                        {row.track.isArchived && <span title="Archiviata" className="text-amber-400 text-xs">🗄️</span>}
                                                         <span className="font-bold text-white group-hover:text-cyan-400 truncate max-w-[200px] sm:max-w-[300px]" title={row.name}>{row.name}</span>
                                                         {isStrava && <StravaSmallIcon />}
                                                     </div>

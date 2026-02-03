@@ -6,7 +6,7 @@ interface TooltipProps {
   children: React.ReactNode;
   text: string;
   subtext?: string;
-  helpText?: string; // Nuova prop per istruzioni dettagliate
+  helpText?: string;
   position?: 'top' | 'bottom' | 'left' | 'right';
   delay?: number;
 }
@@ -21,7 +21,7 @@ const Tooltip: React.FC<TooltipProps> = ({
 }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [showExtraHelp, setShowExtraHelp] = useState(false);
-  const [coords, setCoords] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null); // Start null to prevent flash
   const [arrowStyles, setArrowStyles] = useState<{ [key: string]: string | number }>({});
   
   const timerRef = useRef<number | null>(null);
@@ -36,7 +36,6 @@ const Tooltip: React.FC<TooltipProps> = ({
     timerRef.current = window.setTimeout(() => {
       setIsVisible(true);
       
-      // Se esiste un testo di aiuto, avvia il timer di 2 secondi
       if (helpText) {
           helpTimerRef.current = window.setTimeout(() => {
               setShowExtraHelp(true);
@@ -45,7 +44,7 @@ const Tooltip: React.FC<TooltipProps> = ({
 
       autoCloseTimerRef.current = window.setTimeout(() => {
         setIsVisible(false);
-      }, 8000); // Aumentato tempo per leggere helpText
+      }, 8000); 
     }, delay);
   };
 
@@ -56,10 +55,10 @@ const Tooltip: React.FC<TooltipProps> = ({
     
     setIsVisible(false);
     setShowExtraHelp(false);
+    setCoords(null); // Reset coords on close
   };
 
   const handleClick = (e: React.MouseEvent) => {
-    // Suggerimento rapido: il click forza l'apertura ma resetta l'help
     if (!isVisible) {
         setIsVisible(true);
         setShowExtraHelp(false);
@@ -72,7 +71,7 @@ const Tooltip: React.FC<TooltipProps> = ({
     if (isVisible && triggerRef.current && tooltipRef.current) {
         const triggerRect = triggerRef.current.getBoundingClientRect();
         const tooltipRect = tooltipRef.current.getBoundingClientRect();
-        const margin = 8;
+        const margin = 10; // Distance from element
         
         const vw = window.innerWidth;
         const vh = window.innerHeight;
@@ -108,6 +107,7 @@ const Tooltip: React.FC<TooltipProps> = ({
 
         let calculated = calculatePosition(finalPos);
 
+        // Flip if out of bounds
         if (finalPos === 'top' && calculated.top < 0) {
             finalPos = 'bottom';
             calculated = calculatePosition('bottom');
@@ -116,9 +116,11 @@ const Tooltip: React.FC<TooltipProps> = ({
             calculated = calculatePosition('top');
         }
 
+        // Horizontal constrain
         if (calculated.left < 5) calculated.left = 5;
         else if (calculated.left + tooltipRect.width > vw - 5) calculated.left = vw - tooltipRect.width - 5;
 
+        // Arrow Calculation
         const triggerCenterX = triggerRect.left + triggerRect.width / 2;
         const triggerCenterY = triggerRect.top + triggerRect.height / 2;
         
@@ -126,18 +128,19 @@ const Tooltip: React.FC<TooltipProps> = ({
         
         if (finalPos === 'top' || finalPos === 'bottom') {
             let arrowLeft = triggerCenterX - calculated.left;
-            arrowLeft = Math.max(10, Math.min(tooltipRect.width - 10, arrowLeft));
+            // Clamp arrow to tooltip bounds (minus radius)
+            arrowLeft = Math.max(12, Math.min(tooltipRect.width - 12, arrowLeft));
             arrowStyle = {
                 left: `${arrowLeft}px`,
-                [finalPos === 'top' ? 'bottom' : 'top']: '-5px',
+                [finalPos === 'top' ? 'bottom' : 'top']: '-4px', // Slight overlap to hide border seam if needed
                 transform: finalPos === 'top' ? 'translateX(-50%) rotate(0deg)' : 'translateX(-50%) rotate(180deg)'
             };
         } else {
              let arrowTop = triggerCenterY - calculated.top;
-             arrowTop = Math.max(10, Math.min(tooltipRect.height - 10, arrowTop));
+             arrowTop = Math.max(12, Math.min(tooltipRect.height - 12, arrowTop));
              arrowStyle = {
                 top: `${arrowTop}px`,
-                [finalPos === 'left' ? 'right' : 'left']: '-5px',
+                [finalPos === 'left' ? 'right' : 'left']: '-4px',
                 transform: finalPos === 'left' ? 'translateY(-50%) rotate(-90deg)' : 'translateY(-50%) rotate(90deg)'
              };
         }
@@ -145,7 +148,7 @@ const Tooltip: React.FC<TooltipProps> = ({
         setCoords({ top: calculated.top, left: calculated.left });
         setArrowStyles(arrowStyle);
     }
-  }, [isVisible, showExtraHelp, position]); // Ricalcola se cambia l'altezza per l'help
+  }, [isVisible, showExtraHelp, position]);
 
   useEffect(() => {
     return () => {
@@ -159,7 +162,7 @@ const Tooltip: React.FC<TooltipProps> = ({
     <>
       <div 
         ref={triggerRef}
-        className="relative flex items-center justify-center cursor-help"
+        className="relative flex items-center justify-center"
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onClick={handleClick}
@@ -170,29 +173,28 @@ const Tooltip: React.FC<TooltipProps> = ({
       {isVisible && createPortal(
         <div 
             ref={tooltipRef}
-            className="fixed z-[10000] pointer-events-none transition-all duration-300 ease-out"
+            className="fixed z-[10000] pointer-events-none transition-opacity duration-200"
             style={{ 
-                top: `${coords.top}px`, 
-                left: `${coords.left}px`,
-                opacity: coords.top === 0 && coords.left === 0 ? 0 : 1 
+                top: coords ? `${coords.top}px` : '-9999px', 
+                left: coords ? `${coords.left}px` : '-9999px',
+                opacity: coords ? 1 : 0,
+                // Simple float up animation when appearing
+                animation: coords ? 'tooltip-float 0.2s ease-out' : 'none'
             }}
         >
-            <div className="bg-slate-900/95 backdrop-blur-md border border-cyan-500/40 p-3 rounded-lg shadow-2xl min-w-[160px] max-w-[260px] ring-1 ring-white/10 relative overflow-hidden">
-                <p className="text-cyan-400 font-black text-[11px] uppercase tracking-wider mb-1 leading-tight">
+            <div className="bg-slate-900/95 backdrop-blur-md border border-cyan-500/40 p-2.5 rounded-xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.5)] min-w-[140px] max-w-[240px] ring-1 ring-white/10 relative">
+                <p className="text-cyan-400 font-black text-[10px] uppercase tracking-widest mb-0.5 leading-tight text-center">
                     {text}
                 </p>
                 {subtext && (
-                    <p className="text-slate-300 text-[10px] leading-relaxed font-bold">
+                    <p className="text-slate-300 text-[10px] leading-tight font-bold text-center">
                     {subtext}
                     </p>
                 )}
 
                 {showExtraHelp && helpText && (
                     <div className="mt-2 pt-2 border-t border-slate-700/50 animate-fade-in-up">
-                        <div className="flex items-center gap-1 mb-1">
-                            <span className="text-[8px] bg-purple-600 text-white px-1.5 rounded font-black uppercase tracking-tighter">Istruzioni</span>
-                        </div>
-                        <p className="text-slate-400 text-[9px] leading-snug italic">
+                        <p className="text-slate-400 text-[9px] leading-snug italic text-center">
                             {helpText}
                         </p>
                     </div>
@@ -208,11 +210,14 @@ const Tooltip: React.FC<TooltipProps> = ({
         document.body
       )}
       <style>{`
-          @keyframes fade-in-up {
-              from { opacity: 0; transform: translateY(5px); }
+          @keyframes tooltip-float {
+              from { opacity: 0; transform: translateY(4px); }
               to { opacity: 1; transform: translateY(0); }
           }
-          .animate-fade-in-up { animation: fade-in-up 0.3s ease-out forwards; }
+          @keyframes fade-in-up {
+              from { opacity: 0; transform: translateY(2px); }
+              to { opacity: 1; transform: translateY(0); }
+          }
       `}</style>
     </>
   );

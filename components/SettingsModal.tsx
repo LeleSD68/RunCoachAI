@@ -44,6 +44,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, userProfile, onU
         }
     };
 
+    const handleReloadApp = () => {
+        window.location.reload();
+    };
+
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[9000] p-4 animate-fade-in" onClick={onClose}>
             <div className="bg-slate-900 text-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col border border-slate-700 overflow-hidden max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
@@ -54,6 +58,23 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, userProfile, onU
 
                 <div className="p-6 space-y-6 bg-slate-900/50 overflow-y-auto custom-scrollbar">
                     
+                    {/* APP SYSTEM */}
+                    <section className="space-y-3">
+                        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-700/50 pb-2">Sistema</h3>
+                        <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex items-center justify-between">
+                            <div>
+                                <div className="font-bold text-white text-sm">Ricarica App</div>
+                                <p className="text-[10px] text-slate-400 leading-tight">Forza l'aggiornamento all'ultima versione.</p>
+                            </div>
+                            <button 
+                                onClick={handleReloadApp}
+                                className="px-3 py-2 bg-slate-700 hover:bg-cyan-600 hover:text-white text-slate-300 border border-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm"
+                            >
+                                ↻ Ricarica
+                            </button>
+                        </div>
+                    </section>
+
                     {/* CALENDAR PREFERENCE */}
                     <section className="space-y-3">
                         <h3 className="text-xs font-black text-blue-400 uppercase tracking-widest border-b border-blue-900/30 pb-2">Sistema Operativo & Calendario</h3>
