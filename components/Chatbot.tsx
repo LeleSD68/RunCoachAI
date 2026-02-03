@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { GoogleGenAI, Chat, GenerateContentResponse } from "@google/genai";
 import { Track, UserProfile, ChatMessage, PlannedWorkout, ActivityType } from '../types';
@@ -337,7 +336,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
                         
                         {expandedDates.has(date) && (
                             <div className="space-y-2">
-                                {items.map(({ msg, index }: { msg: ChatMessage, index: number }) => renderMessage(msg, index))}
+                                {(items as { msg: ChatMessage, index: number }[]).map(({ msg, index }) => renderMessage(msg, index))}
                             </div>
                         )}
                     </div>
