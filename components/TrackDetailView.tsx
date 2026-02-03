@@ -68,6 +68,18 @@ const TrackDetailView: React.FC<{
     const [mapMetric, setMapMetric] = useState<string>('none');
     const [showShareModal, setShowShareModal] = useState(false);
     
+    // Local State for Metadata Inputs (Fixes input lag/locking)
+    const [localNotes, setLocalNotes] = useState(track.notes || '');
+    const [localRpe, setLocalRpe] = useState<number | ''>(track.rpe || '');
+    const [localShoe, setLocalShoe] = useState(track.shoe || '');
+
+    // Sync local state when track prop changes (e.g. navigation or external updates)
+    useEffect(() => {
+        setLocalNotes(track.notes || '');
+        setLocalRpe(track.rpe || '');
+        setLocalShoe(track.shoe || '');
+    }, [track.id, track.notes, track.rpe, track.shoe]);
+
     const [layoutSizes, setLayoutSizes] = useState({ sidebarWidth: 320, mapHeightRatio: 0.6 });
 
     useEffect(() => {
@@ -169,12 +181,58 @@ const TrackDetailView: React.FC<{
             <div className="bg-slate-900/20 rounded border border-slate-800/50">{sectionHeader("Sommario", "stats", "📊")}{sections.stats && <div className="p-2"><StatsPanel stats={stats} selectedSegment={null} onSegmentSelect={handleSplitSelect} /></div>}</div>
             <div className="bg-slate-900/20 rounded border border-slate-800/50">{sectionHeader("Records", "records", "🏆")}{sections.records && <div className="p-2"><PersonalRecordsPanel track={track} /></div>}</div>
             <div className="bg-slate-900/20 rounded border border-slate-800/50">{sectionHeader("Zone", "zones", "❤️")}{sections.zones && <div className="p-2"><HeartRateZonePanel track={track} userProfile={userProfile} onZoneSelect={(segs) => { setHighlightedSegments(segs); setSelectedRange(null); if(segs) setFitTrigger(c=>c+1); }} /></div>}</div>
+            
+            {/* METADATA SECTION: UPDATED WITH LOCAL STATE */}
             <div className="bg-slate-900/20 rounded border border-slate-800/50">{sectionHeader("Note", "metadata", "📝")}{sections.metadata && (
-                <div className="p-3 space-y-3 animate-fade-in"><div className="grid grid-cols-2 gap-2">
-                <div><label className="text-[8px] font-black text-slate-500 block mb-1 uppercase">RPE (1-10)</label><select value={track.rpe || ''} onChange={(e) => onUpdateTrackMetadata?.(track.id, { rpe: parseInt(e.target.value) })} className="w-full bg-slate-800 border border-slate-700 rounded p-1 text-[10px] text-white"><option value="">-</option>{[...Array(10)].map((_, i) => <option key={i+1} value={i+1}>{i+1}</option>)}</select></div>
-                <div><label className="text-[8px] font-black text-slate-500 block mb-1 uppercase">Scarpa</label><select value={track.shoe || ''} onChange={(e) => onUpdateTrackMetadata?.(track.id, { shoe: e.target.value })} className="w-full bg-slate-800 border border-slate-700 rounded p-1 text-[10px] text-white"><option value="">-</option>{userProfile.shoes?.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
-                </div><div><label className="text-[8px] font-black text-slate-500 block mb-1 uppercase">Feedback</label><textarea value={track.notes || ''} onChange={(e) => onUpdateTrackMetadata?.(track.id, { notes: e.target.value })} className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-xs text-white h-16 resize-none outline-none focus:border-cyan-500/50" /></div></div>
+                <div className="p-3 space-y-3 animate-fade-in">
+                    <div className="grid grid-cols-2 gap-2">
+                        <div>
+                            <label className="text-[8px] font-black text-slate-500 block mb-1 uppercase">RPE (1-10)</label>
+                            <select 
+                                value={localRpe} 
+                                onChange={(e) => {
+                                    const val = e.target.value ? parseInt(e.target.value) : '';
+                                    setLocalRpe(val);
+                                    onUpdateTrackMetadata?.(track.id, { rpe: val === '' ? undefined : val });
+                                }} 
+                                className="w-full bg-slate-800 border border-slate-700 rounded p-1 text-[10px] text-white outline-none focus:border-cyan-500 transition-colors"
+                            >
+                                <option value="">-</option>
+                                {[...Array(10)].map((_, i) => <option key={i+1} value={i+1}>{i+1}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="text-[8px] font-black text-slate-500 block mb-1 uppercase">Scarpa</label>
+                            <select 
+                                value={localShoe} 
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setLocalShoe(val);
+                                    onUpdateTrackMetadata?.(track.id, { shoe: val });
+                                }} 
+                                className="w-full bg-slate-800 border border-slate-700 rounded p-1 text-[10px] text-white outline-none focus:border-cyan-500 transition-colors"
+                            >
+                                <option value="">-</option>
+                                {userProfile.shoes?.map(s => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label className="text-[8px] font-black text-slate-500 block mb-1 uppercase">Feedback</label>
+                        <textarea 
+                            value={localNotes} 
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                setLocalNotes(val);
+                                onUpdateTrackMetadata?.(track.id, { notes: val });
+                            }} 
+                            className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-xs text-white h-16 resize-none outline-none focus:border-cyan-500 transition-colors" 
+                            placeholder="Scrivi qui le tue note..."
+                        />
+                    </div>
+                </div>
             )}</div>
+
             <div className="bg-slate-900/20 rounded border border-slate-800/50">{sectionHeader("Segmenti AI", "aiSegments", "🔍")}{sections.aiSegments && <div className="p-2"><GeminiSegmentsPanel track={track} stats={stats} userProfile={userProfile} onSegmentSelect={() => {}} selectedSegment={null} onCheckAiAccess={onCheckAiAccess} /></div>}</div>
             <div className="bg-slate-900/20 rounded border border-slate-800/50">{sectionHeader("Coach AI", "aiAnalysis", "🧠")}{sections.aiAnalysis && <div className="p-2"><GeminiTrackAnalysisPanel stats={stats} userProfile={userProfile} track={track} plannedWorkouts={plannedWorkouts} allHistory={allHistory} onAddPlannedWorkout={onAddPlannedWorkout} onUpdateTrackMetadata={onUpdateTrackMetadata} onCheckAiAccess={onCheckAiAccess} /></div>}</div>
         </div>
