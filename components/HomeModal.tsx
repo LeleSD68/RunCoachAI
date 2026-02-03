@@ -12,6 +12,7 @@ interface HomeModalProps {
     onExportBackup: () => void;
     onUploadTracks: (files: File[] | null) => void;
     onClose: () => void;
+    onOpenList?: () => void; // New prop for Mobile List navigation
     trackCount: number;
     plannedWorkouts?: PlannedWorkout[];
     onOpenWorkout?: (workoutId: string) => void; 
@@ -66,6 +67,11 @@ const SparklesIcon = () => (
         <path d="M10.89 2.11a.75.75 0 0 0-1.78 0l-1.5 3.22-3.53.51a.75.75 0 0 0-.42 1.28l2.55 2.49-.6 3.52a.75.75 0 0 0 1.09.79l3.16-1.66 3.16 1.66a.75.75 0 0 0 1.09-.79l-.6-3.52 2.55-2.49a.75.75 0 0 0-.42-1.28l-3.53-.51-1.5-3.22Z" />
     </svg>
 );
+const ListIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+        <path fillRule="evenodd" d="M3 6.75A.75.75 0 0 1 3.75 6h16.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 6.75ZM3 12a.75.75 0 0 1 .75-.75h16.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 12Zm0 5.25a.75.75 0 0 1 .75-.75h16.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 15.25ZM2 10a.75.75 0 0 1-.75-.75Z" clipRule="evenodd" />
+    </svg>
+);
 
 const LargeLogoIcon = () => (
     <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-2xl border border-white/10 p-2">
@@ -75,7 +81,7 @@ const LargeLogoIcon = () => (
 
 const HomeModal: React.FC<HomeModalProps> = ({ 
     onOpenDiary, onOpenExplorer, onOpenHelp, onImportBackup, onExportBackup, 
-    onUploadTracks, onClose, trackCount, plannedWorkouts = [], onOpenWorkout, 
+    onUploadTracks, onClose, onOpenList, trackCount, plannedWorkouts = [], onOpenWorkout, 
     onOpenProfile, onOpenSettings, onOpenChangelog, onUploadOpponent, onEnterRaceMode, onManualCloudSave, onCheckAiAccess,
     onLogout, onLogin, isGuest, onOpenStravaConfig, userProfile, onOpenSocial, unreadCount = 0, onlineCount = 0
 }) => {
@@ -125,7 +131,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
                                     onClick={onOpenChangelog}
                                     className="bg-slate-800 hover:bg-slate-700 text-[10px] font-black text-slate-400 hover:text-white px-2 py-0.5 rounded border border-slate-700 select-none cursor-pointer transition-colors"
                                 >
-                                    v1.43
+                                    v1.44
                                 </button>
                             </div>
                             <div className="flex items-center gap-2 mt-1">
@@ -229,19 +235,31 @@ const HomeModal: React.FC<HomeModalProps> = ({
                                 <div className="p-1.5 md:p-2 bg-amber-500/20 rounded-xl text-amber-400 w-fit mb-1 md:mb-2"><SparklesIcon /></div>
                                 <div>
                                     <h3 className="text-xs md:text-sm font-bold text-white">Novità</h3>
-                                    <p className="text-[9px] md:text-[10px] text-slate-400">Aggiornamento v1.43</p>
+                                    <p className="text-[9px] md:text-[10px] text-slate-400">Aggiornamento v1.44</p>
                                 </div>
                             </button>
 
                             {/* 6. RACE */}
                             <button 
                                 onClick={onEnterRaceMode}
-                                className="col-span-2 md:col-span-1 bg-slate-800/50 hover:bg-slate-800 border border-slate-700 hover:border-green-500 rounded-2xl md:rounded-3xl p-3 md:p-4 relative group transition-all text-left flex flex-col justify-between min-h-[80px] md:h-auto"
+                                className="col-span-1 bg-slate-800/50 hover:bg-slate-800 border border-slate-700 hover:border-green-500 rounded-2xl md:rounded-3xl p-3 md:p-4 relative group transition-all text-left flex flex-col justify-between min-h-[80px] md:h-auto"
                             >
                                 <div className="p-1.5 md:p-2 bg-green-500/20 rounded-xl text-green-400 w-fit mb-1 md:mb-2"><RaceIcon /></div>
                                 <div>
                                     <h3 className="text-xs md:text-sm font-bold text-white">Gara</h3>
                                     <p className="text-[9px] md:text-[10px] text-slate-400">Simulazione 3D</p>
+                                </div>
+                            </button>
+
+                            {/* 7. LISTA CORSE (NUOVO PULSANTE FISSO) */}
+                            <button 
+                                onClick={onOpenList}
+                                className="col-span-1 bg-slate-800/50 hover:bg-slate-800 border border-slate-700 hover:border-cyan-500 rounded-2xl md:rounded-3xl p-3 md:p-4 relative group transition-all text-left flex flex-col justify-between min-h-[80px] md:h-auto"
+                            >
+                                <div className="p-1.5 md:p-2 bg-cyan-500/20 rounded-xl text-cyan-400 w-fit mb-1 md:mb-2"><ListIcon /></div>
+                                <div>
+                                    <h3 className="text-xs md:text-sm font-bold text-white">Lista Corse</h3>
+                                    <p className="text-[9px] md:text-[10px] text-slate-400">Torna alla Mappa</p>
                                 </div>
                             </button>
 
@@ -306,16 +324,6 @@ const HomeModal: React.FC<HomeModalProps> = ({
                             </div>
                         </div>
                     )}
-                </div>
-
-                {/* Mobile Floating Map Button - Visible only on mobile */}
-                <div className="md:hidden absolute bottom-6 left-1/2 -translate-x-1/2 z-50">
-                    <button 
-                        onClick={onClose} 
-                        className="bg-cyan-600 hover:bg-cyan-500 text-white px-6 py-3 rounded-full font-black text-xs uppercase tracking-widest shadow-[0_0_20px_rgba(8,145,178,0.5)] flex items-center gap-2 transition-transform active:scale-95 animate-bounce-subtle border border-cyan-400/50"
-                    >
-                        <MapIcon /> MAPPA
-                    </button>
                 </div>
 
             </div>

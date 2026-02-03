@@ -95,11 +95,40 @@ export const getFriends = async (currentUserId: string): Promise<UserProfile[]> 
     })) || [];
 };
 
-export const getFriendsActivityFeed = async (currentUserId: string, groupId?: string): Promise<Track[]> => {
-    // Basic Query: Tracks that are public OR shared with me
-    // Note: RLS policies on the server handle the "OR" logic (is_public OR shared_with_users OR shared_with_groups)
-    // We just select all tracks not owned by us (to filter out our own if needed, or keep them)
+export const getTrackById = async (trackId: string): Promise<Track | null> => {
+    // Requires that the user has permission (is owner, or is shared with user/group/public)
+    const { data: t, error } = await supabase.from('tracks').select('*').eq('id', trackId).single();
     
+    if (error || !t) return null;
+
+    let points = [];
+    try {
+        points = typeof t.points_data === 'string' ? JSON.parse(t.points_data) : t.points_data;
+        if (Array.isArray(points)) {
+            points = points.map((p: any) => ({ ...p, time: new Date(p.time) }));
+        }
+    } catch (e) {}
+
+    return {
+        id: t.id,
+        name: t.name,
+        distance: t.distance_km,
+        duration: t.duration_ms,
+        points: points,
+        color: t.color || '#3b82f6',
+        activityType: t.activity_type,
+        rating: t.rating,
+        userDisplayName: 'Shared Activity',
+        userId: t.user_id,
+        startTime: t.start_time,
+        notes: t.notes,
+        shoe: t.shoe,
+        rpe: t.rpe,
+        isPublic: t.is_public
+    };
+};
+
+export const getFriendsActivityFeed = async (currentUserId: string, groupId?: string): Promise<Track[]> => {
     let query = supabase
         .from('tracks')
         .select(`
@@ -111,10 +140,8 @@ export const getFriendsActivityFeed = async (currentUserId: string, groupId?: st
         .limit(30);
 
     if (groupId) {
-        // Filter for tracks shared with this specific group
         query = query.contains('shared_with_groups', [groupId]);
     } else {
-        // General Feed: Exclude own tracks to avoid clutter
         query = query.neq('user_id', currentUserId);
     }
 
@@ -131,7 +158,6 @@ export const getFriendsActivityFeed = async (currentUserId: string, groupId?: st
         try {
             const allPoints = typeof t.points_data === 'string' ? JSON.parse(t.points_data) : t.points_data;
             if (Array.isArray(allPoints)) {
-                // Keep minimal points for the preview
                 const step = Math.max(1, Math.floor(allPoints.length / 100));
                 points = allPoints.filter((_, i) => i % step === 0).map(p => ({ ...p, time: new Date(p.time) }));
             }
@@ -167,22 +193,17 @@ export const getFriendsActivityFeed = async (currentUserId: string, groupId?: st
 export const createGroup = async (name: string, description: string, ownerId: string): Promise<SocialGroup | null> => {
     const { data, error } = await supabase.from('social_groups').insert({ name, description, owner_id: ownerId }).select().single();
     if (error) throw error;
-    // Auto-join owner
     await supabase.from('social_group_members').insert({ group_id: data.id, user_id: ownerId });
     return { ...data, memberCount: 1, isMember: true };
 };
 
 export const getGroups = async (currentUserId: string): Promise<SocialGroup[]> => {
-    // Fetch all groups
     const { data: allGroups, error } = await supabase.from('social_groups').select('*').order('created_at', { ascending: false });
     if(error) return [];
 
-    // Fetch my memberships
     const { data: myMemberships } = await supabase.from('social_group_members').select('group_id').eq('user_id', currentUserId);
     const myGroupIds = new Set(myMemberships?.map((m:any) => m.group_id));
 
-    // Get counts (simplified)
-    // For a scalable app, this should be a view or aggregated query
     const { data: allMembers } = await supabase.from('social_group_members').select('group_id');
     const counts = new Map();
     allMembers?.forEach((m:any) => counts.set(m.group_id, (counts.get(m.group_id)||0)+1));
@@ -207,11 +228,9 @@ export const leaveGroup = async (groupId: string, userId: string) => {
     if (error) throw error;
 };
 
-// New function to add a specific user to a group (by owner)
 export const addMemberToGroup = async (groupId: string, userId: string) => {
     const { error } = await supabase.from('social_group_members').insert({ group_id: groupId, user_id: userId });
     if (error) {
-        // Ignore duplicate key error (already member) to avoid crash, but maybe throw if needed
         if (error.code !== '23505') throw error;
     }
 };

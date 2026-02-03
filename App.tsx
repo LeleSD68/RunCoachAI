@@ -31,7 +31,8 @@ import ReminderNotification from './components/ReminderNotification';
 import RaceSetupModal from './components/RaceSetupModal';
 import ResizablePanel from './components/ResizablePanel';
 import RaceGapChart from './components/RaceGapChart'; 
-import WorkoutConfirmationModal from './components/WorkoutConfirmationModal'; // Import Modale Conferma
+import WorkoutConfirmationModal from './components/WorkoutConfirmationModal'; 
+import InstallPromptModal from './components/InstallPromptModal'; 
 
 import { 
     saveTracksToDB, loadTracksFromDB, 
@@ -52,6 +53,7 @@ import { getFriendsActivityFeed, updatePresence, getFriends } from './services/s
 
 const LAYOUT_PREFS_KEY = 'runcoach_layout_prefs_v6';
 const SESSION_ACTIVE_KEY = 'runcoach_session_active';
+const INSTALL_PROMPT_DISMISSED_KEY = 'runcoach_install_prompt_dismissed';
 
 const App: React.FC = () => {
     const [tracks, setTracks] = useState<Track[]>([]);
@@ -64,6 +66,11 @@ const App: React.FC = () => {
     const [showSplash, setShowSplash] = useState(() => !sessionStorage.getItem(SESSION_ACTIVE_KEY));
     const [showInfographic, setShowInfographic] = useState(false); 
     
+    // PWA Install State
+    const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+    const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+    const [isIOS, setIsIOS] = useState(false);
+
     const [isDataLoading, setIsDataLoading] = useState(false); 
     const [authLimitReached, setAuthLimitReached] = useState(false);
 
@@ -82,7 +89,6 @@ const App: React.FC = () => {
     const [stravaAutoModal, setStravaAutoModal] = useState(false);
     const [showStravaConfig, setShowStravaConfig] = useState(false);
     
-    // Stato per il match automatico allenamento
     const [pendingWorkoutMatch, setPendingWorkoutMatch] = useState<{ track: Track, workout: PlannedWorkout } | null>(null);
 
     const [viewingTrack, setViewingTrack] = useState<Track | null>(null);
@@ -98,22 +104,57 @@ const App: React.FC = () => {
     const [showRaceSetup, setShowRaceSetup] = useState(false);
     const [friendTracks, setFriendTracks] = useState<Track[]>([]);
     
-    // Notifications State
     const [unreadMessages, setUnreadMessages] = useState<number>(0);
     const [onlineFriendsCount, setOnlineFriendsCount] = useState<number>(0);
     const friendsIdRef = useRef<Set<string>>(new Set());
 
-    // Layout Preferences
     const [layoutPrefs, setLayoutPrefs] = useState<{ desktopSidebar: number, mobileListRatio: number }>({ desktopSidebar: 320, mobileListRatio: 0.7 });
 
-    // --- AUTO-RESUME LOGIC ---
+    // --- PWA INSTALL LOGIC ---
+    useEffect(() => {
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
+        if (isStandalone) return;
+        if (sessionStorage.getItem(INSTALL_PROMPT_DISMISSED_KEY)) return;
+
+        const userAgent = window.navigator.userAgent.toLowerCase();
+        const isIosDevice = /iphone|ipad|ipod/.test(userAgent);
+        
+        if (isIosDevice) {
+            setIsIOS(true);
+            setTimeout(() => setShowInstallPrompt(true), 2000);
+        } else {
+            const handleBeforeInstallPrompt = (e: any) => {
+                e.preventDefault();
+                setDeferredPrompt(e);
+                setShowInstallPrompt(true);
+            };
+            window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+            return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+        }
+    }, []);
+
+    const handlePwaInstall = async () => {
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            if (outcome === 'accepted') {
+                setDeferredPrompt(null);
+                setShowInstallPrompt(false);
+            }
+        }
+    };
+
+    const handlePwaIgnore = () => {
+        setShowInstallPrompt(false);
+        sessionStorage.setItem(INSTALL_PROMPT_DISMISSED_KEY, 'true');
+    };
+
     useEffect(() => {
         if (sessionStorage.getItem(SESSION_ACTIVE_KEY)) {
             checkSession();
         }
     }, []);
 
-    // --- HISTORY API HANDLING FOR MOBILE BACK BUTTON ---
     const resetNavigation = useCallback(() => {
         setShowHome(false);
         setShowExplorer(false);
@@ -177,12 +218,20 @@ const App: React.FC = () => {
         }
     };
 
+    // --- FIX FOR MOBILE LIST BUTTON ---
+    const handleOpenListFromHome = useCallback(() => {
+        setShowHome(false);
+        setIsSidebarOpen(true);
+        // Force reset any other view
+        resetNavigation();
+        pushViewState('sidebar');
+    }, [resetNavigation]);
+
     useEffect(() => {
         const stored = localStorage.getItem(LAYOUT_PREFS_KEY);
         if (stored) { try { setLayoutPrefs(JSON.parse(stored)); } catch(e) {} }
     }, []);
 
-    // --- NOTIFICATION & PRESENCE SYSTEM ---
     const sendNotification = (title: string, body: string, icon: string = '/logo.png') => {
         if ('Notification' in window) {
             if (Notification.permission === 'granted') {
@@ -343,7 +392,6 @@ const App: React.FC = () => {
         checkSession(); 
     };
 
-    // --- CHECK FOR WORKOUT MATCH LOGIC ---
     const checkAndPromptWorkoutMatch = (newTracks: Track[]) => {
         for (const track of newTracks) {
             const trackDate = new Date(track.points[0].time).toDateString();
@@ -355,7 +403,7 @@ const App: React.FC = () => {
             
             if (match) {
                 setPendingWorkoutMatch({ track, workout: match });
-                return; // Prompt for the first one found
+                return;
             }
         }
     };
@@ -364,10 +412,9 @@ const App: React.FC = () => {
         if (!pendingWorkoutMatch) return;
         const { track, workout } = pendingWorkoutMatch;
 
-        // 1. Rename track to match workout title
         const updatedTrack: Track = {
             ...track,
-            name: workout.title, // Apply rename
+            name: workout.title, 
             linkedWorkout: {
                 title: workout.title,
                 description: workout.description,
@@ -375,13 +422,11 @@ const App: React.FC = () => {
             }
         };
 
-        // 2. Mark workout as completed
         const updatedWorkout: PlannedWorkout = {
             ...workout,
             completedTrackId: track.id
         };
 
-        // 3. Save updates
         const nextTracks = tracks.map(t => t.id === track.id ? updatedTrack : t);
         setTracks(nextTracks);
         await saveTracksToDB(nextTracks);
@@ -397,7 +442,6 @@ const App: React.FC = () => {
     const cancelWorkoutMatch = () => {
         setPendingWorkoutMatch(null);
     };
-    // -------------------------------------
 
     const runAutoStravaSync = async (currentTracks: Track[]) => {
         try {
@@ -770,7 +814,7 @@ const App: React.FC = () => {
             setTracks(updated); 
             await saveTracksToDB(updated); 
             addToast(`Caricate ${newCount} nuove corse.`, "success"); 
-            checkAndPromptWorkoutMatch(newTracks); // Check for match
+            checkAndPromptWorkoutMatch(newTracks); 
         }
         if (skipCount > 0) addToast(`${skipCount} attività già presenti ignorate.`, "info");
         setIsDataLoading(false);
@@ -792,7 +836,7 @@ const App: React.FC = () => {
             setTracks(updated); 
             await saveTracksToDB(updated); 
             addToast(`Importate con successo ${importedCount} corse da Strava.`, "success");
-            checkAndPromptWorkoutMatch(toAdd); // Check for match
+            checkAndPromptWorkoutMatch(toAdd); 
         }
         if (skippedCount > 0) addToast(`${skippedCount} attività Strava ignorate perché già presenti.`, "info");
         if (previouslyDeletedCount > 0) addToast(`${previouslyDeletedCount} attività Strava ignorate perché eliminate in passato.`, "info");
@@ -814,6 +858,15 @@ const App: React.FC = () => {
 
     if (showSplash) return <SplashScreen onFinish={handleSplashFinish} />;
     
+    // PWA INSTALL MODAL (Shown before infographics if needed)
+    if (showInstallPrompt) return (
+        <InstallPromptModal 
+            onInstall={handlePwaInstall} 
+            onIgnore={handlePwaIgnore} 
+            isIOS={isIOS} 
+        />
+    );
+
     if (showInfographic) return <InfographicScreen isLoading={isDataLoading} onNext={handleInfographicNext} />;
 
     return (
@@ -843,6 +896,7 @@ const App: React.FC = () => {
                     onOpenDiary={() => toggleView('diary')}
                     onOpenExplorer={() => toggleView('explorer')}
                     onOpenHelp={() => toggleView('guide')}
+                    onOpenList={handleOpenListFromHome} // Pass explicit handler for mobile
                     onOpenStravaConfig={() => {
                         if (isStravaConnected()) {
                             setShowStravaSyncOptions(true);
@@ -900,7 +954,7 @@ const App: React.FC = () => {
                     onClose={() => { setShowStravaSyncOptions(false); setStravaAutoModal(false); }} 
                     onImportFinished={(imported) => { handleStravaImportFinished(imported); setStravaAutoModal(false); }} 
                     lastSyncDate={tracks.length > 0 ? new Date(tracks[0].points[0].time) : null}
-                    autoStart={stravaAutoModal} // Pass flag for auto-start
+                    autoStart={stravaAutoModal} 
                 />
             )}
 
@@ -1065,8 +1119,8 @@ const App: React.FC = () => {
                                                     tracks={tracks} visibleTrackIds={mapVisibleIds} raceRunners={raceRunners}
                                                     isAnimationPlaying={false} fitBoundsCounter={fitBoundsCounter}
                                                     runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
-                                                    onToggleFullScreen={() => setIsSidebarOpen(false)} // Passa a full screen
-                                                    isFullScreen={false} // In split view non è full screen
+                                                    onToggleFullScreen={() => setIsSidebarOpen(false)} 
+                                                    isFullScreen={false} 
                                                 />
                                             </div>
                                         </>
@@ -1078,9 +1132,8 @@ const App: React.FC = () => {
                 </div>
             )}
 
-            {/* GLOBAL MOBILE DOCK - Fixed at bottom, high z-index, visible on ALL screens if mobile */}
-            {/* Added !showHome to prevent overlay on Hub */}
-            {!isDesktop && !showSplash && !showInfographic && !showHome && (
+            {/* GLOBAL MOBILE DOCK */}
+            {!isDesktop && !showSplash && !showInfographic && !showHome && !showInstallPrompt && !showAuthSelection && !showLoginModal && (
                 <div className="fixed bottom-0 left-0 right-0 z-[12000] bg-slate-950 border-t border-slate-800 pb-safe">
                     <NavigationDock 
                         onOpenSidebar={() => { setIsSidebarOpen(true); pushViewState('sidebar'); }} 
@@ -1115,7 +1168,6 @@ const App: React.FC = () => {
                 />
             )}
 
-            {/* CONFIRM MATCH MODAL */}
             {pendingWorkoutMatch && (
                 <WorkoutConfirmationModal 
                     workout={pendingWorkoutMatch.workout}
