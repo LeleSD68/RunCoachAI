@@ -49,7 +49,7 @@ import { parseGpx } from './services/gpxService';
 import { parseTcx } from './services/tcxService';
 import { generateSmartTitle } from './services/titleGenerator';
 import { isDuplicateTrack, markStravaTrackAsDeleted, isPreviouslyDeletedStravaTrack, getTrackFingerprint } from './services/trackUtils';
-import { getFriendsActivityFeed, updatePresence, getFriends } from './services/socialService';
+import { getFriendsActivityFeed, updatePresence, getFriends, getUnreadNotificationsCount, markMessagesAsRead } from './services/socialService';
 
 const LAYOUT_PREFS_KEY = 'runcoach_layout_prefs_v6';
 const SESSION_ACTIVE_KEY = 'runcoach_session_active';
@@ -259,7 +259,18 @@ const App: React.FC = () => {
                 friendsIdRef.current = new Set(friends.map(f => f.id).filter(id => id !== undefined) as string[]);
             } catch (e) { console.error("Friend poll error", e); }
         };
+        
+        // Initial Fetch for Unread Count
+        const fetchInitialUnread = async () => {
+            try {
+                const count = await getUnreadNotificationsCount(userId);
+                setUnreadMessages(count);
+            } catch(e) {}
+        };
+
         heartbeatAndCheckFriends();
+        fetchInitialUnread();
+
         const interval = setInterval(heartbeatAndCheckFriends, 60 * 1000);
         return () => clearInterval(interval);
     }, [userId]);
@@ -278,6 +289,7 @@ const App: React.FC = () => {
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'friends', filter: `user_id_2=eq.${userId}` }, (payload) => {
                 const msg = "Nuova richiesta di amicizia!";
                 addToast(msg, "info");
+                setUnreadMessages(prev => prev + 1); // Also increment counter for friend requests
                 sendNotification("RunCoachAI Crew", "Qualcuno vuole aggiungerti agli amici!");
             })
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tracks' }, (payload) => {
@@ -299,6 +311,13 @@ const App: React.FC = () => {
             .subscribe();
         return () => { supabase.removeChannel(channel); };
     }, [userId, showSocial]);
+
+    const handleReadMessages = async () => {
+        setUnreadMessages(0);
+        if (userId && userId !== 'guest') {
+            await markMessagesAsRead(userId);
+        }
+    };
 
     const saveLayoutPrefs = (newPrefs: Partial<{ desktopSidebar: number, mobileListRatio: number }>) => {
         const updated = { ...layoutPrefs, ...newPrefs };
@@ -1235,7 +1254,7 @@ const App: React.FC = () => {
                     onClose={() => toggleView('social')} 
                     currentUserId={userId || 'guest'} 
                     onChallengeGhost={handleChallengeGhost}
-                    onReadMessages={() => setUnreadMessages(0)}
+                    onReadMessages={handleReadMessages}
                 />
             )}
 
