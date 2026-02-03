@@ -231,6 +231,7 @@ export const leaveGroup = async (groupId: string, userId: string) => {
 export const addMemberToGroup = async (groupId: string, userId: string) => {
     const { error } = await supabase.from('social_group_members').insert({ group_id: groupId, user_id: userId });
     if (error) {
+        // Ignora errore duplicato, ma lancia altri errori
         if (error.code !== '23505') throw error;
     }
 };
@@ -255,6 +256,11 @@ export const updateTrackSharing = async (trackId: string, isPublic: boolean, sha
 
 export const sendDirectMessage = async (senderId: string, receiverId: string, content: string) => {
     const { error } = await supabase.from('direct_messages').insert({ sender_id: senderId, receiver_id: receiverId, content: content });
+    if (error) throw error;
+};
+
+export const deleteDirectMessage = async (messageId: string) => {
+    const { error } = await supabase.from('direct_messages').delete().eq('id', messageId);
     if (error) throw error;
 };
 
