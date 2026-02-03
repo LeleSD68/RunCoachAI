@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { GoogleGenAI, Chat, GenerateContentResponse } from "@google/genai";
 import { Track, UserProfile, ChatMessage, PlannedWorkout, ActivityType } from '../types';
@@ -86,7 +87,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
         
         const historyContext = tracksToAnalyze.slice(0, 10).map(t => {
             const stats = calculateTrackStats(t);
-            return `- ${t.points[0].time.toLocaleDateString()}: ${t.distance.toFixed(1)}km, Passo ${stats.movingAvgPace.toFixed(2)}/km, Voto: ${t.rating || 'N/D'}. Note: "${t.notes || ''}"`;
+            return `- ${t.points[0].time.toLocaleDateString()}: ${t.distance.toFixed(1)}km, Passo ${stats.movingAvgPace.toFixed(2)}/km, Voto: ${t.rating || 'N/D'}. Note: "${t.notes || 'Nessuna nota'}"`;
         }).join('\n');
 
         const futureContext = plannedWorkouts
@@ -106,7 +107,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
             - Peso: ${userProfile.weight || 'N/D'} kg
             - Impara a prevedere le mie reazioni e i miei limiti.
 
-            STORICO RECENTE (Analizza ritmi, cardio, giudizi):
+            STORICO RECENTE (LEGGI ATTENTAMENTE LE NOTE PERSONALI!):
             ${historyContext || "Nessuna corsa registrata."}
             
             DIARIO DI BORDO (Note, Impegni, Programma):
@@ -117,24 +118,26 @@ const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, on
             2. Flessibilità Totale: Se noto che una settimana sono libero solo nel weekend o se preferisco correre 2 o 4 volte, adatta il piano istantaneamente senza farmi sentire in colpa, ma motivandomi.
             3. Sintonia Psicologica: Analizza il mio stile. Se uso ironia, rispondi con ironia. Se sono giù, sii il mio pilastro. Anticipa le mie necessità.
             4. Evoluzione: Affina il modello su di me man mano che parliamo.
-            5. Se proponi un nuovo allenamento, usa questo formato JSON speciale:
+            5. CONTESTO NOTE: Se nello storico recente vedo note come "stanco", "male al piede", ecc., DEVI tenerne conto.
+            6. Se proponi un nuovo allenamento, usa questo formato JSON speciale:
                :::WORKOUT_PROPOSAL={"title": "Titolo", "activityType": "Lento/Fartlek/Ripetute/Lungo/Gara/Altro", "date": "YYYY-MM-DD", "description": "Dettagli tecnici..."}:::
-            6. Rispondi sempre in ITALIANO.
+            7. Rispondi sempre in ITALIANO.
             `;
         }
 
         // Fallback for other personalities
         return `Sei l'HEAD COACH AI di ${userName} (Personalità: ${personality}).
         DATA ODIERNA: ${today}.
-        STORICO RECENTE:
+        STORICO RECENTE (CON FOCUS SU NOTE PERSONALI):
         ${historyContext || "Nessuna corsa registrata."}
         CALENDARIO FUTURO:
         ${futureContext || "Nessun allenamento pianificato."}
         OBIETTIVI: ${userProfile.goals?.join(', ') || 'Miglioramento generale'}.
         REGOLE:
         1. Sii proattivo.
-        2. Formato JSON per allenamenti: :::WORKOUT_PROPOSAL={"title": "Titolo", "activityType": "Type", "date": "YYYY-MM-DD", "description": "Desc"}:::
-        3. Rispondi sempre in ITALIANO.
+        2. Se le note indicano problemi fisici o stanchezza, adatta il consiglio.
+        3. Formato JSON per allenamenti: :::WORKOUT_PROPOSAL={"title": "Titolo", "activityType": "Type", "date": "YYYY-MM-DD", "description": "Desc"}:::
+        4. Rispondi sempre in ITALIANO.
         `;
     };
 
