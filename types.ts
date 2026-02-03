@@ -265,6 +265,7 @@ export interface DirectMessage {
   receiverId: string;
   content: string;
   createdAt: string;
+  readAt?: string | null;
 }
 
 export interface FriendRequest {
