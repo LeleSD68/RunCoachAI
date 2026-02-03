@@ -51,16 +51,16 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
                 </div>
                 
                 {/* 3. Text Layer */}
-                <div className="relative z-30 text-center">
+                <div className="relative z-30 text-center px-4">
                     <h1 className="text-4xl sm:text-6xl font-black text-white tracking-tighter uppercase drop-shadow-2xl mb-6">
                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600">Run</span> Coach AI
                     </h1>
-                    <div className="flex justify-center items-center gap-4 sm:gap-8">
-                        <span className="text-xs sm:text-sm font-black text-cyan-400 uppercase tracking-[0.2em] opacity-0 animate-slide-up-1">Analizza</span>
-                        <span className="w-1 h-1 bg-slate-400 rounded-full opacity-0 animate-slide-up-1"></span>
-                        <span className="text-xs sm:text-sm font-black text-white uppercase tracking-[0.2em] opacity-0 animate-slide-up-2">Simula</span>
-                        <span className="w-1 h-1 bg-slate-400 rounded-full opacity-0 animate-slide-up-2"></span>
-                        <span className="text-xs sm:text-sm font-black text-purple-400 uppercase tracking-[0.2em] opacity-0 animate-slide-up-3">Migliora</span>
+                    <div className="flex flex-col sm:flex-row justify-center items-center gap-2 sm:gap-6 text-center">
+                        <span className="text-[10px] sm:text-sm font-black text-cyan-400 uppercase tracking-[0.15em] opacity-0 animate-slide-up-1 whitespace-nowrap">Analizza il passato</span>
+                        <span className="hidden sm:block w-1 h-1 bg-slate-400 rounded-full opacity-0 animate-slide-up-1"></span>
+                        <span className="text-[10px] sm:text-sm font-black text-white uppercase tracking-[0.15em] opacity-0 animate-slide-up-2 whitespace-nowrap">Simula il futuro</span>
+                        <span className="hidden sm:block w-1 h-1 bg-slate-400 rounded-full opacity-0 animate-slide-up-2"></span>
+                        <span className="text-[10px] sm:text-sm font-black text-purple-400 uppercase tracking-[0.15em] opacity-0 animate-slide-up-3 whitespace-nowrap">Migliora oggi</span>
                     </div>
                 </div>
             </div>
