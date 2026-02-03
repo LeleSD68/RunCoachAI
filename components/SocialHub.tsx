@@ -12,6 +12,7 @@ interface SocialHubProps {
     currentUserId: string;
     onChallengeGhost?: (track: Track) => void;
     onReadMessages?: () => void;
+    initialChatUserId?: string | null; // New prop for smart navigation
 }
 
 const UserIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M10 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM3.465 14.493a1.23 1.23 0 0 0 .41 1.412A9.957 9.957 0 0 0 10 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 0 0-13.074.003Z" /></svg>);
@@ -22,7 +23,7 @@ const ChatBubbleIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0
 const GhostIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M10 1a4.5 4.5 0 0 0-4.5 4.5V9H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-.5V5.5A4.5 4.5 0 0 0 10 1Zm3 8V5.5a3 3 0 1 0-6 0V9h6Z" /></svg>);
 const GroupIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M7 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM14.5 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM1.615 16.428a1.224 1.224 0 0 1-.569-1.175 6.002 6.002 0 0 1 11.908 0c.058.467-.172.92-.57 1.174A9.953 9.953 0 0 1 7 18a9.953 9.953 0 0 1-5.385-1.572ZM14.5 16h-.106c.07-.38.106-.772.106-1.175 0-.537-.067-1.054-.191-1.543A7.001 7.001 0 0 1 17 18a9.952 9.952 0 0 1-2.5-2Z" /></svg>);
 
-const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallengeGhost, onReadMessages }) => {
+const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallengeGhost, onReadMessages, initialChatUserId }) => {
     const [activeTab, setActiveTab] = useState<'feed' | 'friends' | 'groups' | 'add'>('feed');
     const [friends, setFriends] = useState<UserProfile[]>([]);
     const [requests, setRequests] = useState<FriendRequest[]>([]);
@@ -42,12 +43,24 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
     const [activeChatFriend, setActiveChatFriend] = useState<UserProfile | null>(null);
     const [selectedFeedTrack, setSelectedFeedTrack] = useState<Track | null>(null);
 
-    // Initial load - Fetch pending requests to show badges immediately even if not on 'friends' tab
+    // Initial load
     useEffect(() => {
+        if (initialChatUserId) {
+            setActiveTab('friends'); // Switch to friends tab immediately if chat requested
+        }
         loadData();
-        // Background fetch for badges
         getFriendRequests(currentUserId).then(setRequests);
     }, [activeTab, activeGroupFilter]);
+
+    // Handle smart navigation to specific chat
+    useEffect(() => {
+        if (initialChatUserId && friends.length > 0) {
+            const friend = friends.find(f => f.id === initialChatUserId);
+            if (friend) {
+                setActiveChatFriend(friend);
+            }
+        }
+    }, [initialChatUserId, friends]);
 
     useEffect(() => {
         if (onReadMessages) onReadMessages();
@@ -72,7 +85,6 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
                 setFeed(await getFriendsActivityFeed(currentUserId, activeGroupFilter?.id));
             } else if (activeTab === 'groups') {
                 setGroups(await getGroups(currentUserId));
-                // If inviting, we need friends list loaded too to pick from
                 if (!friends.length) setFriends(await getFriends(currentUserId));
             }
         } catch (e) {}
@@ -128,11 +140,8 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
         if (!inviteModeGroup) return;
         try {
             await addMemberToGroup(inviteModeGroup.id, friendId);
-            // Visual feedback is crucial
             alert("Amico aggiunto al gruppo!");
-            // Update invite list
             setInviteableFriends(prev => prev.filter(f => f.id !== friendId));
-            // Trigger refresh of group data (member counts)
             const updatedGroups = groups.map(g => g.id === inviteModeGroup.id ? {...g, memberCount: g.memberCount + 1} : g);
             setGroups(updatedGroups);
         } catch (e: any) {
@@ -217,7 +226,6 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
                                             key={track.id} 
                                             onClick={() => {
                                                 if (onChallengeGhost) {
-                                                    // In a real app we might show track details first
                                                     if(confirm(`Sfidare ${track.userDisplayName} in modalità Ghost?`)) {
                                                         onChallengeGhost(track);
                                                         onClose();
@@ -372,7 +380,11 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
                                 ) : (
                                     <div className="space-y-2">
                                         {friends.filter(f => f && f.id).map(friend => (
-                                            <div key={friend.id} className="flex items-center justify-between p-3 bg-slate-800 rounded-xl border border-slate-700 hover:border-slate-600 transition-colors group">
+                                            <div 
+                                                key={friend.id} 
+                                                onClick={() => setActiveChatFriend(friend)}
+                                                className="flex items-center justify-between p-3 bg-slate-800 rounded-xl border border-slate-700 hover:border-slate-600 transition-colors group cursor-pointer"
+                                            >
                                                 <div className="flex items-center gap-3">
                                                     <div className="relative">
                                                         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center text-xs font-bold text-white">
@@ -383,7 +395,7 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
                                                     <span className="text-sm font-bold text-white">{friend.name}</span>
                                                 </div>
                                                 <button 
-                                                    onClick={() => setActiveChatFriend(friend)}
+                                                    onClick={(e) => { e.stopPropagation(); setActiveChatFriend(friend); }}
                                                     className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
                                                 >
                                                     <ChatBubbleIcon />
