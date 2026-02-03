@@ -1,457 +1,528 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import { UserProfile, FriendRequest, Track, DirectMessage, Reaction, SocialGroup } from '../types';
-import { searchUsers, sendFriendRequest, getFriendRequests, acceptFriendRequest, rejectFriendRequest, getFriends, getFriendsActivityFeed, sendDirectMessage, getDirectMessages, toggleReaction, createGroup, getGroups, addMemberToGroup, getGroupMembers } from '../services/socialService';
+import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
+import { UserProfile, DirectMessage, Track } from '../types';
+import { sendDirectMessage, getDirectMessages, updateTrackSharing, getTrackById, markMessagesAsRead, deleteDirectMessage } from '../services/socialService';
 import { supabase } from '../services/supabaseClient';
+import { loadTracksFromDB } from '../services/dbService'; // For local selection
 import TrackPreview from './TrackPreview';
-import RatingStars from './RatingStars';
-import MiniChat from './MiniChat';
 
-interface SocialHubProps {
+interface MiniChatProps {
+    currentUser: UserProfile; // Full profile needed for ID
+    friend: UserProfile;
     onClose: () => void;
-    currentUserId: string;
-    onChallengeGhost?: (track: Track) => void;
-    onReadMessages?: () => void;
+    onMinimize?: () => void;
+    onViewTrack?: (track: Track) => void;
+    onMessagesRead?: () => void; // Callback to parent to update badges
 }
 
-const UserIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M10 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM3.465 14.493a1.23 1.23 0 0 0 .41 1.412A9.957 9.957 0 0 0 10 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 0 0-13.074.003Z" /></svg>);
-const AddUserIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M11 5a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM2.615 16.428a1.224 1.224 0 0 1-.569-1.175 6.002 6.002 0 0 1 11.908 0c.058.467-.172.92-.57 1.174A9.953 9.953 0 0 1 7 18a9.953 9.953 0 0 1-4.385-1.572ZM16.25 5.75a.75.75 0 0 0-1.5 0v2h-2a.75.75 0 0 0 0 1.5h2v2a.75.75 0 0 0 1.5 0v-2h2a.75.75 0 0 0 0-1.5h-2v-2Z" /></svg>);
-const ActivityIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM6.75 9.25a.75.75 0 0 0 0 1.5h4.59l-2.1 2.1a.75.75 0 1 0 1.06 1.06l3.38-3.38a.75.75 0 0 0 0-1.06l-3.38-3.38a.75.75 0 1 0-1.06 1.06l2.1 2.1H6.75Z" clipRule="evenodd" /></svg>);
-const SearchIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clipRule="evenodd" /></svg>);
-const ChatBubbleIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M10 2c-2.236 0-4.43.18-6.57.524C1.993 2.755 1 4.014 1 5.426v5.148c0 1.413.993 2.67 2.43 2.902.848.137 1.705.248 2.57.331v3.443a.75.75 0 0 0 1.28.53l3.58-3.579a.78.78 0 0 1 .527-.224 41.202 41.202 0 0 0 5.183-.5c1.437-.232 2.43-1.49 2.43-2.903V5.426c0-1.413-.993-2.67-2.43-2.902A41.289 41.289 0 0 0 10 2Zm0 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM8 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm5 1a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd" /></svg>);
-const GhostIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M10 1a4.5 4.5 0 0 0-4.5 4.5V9H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-.5V5.5A4.5 4.5 0 0 0 10 1Zm3 8V5.5a3 3 0 1 0-6 0V9h6Z" /></svg>);
-const GroupIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M7 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM14.5 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM1.615 16.428a1.224 1.224 0 0 1-.569-1.175 6.002 6.002 0 0 1 11.908 0c.058.467-.172.92-.57 1.174A9.953 9.953 0 0 1 7 18a9.953 9.953 0 0 1-5.385-1.572ZM14.5 16h-.106c.07-.38.106-.772.106-1.175 0-.537-.067-1.054-.191-1.543A7.001 7.001 0 0 1 17 18a9.952 9.952 0 0 1-2.5-2Z" /></svg>);
+const SendIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z" /></svg>);
+const CloseIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-6 h-6"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" /></svg>);
+const PaperClipIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path fillRule="evenodd" d="M18.97 3.659a2.25 2.25 0 0 0-3.182 0l-10.94 10.94a3.75 3.75 0 1 0 5.304 5.303l7.693-7.693a.75.75 0 0 1 1.06 1.06l-7.693 7.693a5.25 5.25 0 1 1-7.424-7.424l10.939-10.94a3.75 3.75 0 1 1 5.303 5.304L9.097 18.835l-.008.008-.007.007-.002.002-.003.002A2.25 2.25 0 0 1 5.91 15.66l7.81-7.81a.75.75 0 0 1 1.061 1.06l-7.81 7.81a.75.75 0 0 0 1.054 1.068L18.97 6.84a2.25 2.25 0 0 0 0-3.182Z" clipRule="evenodd" /></svg>);
+const TrashIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3"><path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.1499.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149-.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clipRule="evenodd" /></svg>);
 
-const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallengeGhost, onReadMessages }) => {
-    const [activeTab, setActiveTab] = useState<'feed' | 'friends' | 'groups' | 'add'>('feed');
-    const [friends, setFriends] = useState<UserProfile[]>([]);
-    const [requests, setRequests] = useState<FriendRequest[]>([]);
-    const [groups, setGroups] = useState<SocialGroup[]>([]);
-    const [feed, setFeed] = useState<Track[]>([]);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [sentRequests, setSentRequests] = useState<Set<string>>(new Set());
+// New Ticks Component - Standard WhatsApp Style
+const WhatsAppTicks = ({ read, sent }: { read: boolean; sent: boolean }) => (
+    <div className="flex items-end pl-1">
+        {/* Using a standard SVG for double check */}
+        <svg viewBox="0 0 16 12" width="14" height="10" className={read ? 'text-[#53bdeb]' : 'text-[#8696a0]'} fill="currentColor">
+            {/* First Tick */}
+            <path d="M15.01 3.316l-7.833 7.752-5.468-5.468 1.414-1.414 4.054 4.054 6.419-6.338 1.414 1.414z" transform="translate(-4, 0)" />
+            {/* Second Tick (Only if sent/delivered/read) - For now we assume double tick = delivered/read */}
+            <path d="M15.01 3.316l-7.833 7.752-5.468-5.468 1.414-1.414 4.054 4.054 6.419-6.338 1.414 1.414z" />
+        </svg>
+    </div>
+);
+
+const ClockIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 text-[#8696a0] ml-1">
+        <path fillRule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm.75-13a.75.75 0 0 0-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 0 0 0-1.5h-3.25V5Z" clipRule="evenodd" />
+    </svg>
+);
+
+// Helper per formattare la data nei messaggi
+const getMessageDateLabel = (dateString: string) => {
+    const date = new Date(dateString);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    date.setHours(0,0,0,0);
+    today.setHours(0,0,0,0);
+    yesterday.setHours(0,0,0,0);
+
+    if (date.getTime() === today.getTime()) return 'OGGI';
+    if (date.getTime() === yesterday.getTime()) return 'IERI';
+    return date.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase(); 
+};
+
+const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onViewTrack, onMessagesRead }) => {
+    const [messages, setMessages] = useState<DirectMessage[]>([]);
+    const [newMessage, setNewMessage] = useState('');
+    const [hiddenMessageIds, setHiddenMessageIds] = useState<Set<string>>(new Set());
     
-    const [newGroupName, setNewGroupName] = useState('');
-    const [isCreatingGroup, setIsCreatingGroup] = useState(false);
-    const [activeGroupFilter, setActiveGroupFilter] = useState<SocialGroup | null>(null);
-    const [inviteModeGroup, setInviteModeGroup] = useState<SocialGroup | null>(null);
-    const [inviteableFriends, setInviteableFriends] = useState<UserProfile[]>([]);
+    // Scroll Refs
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const chatEndRef = useRef<HTMLDivElement>(null);
+    const shouldScrollRef = useRef(true); // Default to true for initial load
+    
+    const intervalRef = useRef<number | null>(null);
+    
+    // Sharing UI
+    const [showShareMenu, setShowShareMenu] = useState(false);
+    const [shareTracks, setShareTracks] = useState<Track[]>([]);
+    const [fullAccessMode, setFullAccessMode] = useState(false);
+    
+    // Delete UI
+    const [messageToDelete, setMessageToDelete] = useState<DirectMessage | null>(null);
 
-    const [activeChatFriend, setActiveChatFriend] = useState<UserProfile | null>(null);
-    const [selectedFeedTrack, setSelectedFeedTrack] = useState<Track | null>(null);
-
-    // Initial load - Fetch pending requests to show badges immediately even if not on 'friends' tab
+    // Load hidden messages from local storage
     useEffect(() => {
-        loadData();
-        // Background fetch for badges
-        getFriendRequests(currentUserId).then(setRequests);
-    }, [activeTab, activeGroupFilter]);
+        if(currentUser.id && friend.id) {
+            const key = `hidden_msgs_${currentUser.id}_${friend.id}`;
+            const stored = localStorage.getItem(key);
+            if(stored) setHiddenMessageIds(new Set(JSON.parse(stored)));
+        }
+    }, [currentUser.id, friend.id]);
 
+    const loadMessages = async () => {
+        if (!currentUser.id || !friend.id) return;
+        const msgs = await getDirectMessages(currentUser.id, friend.id);
+        
+        // Preserve scroll logic: check if we are at bottom BEFORE updating
+        if (scrollContainerRef.current) {
+            const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+            const isAtBottom = scrollHeight - scrollTop - clientHeight < 100; // 100px tolerance
+            shouldScrollRef.current = isAtBottom;
+        }
+
+        setMessages(msgs);
+        
+        // Mark as read immediately on load
+        await markMessagesAsRead(currentUser.id, friend.id);
+        onMessagesRead?.();
+    };
+
+    const loadMyTracks = async () => {
+        const tracks = await loadTracksFromDB();
+        setShareTracks(tracks.filter(t => !t.isExternal).slice(0, 10)); 
+    };
+
+    // Load initial messages
     useEffect(() => {
-        if (onReadMessages) onReadMessages();
-    }, []);
+        loadMessages();
+        loadMyTracks();
+        
+        // Force scroll to bottom on initial mount
+        shouldScrollRef.current = true;
 
-    useEffect(() => {
-        if (activeTab !== 'add') return;
-        const timer = setTimeout(() => {
-            if (searchQuery.length >= 3) handleSearch();
-            else if (searchQuery.length === 0) setSearchResults([]);
-        }, 500);
-        return () => clearTimeout(timer);
-    }, [searchQuery, activeTab]);
+        // Polling fallback
+        intervalRef.current = window.setInterval(loadMessages, 4000);
+        
+        const channel = supabase.channel(`chat:${currentUser.id}:${friend.id}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'direct_messages',
+                    filter: `receiver_id=eq.${currentUser.id}` 
+                },
+                async (payload) => {
+                    const newMsg = payload.new;
+                    if (newMsg.sender_id === friend.id) {
+                        // Check if user is looking at bottom
+                        if (scrollContainerRef.current) {
+                            const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+                            shouldScrollRef.current = scrollHeight - scrollTop - clientHeight < 100;
+                        }
 
-    const loadData = async () => {
-        setLoading(true);
+                        setMessages(prev => {
+                            if (prev.some(m => m.id === newMsg.id)) return prev;
+                            return [...prev, {
+                                id: newMsg.id,
+                                senderId: newMsg.sender_id,
+                                receiverId: newMsg.receiver_id,
+                                content: newMsg.content,
+                                createdAt: newMsg.created_at,
+                                readAt: null 
+                            }];
+                        });
+                        // Mark as read instantly when open
+                        await markMessagesAsRead(currentUser.id, friend.id);
+                        onMessagesRead?.();
+                    }
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'direct_messages',
+                    filter: `sender_id=eq.${currentUser.id}` // Listen for MY messages being read by friend
+                },
+                (payload) => {
+                    const updatedMsg = payload.new;
+                    setMessages(prev => prev.map(m => m.id === updatedMsg.id ? { ...m, readAt: updatedMsg.read_at } : m));
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: 'DELETE',
+                    schema: 'public',
+                    table: 'direct_messages'
+                },
+                (payload) => {
+                    const deletedId = payload.old.id;
+                    setMessages(prev => prev.filter(m => m.id !== deletedId));
+                }
+            )
+            .subscribe();
+
+        return () => {
+            if (intervalRef.current) clearInterval(intervalRef.current);
+            supabase.removeChannel(channel);
+        };
+    }, [friend.id, currentUser.id]);
+
+    // Handle Scrolling
+    useLayoutEffect(() => {
+        if (shouldScrollRef.current && chatEndRef.current) {
+            chatEndRef.current.scrollIntoView({ behavior: 'auto' }); // Use auto for instant snap or smooth if preferred
+            shouldScrollRef.current = false; // Reset
+        }
+    }, [messages]);
+
+    const handleSend = async (e?: React.FormEvent, customContent?: string) => {
+        if (e) e.preventDefault();
+        const contentToSend = customContent || newMessage;
+        if (!contentToSend.trim() || !currentUser.id || !friend.id) return;
+
         try {
-            if (activeTab === 'friends') {
-                setFriends(await getFriends(currentUserId));
-                setRequests(await getFriendRequests(currentUserId));
-            } else if (activeTab === 'feed') {
-                setFeed(await getFriendsActivityFeed(currentUserId, activeGroupFilter?.id));
-            } else if (activeTab === 'groups') {
-                setGroups(await getGroups(currentUserId));
-                // If inviting, we need friends list loaded too to pick from
-                if (!friends.length) setFriends(await getFriends(currentUserId));
+            const tempMsg: DirectMessage = {
+                id: 'temp-' + Date.now(),
+                senderId: currentUser.id,
+                receiverId: friend.id,
+                content: contentToSend,
+                createdAt: new Date().toISOString()
+            };
+            
+            // Always scroll to bottom when sending
+            shouldScrollRef.current = true;
+            
+            setMessages(prev => [...prev, tempMsg]);
+            setNewMessage('');
+            
+            await sendDirectMessage(currentUser.id, friend.id, contentToSend);
+        } catch (e) {
+            console.error("Failed to send", e);
+        }
+    };
+
+    const handleShareTrack = async (track: Track) => {
+        if (!currentUser.id || !friend.id) return;
+        
+        if (fullAccessMode) {
+            try {
+                const currentShared = track.sharedWithUsers || [];
+                if (!currentShared.includes(friend.id)) {
+                    await updateTrackSharing(
+                        track.id, 
+                        track.isPublic || false, 
+                        [...currentShared, friend.id], 
+                        track.sharedWithGroups || []
+                    );
+                }
+            } catch (e) {
+                alert("Impossibile concedere permessi. Condivisione annullata.");
+                return;
             }
-        } catch (e) {}
-        setLoading(false);
+        }
+
+        const payload = JSON.stringify({
+            id: track.id,
+            name: track.name,
+            dist: track.distance.toFixed(1),
+            access: fullAccessMode ? 'full' : 'preview'
+        });
+        
+        const messageContent = `:::SHARE_TRACK:${payload}:::`;
+        await handleSend(undefined, messageContent);
+        setShowShareMenu(false);
     };
 
-    const handleSearch = async () => {
-        if (searchQuery.length < 3) return;
-        setLoading(true);
-        try {
-            const results = await searchUsers(searchQuery);
-            const friendIds = new Set(friends.map(f => f.id));
-            setSearchResults(results.filter(u => u.id !== currentUserId && u.id && !friendIds.has(u.id)));
-        } catch (e) {}
-        setLoading(false);
-    };
-
-    const handleCreateGroup = async () => {
-        if (!newGroupName.trim()) return;
-        setLoading(true);
-        try {
-            await createGroup(newGroupName, '', currentUserId);
-            setNewGroupName('');
-            setIsCreatingGroup(false);
-            loadData();
-        } catch (e) {
-            alert("Errore creazione gruppo");
-        } finally {
-            setLoading(false);
+    const handleTrackClick = async (trackData: any) => {
+        if (trackData.access === 'full') {
+            if (onViewTrack) {
+                try {
+                    const fullTrack = await getTrackById(trackData.id);
+                    if (fullTrack) onViewTrack(fullTrack);
+                    else alert("Errore caricamento traccia.");
+                } catch(e) { alert("Impossibile caricare traccia."); }
+            }
+        } else {
+            alert(`Anteprima: ${trackData.name} (${trackData.dist}km). Chiedi l'accesso completo per analizzarla!`);
         }
     };
 
-    const handleGroupClick = (group: SocialGroup) => {
-        setActiveGroupFilter(group);
-        setActiveTab('feed');
-    };
-
-    const handleStartInvite = async (group: SocialGroup) => {
-        setInviteModeGroup(group);
-        // Filter friends who are NOT in the group? For simplicity, list all friends
-        // A better implementation would fetch current members and filter
-        // We'll rely on the backend ignoring duplicates for now, or fetch:
-        setLoading(true);
-        try {
-            const currentMembers = await getGroupMembers(group.id);
-            const membersSet = new Set(currentMembers);
-            setInviteableFriends(friends.filter(f => f.id && !membersSet.has(f.id)));
-        } catch (e) {
-            setInviteableFriends(friends);
-        } finally {
-            setLoading(false);
+    const handleDeleteMessage = async (type: 'me' | 'everyone') => {
+        if (!messageToDelete) return;
+        
+        if (type === 'me') {
+            const newHidden = new Set(hiddenMessageIds);
+            newHidden.add(messageToDelete.id);
+            setHiddenMessageIds(newHidden);
+            if (currentUser.id && friend.id) {
+                localStorage.setItem(`hidden_msgs_${currentUser.id}_${friend.id}`, JSON.stringify(Array.from(newHidden)));
+            }
+        } else if (type === 'everyone') {
+            try {
+                await deleteDirectMessage(messageToDelete.id);
+                // Optimistic UI update
+                setMessages(prev => prev.filter(m => m.id !== messageToDelete.id));
+            } catch (e) {
+                alert("Errore durante l'eliminazione.");
+            }
         }
+        setMessageToDelete(null);
     };
 
-    const handleInviteFriend = async (friendId: string) => {
-        if (!inviteModeGroup) return;
-        try {
-            await addMemberToGroup(inviteModeGroup.id, friendId);
-            // Update invite list
-            setInviteableFriends(prev => prev.filter(f => f.id !== friendId));
-            // Trigger refresh of group data (member counts)
-            const updatedGroups = groups.map(g => g.id === inviteModeGroup.id ? {...g, memberCount: g.memberCount + 1} : g);
-            setGroups(updatedGroups);
-        } catch (e) {
-            console.error(e);
-        }
-    };
-
-    const handleSendRequest = async (userId: string) => {
-        try {
-            await sendFriendRequest(userId, currentUserId);
-            setSentRequests(prev => new Set(prev).add(userId));
-        } catch (e) {
-            alert("Impossibile inviare richiesta.");
-        }
-    };
-
-    const handleAccept = async (reqId: string) => {
-        setLoading(true);
-        await acceptFriendRequest(reqId);
-        loadData();
-    };
-
-    const handleReject = async (reqId: string) => {
-        if(confirm("Rifiutare richiesta?")) {
-            setLoading(true);
-            await rejectFriendRequest(reqId);
-            loadData();
-        }
-    };
+    const groupedMessages = useMemo<Record<string, DirectMessage[]>>(() => {
+        const groups: Record<string, DirectMessage[]> = {};
+        messages.filter(m => !hiddenMessageIds.has(m.id)).forEach(msg => {
+            const dateLabel = getMessageDateLabel(msg.createdAt);
+            if (!groups[dateLabel]) groups[dateLabel] = [];
+            groups[dateLabel].push(msg);
+        });
+        return groups;
+    }, [messages, hiddenMessageIds]);
 
     return (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[10000] flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
-            <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-lg h-[80vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
-                <div className="bg-slate-800 p-4 border-b border-slate-700 flex justify-between items-center shrink-0">
-                    <h2 className="text-xl font-bold text-white flex items-center gap-2"><span className="text-cyan-400">⚡</span> Social Hub</h2>
-                    <button onClick={onClose} className="text-slate-400 hover:text-white text-2xl">&times;</button>
-                </div>
-                
-                {/* Navigation Tabs */}
-                <div className="flex border-b border-slate-700 bg-slate-900/50 shrink-0 overflow-x-auto no-scrollbar">
-                    <button onClick={() => { setActiveTab('feed'); setActiveGroupFilter(null); }} className={`flex-1 min-w-[80px] py-3 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${activeTab === 'feed' ? 'text-cyan-400 border-b-2 border-cyan-400 bg-slate-800' : 'text-slate-500 hover:text-slate-300'}`}><ActivityIcon /> Feed</button>
-                    <button onClick={() => setActiveTab('groups')} className={`flex-1 min-w-[80px] py-3 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${activeTab === 'groups' ? 'text-purple-400 border-b-2 border-purple-400 bg-slate-800' : 'text-slate-500 hover:text-slate-300'}`}><GroupIcon /> Gruppi</button>
-                    <button onClick={() => setActiveTab('friends')} className={`flex-1 min-w-[80px] py-3 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors relative ${activeTab === 'friends' ? 'text-cyan-400 border-b-2 border-cyan-400 bg-slate-800' : 'text-slate-500 hover:text-slate-300'}`}>
-                        <UserIcon /> Amici
-                        {requests.length > 0 && (
-                            <span className="absolute top-2 right-2 flex h-2.5 w-2.5">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
-                            </span>
-                        )}
+        <div 
+            className="fixed inset-0 z-[12000] flex items-center justify-center p-0 md:p-4 bg-black/80 backdrop-blur-sm animate-fade-in"
+            onClick={onClose}
+        >
+            <div 
+                className="w-full md:max-w-md bg-[#0b141a] md:border md:border-slate-700 md:rounded-2xl shadow-2xl flex flex-col h-full md:h-[600px] overflow-hidden animate-pop-in relative"
+                onClick={(e) => e.stopPropagation()} 
+            >
+                {/* Header WhatsApp Style */}
+                <div className="flex items-center justify-between px-4 py-3 bg-[#202c33] border-b border-[#202c33] shrink-0 z-20">
+                    <div className="flex items-center gap-3">
+                        <button onClick={onClose} className="text-[#aebac1] md:hidden mr-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path fillRule="evenodd" d="M11.03 3.97a.75.75 0 0 1 0 1.06l-6.22 6.22H21a.75.75 0 0 1 0 1.5H4.81l6.22 6.22a.75.75 0 1 1-1.06 1.06l-7.5-7.5a.75.75 0 0 1 0-1.06l7.5-7.5a.75.75 0 0 1 1.06 0Z" clipRule="evenodd" /></svg>
+                        </button>
+                        <div className="relative">
+                            <div className="w-10 h-10 rounded-full bg-slate-600 flex items-center justify-center overflow-hidden">
+                                {friend.name ? <span className="text-white font-bold text-lg">{friend.name[0]}</span> : '?'}
+                            </div>
+                        </div>
+                        <div className="flex flex-col">
+                            <h4 className="font-bold text-[#e9edef] text-base leading-none">{friend.name}</h4>
+                            {friend.isOnline && <span className="text-xs text-green-500 font-medium">online</span>}
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="text-[#aebac1] hover:text-white p-2 rounded-full hidden md:block">
+                        <CloseIcon />
                     </button>
-                    <button onClick={() => setActiveTab('add')} className={`flex-1 min-w-[80px] py-3 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${activeTab === 'add' ? 'text-cyan-400 border-b-2 border-cyan-400 bg-slate-800' : 'text-slate-500 hover:text-slate-300'}`}><AddUserIcon /> Cerca</button>
                 </div>
 
-                <div className="flex-grow overflow-y-auto p-4 custom-scrollbar pb-24 relative">
-                    {loading && (
-                        <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center z-10">
-                            <div className="w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+                {/* Messages Area */}
+                <div 
+                    ref={scrollContainerRef}
+                    className="flex-grow overflow-y-auto p-4 bg-[#0b141a] space-y-4 custom-scrollbar bg-chat-pattern relative"
+                >
+                    <div className="absolute inset-0 opacity-5 pointer-events-none bg-[url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')] bg-repeat"></div>
+                    
+                    {messages.length === 0 && (
+                        <div className="flex flex-col items-center justify-center h-full text-[#8696a0] text-sm relative z-10">
+                            <div className="bg-[#1f2c34] p-4 rounded-xl text-center shadow-sm">
+                                <p className="text-[#ffd279] text-xs uppercase font-bold mb-1">Messaggi Crittografati</p>
+                                <p>Invia un messaggio a {friend.name}.</p>
+                            </div>
                         </div>
                     )}
-
-                    {activeTab === 'feed' && (
-                        <div className="space-y-3">
-                            {activeGroupFilter && (
-                                <div className="flex items-center justify-between bg-purple-900/20 border border-purple-500/30 p-2 rounded-lg mb-4">
-                                    <span className="text-xs font-bold text-purple-300 uppercase tracking-wide">Filtro: {activeGroupFilter.name}</span>
-                                    <button onClick={() => setActiveGroupFilter(null)} className="text-purple-400 hover:text-white font-bold px-2">&times;</button>
-                                </div>
-                            )}
-                            
-                            {feed.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center h-64 text-slate-500">
-                                    <div className="text-4xl mb-3 opacity-30">📭</div>
-                                    <p>Il feed {activeGroupFilter ? 'di questo gruppo' : ''} è vuoto.</p>
-                                </div>
-                            ) : (
-                                feed.map(track => {
-                                    const reactionCount = track.reactions?.length || 0;
-                                    return (
-                                        <div 
-                                            key={track.id} 
-                                            onClick={() => {
-                                                if (onChallengeGhost) {
-                                                    // In a real app we might show track details first
-                                                    if(confirm(`Sfidare ${track.userDisplayName} in modalità Ghost?`)) {
-                                                        onChallengeGhost(track);
-                                                        onClose();
-                                                    }
-                                                }
-                                            }}
-                                            className="bg-slate-800/50 border border-slate-700/50 hover:border-slate-600 rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all group cursor-pointer"
-                                        >
-                                            <div className="flex items-center p-3 gap-3">
-                                                <div className="w-12 h-12 bg-slate-950 rounded-lg border border-slate-700 overflow-hidden shrink-0 relative">
-                                                    <TrackPreview points={track.points} color={track.color} className="w-full h-full object-cover opacity-80" />
-                                                </div>
-                                                <div className="flex-grow min-w-0">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-xs font-bold text-white truncate">{track.userDisplayName}</span>
-                                                        <span className="text-[9px] text-slate-500">{new Date(track.startTime || '').toLocaleDateString()}</span>
-                                                    </div>
-                                                    <div className="text-sm font-bold text-cyan-400 truncate">{track.name}</div>
-                                                    <div className="text-[10px] text-slate-400 font-mono">
-                                                        {track.distance.toFixed(2)}km • {(track.duration / 60000 / track.distance).toFixed(2)}/km
-                                                    </div>
-                                                </div>
-                                                <div className="flex flex-col items-end gap-1">
-                                                    {reactionCount > 0 && <div className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-purple-900/50 text-purple-300">🔥 {reactionCount}</div>}
-                                                    <button className="text-[10px] bg-purple-600 text-white px-2 py-1 rounded font-bold opacity-0 group-hover:opacity-100 transition-opacity">SFIDA</button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    );
-                                })
-                            )}
-                        </div>
-                    )}
-
-                    {activeTab === 'groups' && !inviteModeGroup && (
-                        <div>
-                            <button 
-                                onClick={() => setIsCreatingGroup(!isCreatingGroup)}
-                                className="w-full py-3 mb-4 bg-purple-600/10 hover:bg-purple-600/20 border border-purple-500/50 rounded-xl text-purple-300 font-bold text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition-all"
-                            >
-                                {isCreatingGroup ? 'Annulla' : '+ Crea Nuovo Gruppo'}
-                            </button>
-
-                            {isCreatingGroup && (
-                                <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 mb-4 animate-fade-in-down">
-                                    <input 
-                                        type="text" 
-                                        value={newGroupName} 
-                                        onChange={e => setNewGroupName(e.target.value)}
-                                        placeholder="Nome del gruppo (es. Marathon Training)"
-                                        className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white text-sm mb-2"
-                                    />
-                                    <button 
-                                        onClick={handleCreateGroup} 
-                                        disabled={!newGroupName.trim() || loading}
-                                        className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 rounded-lg text-xs uppercase"
-                                    >
-                                        Crea
-                                    </button>
-                                </div>
-                            )}
-
-                            <div className="space-y-2">
-                                {groups.length === 0 ? <p className="text-center text-slate-500 text-xs italic">Nessun gruppo.</p> : groups.map(g => (
-                                    <div 
-                                        key={g.id} 
-                                        className="bg-slate-800 p-3 rounded-xl border border-slate-700 flex flex-col gap-2 hover:border-purple-500/50 transition-colors"
-                                    >
-                                        <div className="flex justify-between items-center cursor-pointer" onClick={() => handleGroupClick(g)}>
-                                            <div>
-                                                <h4 className="font-bold text-white text-sm">{g.name}</h4>
-                                                <p className="text-[10px] text-slate-400">{g.memberCount} membri</p>
-                                            </div>
-                                            <div className="text-purple-400 text-xs font-bold uppercase">Apri &rarr;</div>
-                                        </div>
+                    
+                    {(Object.entries(groupedMessages) as [string, DirectMessage[]][]).map(([dateLabel, groupMsgs]) => (
+                         <div key={dateLabel} className="space-y-1 relative z-10">
+                            <div className="flex justify-center py-2 sticky top-0 z-10">
+                                <span className="bg-[#1f2c34] text-[11px] text-[#8696a0] px-3 py-1.5 rounded-lg font-medium shadow-sm uppercase tracking-wide">
+                                    {dateLabel}
+                                </span>
+                            </div>
+                            {groupMsgs.map(msg => {
+                                const isMe = msg.senderId === currentUser.id;
+                                const shareMatch = msg.content.match(/:::SHARE_TRACK:(.*?):::/);
+                                const isRead = !!msg.readAt;
+                                const isTemp = msg.id.startsWith('temp-');
+                                
+                                return (
+                                    <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} mb-1 group relative`}>
                                         
-                                        {/* Group Actions: Only show Add if owner */}
-                                        {g.ownerId === currentUserId && (
-                                            <div className="border-t border-slate-700/50 pt-2 flex justify-end">
-                                                <button 
-                                                    onClick={() => handleStartInvite(g)}
-                                                    className="flex items-center gap-1 text-[10px] bg-slate-700 hover:bg-green-600 hover:text-white text-slate-300 px-2 py-1 rounded font-bold uppercase transition-colors"
-                                                >
-                                                    + Aggiungi Amico
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {inviteModeGroup && (
-                        <div className="space-y-4 animate-fade-in-right">
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-sm font-black text-white uppercase">Aggiungi a "{inviteModeGroup.name}"</h3>
-                                <button onClick={() => setInviteModeGroup(null)} className="text-xs text-slate-400 hover:text-white">Indietro</button>
-                            </div>
-                            
-                            <div className="space-y-2">
-                                {inviteableFriends.length === 0 ? (
-                                    <p className="text-center text-slate-500 text-xs py-8">Nessun amico da aggiungere.</p>
-                                ) : (
-                                    inviteableFriends.map(friend => (
-                                        <div key={friend.id} className="flex items-center justify-between p-3 bg-slate-800 rounded-xl border border-slate-700">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-white">
-                                                    {friend.name?.substring(0,1)}
-                                                </div>
-                                                <span className="text-sm font-bold text-white">{friend.name}</span>
-                                            </div>
+                                        {/* Message Bubble */}
+                                        <div 
+                                            className={`max-w-[85%] sm:max-w-[70%] px-3 py-1.5 rounded-lg text-[14px] shadow-sm relative ${
+                                                isMe 
+                                                ? 'bg-[#005c4b] text-[#e9edef] rounded-tr-none' 
+                                                : 'bg-[#202c33] text-[#e9edef] rounded-tl-none'
+                                            }`}
+                                        >
+                                            {/* Dropdown Trigger on Hover */}
                                             <button 
-                                                onClick={() => friend.id && handleInviteFriend(friend.id)}
-                                                className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-green-600 hover:bg-green-500 text-white transition-all shadow-md active:scale-95"
+                                                onClick={() => setMessageToDelete(msg)}
+                                                className={`absolute -top-2 ${isMe ? '-left-2' : '-right-2'} w-6 h-6 bg-slate-800 text-slate-400 rounded-full shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10 hover:text-white`}
                                             >
-                                                Aggiungi +
+                                                <span className="text-xs mb-1">...</span>
                                             </button>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-                        </div>
-                    )}
 
-                    {activeTab === 'friends' && (
-                        <div className="space-y-6 animate-fade-in">
-                            {/* Requests */}
-                            {requests.length > 0 && (
-                                <div className="space-y-2">
-                                    <h3 className="text-xs font-black text-cyan-400 uppercase tracking-widest mb-2">Richieste in sospeso</h3>
-                                    {requests.map(req => (
-                                        <div key={req.id} className="flex items-center justify-between p-3 bg-slate-800/80 border border-cyan-500/30 rounded-xl">
-                                            <span className="text-sm font-bold text-white">{req.requester.name}</span>
-                                            <div className="flex gap-2">
-                                                <button onClick={() => handleAccept(req.id)} className="bg-green-600 hover:bg-green-500 text-white p-1.5 rounded-lg transition-colors"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clipRule="evenodd" /></svg></button>
-                                                <button onClick={() => handleReject(req.id)} className="bg-red-900/50 hover:bg-red-900 text-red-400 p-1.5 rounded-lg transition-colors"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" /></svg></button>
+                                            {shareMatch ? (
+                                                (() => {
+                                                    try {
+                                                        const data = JSON.parse(shareMatch[1]);
+                                                        const isFull = data.access === 'full';
+                                                        return (
+                                                            <div className="cursor-pointer -mx-1 -mt-1" onClick={() => handleTrackClick(data)}>
+                                                                <div className="bg-black/20 rounded-t-lg p-2 mb-1 flex items-center gap-2">
+                                                                    <div className="w-8 h-8 rounded bg-slate-800 flex items-center justify-center text-xl">🗺️</div>
+                                                                    <div className="flex-grow">
+                                                                        <div className="font-bold text-sm text-[#e9edef]">{data.name}</div>
+                                                                        <div className="text-[10px] text-[#8696a0]">{data.dist} km • {isFull ? 'Accesso Completo' : 'Anteprima'}</div>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="px-1 pb-1">
+                                                                    <button className="w-full bg-[#2a3942] hover:bg-[#374248] text-[#00a884] font-bold text-xs py-2 rounded uppercase tracking-wide">
+                                                                        Vedi Attività
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    } catch { return <span>{msg.content}</span> }
+                                                })()
+                                            ) : (
+                                                <p className="leading-snug break-words pr-2">{msg.content}</p>
+                                            )}
+                                            
+                                            <div className="flex justify-end items-center gap-1 mt-0.5 -mb-1 ml-2 float-right h-4">
+                                                <span className="text-[10px] text-[#8696a0] leading-none">
+                                                    {new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                                </span>
+                                                {isMe && (
+                                                    isTemp ? <ClockIcon /> : <WhatsAppTicks read={isRead} sent={true} />
+                                                )}
                                             </div>
                                         </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            {/* Friends List */}
-                            <div>
-                                <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3">I tuoi amici ({friends.length})</h3>
-                                {friends.length === 0 ? (
-                                    <div className="text-center py-8 text-slate-500 text-xs">
-                                        <p>Non hai ancora amici connessi.</p>
-                                        <button onClick={() => setActiveTab('add')} className="text-cyan-400 underline mt-1">Cerca qualcuno</button>
                                     </div>
-                                ) : (
-                                    <div className="space-y-2">
-                                        {friends.map(friend => (
-                                            <div key={friend.id} className="flex items-center justify-between p-3 bg-slate-800 rounded-xl border border-slate-700 hover:border-slate-600 transition-colors group">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="relative">
-                                                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center text-xs font-bold text-white">
-                                                            {friend.name?.substring(0,1)}
-                                                        </div>
-                                                        {friend.isOnline && <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 border-2 border-slate-800 rounded-full"></div>}
-                                                    </div>
-                                                    <span className="text-sm font-bold text-white">{friend.name}</span>
-                                                </div>
-                                                <button 
-                                                    onClick={() => setActiveChatFriend(friend)}
-                                                    className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
-                                                >
-                                                    <ChatBubbleIcon />
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
+                                );
+                            })}
                         </div>
-                    )}
-
-                    {activeTab === 'add' && (
-                        <div className="space-y-4 animate-fade-in">
-                            <div className="relative">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                                    <SearchIcon />
-                                </div>
-                                <input 
-                                    type="text" 
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    placeholder="Cerca per nome..." 
-                                    className="w-full bg-slate-800 border border-slate-700 rounded-xl py-3 pl-10 pr-4 text-sm text-white focus:border-cyan-500 outline-none transition-colors"
-                                    autoFocus
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                {!loading && searchResults.length === 0 && searchQuery.length >= 3 && (
-                                    <div className="text-center text-slate-500 text-xs py-4">Nessun utente trovato.</div>
-                                )}
-
-                                {searchResults.map(user => {
-                                    const isSent = sentRequests.has(user.id || '');
-                                    return (
-                                        <div key={user.id} className="flex items-center justify-between p-3 bg-slate-800 rounded-xl border border-slate-700">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-white">
-                                                    {user.name?.substring(0,1)}
-                                                </div>
-                                                <span className="text-sm font-bold text-white">{user.name}</span>
-                                            </div>
-                                            <button 
-                                                onClick={() => user.id && handleSendRequest(user.id)}
-                                                disabled={isSent}
-                                                className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${isSent ? 'bg-slate-700 text-slate-400' : 'bg-cyan-600 hover:bg-cyan-500 text-white'}`}
-                                            >
-                                                {isSent ? 'Inviata' : 'Aggiungi'}
-                                            </button>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
+                    ))}
+                    <div ref={chatEndRef} />
                 </div>
-            </div>
 
-            {activeChatFriend && (
-                <MiniChat 
-                    currentUser={{ id: currentUserId }} 
-                    friend={activeChatFriend} 
-                    onClose={() => setActiveChatFriend(null)} 
-                />
-            )}
+                {/* Delete Modal */}
+                {messageToDelete && (
+                    <div className="absolute inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-fade-in" onClick={() => setMessageToDelete(null)}>
+                        <div className="bg-[#202c33] w-full max-w-sm rounded-xl p-4 shadow-2xl border border-slate-700" onClick={e => e.stopPropagation()}>
+                            <h3 className="text-white font-bold mb-4 text-center">Elimina messaggio?</h3>
+                            <div className="space-y-2">
+                                {messageToDelete.senderId === currentUser.id && (
+                                    <button 
+                                        onClick={() => handleDeleteMessage('everyone')}
+                                        className="w-full p-3 bg-slate-800 text-red-400 font-bold rounded-lg hover:bg-slate-700 text-sm flex items-center justify-center gap-2"
+                                    >
+                                        <TrashIcon /> Elimina per tutti
+                                    </button>
+                                )}
+                                <button 
+                                    onClick={() => handleDeleteMessage('me')}
+                                    className="w-full p-3 bg-slate-800 text-slate-200 font-bold rounded-lg hover:bg-slate-700 text-sm"
+                                >
+                                    Elimina per me
+                                </button>
+                                <button 
+                                    onClick={() => setMessageToDelete(null)}
+                                    className="w-full p-3 border border-slate-600 text-slate-400 font-bold rounded-lg hover:text-white text-sm"
+                                >
+                                    Annulla
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Share Menu Overlay */}
+                {showShareMenu && (
+                    <div className="absolute bottom-16 left-4 right-4 bg-[#202c33] rounded-xl shadow-2xl p-4 z-30 animate-slide-up border border-[#2a3942]">
+                        <div className="flex justify-between items-center mb-4">
+                            <h4 className="text-xs font-bold text-[#8696a0] uppercase tracking-widest">Invia Corsa</h4>
+                            <button onClick={() => setShowShareMenu(false)} className="text-[#8696a0] hover:text-white">&times;</button>
+                        </div>
+                        
+                        <label className="flex items-center gap-3 p-3 bg-[#111b21] rounded-lg mb-4 cursor-pointer border border-transparent hover:border-[#00a884] transition-colors">
+                            <input 
+                                type="checkbox" 
+                                checked={fullAccessMode} 
+                                onChange={e => setFullAccessMode(e.target.checked)}
+                                className="accent-[#00a884] w-5 h-5 rounded"
+                            />
+                            <div className="flex-grow">
+                                <span className={`text-sm font-bold ${fullAccessMode ? 'text-[#00a884]' : 'text-[#e9edef]'}`}>Analisi Ospite</span>
+                                <p className="text-[11px] text-[#8696a0]">Permetti all'amico di vedere i grafici.</p>
+                            </div>
+                        </label>
+
+                        <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-1">
+                            {shareTracks.map(t => (
+                                <button 
+                                    key={t.id} 
+                                    onClick={() => handleShareTrack(t)}
+                                    className="w-full flex items-center justify-between p-3 hover:bg-[#2a3942] rounded-lg transition-colors text-left"
+                                >
+                                    <span className="text-sm text-[#e9edef] truncate max-w-[180px]">{t.name}</span>
+                                    <span className="text-xs font-mono text-[#8696a0]">{t.distance.toFixed(1)}km</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Input Area */}
+                <form onSubmit={(e) => handleSend(e)} className="p-2 md:p-3 bg-[#202c33] flex gap-2 shrink-0 items-center z-20">
+                    <button 
+                        type="button"
+                        onClick={() => setShowShareMenu(!showShareMenu)}
+                        className={`p-3 rounded-full transition-all ${showShareMenu ? 'text-[#00a884] bg-[#2a3942]' : 'text-[#8696a0] hover:bg-[#2a3942]'}`}
+                    >
+                        <PaperClipIcon />
+                    </button>
+                    <div className="flex-grow bg-[#2a3942] rounded-lg px-4 py-2 flex items-center">
+                        <input 
+                            type="text" 
+                            value={newMessage}
+                            onChange={(e) => setNewMessage(e.target.value)}
+                            placeholder="Scrivi un messaggio"
+                            className="w-full bg-transparent text-[#e9edef] text-sm focus:outline-none placeholder-[#8696a0]"
+                            autoFocus
+                        />
+                    </div>
+                    <button 
+                        type="submit" 
+                        disabled={!newMessage.trim()} 
+                        className={`p-3 rounded-full transition-all flex items-center justify-center ${newMessage.trim() ? 'bg-[#00a884] text-white hover:bg-[#008f6f]' : 'bg-transparent text-[#8696a0]'}`}
+                    >
+                        <SendIcon />
+                    </button>
+                </form>
+            </div>
+            <style>{`
+                @keyframes pop-in { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+                .animate-pop-in { animation: pop-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+                @keyframes slide-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+                .animate-slide-up { animation: slide-up 0.2s ease-out forwards; }
+            `}</style>
         </div>
     );
 };
 
-export default SocialHub;
+export default MiniChat;
