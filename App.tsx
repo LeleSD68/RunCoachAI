@@ -249,6 +249,15 @@ const App: React.FC = () => {
         if ('Notification' in window && Notification.permission !== 'granted') Notification.requestPermission();
     }, []);
 
+    const fetchUnreadCount = useCallback(async () => {
+        if (userId && userId !== 'guest') {
+            try {
+                const count = await getUnreadNotificationsCount(userId);
+                setUnreadMessages(count);
+            } catch(e) {}
+        }
+    }, [userId]);
+
     useEffect(() => {
         if (!userId || userId === 'guest') return;
         const heartbeatAndCheckFriends = async () => {
@@ -261,20 +270,12 @@ const App: React.FC = () => {
             } catch (e) { console.error("Friend poll error", e); }
         };
         
-        // Initial Fetch for Unread Count
-        const fetchInitialUnread = async () => {
-            try {
-                const count = await getUnreadNotificationsCount(userId);
-                setUnreadMessages(count);
-            } catch(e) {}
-        };
-
         heartbeatAndCheckFriends();
-        fetchInitialUnread();
+        fetchUnreadCount();
 
         const interval = setInterval(heartbeatAndCheckFriends, 60 * 1000);
         return () => clearInterval(interval);
-    }, [userId]);
+    }, [userId, fetchUnreadCount]);
 
     useEffect(() => {
         if (!userId || userId === 'guest') return;
@@ -283,14 +284,19 @@ const App: React.FC = () => {
                 if (!showSocial) {
                     const msg = "Nuovo messaggio ricevuto!";
                     addToast(msg, "info");
-                    setUnreadMessages(prev => prev + 1);
                     sendNotification("RunCoachAI Social", "Hai ricevuto un nuovo messaggio privato.");
-                } else { setUnreadMessages(prev => prev + 1); }
+                }
+                // Refresh unread count on insert
+                fetchUnreadCount();
+            })
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'direct_messages', filter: `receiver_id=eq.${userId}` }, (payload) => {
+                // Refresh unread count on update (when read_at changes)
+                fetchUnreadCount();
             })
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'friends', filter: `user_id_2=eq.${userId}` }, (payload) => {
                 const msg = "Nuova richiesta di amicizia!";
                 addToast(msg, "info");
-                setUnreadMessages(prev => prev + 1); 
+                fetchUnreadCount();
                 sendNotification("RunCoachAI Crew", "Qualcuno vuole aggiungerti agli amici!");
             })
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tracks' }, (payload) => {
@@ -311,14 +317,7 @@ const App: React.FC = () => {
             })
             .subscribe();
         return () => { supabase.removeChannel(channel); };
-    }, [userId, showSocial]);
-
-    const handleReadMessages = async () => {
-        setUnreadMessages(0);
-        if (userId && userId !== 'guest') {
-            await markMessagesAsRead(userId);
-        }
-    };
+    }, [userId, showSocial, fetchUnreadCount]);
 
     const saveLayoutPrefs = (newPrefs: Partial<{ desktopSidebar: number, mobileListRatio: number }>) => {
         const updated = { ...layoutPrefs, ...newPrefs };
@@ -810,7 +809,7 @@ const App: React.FC = () => {
         const next = plannedWorkouts.filter(w => w.id !== id);
         setPlannedWorkouts(next);
         await savePlannedWorkoutsToDB(next);
-        await deletePlannedWorkoutFromCloud(id);
+        await deletePlannedWorkoutFromCloud(String(id));
         addToast("Rimossa dal diario.", "info");
     };
 
@@ -826,7 +825,7 @@ const App: React.FC = () => {
             if (file.name.toLowerCase().endsWith('.gpx')) parsed = parseGpx(text, file.name);
             else if (file.name.toLowerCase().endsWith('.tcx')) parsed = parseTcx(text, file.name);
             if (parsed) {
-                const { title, activityType, folder } = generateSmartTitle(parsed.points, parsed.distance, parsed.name);
+                const { title, activityType, folder } = generateSmartTitle(parsed.points, parsed.distance, String(parsed.name));
                 const tempTrack: Track = { id: crypto.randomUUID(), name: title, points: parsed.points, distance: parsed.distance, duration: parsed.duration, color: `hsl(${Math.random() * 360}, 70%, 60%)`, activityType, folder };
                 if (!isDuplicateTrack(tempTrack, [...tracks, ...newTracks])) { newTracks.push(tempTrack); newCount++; } 
                 else skipCount++;
@@ -1263,7 +1262,7 @@ const App: React.FC = () => {
                     onClose={() => toggleView('social')} 
                     currentUserId={userId || 'guest'} 
                     onChallengeGhost={handleChallengeGhost}
-                    onReadMessages={handleReadMessages}
+                    onReadMessages={fetchUnreadCount}
                 />
             )}
 
