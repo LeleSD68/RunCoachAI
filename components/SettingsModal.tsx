@@ -48,6 +48,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, userProfile, onU
         window.location.reload();
     };
 
+    const toggleStravaSync = () => {
+        if (!stravaConnected) return;
+        onUpdateProfile({ stravaAutoSync: !userProfile.stravaAutoSync });
+    };
+
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[9000] p-4 animate-fade-in" onClick={onClose}>
             <div className="bg-slate-900 text-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col border border-slate-700 overflow-hidden max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
@@ -100,24 +105,22 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, userProfile, onU
                     {/* STRAVA SYNC */}
                     <section className="space-y-3">
                         <h3 className="text-xs font-black text-[#fc4c02] uppercase tracking-widest border-b border-[#fc4c02]/30 pb-2">Integrazioni</h3>
-                        <div className={`p-4 rounded-xl border flex items-center justify-between transition-colors ${userProfile.stravaAutoSync ? 'bg-[#fc4c02]/10 border-[#fc4c02]/50' : 'bg-slate-800 border-slate-700'}`}>
+                        <div 
+                            onClick={toggleStravaSync}
+                            className={`p-4 rounded-xl border flex items-center justify-between transition-all cursor-pointer select-none active:scale-[0.98] ${userProfile.stravaAutoSync ? 'bg-[#fc4c02]/10 border-[#fc4c02]/50' : 'bg-slate-800 border-slate-700 hover:border-slate-500'}`}
+                        >
                             <div>
                                 <div className="flex items-center gap-2 mb-1">
-                                    <span className="text-white font-bold text-sm">Strava Auto-Sync</span>
+                                    <span className={`font-bold text-sm ${userProfile.stravaAutoSync ? 'text-[#fc4c02]' : 'text-white'}`}>Strava Auto-Sync</span>
                                 </div>
                                 <p className="text-[10px] text-slate-400 leading-tight max-w-[200px]">Importa automaticamente le nuove attività all'apertura dell'app.</p>
                                 {!stravaConnected && <p className="text-[9px] text-red-400 font-bold mt-1">Richiede login Strava.</p>}
                             </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                                <input 
-                                    type="checkbox" 
-                                    className="sr-only peer" 
-                                    checked={userProfile.stravaAutoSync} 
-                                    onChange={(e) => onUpdateProfile({ stravaAutoSync: e.target.checked })} 
-                                    disabled={!stravaConnected}
-                                />
-                                <div className="w-11 h-6 bg-slate-950 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#fc4c02]"></div>
-                            </label>
+                            
+                            {/* Visual Toggle Switch */}
+                            <div className={`w-12 h-6 rounded-full relative transition-colors ${userProfile.stravaAutoSync ? 'bg-[#fc4c02]' : 'bg-slate-950 border border-slate-600'}`}>
+                                <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${userProfile.stravaAutoSync ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                            </div>
                         </div>
                     </section>
 
