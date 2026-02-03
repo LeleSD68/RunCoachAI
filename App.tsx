@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Track, UserProfile, PlannedWorkout, Toast, ActivityType, RaceRunner, RaceResult, TrackStats, Commentary, TrackPoint, ApiUsage, RaceGapSnapshot, LeaderStats } from './types';
 import Sidebar from './components/Sidebar';
@@ -174,8 +173,8 @@ const App: React.FC = () => {
             })
             // 3. New Track from Friend
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tracks' }, (payload) => {
-                const newRecord = payload.new as any;
-                if (friendsIdRef.current.has(newRecord.user_id as string)) {
+                const newRecord = payload.new as { user_id: string; name: string };
+                if (friendsIdRef.current.has(newRecord.user_id)) {
                     const msg = `Un amico ha caricato una nuova corsa: ${newRecord.name}`;
                     addToast(msg, "info");
                     sendNotification("Feed Attività", `${newRecord.name} è appena stata caricata.`);
@@ -431,7 +430,7 @@ const App: React.FC = () => {
 
             if (workoutDuplicates > 0) {
                 await savePlannedWorkoutsToDB(uniqueWorkouts);
-                duplicateIdsToDelete.forEach((id) => deletePlannedWorkoutFromCloud(id as string));
+                duplicateIdsToDelete.forEach((id: string) => deletePlannedWorkoutFromCloud(id));
                 addToast(`Rimossi ${workoutDuplicates} allenamenti doppi.`, "info");
             }
 
@@ -724,7 +723,7 @@ const App: React.FC = () => {
         const next = plannedWorkouts.filter(w => w.id !== id);
         setPlannedWorkouts(next);
         await savePlannedWorkoutsToDB(next);
-        await deletePlannedWorkoutFromCloud(id);
+        await deletePlannedWorkoutFromCloud(String(id));
         addToast("Rimossa dal diario.", "info");
     };
 
@@ -740,7 +739,7 @@ const App: React.FC = () => {
             if (file.name.toLowerCase().endsWith('.gpx')) parsed = parseGpx(text, file.name);
             else if (file.name.toLowerCase().endsWith('.tcx')) parsed = parseTcx(text, file.name);
             if (parsed) {
-                const { title, activityType, folder } = generateSmartTitle(parsed.points, parsed.distance, parsed.name as string);
+                const { title, activityType, folder } = generateSmartTitle(parsed.points, parsed.distance, String(parsed.name));
                 const tempTrack: Track = { id: crypto.randomUUID(), name: title, points: parsed.points, distance: parsed.distance, duration: parsed.duration, color: `hsl(${Math.random() * 360}, 70%, 60%)`, activityType, folder };
                 if (!isDuplicateTrack(tempTrack, [...tracks, ...newTracks])) { newTracks.push(tempTrack); newCount++; } 
                 else skipCount++;
