@@ -95,13 +95,14 @@ const HomeModal: React.FC<HomeModalProps> = ({
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             onImportBackup(e.target.files[0]);
+            setMenuStep('main'); // Torna al menu principale dopo l'importazione
         }
     };
 
     const handleTrackUploadChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
             onUploadTracks(Array.from(e.target.files));
-            onClose(); 
+            setMenuStep('main'); // Torna al menu principale dopo il caricamento
         }
     };
 
