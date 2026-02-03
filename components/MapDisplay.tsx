@@ -45,11 +45,11 @@ const ArrowsPointingInIcon = () => (
     </svg>
 );
 
-const MapDisplay: React.FC<MapDisplayProps & { onGradientChange?: (metric: string) => void, onToggleFullScreen?: () => void, isFullScreen?: boolean }> = ({ 
+const MapDisplay: React.FC<MapDisplayProps & { onGradientChange?: (metric: string) => void, onToggleFullScreen?: () => void, isFullScreen?: boolean, onTrackClick?: (trackId: string) => void }> = ({ 
     tracks, visibleTrackIds, selectedTrackIds, raceRunners, hoveredTrackId, runnerSpeeds, 
     hoveredPoint, mapGradientMetric = 'none', animationTrack, 
     animationProgress = 0, isAnimationPlaying, fitBoundsCounter = 0,
-    selectionPoints = null, onGradientChange, onToggleFullScreen, isFullScreen
+    selectionPoints = null, onGradientChange, onToggleFullScreen, isFullScreen, onTrackClick
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
@@ -177,10 +177,30 @@ const MapDisplay: React.FC<MapDisplayProps & { onGradientChange?: (metric: strin
             }
         }
         
+        // Interaction: Allow selecting track from map
+        layer.on('click', (e: any) => {
+            L.DomEvent.stopPropagation(e);
+            if (onTrackClick) onTrackClick(track.id);
+        });
+
+        // Hover effect if not racing
+        if (!isRacing) {
+            layer.on('mouseover', () => {
+                if (localGradient === 'none') {
+                    layer.setStyle({ weight: 6, opacity: 1 });
+                }
+            });
+            layer.on('mouseout', () => {
+                if (localGradient === 'none') {
+                    layer.setStyle({ weight: 4, opacity: 0.6 });
+                }
+            });
+        }
+        
         layer.addTo(map);
         polylinesRef.current.set(track.id, layer);
     });
-  }, [tracks, visibleTrackIds, localGradient, raceRunners]);
+  }, [tracks, visibleTrackIds, localGradient, raceRunners, onTrackClick]);
 
   // Gestione Selezione
   useEffect(() => {
