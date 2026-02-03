@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
 import { UserProfile, DirectMessage, Track } from '../types';
 import { sendDirectMessage, getDirectMessages, updateTrackSharing, getTrackById, markMessagesAsRead } from '../services/socialService';
 import { supabase } from '../services/supabaseClient';
@@ -19,23 +19,23 @@ const SendIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 
 const CloseIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-6 h-6"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" /></svg>);
 const PaperClipIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path fillRule="evenodd" d="M18.97 3.659a2.25 2.25 0 0 0-3.182 0l-10.94 10.94a3.75 3.75 0 1 0 5.304 5.303l7.693-7.693a.75.75 0 0 1 1.06 1.06l-7.693 7.693a5.25 5.25 0 1 1-7.424-7.424l10.939-10.94a3.75 3.75 0 1 1 5.303 5.304L9.097 18.835l-.008.008-.007.007-.002.002-.003.002A2.25 2.25 0 0 1 5.91 15.66l7.81-7.81a.75.75 0 0 1 1.061 1.06l-7.81 7.81a.75.75 0 0 0 1.054 1.068L18.97 6.84a2.25 2.25 0 0 0 0-3.182Z" clipRule="evenodd" /></svg>);
 
-const DoubleCheckIcon = ({ read }: { read: boolean }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={`w-3.5 h-3.5 ${read ? 'text-[#53bdeb]' : 'text-gray-400'}`}>
-        <path d="M12.232 4.232a2.5 2.5 0 0 1 3.536 3.536l-1.225 1.224a.75.75 0 0 0 1.061 1.06l1.224-1.224a4 4 0 0 0-5.656-5.656l-3 3a4 4 0 0 0 .225 5.865.75.75 0 0 0 .977-1.138 2.5 2.5 0 0 1-.142-3.667l3-3Z" />
-        <path d="M11.603 7.963a.75.75 0 0 0-.977 1.138 2.5 2.5 0 0 1 .142 3.667l-3 3a2.5 2.5 0 0 1-3.536-3.536l1.225-1.224a.75.75 0 0 0-1.061-1.06l-1.224 1.224a4 4 0 1 0 5.656 5.656l3-3a4 4 0 0 0-.225-5.865Z" />
-        {/* Simulating ticks geometry */}
-        <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clipRule="evenodd" />
-        <path d="M12.5 5.5l-4 5 1.5 1.5 4-5-1.5-1.5z" opacity="0"/> 
-        {/* Adjusted simplistic check marks for visual similarity */}
-        <path d="M13.25 5.5l-3.5 4.5 1 1 3.5-4.5-1-1z" opacity="0"/>
-    </svg>
+// New Ticks Component - Standard WhatsApp Style
+const WhatsAppTicks = ({ read, sent }: { read: boolean; sent: boolean }) => (
+    <div className="flex items-end pl-1">
+        {/* Using a standard SVG for double check */}
+        <svg viewBox="0 0 16 12" width="14" height="10" className={read ? 'text-[#53bdeb]' : 'text-[#8696a0]'} fill="currentColor">
+            {/* First Tick */}
+            <path d="M15.01 3.316l-7.833 7.752-5.468-5.468 1.414-1.414 4.054 4.054 6.419-6.338 1.414 1.414z" transform="translate(-4, 0)" />
+            {/* Second Tick (Only if sent/delivered/read) - For now we assume double tick = delivered/read */}
+            <path d="M15.01 3.316l-7.833 7.752-5.468-5.468 1.414-1.414 4.054 4.054 6.419-6.338 1.414 1.414z" />
+        </svg>
+    </div>
 );
 
-const WhatsAppTicks = ({ read }: { read: boolean }) => (
-    <div className="flex -space-x-1">
-        <svg viewBox="0 0 16 11" width="16" height="11" className={`w-3 h-3 ${read ? 'text-[#53bdeb]' : 'text-[#8696a0]'}`} fill="currentColor"><path d="M11.5 0L16 0L8.5 10.5L3 5.5L4.5 3.5L8.5 7L11.5 0Z" /></svg>
-        <svg viewBox="0 0 16 11" width="16" height="11" className={`w-3 h-3 ${read ? 'text-[#53bdeb]' : 'text-[#8696a0]'}`} fill="currentColor"><path d="M11.5 0L16 0L8.5 10.5L3 5.5L4.5 3.5L8.5 7L11.5 0Z" /></svg>
-    </div>
+const ClockIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 text-[#8696a0] ml-1">
+        <path fillRule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm.75-13a.75.75 0 0 0-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 0 0 0-1.5h-3.25V5Z" clipRule="evenodd" />
+    </svg>
 );
 
 // Helper per formattare la data nei messaggi
@@ -57,7 +57,12 @@ const getMessageDateLabel = (dateString: string) => {
 const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onViewTrack, onMessagesRead }) => {
     const [messages, setMessages] = useState<DirectMessage[]>([]);
     const [newMessage, setNewMessage] = useState('');
+    
+    // Scroll Refs
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
     const chatEndRef = useRef<HTMLDivElement>(null);
+    const shouldScrollRef = useRef(true); // Default to true for initial load
+    
     const intervalRef = useRef<number | null>(null);
     
     // Sharing UI
@@ -68,6 +73,14 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
     const loadMessages = async () => {
         if (!currentUser.id || !friend.id) return;
         const msgs = await getDirectMessages(currentUser.id, friend.id);
+        
+        // Preserve scroll logic: check if we are at bottom BEFORE updating
+        if (scrollContainerRef.current) {
+            const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+            const isAtBottom = scrollHeight - scrollTop - clientHeight < 100; // 100px tolerance
+            shouldScrollRef.current = isAtBottom;
+        }
+
         setMessages(msgs);
         
         // Mark as read immediately on load
@@ -85,6 +98,9 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
         loadMessages();
         loadMyTracks();
         
+        // Force scroll to bottom on initial mount
+        shouldScrollRef.current = true;
+
         // Polling fallback
         intervalRef.current = window.setInterval(loadMessages, 4000);
         
@@ -100,6 +116,12 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
                 async (payload) => {
                     const newMsg = payload.new;
                     if (newMsg.sender_id === friend.id) {
+                        // Check if user is looking at bottom
+                        if (scrollContainerRef.current) {
+                            const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+                            shouldScrollRef.current = scrollHeight - scrollTop - clientHeight < 100;
+                        }
+
                         setMessages(prev => {
                             if (prev.some(m => m.id === newMsg.id)) return prev;
                             return [...prev, {
@@ -138,8 +160,12 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
         };
     }, [friend.id, currentUser.id]);
 
-    useEffect(() => {
-        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Handle Scrolling
+    useLayoutEffect(() => {
+        if (shouldScrollRef.current && chatEndRef.current) {
+            chatEndRef.current.scrollIntoView({ behavior: 'auto' }); // Use auto for instant snap or smooth if preferred
+            shouldScrollRef.current = false; // Reset
+        }
     }, [messages]);
 
     const handleSend = async (e?: React.FormEvent, customContent?: string) => {
@@ -155,6 +181,10 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
                 content: contentToSend,
                 createdAt: new Date().toISOString()
             };
+            
+            // Always scroll to bottom when sending
+            shouldScrollRef.current = true;
+            
             setMessages(prev => [...prev, tempMsg]);
             setNewMessage('');
             
@@ -251,7 +281,10 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
                 </div>
 
                 {/* Messages Area */}
-                <div className="flex-grow overflow-y-auto p-4 bg-[#0b141a] space-y-4 custom-scrollbar bg-chat-pattern relative">
+                <div 
+                    ref={scrollContainerRef}
+                    className="flex-grow overflow-y-auto p-4 bg-[#0b141a] space-y-4 custom-scrollbar bg-chat-pattern relative"
+                >
                     <div className="absolute inset-0 opacity-5 pointer-events-none bg-[url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')] bg-repeat"></div>
                     
                     {messages.length === 0 && (
@@ -274,6 +307,7 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
                                 const isMe = msg.senderId === currentUser.id;
                                 const shareMatch = msg.content.match(/:::SHARE_TRACK:(.*?):::/);
                                 const isRead = !!msg.readAt;
+                                const isTemp = msg.id.startsWith('temp-');
                                 
                                 return (
                                     <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} mb-1`}>
@@ -311,11 +345,13 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
                                                 <p className="leading-snug break-words pr-2">{msg.content}</p>
                                             )}
                                             
-                                            <div className="flex justify-end items-center gap-1 mt-0.5 -mb-1 ml-2 float-right">
-                                                <span className="text-[10px] text-[#8696a0]">
+                                            <div className="flex justify-end items-center gap-1 mt-0.5 -mb-1 ml-2 float-right h-4">
+                                                <span className="text-[10px] text-[#8696a0] leading-none">
                                                     {new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                                                 </span>
-                                                {isMe && <WhatsAppTicks read={isRead} />}
+                                                {isMe && (
+                                                    isTemp ? <ClockIcon /> : <WhatsAppTicks read={isRead} sent={true} />
+                                                )}
                                             </div>
                                         </div>
                                     </div>
