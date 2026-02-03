@@ -100,6 +100,91 @@ const App: React.FC = () => {
     // Layout Preferences
     const [layoutPrefs, setLayoutPrefs] = useState<{ desktopSidebar: number, mobileListRatio: number }>({ desktopSidebar: 320, mobileListRatio: 0.7 });
 
+    // --- HISTORY API HANDLING FOR MOBILE BACK BUTTON ---
+    const resetNavigation = useCallback(() => {
+        setShowHome(false);
+        setShowExplorer(false);
+        setShowDiary(false);
+        setShowPerformance(false);
+        setShowSocial(false);
+        setShowProfile(false);
+        setShowSettings(false);
+        setShowGuide(false);
+        setShowChangelog(false);
+        setShowGlobalChat(false);
+        setViewingTrack(null);
+        setEditingTrack(null);
+    }, []);
+
+    useEffect(() => {
+        // Initialize history state
+        window.history.replaceState({ view: 'map' }, '');
+
+        const handlePopState = (event: PopStateEvent) => {
+            const state = event.state;
+            const view = state?.view || 'map';
+            
+            if (view === 'map') {
+                resetNavigation();
+                // Ensure sidebar logic for desktop remains consistent if needed
+                if (!isDesktop) setIsSidebarOpen(false); 
+            } else {
+                // If we popped to a specific view state (rare in this logic, mostly we pop back to map)
+                // handle re-opening? Usually we just want to close overlays.
+                // For simplicity, any popstate that isn't explicitly handling forward navigation
+                // should probably just close current overlays if they are open.
+                resetNavigation();
+            }
+        };
+
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, [resetNavigation]);
+
+    const pushViewState = (viewName: string) => {
+        window.history.pushState({ view: viewName }, '');
+    };
+
+    const toggleView = (view: 'diary' | 'explorer' | 'performance' | 'social' | 'hub' | 'profile' | 'settings' | 'guide') => {
+        const currentStates = {
+            diary: showDiary,
+            explorer: showExplorer,
+            performance: showPerformance,
+            social: showSocial,
+            hub: showHome,
+            profile: showProfile,
+            settings: showSettings,
+            guide: showGuide
+        };
+        
+        const isOpen = currentStates[view];
+        
+        // If opening a new view, push state
+        if (!isOpen) {
+            pushViewState(view);
+            resetNavigation(); // Close others first visualy
+            
+            switch(view) {
+                case 'diary': setShowDiary(true); break;
+                case 'explorer': setShowExplorer(true); break;
+                case 'performance': setShowPerformance(true); break;
+                case 'social': setShowSocial(true); break;
+                case 'hub': setShowHome(true); break;
+                case 'profile': setShowProfile(true); break;
+                case 'settings': setShowSettings(true); break;
+                case 'guide': setShowGuide(true); break;
+            }
+        } else {
+            // If closing, we act like "Back"
+            window.history.back();
+        }
+
+        if (view === 'hub' && !isOpen && isDesktop) {
+            setIsSidebarOpen(true);
+        }
+    };
+    // --- END HISTORY API ---
+
     useEffect(() => {
         const stored = localStorage.getItem(LAYOUT_PREFS_KEY);
         if (stored) {
@@ -275,52 +360,6 @@ const App: React.FC = () => {
         return true;
     }, [isGuest]);
 
-    const resetNavigation = useCallback(() => {
-        setShowHome(false);
-        setShowExplorer(false);
-        setShowDiary(false);
-        setShowPerformance(false);
-        setShowSocial(false);
-        setShowProfile(false);
-        setShowSettings(false);
-        setShowGuide(false);
-        setShowChangelog(false);
-        setShowGlobalChat(false);
-        setViewingTrack(null);
-        setEditingTrack(null);
-    }, []);
-
-    const toggleView = (view: 'diary' | 'explorer' | 'performance' | 'social' | 'hub' | 'profile' | 'settings' | 'guide') => {
-        const currentStates = {
-            diary: showDiary,
-            explorer: showExplorer,
-            performance: showPerformance,
-            social: showSocial,
-            hub: showHome,
-            profile: showProfile,
-            settings: showSettings,
-            guide: showGuide
-        };
-        
-        const isOpen = currentStates[view];
-        resetNavigation();
-        
-        if (!isOpen) {
-            switch(view) {
-                case 'diary': setShowDiary(true); break;
-                case 'explorer': setShowExplorer(true); break;
-                case 'performance': setShowPerformance(true); break;
-                case 'social': setShowSocial(true); break;
-                case 'hub': setShowHome(true); break;
-                case 'profile': setShowProfile(true); break;
-                case 'settings': setShowSettings(true); break;
-                case 'guide': setShowGuide(true); break;
-            }
-        } else if (view === 'hub') {
-            if (isDesktop) setIsSidebarOpen(true);
-        }
-    };
-
     useEffect(() => {
         const checkStravaCallback = async () => {
             const urlParams = new URLSearchParams(window.location.search);
@@ -341,13 +380,6 @@ const App: React.FC = () => {
         checkStravaCallback();
     }, []);
 
-    // Sequenza di Avvio:
-    // 1. SplashScreen (si chiude con onFinish)
-    // 2. onFinish attiva handleSplashFinish -> mostra Infografica (setShowInfographic true) e avvia checkSession() in background
-    // 3. checkSession controlla auth e carica i dati. Imposta isDataLoading a true/false.
-    // 4. L'utente clicca "Avanti" sull'Infografica.
-    // 5. Se i dati sono pronti, Infografica scompare e mostra AuthSelection o Home.
-
     const handleSplashFinish = () => {
         setShowSplash(false);
         setShowInfographic(true); // Mostra l'infografica
@@ -356,8 +388,6 @@ const App: React.FC = () => {
 
     const handleInfographicNext = () => {
         setShowInfographic(false);
-        // La logica di cosa mostrare (Auth o Home) è già gestita dalle variabili di stato userId/showHome/showAuthSelection
-        // impostate da checkSession.
     };
 
     const runAutoStravaSync = async (currentTracks: Track[]) => {
@@ -801,9 +831,6 @@ const App: React.FC = () => {
 
     if (showSplash) return <SplashScreen onFinish={handleSplashFinish} />;
     
-    // Mostra l'infografica se lo stato lo richiede. 
-    // NOTA: "isLoading" qui è true se stiamo ancora scaricando dati (isDataLoading) 
-    // O se l'utente non è ancora "readyToProceed" (che in questo caso semplificato è gestito dall'utente che clicca Avanti)
     if (showInfographic) return <InfographicScreen isLoading={isDataLoading} onNext={handleInfographicNext} />;
 
     return (
@@ -958,29 +985,16 @@ const App: React.FC = () => {
                         </div>
                     ) : (
                         (!isDesktop && !isSidebarOpen) ? (
-                            <div className="w-full h-full flex flex-col bg-slate-950 relative">
+                            <div className="w-full h-full flex flex-col bg-slate-950 relative pb-20 md:pb-0">
                                 <div className="flex-grow relative bg-slate-900">
                                     <MapDisplay 
                                         tracks={tracks} visibleTrackIds={mapVisibleIds} raceRunners={raceRunners}
                                         isAnimationPlaying={false} fitBoundsCounter={fitBoundsCounter}
                                         runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
                                     />
-                                    <button onClick={() => setShowGlobalChat(true)} className="absolute bottom-16 right-4 z-[1000] bg-purple-600 hover:bg-purple-500 text-white p-1 rounded-2xl shadow-2xl active:scale-90 border border-purple-400/50 transition-all">
+                                    <button onClick={() => setShowGlobalChat(true)} className="absolute bottom-4 right-4 z-[1000] bg-purple-600 hover:bg-purple-500 text-white p-1 rounded-2xl shadow-2xl active:scale-90 border border-purple-400/50 transition-all">
                                         <img src="/icona.png" alt="AI" className="w-12 h-12 object-cover rounded-xl" />
                                     </button>
-                                </div>
-                                <div className="bg-slate-950 pb-safe border-t border-slate-800 shrink-0">
-                                    <NavigationDock 
-                                        onOpenSidebar={() => setIsSidebarOpen(true)} 
-                                        onCloseSidebar={() => setIsSidebarOpen(false)}
-                                        onOpenExplorer={() => toggleView('explorer')} onOpenDiary={() => toggleView('diary')}
-                                        onOpenPerformance={() => toggleView('performance')} onOpenHub={() => toggleView('hub')}
-                                        onOpenSocial={() => toggleView('social')} onOpenProfile={() => toggleView('profile')}
-                                        onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}} 
-                                        isSidebarOpen={isSidebarOpen}
-                                        unreadCount={unreadMessages}
-                                        onlineCount={onlineFriendsCount}
-                                    />
                                 </div>
                             </div>
                         ) : (
@@ -1006,7 +1020,7 @@ const App: React.FC = () => {
                                                         onDeselectAll={() => setRaceSelectionIds(new Set())}
                                                         onSelectAll={() => setRaceSelectionIds(new Set(tracks.filter(t => !t.isArchived).map(t => t.id)))}
                                                         onStartRace={openRaceSetup}
-                                                        onViewDetails={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)}
+                                                        onViewDetails={(id) => { setViewingTrack(tracks.find(t => t.id === id) || null); pushViewState('trackDetail'); }}
                                                         onEditTrack={(id) => setEditingTrack(tracks.find(t => t.id === id) || null)}
                                                         onDeleteTrack={async (id) => { 
                                                             const track = tracks.find(t => t.id === id); if (track) markStravaTrackAsDeleted(track);
@@ -1034,14 +1048,14 @@ const App: React.FC = () => {
                                         )}
                                     </aside>
                                 ) : (
-                                    <div className="flex-grow overflow-hidden bg-slate-900 border-b border-slate-800 w-full h-full relative">
+                                    <div className="flex-grow overflow-hidden bg-slate-900 border-b border-slate-800 w-full h-full relative pb-20 md:pb-0">
                                          <Sidebar 
                                             tracks={tracks.filter(t => !t.isExternal)} 
                                             visibleTrackIds={mapVisibleIds} focusedTrackId={focusedTrackId} raceSelectionIds={raceSelectionIds}
                                             onFocusTrack={setFocusedTrackId} onDeselectAll={() => setRaceSelectionIds(new Set())}
                                             onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
                                             onStartRace={openRaceSetup}
-                                            onViewDetails={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)}
+                                            onViewDetails={(id) => { setViewingTrack(tracks.find(t => t.id === id) || null); pushViewState('trackDetail'); }}
                                             onEditTrack={(id) => setEditingTrack(tracks.find(t => t.id === id) || null)}
                                             onBulkArchive={handleBulkArchive} onDeleteSelected={handleBulkDelete} onMergeSelected={handleMergeSelectedTracks} onToggleFavorite={handleToggleFavorite} onBulkGroup={handleBulkGroup} onFileUpload={handleFileUpload} onToggleArchived={async (id) => { const u = tracks.map(t => t.id === id ? {...t, isArchived: !t.isArchived} : t); setTracks(u); await saveTracksToDB(u); }} onDeleteTrack={() => {}} onSelectAll={() => {}}
                                          />
@@ -1062,27 +1076,15 @@ const App: React.FC = () => {
                                         </>
                                     ) : (
                                         <>
-                                            <div className="flex-grow relative bg-slate-900">
+                                            <div className="flex-grow relative bg-slate-900 pb-20 md:pb-0">
                                                 <MapDisplay 
                                                     tracks={tracks} visibleTrackIds={mapVisibleIds} raceRunners={raceRunners}
                                                     isAnimationPlaying={false} fitBoundsCounter={fitBoundsCounter}
                                                     runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
                                                 />
-                                                <button onClick={() => setShowGlobalChat(true)} className="absolute bottom-16 right-4 z-[1000] bg-purple-600 hover:bg-purple-500 text-white p-1 rounded-2xl shadow-2xl active:scale-90 border border-purple-400/50 transition-all">
+                                                <button onClick={() => setShowGlobalChat(true)} className="absolute bottom-24 right-4 z-[1000] bg-purple-600 hover:bg-purple-500 text-white p-1 rounded-2xl shadow-2xl active:scale-90 border border-purple-400/50 transition-all">
                                                     <img src="/icona.png" alt="AI" className="w-12 h-12 object-cover rounded-xl" />
                                                 </button>
-                                            </div>
-                                            <div className="bg-slate-950 pb-safe border-t border-slate-800 shrink-0">
-                                                <NavigationDock 
-                                                    onOpenSidebar={() => setIsSidebarOpen(true)} 
-                                                    onCloseSidebar={() => setIsSidebarOpen(false)}
-                                                    onOpenExplorer={() => toggleView('explorer')} onOpenDiary={() => toggleView('diary')}
-                                                    onOpenPerformance={() => toggleView('performance')} onOpenHub={() => toggleView('hub')}
-                                                    onOpenSocial={() => toggleView('social')} onOpenProfile={() => toggleView('profile')}
-                                                    onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}} isSidebarOpen={isSidebarOpen}
-                                                    unreadCount={unreadMessages}
-                                                    onlineCount={onlineFriendsCount}
-                                                />
                                             </div>
                                         </>
                                     )}
@@ -1090,6 +1092,23 @@ const App: React.FC = () => {
                             </ResizablePanel>
                         )
                     )}
+                </div>
+            )}
+
+            {/* GLOBAL MOBILE DOCK - Fixed at bottom, high z-index, visible on ALL screens if mobile */}
+            {!isDesktop && !showSplash && !showInfographic && (
+                <div className="fixed bottom-0 left-0 right-0 z-[12000] bg-slate-950 border-t border-slate-800 pb-safe">
+                    <NavigationDock 
+                        onOpenSidebar={() => { setIsSidebarOpen(true); pushViewState('sidebar'); }} 
+                        onCloseSidebar={() => { setIsSidebarOpen(false); resetNavigation(); }}
+                        onOpenExplorer={() => toggleView('explorer')} onOpenDiary={() => toggleView('diary')}
+                        onOpenPerformance={() => toggleView('performance')} onOpenHub={() => toggleView('hub')}
+                        onOpenSocial={() => toggleView('social')} onOpenProfile={() => toggleView('profile')}
+                        onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}} 
+                        isSidebarOpen={isSidebarOpen}
+                        unreadCount={unreadMessages}
+                        onlineCount={onlineFriendsCount}
+                    />
                 </div>
             )}
 
@@ -1112,9 +1131,9 @@ const App: React.FC = () => {
             )}
 
             {viewingTrack && (
-                <div className="fixed inset-0 z-[10000] bg-slate-900">
+                <div className="fixed inset-0 z-[10000] bg-slate-900 pb-20 md:pb-0">
                     <TrackDetailView 
-                        track={viewingTrack} userProfile={userProfile} onExit={() => setViewingTrack(null)} 
+                        track={viewingTrack} userProfile={userProfile} onExit={() => { setViewingTrack(null); window.history.back(); }} 
                         plannedWorkouts={plannedWorkouts} onAddPlannedWorkout={handleAddPlannedWorkout} 
                         onUpdateTrackMetadata={handleUpdateTrackMetadata} onCheckAiAccess={onCheckAiAccess} 
                     />
@@ -1134,24 +1153,24 @@ const App: React.FC = () => {
             )}
 
             {showDiary && (
-                <div className="fixed inset-0 z-[9000] bg-slate-900 flex flex-col">
+                <div className="fixed inset-0 z-[9000] bg-slate-900 flex flex-col pb-20 md:pb-0">
                     <div className="flex-grow overflow-hidden">
                         <DiaryView 
                             tracks={tracks} plannedWorkouts={plannedWorkouts} userProfile={userProfile} 
-                            onClose={() => toggleView('diary')} onSelectTrack={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)} 
+                            onClose={() => toggleView('diary')} onSelectTrack={(id) => { setViewingTrack(tracks.find(t => t.id === id) || null); pushViewState('trackDetail'); }} 
                             onAddPlannedWorkout={handleAddPlannedWorkout} onUpdatePlannedWorkout={handleUpdatePlannedWorkout} onDeletePlannedWorkout={handleDeletePlannedWorkout} onCheckAiAccess={onCheckAiAccess} 
                         />
                     </div>
                 </div>
             )}
 
-            {showExplorer && <ExplorerView tracks={tracks} onClose={() => toggleView('explorer')} onSelectTrack={(id) => setViewingTrack(tracks.find(t => t.id === id) || null)} />}
+            {showExplorer && <ExplorerView tracks={tracks} onClose={() => toggleView('explorer')} onSelectTrack={(id) => { setViewingTrack(tracks.find(t => t.id === id) || null); pushViewState('trackDetail'); }} />}
             {showPerformance && <PerformanceAnalysisPanel tracks={tracks} userProfile={userProfile} onClose={() => toggleView('performance')} />}
             {showSocial && userId && <SocialHub onClose={() => toggleView('social')} currentUserId={userId} onChallengeGhost={handleChallengeGhost} onReadMessages={() => setUnreadMessages(0)} />}
             {showChangelog && <Changelog onClose={() => setShowChangelog(false)} />}
             {showGuide && <GuideModal onClose={() => toggleView('guide')} />}
             {raceResults && <RaceSummary results={raceResults} racerStats={new Map()} onClose={() => setRaceResults(null)} userProfile={userProfile} tracks={tracks} />}
-            {showGlobalChat && <div className="fixed inset-0 z-[12000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"><Chatbot onClose={() => setShowGlobalChat(false)} userProfile={userProfile} tracksToAnalyze={tracks} plannedWorkouts={plannedWorkouts} onAddPlannedWorkout={handleAddPlannedWorkout} isStandalone={true} /></div>}
+            {showGlobalChat && <div className="fixed inset-0 z-[13000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"><Chatbot onClose={() => setShowGlobalChat(false)} userProfile={userProfile} tracksToAnalyze={tracks} plannedWorkouts={plannedWorkouts} onAddPlannedWorkout={handleAddPlannedWorkout} isStandalone={true} /></div>}
         </div>
     );
 };
