@@ -13,6 +13,7 @@ interface NavigationDockProps {
     onOpenHub: () => void;
     onOpenSocial: () => void;
     onOpenProfile: () => void;
+    onOpenGlobalChat?: () => void; // New prop for AI Coach
     isSidebarOpen: boolean; 
     onlineCount?: number;
     unreadCount?: number;
@@ -56,11 +57,11 @@ const UserGroupIcon = () => (
 );
 
 const NavigationDock: React.FC<NavigationDockProps> = ({ 
-    onOpenSidebar, onCloseSidebar, onOpenExplorer, onOpenDiary, onOpenPerformance, onOpenHub, isSidebarOpen, onOpenSocial, onOpenProfile, onlineCount = 0, unreadCount = 0
+    onOpenSidebar, onCloseSidebar, onOpenExplorer, onOpenDiary, onOpenPerformance, onOpenHub, isSidebarOpen, onOpenSocial, onOpenProfile, onOpenGlobalChat, onlineCount = 0, unreadCount = 0
 }) => {
     return (
         <div className="w-full bg-slate-900 border-t border-slate-800">
-            <div className="flex justify-around items-center w-full py-2">
+            <div className="flex justify-around items-center w-full py-2 px-1">
                 <Tooltip text="Home" subtext="Menu" position="top">
                     <button 
                         onClick={onOpenHub} 
@@ -123,6 +124,24 @@ const NavigationDock: React.FC<NavigationDockProps> = ({
                         <GridIcon />
                     </button>
                 </Tooltip>
+
+                {/* AI COACH BUTTON - Highlighted & Rightmost */}
+                {onOpenGlobalChat && (
+                    <>
+                        <div className="w-px h-6 bg-slate-700 mx-1"></div>
+                        <Tooltip text="Coach AI" subtext="Chatbot" position="top">
+                            <button 
+                                onClick={onOpenGlobalChat} 
+                                className="relative w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-blue-500 p-0.5 shadow-lg shadow-purple-900/40 hover:shadow-purple-500/40 transition-all hover:scale-105 active:scale-95 group"
+                            >
+                                <div className="absolute inset-0 bg-white/20 rounded-xl animate-pulse"></div>
+                                <div className="w-full h-full rounded-[10px] overflow-hidden relative z-10 bg-slate-900 flex items-center justify-center">
+                                    <img src="/icona.png" alt="AI" className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" />
+                                </div>
+                            </button>
+                        </Tooltip>
+                    </>
+                )}
             </div>
         </div>
     );
