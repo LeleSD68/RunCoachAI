@@ -1,357 +1,288 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { Track } from '../types';
-import { calculateTrackStats } from '../services/trackStatsService';
+import Tooltip from './Tooltip';
+import RatingStars from './RatingStars';
 import TrackPreview from './TrackPreview';
+import MergeConfirmationModal from './MergeConfirmationModal';
 
-interface ExplorerViewProps {
-    tracks: Track[];
-    onClose: () => void;
-    onSelectTrack: (id: string) => void;
-}
+const PencilIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="m2.695 14.762-1.262 3.155a.5.5 0 0 0 .65.65l3.155-1.262a4 4 0 0 0 1.343-.886L17.5 5.501a2.121 2.121 0 0 0-3-3L3.58 13.419a4 4 0 0 0-.885 1.343Z" /></svg>);
+const TrashIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.1499.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149-.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clipRule="evenodd" /></svg>);
+const ArchiveBoxIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M2 3a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3Z" /><path fillRule="evenodd" d="M13 9a1 1 0 1 0 0 2h-6a1 1 0 1 0 0-2h6ZM2.75 7A.75.75 0 0 0 2 7.75v8.5c0 .69.56 1.25 1.25 1.25h13.5c.69 0 1.25-.56 1.25-1.25v-8.5A.75.75 0 0 0 17.25 7H2.75Z" clipRule="evenodd" /></svg>);
+const MergeIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M3.75 3a.75.75 0 0 0-1.5 0v4a6.5 6.5 0 0 0 6.5 6.5h4.19l-1.72 1.72a.75.75 0 1 0 1.06 1.06l3-3a.75.75 0 0 0 0-1.06l-3-3a.75.75 0 1 0-1.06 1.06l1.72 1.72H8.75A5 5 0 0 1 3.75 7V3Z" clipRule="evenodd" /></svg>);
+const FolderIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M2 4.75A2.75 2.75 0 0 1 4.75 2h3.185a.75.75 0 0 1 .53.22l2.25 2.25a.75.75 0 0 0 .53.22h4.005A2.75 2.75 0 0 1 18 7.64v7.61a2.75 2.75 0 0 1-2.75 2.75H4.75A2.75 2.75 0 0 1 2 15.25V4.75Z" /></svg>);
+const FlagIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M3.5 2A1.5 1.5 0 0 0 2 3.5V15a3 3 0 1 0 6 0V3.5A1.5 1.5 0 0 0 6.5 2h-3Zm11.753 3.29a1 1 0 0 0-1.242-.92l-4.215.91a4.5 4.5 0 0 1-1.796 0l-.603-.13a3 3 0 0 0-3.627 2.112l-.028.113c-.308 1.23.473 2.453 1.726 2.657l.012.002.493.08a4.5 4.5 0 0 1 1.93 5.432l.06-.239c.29-1.157 1.492-1.874 2.645-1.577l4.331 1.116a1 1 0 0 0 1.229-1.233l-.915-8.325Z" clipRule="evenodd" /></svg>);
+const CloseIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" /></svg>);
 
-const EXPLORER_COLS_KEY = 'runcoach_explorer_cols_pref_v2';
-
-const formatDuration = (ms: number) => {
-    const totalSeconds = Math.floor(ms / 1000);
-    const h = Math.floor(totalSeconds / 3600);
-    const m = Math.floor((totalSeconds % 3600) / 60);
-    const s = totalSeconds % 60;
-    return h > 0 ? `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}` : `${m}:${s.toString().padStart(2, '0')}`;
-};
-
-const formatPace = (pace: number) => {
-    if (!isFinite(pace) || pace <= 0) return '-:--';
-    const m = Math.floor(pace);
-    const s = Math.round((pace - m) * 60);
-    return `${m}:${s.toString().padStart(2, '0')}`;
-};
-
+const StarIcon = ({ filled }: { filled: boolean }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill={filled ? "#fbbf24" : "currentColor"} className={`w-4 h-4 ${filled ? 'text-amber-400' : 'text-slate-500 hover:text-amber-300'}`}>
+        <path fillRule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401Z" clipRule="evenodd" />
+    </svg>
+);
 const StravaSmallIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-2.5 h-2.5 text-[#fc4c02]">
         <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.477 0 4.177 12.173h4.172" />
     </svg>
 );
 
-const AdjustmentsIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-        <path d="M10 3.75a2 2 0 1 0-4 0 2 2 0 0 0 4 0ZM17.25 4.5a.75.75 0 0 0 0-1.5h-5.5a.75.75 0 0 0 0 1.5h5.5ZM5 3.75a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5h1.5a.75.75 0 0 1 .75.75ZM4.25 17a.75.75 0 0 0 0-1.5h-1.5a.75.75 0 0 0 0 1.5h1.5ZM17.25 17a.75.75 0 0 0 0-1.5h-5.5a.75.75 0 0 0 0 1.5h5.5ZM9 10a.75.75 0 0 1-.75.75h-5.5a.75.75 0 0 1 0-1.5h5.5A.75.75 0 0 1 9 10ZM17.25 10.75a.75.75 0 0 0 0-1.5h-1.5a.75.75 0 0 0 0 1.5h1.5ZM14 10a2 2 0 1 0-4 0 2 2 0 0 0 4 0ZM10 16.25a2 2 0 1 0-4 0 2 2 0 0 0 4 0Z" />
-    </svg>
-);
+type GroupingType = 'none' | 'date' | 'distance' | 'type' | 'folder' | 'tag';
+type SortType = 'date_desc' | 'date_asc' | 'dist_desc' | 'dur_desc' | 'name_asc';
 
-const RotatePhoneIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 animate-spin-slow">
-        <path fillRule="evenodd" d="M2 3.75A.75.75 0 0 1 2.75 3h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 3.75Zm0 12.5a.75.75 0 0 1 .75-.75h14.5a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1-.75-.75Zm9-3.75a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1-.75-.75ZM2 12.5a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1-.75-.75ZM2 8.75a.75.75 0 0 1 .75-.75h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 8.75Z" clipRule="evenodd" />
-    </svg>
-);
-
-// Definizione colonne disponibili
-type ColumnKey = 'preview' | 'date' | 'name' | 'distance' | 'duration' | 'totalDuration' | 'pace' | 'hr' | 'elevation' | 'cadence' | 'steps' | 'calories';
-
-interface ColumnConfig {
-    key: ColumnKey;
-    label: string;
-    shortLabel?: string;
-    align: 'left' | 'right' | 'center';
-    minWidth?: string;
+interface SidebarProps {
+    tracks: Track[];
+    visibleTrackIds: Set<string>;
+    focusedTrackId: string | null;
+    onFocusTrack: (id: string) => void;
+    raceSelectionIds: Set<string>;
+    onToggleRaceSelection: (id: string) => void;
+    onDeselectAll: () => void;
+    onSelectAll: () => void;
+    onStartRace: () => void;
+    onViewDetails: (id: string) => void;
+    onEditTrack: (id: string) => void; 
+    onDeleteTrack: (id: string) => void;
+    onFileUpload: (files: File[] | null) => void;
+    onDeleteSelected: () => void;
+    onToggleArchived: (id: string) => void;
+    onBulkArchive: () => void;
+    onMergeSelected: (deleteOriginals: boolean) => void;
+    onToggleFavorite: (id: string) => void;
+    onBulkGroup: (folderName: string) => void;
 }
 
-const COLUMNS: ColumnConfig[] = [
-    { key: 'preview', label: 'Anteprima', shortLabel: 'Mappa', align: 'center', minWidth: '60px' },
-    { key: 'date', label: 'Data', align: 'left', minWidth: '80px' },
-    { key: 'name', label: 'Nome Attività', align: 'left', minWidth: '180px' },
-    { key: 'distance', label: 'Distanza', shortLabel: 'Dist.', align: 'right', minWidth: '60px' },
-    { key: 'duration', label: 'Tempo (Mov)', shortLabel: 'Mov.', align: 'right', minWidth: '70px' },
-    { key: 'totalDuration', label: 'Tempo Totale', shortLabel: 'Totale', align: 'right', minWidth: '70px' },
-    { key: 'pace', label: 'Passo Medio', shortLabel: 'Passo', align: 'right', minWidth: '60px' },
-    { key: 'hr', label: 'Freq. Cardiaca', shortLabel: 'FC', align: 'center', minWidth: '50px' },
-    { key: 'elevation', label: 'Dislivello', shortLabel: 'Disl.', align: 'right', minWidth: '60px' },
-    { key: 'cadence', label: 'Cadenza', shortLabel: 'Cad.', align: 'center', minWidth: '50px' },
-    { key: 'steps', label: 'Passi Totali', shortLabel: 'Passi', align: 'right', minWidth: '70px' },
-    { key: 'calories', label: 'Calorie (Stima)', shortLabel: 'Kcal', align: 'right', minWidth: '60px' },
-];
+const Sidebar: React.FC<SidebarProps> = (props) => {
+    const { 
+        tracks, focusedTrackId, onFocusTrack, raceSelectionIds, 
+        onToggleRaceSelection, onSelectAll, onDeselectAll, 
+        onStartRace, onViewDetails, onEditTrack, onDeleteTrack, onBulkArchive, 
+        onDeleteSelected, onToggleArchived, onMergeSelected, onToggleFavorite, onBulkGroup
+    } = props;
 
-const ExplorerView: React.FC<ExplorerViewProps> = ({ tracks, onClose, onSelectTrack }) => {
     const [searchTerm, setSearchTerm] = useState('');
-    
-    // Initialize columns from localStorage or default
-    const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => {
-        const saved = localStorage.getItem(EXPLORER_COLS_KEY);
-        if (saved) {
-            try {
-                return new Set(JSON.parse(saved) as ColumnKey[]);
-            } catch (e) {}
-        }
-        return new Set(['preview', 'date', 'name', 'distance', 'duration', 'pace', 'elevation']);
-    });
+    const [showArchived, setShowArchived] = useState(false);
+    const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
+    const [grouping, setGrouping] = useState<GroupingType>('date');
+    const [sort, setSort] = useState<SortType>('date_desc');
+    const [showMergeConfirm, setShowMergeConfirm] = useState(false);
 
-    const [sortConfig, setSortConfig] = useState<{ key: ColumnKey; direction: 'asc' | 'desc' }>({ key: 'date', direction: 'desc' });
-    const [showColumnMenu, setShowColumnMenu] = useState(false);
-
-    // Pre-calculate derived data for sorting
-    const enrichedTracks = useMemo(() => {
-        return tracks.map(t => {
-            const s = calculateTrackStats(t);
-            const steps = s.avgCadence ? Math.round(s.avgCadence * (s.movingDuration / 60000)) : 0;
-            const calories = Math.round(t.distance * 70); // Rough estimate 1kcal/kg/km assuming 70kg
-            const date = t.points?.[0]?.time ? new Date(t.points[0].time).getTime() : 0;
-            return {
-                id: t.id,
-                track: t,
-                stats: s,
-                date: date,
-                name: t.name,
-                distance: t.distance,
-                duration: s.movingDuration,
-                totalDuration: s.totalDuration,
-                pace: s.movingAvgPace,
-                hr: s.avgHr || 0,
-                elevation: s.elevationGain,
-                cadence: s.avgCadence || 0,
-                steps: steps,
-                calories: calories
-            };
-        });
-    }, [tracks]);
-
-    // Sorting Logic
-    const sortedTracks = useMemo(() => {
-        let data = [...enrichedTracks];
-        
-        if (searchTerm) {
-            const lowerSearch = searchTerm.toLowerCase();
-            data = data.filter(d => d.name.toLowerCase().includes(lowerSearch));
-        }
-
-        data.sort((a, b) => {
-            let valA = a[sortConfig.key as keyof typeof a] as any;
-            let valB = b[sortConfig.key as keyof typeof b] as any;
-
-            if (sortConfig.key === 'preview') return 0; // No sort for preview
-
-            // Handle strings
-            if (typeof valA === 'string') valA = valA.toLowerCase();
-            if (typeof valB === 'string') valB = valB.toLowerCase();
-
-            if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
-            if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
-            return 0;
+    const processedTracks = useMemo(() => {
+        let list = tracks.filter(t => {
+            const matchesSearch = t.name.toLowerCase().includes(searchTerm.toLowerCase());
+            // Show archived logic: if showArchived is true, show ONLY archived. If false, show ONLY active.
+            const matchesArchive = showArchived ? t.isArchived : !t.isArchived;
+            const matchesFavorite = showOnlyFavorites ? t.isFavorite : true;
+            return matchesSearch && matchesArchive && matchesFavorite;
         });
 
-        return data;
-    }, [enrichedTracks, sortConfig, searchTerm]);
-
-    const handleSort = (key: ColumnKey) => {
-        if (key === 'preview') return;
-        setSortConfig(prev => ({
-            key,
-            direction: prev.key === key && prev.direction === 'desc' ? 'asc' : 'desc'
-        }));
-    };
-
-    const toggleColumn = (key: ColumnKey) => {
-        setVisibleColumns(prev => {
-            const next = new Set(prev);
-            if (next.has(key)) next.delete(key);
-            else next.add(key);
+        list.sort((a, b) => {
+            const timeA = a.points?.[0]?.time ? new Date(a.points[0].time).getTime() : 0;
+            const timeB = b.points?.[0]?.time ? new Date(b.points[0].time).getTime() : 0;
             
-            // Persist to localStorage
-            localStorage.setItem(EXPLORER_COLS_KEY, JSON.stringify(Array.from(next)));
-            return next;
+            switch(sort) {
+                case 'date_desc': return timeB - timeA;
+                case 'date_asc': return timeA - timeB;
+                case 'dist_desc': return b.distance - a.distance;
+                case 'dur_desc': return b.duration - a.duration;
+                case 'name_asc': return a.name.localeCompare(b.name);
+                default: return 0;
+            }
         });
+        return list;
+    }, [tracks, searchTerm, showArchived, showOnlyFavorites, sort]);
+
+    const groupedData = useMemo(() => {
+        if (grouping === 'none') return { 'Tutte le attività': processedTracks };
+        const groups: Record<string, Track[]> = {};
+        processedTracks.forEach(t => {
+            let key = 'Altro';
+            if (grouping === 'date' && t.points?.[0]?.time) key = new Date(t.points[0].time).toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
+            else if (grouping === 'distance') {
+                if (t.distance < 5) key = '< 5 km';
+                else if (t.distance < 10) key = '5 - 10 km';
+                else if (t.distance < 21) key = '10 - 21 km';
+                else key = '> 21 km';
+            } else if (grouping === 'type') key = t.activityType || 'Non classificato';
+            else if (grouping === 'folder') key = t.folder || 'Senza cartella';
+            else if (grouping === 'tag') key = (t.tags && t.tags.length > 0) ? `#${t.tags[0]}` : 'Nessun tag';
+
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(t);
+        });
+        return groups;
+    }, [processedTracks, grouping]);
+
+    const selectedTracksForMerge = useMemo(() => {
+        return tracks.filter(t => raceSelectionIds.has(t.id));
+    }, [tracks, raceSelectionIds]);
+
+    const handleBulkGroupClick = () => {
+        const folderName = prompt("Inserisci il nome della cartella per le corse selezionate:");
+        if (folderName !== null) {
+            onBulkGroup(folderName.trim());
+        }
     };
+
+    const areAllSelected = tracks.length > 0 && raceSelectionIds.size === tracks.length;
 
     return (
-        <div className="absolute inset-0 z-[3000] bg-slate-900 flex flex-col font-sans text-white animate-fade-in overflow-hidden pb-16 lg:pb-0">
-            {/* Header */}
-            <header className="p-4 bg-slate-800 border-b border-slate-700 flex flex-wrap gap-4 justify-between items-center shrink-0 z-20 shadow-md">
-                <div className="flex items-center gap-4">
-                    <button onClick={onClose} className="flex items-center gap-2 text-slate-400 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors">
-                        <span className="text-lg">←</span> Indietro
-                    </button>
-                    <h2 className="text-xl font-black text-cyan-400 uppercase italic flex items-center gap-2">
-                        Archivio Completo
-                        <span className="text-[10px] bg-slate-900 text-slate-400 px-2 py-0.5 rounded-full not-italic font-mono border border-slate-700">{tracks.length}</span>
+        <div className="flex flex-col h-full w-full bg-slate-900 text-white overflow-hidden relative">
+            {/* Header: Enhanced visual for Archive Mode */}
+            <div className={`p-4 border-b flex items-center justify-between shrink-0 transition-colors duration-300 ${showArchived ? 'bg-purple-900/20 border-purple-500/30 shadow-inner' : 'bg-slate-900 border-slate-800'}`}>
+                <div className="flex items-center gap-2">
+                    <h2 className={`text-sm font-black uppercase italic tracking-wide ${showArchived ? 'text-purple-400' : 'text-cyan-400'}`}>
+                        {showArchived ? '🗄️ ARCHIVIO' : 'Le Mie Corse'}
                     </h2>
+                    {showArchived && <span className="text-[9px] bg-purple-500 text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-wider shadow-sm animate-pulse-slow">MODE ON</span>}
                 </div>
                 
-                <div className="flex gap-2 flex-grow sm:flex-grow-0 justify-end">
-                    <div className="relative flex-grow sm:w-64">
-                        <input 
-                            type="text" 
-                            placeholder="Cerca nome..." 
-                            value={searchTerm} 
-                            onChange={e => setSearchTerm(e.target.value)} 
-                            className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-xs outline-none focus:border-cyan-500 transition-all" 
-                        />
-                    </div>
-                    
-                    <div className="relative">
-                        <button 
-                            onClick={() => setShowColumnMenu(!showColumnMenu)} 
-                            className={`p-2 rounded-lg border transition-all ${showColumnMenu ? 'bg-cyan-600 border-cyan-500 text-white' : 'bg-slate-700 border-slate-600 text-slate-300 hover:text-white'}`}
-                            title="Scegli Colonne"
-                        >
-                            <AdjustmentsIcon />
+                <div className="flex gap-2">
+                    <Tooltip text={showOnlyFavorites ? "Mostra Tutte" : "Mostra Preferiti"}>
+                        <button onClick={() => setShowOnlyFavorites(!showOnlyFavorites)} className={`p-1.5 rounded-lg transition-colors ${showOnlyFavorites ? 'text-amber-400 bg-amber-900/20 border border-amber-500/30' : 'text-slate-500 hover:text-white bg-slate-800 border border-slate-700'}`}>
+                            <StarIcon filled={showOnlyFavorites} />
                         </button>
-                        
-                        {/* Column Selector Dropdown */}
-                        {showColumnMenu && (
-                            <>
-                                <div className="fixed inset-0 z-30" onClick={() => setShowColumnMenu(false)}></div>
-                                <div className="absolute right-0 top-full mt-2 w-48 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-40 overflow-hidden animate-fade-in-up">
-                                    <div className="p-2 border-b border-slate-700 bg-slate-900/50">
-                                        <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Colonne Visibili</p>
-                                    </div>
-                                    <div className="max-h-64 overflow-y-auto custom-scrollbar p-2 space-y-1">
-                                        {COLUMNS.map(col => (
-                                            <button 
-                                                key={col.key}
-                                                onClick={() => toggleColumn(col.key)}
-                                                className={`w-full flex items-center justify-between px-3 py-2 text-xs font-bold rounded-lg transition-colors ${visibleColumns.has(col.key) ? 'bg-cyan-900/30 text-cyan-400' : 'text-slate-400 hover:bg-slate-700'}`}
-                                            >
-                                                <span>{col.label}</span>
-                                                {visibleColumns.has(col.key) && <span className="text-cyan-500">✓</span>}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            </>
-                        )}
+                    </Tooltip>
+                    <Tooltip text={showArchived ? "Torna a Corse Attive" : "Apri Archivio"}>
+                        <button onClick={() => setShowArchived(!showArchived)} className={`p-1.5 rounded-lg transition-all border ${showArchived ? 'bg-purple-600 text-white border-purple-400 shadow-lg shadow-purple-900/50' : 'text-slate-500 hover:bg-slate-700 hover:text-white bg-slate-800 border-slate-700'}`}>
+                            <ArchiveBoxIcon />
+                        </button>
+                    </Tooltip>
+                </div>
+            </div>
+
+            <div className="p-2 border-b border-slate-800 bg-slate-950/50 space-y-2 shrink-0">
+                <div className="flex gap-2">
+                    <input type="text" placeholder="Filtra per nome..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="flex-grow bg-slate-800 border border-slate-700 rounded px-2 py-1 text-[11px] outline-none" />
+                    <button 
+                        onClick={areAllSelected ? onDeselectAll : onSelectAll} 
+                        className={`text-[9px] font-bold uppercase border px-2 rounded transition-colors ${areAllSelected ? 'bg-slate-700 text-white border-slate-600' : 'text-slate-500 hover:text-white border-slate-800'}`}
+                    >
+                        {areAllSelected ? 'Nessuno' : 'Tutti'}
+                    </button>
+                </div>
+                <div className="grid grid-cols-2 gap-1 text-[9px] uppercase font-bold text-slate-500">
+                    <div className="flex flex-col">
+                        <span>Raggruppa</span>
+                        <select value={grouping} onChange={e => setGrouping(e.target.value as any)} className="bg-slate-800 border border-slate-700 rounded p-1 text-white">
+                            <option value="none">Nessuno</option>
+                            <option value="date">Per Data</option>
+                            <option value="distance">Per Distanza</option>
+                            <option value="folder">Per Cartella</option>
+                            <option value="type">Per Tipo</option>
+                        </select>
+                    </div>
+                    <div className="flex flex-col">
+                        <span>Ordina per</span>
+                        <select value={sort} onChange={e => setSort(e.target.value as any)} className="bg-slate-800 border border-slate-700 rounded p-1 text-white">
+                            <option value="date_desc">Più Recenti</option>
+                            <option value="date_asc">Meno Recenti</option>
+                            <option value="dist_desc">Più Lunghe</option>
+                            <option value="name_asc">Nome (A-Z)</option>
+                        </select>
                     </div>
                 </div>
-            </header>
-
-            {/* Landscape Hint for Mobile */}
-            <div className="bg-amber-900/20 text-amber-200 text-[10px] font-bold text-center py-1 border-b border-amber-900/30 flex items-center justify-center gap-2 lg:hidden">
-                <RotatePhoneIcon /> Ruota il dispositivo per vedere più colonne
             </div>
 
-            {/* Table Container */}
-            <div className="flex-grow overflow-auto custom-scrollbar bg-slate-900 relative">
-                <table className="w-full text-left text-[11px] border-collapse relative min-w-full">
-                    <thead className="bg-slate-800 text-slate-400 uppercase font-black sticky top-0 z-10 shadow-sm">
-                        <tr>
-                            {COLUMNS.map(col => {
-                                if (!visibleColumns.has(col.key)) return null;
-                                return (
-                                    <th 
-                                        key={col.key} 
-                                        onClick={() => handleSort(col.key)}
-                                        className={`p-3 cursor-pointer hover:text-white hover:bg-slate-700 transition-colors select-none whitespace-nowrap text-${col.align}`}
-                                        style={{ minWidth: col.minWidth }}
-                                    >
-                                        <div className={`flex items-center gap-1 ${col.align === 'right' ? 'justify-end' : col.align === 'center' ? 'justify-center' : 'justify-start'}`}>
-                                            {col.shortLabel || col.label}
-                                            {sortConfig.key === col.key && (
-                                                <span className="text-cyan-400">{sortConfig.direction === 'asc' ? '▲' : '▼'}</span>
-                                            )}
-                                        </div>
-                                    </th>
-                                );
-                            })}
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800">
-                        {sortedTracks.map(row => {
-                            const isStrava = row.id.startsWith('strava-') || row.track.tags?.includes('Strava');
+            <div className={`flex-grow overflow-y-auto custom-scrollbar ${raceSelectionIds.size > 0 ? 'pb-20' : ''}`}>
+                {(Object.entries(groupedData) as [string, Track[]][]).map(([groupName, groupTracks]) => (
+                    <div key={groupName}>
+                        <div className="bg-slate-800/40 px-3 py-1 text-[9px] font-black text-slate-500 uppercase border-b border-slate-800 sticky top-0 z-10 backdrop-blur flex justify-between items-center">
+                            <span>{groupName}</span>
+                            <span className="opacity-50">{groupTracks.length}</span>
+                        </div>
+                        {groupTracks.map(track => {
+                            const isStrava = track.id.startsWith('strava-') || track.tags?.includes('Strava');
                             return (
-                                <tr key={row.id} onClick={() => onSelectTrack(row.id)} className="hover:bg-slate-800/50 cursor-pointer group transition-colors">
-                                    {COLUMNS.map(col => {
-                                        if (!visibleColumns.has(col.key)) return null;
-                                        
-                                        let content: React.ReactNode = '-';
-                                        let className = `p-3 whitespace-nowrap text-${col.align} `;
+                                <div key={track.id} className={`flex items-center p-2 hover:bg-slate-800 transition-all group ${focusedTrackId === track.id ? 'bg-slate-800/80 border-l-2 border-cyan-500' : ''} ${track.isFavorite ? 'ring-1 ring-amber-500/20 ring-inset' : ''}`}>
+                                    <input type="checkbox" checked={raceSelectionIds.has(track.id)} onChange={() => onToggleRaceSelection(track.id)} className="mr-2 accent-cyan-500 cursor-pointer" />
+                                    
+                                    <div onClick={() => onViewDetails(track.id)} className="w-10 h-8 bg-slate-950 rounded border border-slate-700 overflow-hidden mr-2 shrink-0 cursor-pointer opacity-70 hover:opacity-100 transition-opacity relative group/prev">
+                                        <TrackPreview points={track.points} color={track.color} className="w-full h-full" />
+                                        {track.isArchived && <div className="absolute inset-0 bg-purple-900/40 flex items-center justify-center"><ArchiveBoxIcon /></div>}
+                                    </div>
 
-                                        switch(col.key) {
-                                            case 'preview':
-                                                content = (
-                                                    <div className="w-10 h-8 bg-slate-950 rounded border border-slate-700 overflow-hidden relative">
-                                                        <TrackPreview points={row.track.points} color={row.track.color} className="w-full h-full opacity-80" />
-                                                        {/* Icon removed here as per request for cleaner UI if archived, color coding on name handles it */}
-                                                    </div>
-                                                );
-                                                break;
-                                            case 'date': 
-                                                content = row.date > 0 ? new Date(row.date).toLocaleDateString() : '-'; 
-                                                className += 'text-slate-500 font-mono';
-                                                break;
-                                            case 'name': 
-                                                content = (
-                                                    <div className="flex items-center gap-1.5">
-                                                        <span 
-                                                            className={`font-bold truncate max-w-[200px] sm:max-w-[300px] ${row.track.isArchived ? 'text-purple-400' : 'text-white group-hover:text-cyan-400'}`} 
-                                                            title={row.name}
-                                                        >
-                                                            {row.name}
-                                                        </span>
-                                                        {isStrava && <StravaSmallIcon />}
-                                                    </div>
-                                                );
-                                                break;
-                                            case 'distance': 
-                                                content = `${row.distance.toFixed(2)} km`; 
-                                                className += 'font-mono text-white font-bold';
-                                                break;
-                                            case 'duration': 
-                                                content = formatDuration(row.duration); 
-                                                className += 'font-mono text-slate-300';
-                                                break;
-                                            case 'totalDuration': 
-                                                content = formatDuration(row.totalDuration); 
-                                                className += 'font-mono text-slate-400';
-                                                break;
-                                            case 'pace': 
-                                                content = formatPace(row.pace); 
-                                                className += 'font-mono text-cyan-200 font-bold';
-                                                break;
-                                            case 'hr': 
-                                                content = row.hr > 0 ? Math.round(row.hr) : '-'; 
-                                                className += row.hr > 0 ? 'font-mono text-red-300 font-bold' : 'text-slate-600';
-                                                break;
-                                            case 'elevation': 
-                                                content = `+${Math.round(row.elevation)} m`; 
-                                                className += 'font-mono text-amber-200';
-                                                break;
-                                            case 'cadence': 
-                                                content = row.cadence > 0 ? Math.round(row.cadence) : '-'; 
-                                                className += 'font-mono text-purple-300';
-                                                break;
-                                            case 'steps':
-                                                content = row.steps > 0 ? row.steps.toLocaleString() : '-';
-                                                className += 'font-mono text-slate-300';
-                                                break;
-                                            case 'calories':
-                                                content = row.calories > 0 ? `~${row.calories}` : '-';
-                                                className += 'font-mono text-slate-400';
-                                                break;
-                                        }
+                                    <div className="flex-grow min-w-0 cursor-pointer" onClick={() => onFocusTrack(track.id)}>
+                                        <div className="flex items-center gap-1.5 min-w-0">
+                                            {track.isArchived && <span className="text-purple-400 text-xs shrink-0" title="Archiviata">🗄️</span>}
+                                            <div className={`text-[11px] font-bold truncate ${track.isArchived ? 'text-purple-300' : 'group-hover:text-cyan-400'}`}>{track.name}</div>
+                                            {isStrava && <StravaSmallIcon />}
+                                            {track.isFavorite && <StarIcon filled={true} />}
+                                        </div>
+                                        <div className="text-[9px] text-slate-500 font-mono flex items-center gap-1">
+                                            {track.distance.toFixed(1)}km • {track.points?.[0]?.time ? new Date(track.points[0].time).toLocaleDateString() : 'N/A'}
+                                        </div>
+                                    </div>
 
-                                        return (
-                                            <td key={col.key} className={className}>
-                                                {content}
-                                            </td>
-                                        );
-                                    })}
-                                </tr>
+                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                                        <Tooltip text={track.isArchived ? "Ripristina" : "Archivia"}>
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); onToggleArchived(track.id); }} 
+                                                className={`p-1 rounded-md ${track.isArchived ? 'bg-green-900/50 text-green-400 hover:bg-green-900' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
+                                            >
+                                                {track.isArchived ? <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3"><path fillRule="evenodd" d="M10 2a.75.75 0 0 1 .75.75v7.5a.75.75 0 0 1-1.5 0v-7.5A.75.75 0 0 1 10 2Z" clipRule="evenodd" /><path fillRule="evenodd" d="M10 10a.75.75 0 0 1 .75.75v.27c2.302.204 4.25 1.543 4.25 4.98a.75.75 0 0 1-1.5 0c0-1.895-.87-2.92-2.583-3.238l-1.917 1.917a.75.75 0 0 1-1.06 0l-1.917-1.917c-1.713.318-2.583 1.343-2.583 3.238a.75.75 0 0 1-1.5 0c0-3.437 1.948-4.776 4.25-4.98v-.27A.75.75 0 0 1 10 10Z" clipRule="evenodd" /></svg> : <ArchiveBoxIcon />}
+                                            </button>
+                                        </Tooltip>
+                                        <button onClick={(e) => { e.stopPropagation(); onToggleFavorite(track.id); }} className="p-1 text-slate-400 hover:text-amber-400"><StarIcon filled={track.isFavorite || false} /></button>
+                                        <button onClick={(e) => { e.stopPropagation(); onEditTrack(track.id); }} className="p-1.5 bg-slate-700 text-slate-300 hover:bg-cyan-600 rounded-md"><PencilIcon /></button>
+                                    </div>
+                                </div>
                             );
                         })}
-                        {sortedTracks.length === 0 && (
-                            <tr>
-                                <td colSpan={visibleColumns.size} className="p-8 text-center text-slate-500 italic">
-                                    Nessuna attività trovata.
-                                </td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
+                    </div>
+                ))}
             </div>
-            <style>{`
-                .animate-spin-slow { animation: spin 4s linear infinite; }
-                @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-            `}</style>
+
+            {/* COMPACT TOOLBAR - ABSOLUTE POSITIONED FOR STABILITY */}
+            {raceSelectionIds.size > 0 && (
+                <div className="absolute bottom-0 left-0 right-0 p-2 border-t border-slate-800 bg-slate-950 flex items-center justify-between gap-2 shadow-[0_-5px_15px_rgba(0,0,0,0.5)] z-50">
+                    <div className="flex gap-1 items-center">
+                        <Tooltip text="Gara Virtuale" position="top">
+                            <button onClick={onStartRace} className="flex items-center gap-2 bg-green-600 hover:bg-green-500 text-white text-[10px] font-black uppercase px-3 py-2 rounded-lg shadow active:scale-95 transition-all">
+                                <FlagIcon /> <span className="hidden sm:inline">Gara</span>
+                            </button>
+                        </Tooltip>
+                        <Tooltip text="Unisci Tracce" position="top">
+                            <button onClick={() => setShowMergeConfirm(true)} className="p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg shadow active:scale-95 transition-all">
+                                <MergeIcon />
+                            </button>
+                        </Tooltip>
+                        <div className="h-6 w-px bg-slate-800 mx-1"></div>
+                        <div className="text-[9px] font-mono text-slate-500 font-bold">{raceSelectionIds.size} sel.</div>
+                    </div>
+
+                    <div className="flex gap-1">
+                        <Tooltip text="Sposta in Cartella" position="top">
+                            <button onClick={handleBulkGroupClick} className="p-2 bg-slate-800 hover:bg-purple-600 text-slate-400 hover:text-white rounded-lg border border-slate-700 transition-all active:scale-95">
+                                <FolderIcon />
+                            </button>
+                        </Tooltip>
+                        <Tooltip text="Archivia Selezionati" position="top">
+                            <button onClick={onBulkArchive} className="p-2 bg-slate-800 hover:bg-amber-600 text-slate-400 hover:text-white rounded-lg border border-slate-700 transition-all active:scale-95">
+                                <ArchiveBoxIcon />
+                            </button>
+                        </Tooltip>
+                        <Tooltip text="Elimina Selezionati" position="top">
+                            <button onClick={() => { if(confirm(`Eliminare ${raceSelectionIds.size} corse?`)) onDeleteSelected(); }} className="p-2 bg-slate-800 hover:bg-red-600 text-slate-400 hover:text-white rounded-lg border border-slate-700 transition-all active:scale-95">
+                                <TrashIcon />
+                            </button>
+                        </Tooltip>
+                        <Tooltip text="Deseleziona Tutto" position="top">
+                            <button onClick={onDeselectAll} className="p-2 text-slate-500 hover:text-white transition-colors">
+                                <CloseIcon />
+                            </button>
+                        </Tooltip>
+                    </div>
+                </div>
+            )}
+
+            {showMergeConfirm && (
+                <MergeConfirmationModal 
+                    selectedTracks={selectedTracksForMerge}
+                    onConfirm={(del) => { setShowMergeConfirm(false); onMergeSelected(del); }}
+                    onCancel={() => setShowMergeConfirm(false)}
+                />
+            )}
         </div>
     );
 };
 
-export default ExplorerView;
+export default Sidebar;
