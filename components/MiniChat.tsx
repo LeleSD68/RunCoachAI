@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { UserProfile, DirectMessage, Track } from '../types';
-import { sendDirectMessage, getDirectMessages, updateTrackSharing, getTrackById } from '../services/socialService';
+import { sendDirectMessage, getDirectMessages, updateTrackSharing, getTrackById, markMessagesAsRead } from '../services/socialService';
 import { supabase } from '../services/supabaseClient';
 import { loadTracksFromDB } from '../services/dbService'; // For local selection
 import TrackPreview from './TrackPreview';
@@ -12,11 +12,31 @@ interface MiniChatProps {
     onClose: () => void;
     onMinimize?: () => void;
     onViewTrack?: (track: Track) => void;
+    onMessagesRead?: () => void; // Callback to parent to update badges
 }
 
-const SendIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M3.105 2.289a.75.75 0 0 0-.826.95l1.414 4.949a.75.75 0 0 0 .95.95l4.95-1.414a.75.75 0 0 0-.95-.95l-3.539 1.01-1.01-3.54a.75.75 0 0 0-.95-.826ZM12.23 7.77a.75.75 0 0 0-1.06 0l-4.25 4.25a.75.75 0 0 0 0 1.06l4.25 4.25a.75.75 0 0 0 1.06-1.06l-3.72-3.72 3.72-3.72a.75.75 0 0 0 0-1.06ZM15.5 10a.75.75 0 0 1 .75-.75h.01a.75.75 0 0 1 0 1.5H16.25a.75.75 0 0 1-.75-.75Z" /></svg>);
-const CloseIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-6 h-6"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" /></svg>);
-const PaperClipIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M15.621 4.379a3 3 0 0 0-4.242 0l-7 7a3 3 0 0 0 4.241 4.243h.001l.497-.5a.75.75 0 0 1 1.064 1.057l-.498.501-.002.002a4.5 4.5 0 0 1-6.364-6.364l7-7a4.5 4.5 0 0 1 6.368 6.36l-3.455 3.553A2.625 2.625 0 1 1 9.52 9.52l3.45-3.451a.75.75 0 1 1 1.061 1.06l-3.45 3.451a1.125 1.125 0 0 0 1.587 1.595l3.454-3.553a3 3 0 0 0 0-4.242Z" clipRule="evenodd" /></svg>);
+const SendIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z" /></svg>);
+const CloseIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-6 h-6"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" /></svg>);
+const PaperClipIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path fillRule="evenodd" d="M18.97 3.659a2.25 2.25 0 0 0-3.182 0l-10.94 10.94a3.75 3.75 0 1 0 5.304 5.303l7.693-7.693a.75.75 0 0 1 1.06 1.06l-7.693 7.693a5.25 5.25 0 1 1-7.424-7.424l10.939-10.94a3.75 3.75 0 1 1 5.303 5.304L9.097 18.835l-.008.008-.007.007-.002.002-.003.002A2.25 2.25 0 0 1 5.91 15.66l7.81-7.81a.75.75 0 0 1 1.061 1.06l-7.81 7.81a.75.75 0 0 0 1.054 1.068L18.97 6.84a2.25 2.25 0 0 0 0-3.182Z" clipRule="evenodd" /></svg>);
+
+const DoubleCheckIcon = ({ read }: { read: boolean }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={`w-3.5 h-3.5 ${read ? 'text-[#53bdeb]' : 'text-gray-400'}`}>
+        <path d="M12.232 4.232a2.5 2.5 0 0 1 3.536 3.536l-1.225 1.224a.75.75 0 0 0 1.061 1.06l1.224-1.224a4 4 0 0 0-5.656-5.656l-3 3a4 4 0 0 0 .225 5.865.75.75 0 0 0 .977-1.138 2.5 2.5 0 0 1-.142-3.667l3-3Z" />
+        <path d="M11.603 7.963a.75.75 0 0 0-.977 1.138 2.5 2.5 0 0 1 .142 3.667l-3 3a2.5 2.5 0 0 1-3.536-3.536l1.225-1.224a.75.75 0 0 0-1.061-1.06l-1.224 1.224a4 4 0 1 0 5.656 5.656l3-3a4 4 0 0 0-.225-5.865Z" />
+        {/* Simulating ticks geometry */}
+        <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clipRule="evenodd" />
+        <path d="M12.5 5.5l-4 5 1.5 1.5 4-5-1.5-1.5z" opacity="0"/> 
+        {/* Adjusted simplistic check marks for visual similarity */}
+        <path d="M13.25 5.5l-3.5 4.5 1 1 3.5-4.5-1-1z" opacity="0"/>
+    </svg>
+);
+
+const WhatsAppTicks = ({ read }: { read: boolean }) => (
+    <div className="flex -space-x-1">
+        <svg viewBox="0 0 16 11" width="16" height="11" className={`w-3 h-3 ${read ? 'text-[#53bdeb]' : 'text-[#8696a0]'}`} fill="currentColor"><path d="M11.5 0L16 0L8.5 10.5L3 5.5L4.5 3.5L8.5 7L11.5 0Z" /></svg>
+        <svg viewBox="0 0 16 11" width="16" height="11" className={`w-3 h-3 ${read ? 'text-[#53bdeb]' : 'text-[#8696a0]'}`} fill="currentColor"><path d="M11.5 0L16 0L8.5 10.5L3 5.5L4.5 3.5L8.5 7L11.5 0Z" /></svg>
+    </div>
+);
 
 // Helper per formattare la data nei messaggi
 const getMessageDateLabel = (dateString: string) => {
@@ -25,17 +45,16 @@ const getMessageDateLabel = (dateString: string) => {
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
 
-    // Normalize times to midnight
     date.setHours(0,0,0,0);
     today.setHours(0,0,0,0);
     yesterday.setHours(0,0,0,0);
 
-    if (date.getTime() === today.getTime()) return 'Oggi';
-    if (date.getTime() === yesterday.getTime()) return 'Ieri';
-    return date.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' }); 
+    if (date.getTime() === today.getTime()) return 'OGGI';
+    if (date.getTime() === yesterday.getTime()) return 'IERI';
+    return date.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase(); 
 };
 
-const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onViewTrack }) => {
+const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onViewTrack, onMessagesRead }) => {
     const [messages, setMessages] = useState<DirectMessage[]>([]);
     const [newMessage, setNewMessage] = useState('');
     const chatEndRef = useRef<HTMLDivElement>(null);
@@ -50,12 +69,15 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
         if (!currentUser.id || !friend.id) return;
         const msgs = await getDirectMessages(currentUser.id, friend.id);
         setMessages(msgs);
+        
+        // Mark as read immediately on load
+        await markMessagesAsRead(currentUser.id, friend.id);
+        onMessagesRead?.();
     };
 
     const loadMyTracks = async () => {
         const tracks = await loadTracksFromDB();
-        // Filter out external tracks (like ghost tracks)
-        setShareTracks(tracks.filter(t => !t.isExternal).slice(0, 10)); // Show latest 10
+        setShareTracks(tracks.filter(t => !t.isExternal).slice(0, 10)); 
     };
 
     // Load initial messages
@@ -63,7 +85,8 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
         loadMessages();
         loadMyTracks();
         
-        intervalRef.current = window.setInterval(loadMessages, 3000);
+        // Polling fallback
+        intervalRef.current = window.setInterval(loadMessages, 4000);
         
         const channel = supabase.channel(`chat:${currentUser.id}:${friend.id}`)
             .on(
@@ -74,21 +97,37 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
                     table: 'direct_messages',
                     filter: `receiver_id=eq.${currentUser.id}` 
                 },
-                (payload) => {
+                async (payload) => {
                     const newMsg = payload.new;
                     if (newMsg.sender_id === friend.id) {
                         setMessages(prev => {
                             if (prev.some(m => m.id === newMsg.id)) return prev;
-                            const msgFormatted: DirectMessage = {
+                            return [...prev, {
                                 id: newMsg.id,
                                 senderId: newMsg.sender_id,
                                 receiverId: newMsg.receiver_id,
                                 content: newMsg.content,
-                                createdAt: newMsg.created_at
-                            };
-                            return [...prev, msgFormatted];
+                                createdAt: newMsg.created_at,
+                                readAt: null 
+                            }];
                         });
+                        // Mark as read instantly when open
+                        await markMessagesAsRead(currentUser.id, friend.id);
+                        onMessagesRead?.();
                     }
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'direct_messages',
+                    filter: `sender_id=eq.${currentUser.id}` // Listen for MY messages being read by friend
+                },
+                (payload) => {
+                    const updatedMsg = payload.new;
+                    setMessages(prev => prev.map(m => m.id === updatedMsg.id ? { ...m, readAt: updatedMsg.read_at } : m));
                 }
             )
             .subscribe();
@@ -117,9 +156,9 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
                 createdAt: new Date().toISOString()
             };
             setMessages(prev => [...prev, tempMsg]);
+            setNewMessage('');
             
             await sendDirectMessage(currentUser.id, friend.id, contentToSend);
-            if (!customContent) setNewMessage('');
         } catch (e) {
             console.error("Failed to send", e);
         }
@@ -128,12 +167,8 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
     const handleShareTrack = async (track: Track) => {
         if (!currentUser.id || !friend.id) return;
         
-        // If full access, update permissions on backend
         if (fullAccessMode) {
             try {
-                // Fetch current sharing settings to append instead of overwrite if needed, 
-                // but simpler for now: just ensure friend is in list.
-                // Assuming we have track locally:
                 const currentShared = track.sharedWithUsers || [];
                 if (!currentShared.includes(friend.id)) {
                     await updateTrackSharing(
@@ -144,7 +179,6 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
                     );
                 }
             } catch (e) {
-                console.error("Failed to update share permissions", e);
                 alert("Impossibile concedere permessi. Condivisione annullata.");
                 return;
             }
@@ -165,7 +199,6 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
     const handleTrackClick = async (trackData: any) => {
         if (trackData.access === 'full') {
             if (onViewTrack) {
-                // Fetch full track details
                 try {
                     const fullTrack = await getTrackById(trackData.id);
                     if (fullTrack) onViewTrack(fullTrack);
@@ -173,13 +206,10 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
                 } catch(e) { alert("Impossibile caricare traccia."); }
             }
         } else {
-            // Preview only - maybe show a simple alert or toast for now
-            // Or better, fetch and show in a read-only modal if implemented
             alert(`Anteprima: ${trackData.name} (${trackData.dist}km). Chiedi l'accesso completo per analizzarla!`);
         }
     };
 
-    // Group Messages Logic
     const groupedMessages = useMemo<Record<string, DirectMessage[]>>(() => {
         const groups: Record<string, DirectMessage[]> = {};
         messages.forEach(msg => {
@@ -192,87 +222,101 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
 
     return (
         <div 
-            className="fixed inset-0 z-[12000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
+            className="fixed inset-0 z-[12000] flex items-center justify-center p-0 md:p-4 bg-black/80 backdrop-blur-sm animate-fade-in"
             onClick={onClose}
         >
             <div 
-                className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl flex flex-col h-[65vh] md:h-[550px] overflow-hidden animate-pop-in relative"
+                className="w-full md:max-w-md bg-[#0b141a] md:border md:border-slate-700 md:rounded-2xl shadow-2xl flex flex-col h-full md:h-[600px] overflow-hidden animate-pop-in relative"
                 onClick={(e) => e.stopPropagation()} 
             >
-                {/* Header */}
-                <div className="flex items-center justify-between p-4 bg-slate-800 border-b border-slate-700 shrink-0">
+                {/* Header WhatsApp Style */}
+                <div className="flex items-center justify-between px-4 py-3 bg-[#202c33] border-b border-[#202c33] shrink-0 z-20">
                     <div className="flex items-center gap-3">
+                        <button onClick={onClose} className="text-[#aebac1] md:hidden mr-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path fillRule="evenodd" d="M11.03 3.97a.75.75 0 0 1 0 1.06l-6.22 6.22H21a.75.75 0 0 1 0 1.5H4.81l6.22 6.22a.75.75 0 1 1-1.06 1.06l-7.5-7.5a.75.75 0 0 1 0-1.06l7.5-7.5a.75.75 0 0 1 1.06 0Z" clipRule="evenodd" /></svg>
+                        </button>
                         <div className="relative">
-                            <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-lg">
-                                {friend.name?.substring(0,1)}
+                            <div className="w-10 h-10 rounded-full bg-slate-600 flex items-center justify-center overflow-hidden">
+                                {friend.name ? <span className="text-white font-bold text-lg">{friend.name[0]}</span> : '?'}
                             </div>
-                            {friend.isOnline && (
-                                <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-slate-800 rounded-full"></div>
-                            )}
                         </div>
-                        <div>
-                            <h4 className="font-bold text-white text-base leading-none">{friend.name}</h4>
-                            <span className="text-xs text-slate-400">{friend.isOnline ? 'Online' : 'Offline'}</span>
+                        <div className="flex flex-col">
+                            <h4 className="font-bold text-[#e9edef] text-base leading-none">{friend.name}</h4>
+                            {friend.isOnline && <span className="text-xs text-green-500 font-medium">online</span>}
                         </div>
                     </div>
-                    <button onClick={onClose} className="text-slate-400 hover:text-white p-2 rounded-full hover:bg-slate-700 transition-colors">
+                    <button onClick={onClose} className="text-[#aebac1] hover:text-white p-2 rounded-full hidden md:block">
                         <CloseIcon />
                     </button>
                 </div>
 
                 {/* Messages Area */}
-                <div className="flex-grow overflow-y-auto p-4 bg-slate-900/50 space-y-4 custom-scrollbar">
+                <div className="flex-grow overflow-y-auto p-4 bg-[#0b141a] space-y-4 custom-scrollbar bg-chat-pattern relative">
+                    <div className="absolute inset-0 opacity-5 pointer-events-none bg-[url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')] bg-repeat"></div>
+                    
                     {messages.length === 0 && (
-                        <div className="flex flex-col items-center justify-center h-full text-slate-500 text-sm">
-                            <span className="text-4xl mb-2">👋</span>
-                            Inizia a chattare con {friend.name}...
+                        <div className="flex flex-col items-center justify-center h-full text-[#8696a0] text-sm relative z-10">
+                            <div className="bg-[#1f2c34] p-4 rounded-xl text-center shadow-sm">
+                                <p className="text-[#ffd279] text-xs uppercase font-bold mb-1">Messaggi Crittografati</p>
+                                <p>Invia un messaggio a {friend.name}.</p>
+                            </div>
                         </div>
                     )}
                     
                     {(Object.entries(groupedMessages) as [string, DirectMessage[]][]).map(([dateLabel, groupMsgs]) => (
-                         <div key={dateLabel} className="space-y-3">
-                            <div className="flex justify-center py-2">
-                                <span className="bg-slate-800 text-[10px] text-slate-400 px-3 py-1 rounded-full font-bold uppercase border border-slate-700 shadow-sm">
+                         <div key={dateLabel} className="space-y-1 relative z-10">
+                            <div className="flex justify-center py-2 sticky top-0 z-10">
+                                <span className="bg-[#1f2c34] text-[11px] text-[#8696a0] px-3 py-1.5 rounded-lg font-medium shadow-sm uppercase tracking-wide">
                                     {dateLabel}
                                 </span>
                             </div>
                             {groupMsgs.map(msg => {
                                 const isMe = msg.senderId === currentUser.id;
-                                // Check for share tag
                                 const shareMatch = msg.content.match(/:::SHARE_TRACK:(.*?):::/);
+                                const isRead = !!msg.readAt;
                                 
                                 return (
-                                    <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                                        <div className={`max-w-[85%] px-4 py-2.5 rounded-2xl text-sm shadow-md ${isMe ? 'bg-cyan-600 text-white rounded-tr-none' : 'bg-slate-800 text-slate-200 rounded-tl-none border border-slate-700'}`}>
+                                    <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} mb-1`}>
+                                        <div 
+                                            className={`max-w-[85%] sm:max-w-[70%] px-3 py-1.5 rounded-lg text-[14px] shadow-sm relative ${
+                                                isMe 
+                                                ? 'bg-[#005c4b] text-[#e9edef] rounded-tr-none' 
+                                                : 'bg-[#202c33] text-[#e9edef] rounded-tl-none'
+                                            }`}
+                                        >
                                             {shareMatch ? (
                                                 (() => {
                                                     try {
                                                         const data = JSON.parse(shareMatch[1]);
                                                         const isFull = data.access === 'full';
                                                         return (
-                                                            <div 
-                                                                className="cursor-pointer group"
-                                                                onClick={() => handleTrackClick(data)}
-                                                            >
-                                                                <div className="flex items-center gap-2 mb-2 border-b border-white/20 pb-1">
-                                                                    <span className="text-xl">🗺️</span>
-                                                                    <span className="font-bold uppercase text-[10px] tracking-wider">{isFull ? 'Analisi Completa' : 'Anteprima Corsa'}</span>
+                                                            <div className="cursor-pointer group -mx-1 -mt-1" onClick={() => handleTrackClick(data)}>
+                                                                <div className="bg-black/20 rounded-t-lg p-2 mb-1 flex items-center gap-2">
+                                                                    <div className="w-8 h-8 rounded bg-slate-800 flex items-center justify-center text-xl">🗺️</div>
+                                                                    <div className="flex-grow">
+                                                                        <div className="font-bold text-sm text-[#e9edef]">{data.name}</div>
+                                                                        <div className="text-[10px] text-[#8696a0]">{data.dist} km • {isFull ? 'Accesso Completo' : 'Anteprima'}</div>
+                                                                    </div>
                                                                 </div>
-                                                                <div className="font-bold text-base mb-1">{data.name}</div>
-                                                                <div className="text-xs opacity-80 font-mono mb-2">{data.dist} km</div>
-                                                                <button className={`w-full py-1.5 rounded text-[10px] font-black uppercase ${isMe ? 'bg-white/20' : 'bg-slate-700'} group-hover:bg-white group-hover:text-cyan-600 transition-colors`}>
-                                                                    {isFull ? 'Apri Dati' : 'Vedi Info'}
-                                                                </button>
+                                                                <div className="px-1 pb-1">
+                                                                    <button className="w-full bg-[#2a3942] hover:bg-[#374248] text-[#00a884] font-bold text-xs py-2 rounded uppercase tracking-wide">
+                                                                        Vedi Attività
+                                                                    </button>
+                                                                </div>
                                                             </div>
                                                         );
                                                     } catch { return <span>{msg.content}</span> }
                                                 })()
                                             ) : (
-                                                <p>{msg.content}</p>
+                                                <p className="leading-snug break-words pr-2">{msg.content}</p>
                                             )}
-                                            <p className={`text-[9px] mt-1 text-right font-mono opacity-70`}>
-                                                {new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                            </p>
+                                            
+                                            <div className="flex justify-end items-center gap-1 mt-0.5 -mb-1 ml-2 float-right">
+                                                <span className="text-[10px] text-[#8696a0]">
+                                                    {new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                                </span>
+                                                {isMe && <WhatsAppTicks read={isRead} />}
+                                            </div>
                                         </div>
                                     </div>
                                 );
@@ -284,34 +328,34 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
 
                 {/* Share Menu Overlay */}
                 {showShareMenu && (
-                    <div className="absolute bottom-16 left-4 right-4 bg-slate-800 border border-slate-600 rounded-xl shadow-2xl p-3 z-20 animate-slide-up">
-                        <div className="flex justify-between items-center mb-3 border-b border-slate-700 pb-2">
-                            <h4 className="text-xs font-black text-white uppercase tracking-widest">Condividi Corsa</h4>
-                            <button onClick={() => setShowShareMenu(false)} className="text-slate-400 hover:text-white">&times;</button>
+                    <div className="absolute bottom-16 left-4 right-4 bg-[#202c33] rounded-xl shadow-2xl p-4 z-30 animate-slide-up border border-[#2a3942]">
+                        <div className="flex justify-between items-center mb-4">
+                            <h4 className="text-xs font-bold text-[#8696a0] uppercase tracking-widest">Invia Corsa</h4>
+                            <button onClick={() => setShowShareMenu(false)} className="text-[#8696a0] hover:text-white">&times;</button>
                         </div>
                         
-                        <label className="flex items-center gap-2 p-2 bg-slate-900 rounded-lg mb-3 cursor-pointer border border-slate-700 hover:border-purple-500 transition-colors">
+                        <label className="flex items-center gap-3 p-3 bg-[#111b21] rounded-lg mb-4 cursor-pointer border border-transparent hover:border-[#00a884] transition-colors">
                             <input 
                                 type="checkbox" 
                                 checked={fullAccessMode} 
                                 onChange={e => setFullAccessMode(e.target.checked)}
-                                className="accent-purple-500 w-4 h-4"
+                                className="accent-[#00a884] w-5 h-5 rounded"
                             />
                             <div className="flex-grow">
-                                <span className={`text-xs font-bold ${fullAccessMode ? 'text-purple-400' : 'text-slate-300'}`}>Consenti Analisi (Ospite)</span>
-                                <p className="text-[9px] text-slate-500">L'amico potrà vedere grafici e usare l'AI sui tuoi dati.</p>
+                                <span className={`text-sm font-bold ${fullAccessMode ? 'text-[#00a884]' : 'text-[#e9edef]'}`}>Analisi Ospite</span>
+                                <p className="text-[11px] text-[#8696a0]">Permetti all'amico di vedere i grafici.</p>
                             </div>
                         </label>
 
-                        <div className="max-h-40 overflow-y-auto custom-scrollbar space-y-1">
+                        <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-1">
                             {shareTracks.map(t => (
                                 <button 
                                     key={t.id} 
                                     onClick={() => handleShareTrack(t)}
-                                    className="w-full flex items-center justify-between p-2 hover:bg-slate-700 rounded-lg transition-colors text-left"
+                                    className="w-full flex items-center justify-between p-3 hover:bg-[#2a3942] rounded-lg transition-colors text-left"
                                 >
-                                    <span className="text-xs text-white truncate max-w-[180px]">{t.name}</span>
-                                    <span className="text-[9px] font-mono text-slate-400">{t.distance.toFixed(1)}k</span>
+                                    <span className="text-sm text-[#e9edef] truncate max-w-[180px]">{t.name}</span>
+                                    <span className="text-xs font-mono text-[#8696a0]">{t.distance.toFixed(1)}km</span>
                                 </button>
                             ))}
                         </div>
@@ -319,26 +363,28 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
                 )}
 
                 {/* Input Area */}
-                <form onSubmit={(e) => handleSend(e)} className="p-4 bg-slate-800 border-t border-slate-700 flex gap-3 shrink-0 relative z-10">
+                <form onSubmit={(e) => handleSend(e)} className="p-2 md:p-3 bg-[#202c33] flex gap-2 shrink-0 items-center z-20">
                     <button 
                         type="button"
                         onClick={() => setShowShareMenu(!showShareMenu)}
-                        className={`p-3 rounded-xl transition-all ${showShareMenu ? 'bg-purple-600 text-white' : 'bg-slate-700 text-slate-300 hover:text-white'}`}
+                        className={`p-3 rounded-full transition-all ${showShareMenu ? 'text-[#00a884] bg-[#2a3942]' : 'text-[#8696a0] hover:bg-[#2a3942]'}`}
                     >
                         <PaperClipIcon />
                     </button>
-                    <input 
-                        type="text" 
-                        value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
-                        placeholder="Scrivi un messaggio..."
-                        className="flex-grow bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 text-sm text-white focus:border-cyan-500 outline-none transition-colors"
-                        autoFocus
-                    />
+                    <div className="flex-grow bg-[#2a3942] rounded-lg px-4 py-2 flex items-center">
+                        <input 
+                            type="text" 
+                            value={newMessage}
+                            onChange={(e) => setNewMessage(e.target.value)}
+                            placeholder="Scrivi un messaggio"
+                            className="w-full bg-transparent text-[#e9edef] text-sm focus:outline-none placeholder-[#8696a0]"
+                            autoFocus
+                        />
+                    </div>
                     <button 
                         type="submit" 
                         disabled={!newMessage.trim()} 
-                        className="bg-cyan-600 hover:bg-cyan-500 text-white p-3 rounded-xl transition-all shadow-lg active:scale-95 disabled:opacity-50 disabled:active:scale-100"
+                        className={`p-3 rounded-full transition-all flex items-center justify-center ${newMessage.trim() ? 'bg-[#00a884] text-white hover:bg-[#008f6f]' : 'bg-transparent text-[#8696a0]'}`}
                     >
                         <SendIcon />
                     </button>
