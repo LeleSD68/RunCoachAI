@@ -926,6 +926,7 @@ const App: React.FC = () => {
                     onSave={async (p) => { setUserProfile(p); await saveProfileToDB(p); addToast("Profilo salvato!", "success"); }} 
                     currentProfile={userProfile} 
                     tracks={tracks}
+                    onLogout={async () => { await supabase.auth.signOut(); setShowAuthSelection(true); setIsGuest(false); setUserId(null); }}
                 />
             )}
 
@@ -985,7 +986,7 @@ const App: React.FC = () => {
                         </div>
                     ) : (
                         (!isDesktop && !isSidebarOpen) ? (
-                            <div className="w-full h-full flex flex-col bg-slate-950 relative pb-20 md:pb-0">
+                            <div className="w-full h-full flex flex-col bg-slate-950 relative pb-16 md:pb-0">
                                 <div className="flex-grow relative bg-slate-900">
                                     <MapDisplay 
                                         tracks={tracks} visibleTrackIds={mapVisibleIds} raceRunners={raceRunners}
@@ -994,9 +995,6 @@ const App: React.FC = () => {
                                         onToggleFullScreen={() => setIsSidebarOpen(true)} // Torna alla sidebar
                                         isFullScreen={true}
                                     />
-                                    <button onClick={() => setShowGlobalChat(true)} className="absolute bottom-4 right-4 z-[1000] bg-purple-600 hover:bg-purple-500 text-white p-1 rounded-2xl shadow-2xl active:scale-90 border border-purple-400/50 transition-all">
-                                        <img src="/icona.png" alt="AI" className="w-12 h-12 object-cover rounded-xl" />
-                                    </button>
                                 </div>
                             </div>
                         ) : (
@@ -1040,6 +1038,7 @@ const App: React.FC = () => {
                                                         onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}} isSidebarOpen={isSidebarOpen}
                                                         unreadCount={unreadMessages}
                                                         onlineCount={onlineFriendsCount}
+                                                        onOpenGlobalChat={() => setShowGlobalChat(true)}
                                                     />
                                                 </div>
                                             </>
@@ -1050,7 +1049,7 @@ const App: React.FC = () => {
                                         )}
                                     </aside>
                                 ) : (
-                                    <div className="flex-grow overflow-hidden bg-slate-900 border-b border-slate-800 w-full h-full relative pb-20 md:pb-0">
+                                    <div className="flex-grow overflow-hidden bg-slate-900 border-b border-slate-800 w-full h-full relative pb-16 md:pb-0">
                                          <Sidebar 
                                             tracks={tracks.filter(t => !t.isExternal)} 
                                             visibleTrackIds={mapVisibleIds} focusedTrackId={focusedTrackId} raceSelectionIds={raceSelectionIds}
@@ -1074,13 +1073,10 @@ const App: React.FC = () => {
                                                 onToggleFullScreen={() => setIsSidebarOpen(prev => !prev)}
                                                 isFullScreen={!isSidebarOpen}
                                             />
-                                            <button onClick={() => setShowGlobalChat(true)} className="fixed bottom-24 right-4 z-[4000] bg-purple-600 hover:bg-purple-500 text-white p-1 rounded-2xl shadow-2xl active:scale-90 border border-purple-400/50 transition-all">
-                                                <img src="/icona.png" alt="AI" className="w-12 h-12 object-cover rounded-xl" />
-                                            </button>
                                         </>
                                     ) : (
                                         <>
-                                            <div className="flex-grow relative bg-slate-900 pb-20 md:pb-0">
+                                            <div className="flex-grow relative bg-slate-900 pb-16 md:pb-0">
                                                 <MapDisplay 
                                                     tracks={tracks} visibleTrackIds={mapVisibleIds} raceRunners={raceRunners}
                                                     isAnimationPlaying={false} fitBoundsCounter={fitBoundsCounter}
@@ -1088,9 +1084,6 @@ const App: React.FC = () => {
                                                     onToggleFullScreen={() => setIsSidebarOpen(false)} // Passa a full screen
                                                     isFullScreen={false} // In split view non è full screen
                                                 />
-                                                <button onClick={() => setShowGlobalChat(true)} className="absolute bottom-24 right-4 z-[1000] bg-purple-600 hover:bg-purple-500 text-white p-1 rounded-2xl shadow-2xl active:scale-90 border border-purple-400/50 transition-all">
-                                                    <img src="/icona.png" alt="AI" className="w-12 h-12 object-cover rounded-xl" />
-                                                </button>
                                             </div>
                                         </>
                                     )}
@@ -1114,6 +1107,7 @@ const App: React.FC = () => {
                         isSidebarOpen={isSidebarOpen}
                         unreadCount={unreadMessages}
                         onlineCount={onlineFriendsCount}
+                        onOpenGlobalChat={() => setShowGlobalChat(true)}
                     />
                 </div>
             )}
@@ -1137,7 +1131,7 @@ const App: React.FC = () => {
             )}
 
             {viewingTrack && (
-                <div className="fixed inset-0 z-[10000] bg-slate-900 pb-20 md:pb-0">
+                <div className="fixed inset-0 z-[10000] bg-slate-900 pb-16 md:pb-0">
                     <TrackDetailView 
                         track={viewingTrack} userProfile={userProfile} onExit={() => { setViewingTrack(null); window.history.back(); }} 
                         plannedWorkouts={plannedWorkouts} onAddPlannedWorkout={handleAddPlannedWorkout} 
@@ -1159,7 +1153,7 @@ const App: React.FC = () => {
             )}
 
             {showDiary && (
-                <div className="fixed inset-0 z-[9000] bg-slate-900 flex flex-col pb-20 md:pb-0">
+                <div className="fixed inset-0 z-[9000] bg-slate-900 flex flex-col">
                     <div className="flex-grow overflow-hidden">
                         <DiaryView 
                             tracks={tracks} plannedWorkouts={plannedWorkouts} userProfile={userProfile} 
