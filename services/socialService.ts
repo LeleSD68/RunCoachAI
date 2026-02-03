@@ -292,3 +292,42 @@ export const toggleReaction = async (trackId: string, userId: string, emoji: str
         return 'added';
     }
 };
+
+// --- NOTIFICATIONS UTILS ---
+
+export const getUnreadNotificationsCount = async (userId: string): Promise<number> => {
+    if (!userId) return 0;
+    
+    // 1. Unread Messages
+    const { count: msgCount } = await supabase
+        .from('direct_messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('receiver_id', userId)
+        .is('read_at', null);
+
+    // 2. Pending Friend Requests
+    const { count: reqCount } = await supabase
+        .from('friends')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id_2', userId)
+        .eq('status', 'pending');
+
+    return (msgCount || 0) + (reqCount || 0);
+};
+
+export const markMessagesAsRead = async (userId: string, senderId?: string) => {
+    if (!userId) return;
+    
+    let query = supabase
+        .from('direct_messages')
+        .update({ read_at: new Date().toISOString() })
+        .eq('receiver_id', userId)
+        .is('read_at', null);
+
+    // If senderId provided, mark only chat with that user, otherwise mark all (e.g. "Mark All Read")
+    if (senderId) {
+        query = query.eq('sender_id', senderId);
+    }
+
+    await query;
+};
