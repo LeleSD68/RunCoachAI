@@ -231,7 +231,6 @@ export const leaveGroup = async (groupId: string, userId: string) => {
 export const addMemberToGroup = async (groupId: string, userId: string) => {
     const { error } = await supabase.from('social_group_members').insert({ group_id: groupId, user_id: userId });
     if (error) {
-        // Ignora errore duplicato, ma lancia altri errori
         if (error.code !== '23505') throw error;
     }
 };
@@ -256,11 +255,6 @@ export const updateTrackSharing = async (trackId: string, isPublic: boolean, sha
 
 export const sendDirectMessage = async (senderId: string, receiverId: string, content: string) => {
     const { error } = await supabase.from('direct_messages').insert({ sender_id: senderId, receiver_id: receiverId, content: content });
-    if (error) throw error;
-};
-
-export const deleteDirectMessage = async (messageId: string) => {
-    const { error } = await supabase.from('direct_messages').delete().eq('id', messageId);
     if (error) throw error;
 };
 
@@ -320,25 +314,6 @@ export const getUnreadNotificationsCount = async (userId: string): Promise<numbe
         .eq('status', 'pending');
 
     return (msgCount || 0) + (reqCount || 0);
-};
-
-export const getRecentUnreadSender = async (currentUserId: string): Promise<string | null> => {
-    // Check for unread DMs
-    const { data, error } = await supabase
-        .from('direct_messages')
-        .select('sender_id')
-        .eq('receiver_id', currentUserId)
-        .is('read_at', null);
-    
-    if (error || !data || data.length === 0) return null;
-    
-    // Get unique senders
-    const senders = [...new Set(data.map((d: any) => d.sender_id as string))];
-    
-    // If exactly one sender, return their ID to open chat automatically
-    if (senders.length === 1) return senders[0];
-    
-    return null; // Multiple senders or none
 };
 
 export const markMessagesAsRead = async (userId: string, senderId?: string) => {

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
 import { UserProfile, DirectMessage, Track } from '../types';
-import { sendDirectMessage, getDirectMessages, updateTrackSharing, getTrackById, markMessagesAsRead, deleteDirectMessage } from '../services/socialService';
+import { sendDirectMessage, getDirectMessages, updateTrackSharing, getTrackById, markMessagesAsRead } from '../services/socialService';
 import { supabase } from '../services/supabaseClient';
 import { loadTracksFromDB } from '../services/dbService'; // For local selection
 import TrackPreview from './TrackPreview';
@@ -18,7 +18,6 @@ interface MiniChatProps {
 const SendIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z" /></svg>);
 const CloseIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-6 h-6"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" /></svg>);
 const PaperClipIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path fillRule="evenodd" d="M18.97 3.659a2.25 2.25 0 0 0-3.182 0l-10.94 10.94a3.75 3.75 0 1 0 5.304 5.303l7.693-7.693a.75.75 0 0 1 1.06 1.06l-7.693 7.693a5.25 5.25 0 1 1-7.424-7.424l10.939-10.94a3.75 3.75 0 1 1 5.303 5.304L9.097 18.835l-.008.008-.007.007-.002.002-.003.002A2.25 2.25 0 0 1 5.91 15.66l7.81-7.81a.75.75 0 0 1 1.061 1.06l-7.81 7.81a.75.75 0 0 0 1.054 1.068L18.97 6.84a2.25 2.25 0 0 0 0-3.182Z" clipRule="evenodd" /></svg>);
-const TrashIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3"><path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.1499.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149-.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clipRule="evenodd" /></svg>);
 
 // New Ticks Component - Standard WhatsApp Style
 const WhatsAppTicks = ({ read, sent }: { read: boolean; sent: boolean }) => (
@@ -58,7 +57,6 @@ const getMessageDateLabel = (dateString: string) => {
 const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onViewTrack, onMessagesRead }) => {
     const [messages, setMessages] = useState<DirectMessage[]>([]);
     const [newMessage, setNewMessage] = useState('');
-    const [hiddenMessageIds, setHiddenMessageIds] = useState<Set<string>>(new Set());
     
     // Scroll Refs
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -71,18 +69,6 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
     const [showShareMenu, setShowShareMenu] = useState(false);
     const [shareTracks, setShareTracks] = useState<Track[]>([]);
     const [fullAccessMode, setFullAccessMode] = useState(false);
-    
-    // Delete UI
-    const [messageToDelete, setMessageToDelete] = useState<DirectMessage | null>(null);
-
-    // Load hidden messages from local storage
-    useEffect(() => {
-        if(currentUser.id && friend.id) {
-            const key = `hidden_msgs_${currentUser.id}_${friend.id}`;
-            const stored = localStorage.getItem(key);
-            if(stored) setHiddenMessageIds(new Set(JSON.parse(stored)));
-        }
-    }, [currentUser.id, friend.id]);
 
     const loadMessages = async () => {
         if (!currentUser.id || !friend.id) return;
@@ -164,18 +150,6 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
                 (payload) => {
                     const updatedMsg = payload.new;
                     setMessages(prev => prev.map(m => m.id === updatedMsg.id ? { ...m, readAt: updatedMsg.read_at } : m));
-                }
-            )
-            .on(
-                'postgres_changes',
-                {
-                    event: 'DELETE',
-                    schema: 'public',
-                    table: 'direct_messages'
-                },
-                (payload) => {
-                    const deletedId = payload.old.id;
-                    setMessages(prev => prev.filter(m => m.id !== deletedId));
                 }
             )
             .subscribe();
@@ -266,37 +240,15 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
         }
     };
 
-    const handleDeleteMessage = async (type: 'me' | 'everyone') => {
-        if (!messageToDelete) return;
-        
-        if (type === 'me') {
-            const newHidden = new Set(hiddenMessageIds);
-            newHidden.add(messageToDelete.id);
-            setHiddenMessageIds(newHidden);
-            if (currentUser.id && friend.id) {
-                localStorage.setItem(`hidden_msgs_${currentUser.id}_${friend.id}`, JSON.stringify(Array.from(newHidden)));
-            }
-        } else if (type === 'everyone') {
-            try {
-                await deleteDirectMessage(messageToDelete.id);
-                // Optimistic UI update
-                setMessages(prev => prev.filter(m => m.id !== messageToDelete.id));
-            } catch (e) {
-                alert("Errore durante l'eliminazione.");
-            }
-        }
-        setMessageToDelete(null);
-    };
-
     const groupedMessages = useMemo<Record<string, DirectMessage[]>>(() => {
         const groups: Record<string, DirectMessage[]> = {};
-        messages.filter(m => !hiddenMessageIds.has(m.id)).forEach(msg => {
+        messages.forEach(msg => {
             const dateLabel = getMessageDateLabel(msg.createdAt);
             if (!groups[dateLabel]) groups[dateLabel] = [];
             groups[dateLabel].push(msg);
         });
         return groups;
-    }, [messages, hiddenMessageIds]);
+    }, [messages]);
 
     return (
         <div 
@@ -358,9 +310,7 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
                                 const isTemp = msg.id.startsWith('temp-');
                                 
                                 return (
-                                    <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} mb-1 group relative`}>
-                                        
-                                        {/* Message Bubble */}
+                                    <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} mb-1`}>
                                         <div 
                                             className={`max-w-[85%] sm:max-w-[70%] px-3 py-1.5 rounded-lg text-[14px] shadow-sm relative ${
                                                 isMe 
@@ -368,21 +318,13 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
                                                 : 'bg-[#202c33] text-[#e9edef] rounded-tl-none'
                                             }`}
                                         >
-                                            {/* Dropdown Trigger on Hover */}
-                                            <button 
-                                                onClick={() => setMessageToDelete(msg)}
-                                                className={`absolute -top-2 ${isMe ? '-left-2' : '-right-2'} w-6 h-6 bg-slate-800 text-slate-400 rounded-full shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10 hover:text-white`}
-                                            >
-                                                <span className="text-xs mb-1">...</span>
-                                            </button>
-
                                             {shareMatch ? (
                                                 (() => {
                                                     try {
                                                         const data = JSON.parse(shareMatch[1]);
                                                         const isFull = data.access === 'full';
                                                         return (
-                                                            <div className="cursor-pointer -mx-1 -mt-1" onClick={() => handleTrackClick(data)}>
+                                                            <div className="cursor-pointer group -mx-1 -mt-1" onClick={() => handleTrackClick(data)}>
                                                                 <div className="bg-black/20 rounded-t-lg p-2 mb-1 flex items-center gap-2">
                                                                     <div className="w-8 h-8 rounded bg-slate-800 flex items-center justify-center text-xl">🗺️</div>
                                                                     <div className="flex-grow">
@@ -419,37 +361,6 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
                     ))}
                     <div ref={chatEndRef} />
                 </div>
-
-                {/* Delete Modal */}
-                {messageToDelete && (
-                    <div className="absolute inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-fade-in" onClick={() => setMessageToDelete(null)}>
-                        <div className="bg-[#202c33] w-full max-w-sm rounded-xl p-4 shadow-2xl border border-slate-700" onClick={e => e.stopPropagation()}>
-                            <h3 className="text-white font-bold mb-4 text-center">Elimina messaggio?</h3>
-                            <div className="space-y-2">
-                                {messageToDelete.senderId === currentUser.id && (
-                                    <button 
-                                        onClick={() => handleDeleteMessage('everyone')}
-                                        className="w-full p-3 bg-slate-800 text-red-400 font-bold rounded-lg hover:bg-slate-700 text-sm flex items-center justify-center gap-2"
-                                    >
-                                        <TrashIcon /> Elimina per tutti
-                                    </button>
-                                )}
-                                <button 
-                                    onClick={() => handleDeleteMessage('me')}
-                                    className="w-full p-3 bg-slate-800 text-slate-200 font-bold rounded-lg hover:bg-slate-700 text-sm"
-                                >
-                                    Elimina per me
-                                </button>
-                                <button 
-                                    onClick={() => setMessageToDelete(null)}
-                                    className="w-full p-3 border border-slate-600 text-slate-400 font-bold rounded-lg hover:text-white text-sm"
-                                >
-                                    Annulla
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
 
                 {/* Share Menu Overlay */}
                 {showShareMenu && (
