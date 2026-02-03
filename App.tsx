@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Track, UserProfile, PlannedWorkout, Toast, ActivityType, RaceRunner, RaceResult, TrackStats, Commentary, TrackPoint, ApiUsage, RaceGapSnapshot, LeaderStats } from './types';
 import Sidebar from './components/Sidebar';
@@ -22,6 +23,7 @@ import DiaryView from './components/DiaryView';
 import PerformanceAnalysisPanel from './components/PerformanceAnalysisPanel';
 import SocialHub from './components/SocialHub';
 import SplashScreen from './components/SplashScreen';
+import InfographicScreen from './components/InfographicScreen'; // Importazione InfographicScreen
 import RaceControls from './components/RaceControls';
 import RaceLeaderboard from './components/RacePaceBar';
 import RaceSummary from './components/RaceSummary';
@@ -56,7 +58,10 @@ const App: React.FC = () => {
     const [toasts, setToasts] = useState<Toast[]>([]);
     const [usage, setUsage] = useState<ApiUsage>({ requests: 0, tokens: 0, lastReset: '' });
     
+    // States for startup flow
     const [showSplash, setShowSplash] = useState(true);
+    const [showInfographic, setShowInfographic] = useState(false); // Nuovo stato per l'infografica
+    
     const [isDataLoading, setIsDataLoading] = useState(false); 
     const [authLimitReached, setAuthLimitReached] = useState(false);
 
@@ -336,9 +341,23 @@ const App: React.FC = () => {
         checkStravaCallback();
     }, []);
 
+    // Sequenza di Avvio:
+    // 1. SplashScreen (si chiude con onFinish)
+    // 2. onFinish attiva handleSplashFinish -> mostra Infografica (setShowInfographic true) e avvia checkSession() in background
+    // 3. checkSession controlla auth e carica i dati. Imposta isDataLoading a true/false.
+    // 4. L'utente clicca "Avanti" sull'Infografica.
+    // 5. Se i dati sono pronti, Infografica scompare e mostra AuthSelection o Home.
+
     const handleSplashFinish = () => {
         setShowSplash(false);
-        checkSession();
+        setShowInfographic(true); // Mostra l'infografica
+        checkSession(); // Avvia il caricamento dati in background
+    };
+
+    const handleInfographicNext = () => {
+        setShowInfographic(false);
+        // La logica di cosa mostrare (Auth o Home) è già gestita dalle variabili di stato userId/showHome/showAuthSelection
+        // impostate da checkSession.
     };
 
     const runAutoStravaSync = async (currentTracks: Track[]) => {
@@ -781,13 +800,18 @@ const App: React.FC = () => {
     const isRacing = raceState !== 'idle';
 
     if (showSplash) return <SplashScreen onFinish={handleSplashFinish} />;
+    
+    // Mostra l'infografica se lo stato lo richiede. 
+    // NOTA: "isLoading" qui è true se stiamo ancora scaricando dati (isDataLoading) 
+    // O se l'utente non è ancora "readyToProceed" (che in questo caso semplificato è gestito dall'utente che clicca Avanti)
+    if (showInfographic) return <InfographicScreen isLoading={isDataLoading} onNext={handleInfographicNext} />;
 
     return (
         <div className="h-screen w-screen flex flex-col overflow-hidden bg-slate-950 text-white font-sans">
             <ToastContainer toasts={toasts} setToasts={setToasts} />
             <ReminderNotification entries={todayEntries} />
 
-            {isDataLoading && (
+            {isDataLoading && !showInfographic && (
                 <div className="fixed inset-0 z-[99999] bg-slate-950/80 flex flex-col items-center justify-center">
                     <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mb-4"></div>
                     <p className="text-cyan-400 font-bold uppercase animate-pulse">Elaborazione...</p>
@@ -891,7 +915,7 @@ const App: React.FC = () => {
                 />
             )}
 
-            {!showHome && !showAuthSelection && (
+            {!showHome && !showAuthSelection && !showInfographic && (
                 <div className="flex-grow flex flex-col lg:flex-row overflow-hidden relative">
                     {isRacing ? (
                         <div className="w-full h-full flex flex-col bg-slate-900">
