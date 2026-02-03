@@ -7,6 +7,15 @@ interface ChangelogProps {
 
 const changelogData = [
     {
+        version: 'v1.44',
+        date: '2026-02-01',
+        changes: [
+            '📤 **Condivisione Avanzata**: In chat ora puoi scegliere se condividere una corsa come semplice "Anteprima" o dare "Accesso Completo" (permettendo all\'amico di analizzare i dati come ospite).',
+            '📱 **Home Mobile Ridisegnata**: Rimossa la mappa flottante. Il pulsante "Lista Corse" è ora fisso nella griglia principale per una navigazione più comoda.',
+            '🚫 **Focus Mode**: Il menu di navigazione inferiore (Dock) ora si nasconde automaticamente nelle schermate di login e registrazione.'
+        ]
+    },
+    {
         version: 'v1.42',
         date: '2026-01-31',
         changes: [
