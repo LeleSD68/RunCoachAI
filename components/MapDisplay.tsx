@@ -31,11 +31,25 @@ const formatPace = (pace: number) => {
     return `${m}:${s.toString().padStart(2, '0')}`;
 };
 
-const MapDisplay: React.FC<MapDisplayProps & { onGradientChange?: (metric: string) => void }> = ({ 
+// Icons for FullScreen Toggle
+const ArrowsPointingOutIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+        <path fillRule="evenodd" d="M2.5 2.5a.75.75 0 0 1 .75 0v3a.75.75 0 0 1-1.5 0v-3a.75.75 0 0 1 .75-.75Zm15 0a.75.75 0 0 1 .75.75v3a.75.75 0 0 1-1.5 0v-3a.75.75 0 0 1 .75-.75ZM2.5 17.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 0 1.5h-3a.75.75 0 0 1-.75-.75Zm15 0a.75.75 0 0 1-.75.75h-3a.75.75 0 0 1 0-1.5h3a.75.75 0 0 1 .75.75ZM3.25 3.25a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 0 1.5h-3a.75.75 0 0 1-.75-.75Zm13.5 0a.75.75 0 0 1 .75.75v3a.75.75 0 0 1-1.5 0v-3a.75.75 0 0 1 .75-.75ZM3.25 16.75a.75.75 0 0 1 .75.75v-3a.75.75 0 0 1 1.5 0v3a.75.75 0 0 1-.75.75ZM16.75 16.75a.75.75 0 0 1-.75-.75v-3a.75.75 0 0 1 1.5 0v3a.75.75 0 0 1-.75.75Z" clipRule="evenodd" />
+        <path d="M3.75 3.75v2.5h2.5V3.75h-2.5Zm10 0v2.5h2.5V3.75h-2.5Zm0 10v2.5h2.5v-2.5h-2.5Zm-10 0v2.5h2.5v-2.5h-2.5Z" opacity="0.3"/>
+    </svg>
+);
+
+const ArrowsPointingInIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+        <path fillRule="evenodd" d="M13.25 6.75a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 0 1.5h-2.25v2.25a.75.75 0 0 1-1.5 0v-3Zm-6.5 0a.75.75 0 0 1 .75.75v2.25a.75.75 0 0 1-1.5 0v-2.25H3.75a.75.75 0 0 1 0-1.5h3a.75.75 0 0 1 .75.75ZM6.75 13.25a.75.75 0 0 1 .75.75v2.25h2.25a.75.75 0 0 1 0 1.5h-3a.75.75 0 0 1-.75-.75v-3a.75.75 0 0 1 .75-.75Zm6.5 0a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75v3a.75.75 0 0 1-1.5 0v-2.25h-2.25a.75.75 0 0 1-.75-.75Z" clipRule="evenodd" />
+    </svg>
+);
+
+const MapDisplay: React.FC<MapDisplayProps & { onGradientChange?: (metric: string) => void, onToggleFullScreen?: () => void, isFullScreen?: boolean }> = ({ 
     tracks, visibleTrackIds, selectedTrackIds, raceRunners, hoveredTrackId, runnerSpeeds, 
     hoveredPoint, mapGradientMetric = 'none', animationTrack, 
     animationProgress = 0, isAnimationPlaying, fitBoundsCounter = 0,
-    selectionPoints = null, onGradientChange
+    selectionPoints = null, onGradientChange, onToggleFullScreen, isFullScreen
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
@@ -332,6 +346,17 @@ const MapDisplay: React.FC<MapDisplayProps & { onGradientChange?: (metric: strin
     <div className="flex flex-col h-full w-full bg-slate-900 overflow-hidden relative group">
       <div ref={mapContainerRef} className="flex-grow w-full h-full z-0 relative" />
       
+      {/* FULLSCREEN TOGGLE BUTTON - Floating Top Right */}
+      {onToggleFullScreen && (
+          <button 
+              onClick={onToggleFullScreen} 
+              className="absolute top-4 right-4 z-[1000] p-2 bg-slate-900/80 backdrop-blur-md border border-slate-600 hover:border-white text-slate-300 hover:text-white rounded-lg shadow-xl transition-all active:scale-95"
+              title={isFullScreen ? "Riduci Mappa" : "Mappa Tutto Schermo"}
+          >
+              {isFullScreen ? <ArrowsPointingInIcon /> : <ArrowsPointingOutIcon />}
+          </button>
+      )}
+
       {/* STATIC MAP TOOLBAR (BELOW MAP) */}
       <div className="bg-slate-800 border-t border-slate-700 p-1.5 flex justify-between items-center shrink-0 z-10 w-full">
           <div className="flex items-center gap-2">
