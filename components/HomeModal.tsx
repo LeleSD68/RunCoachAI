@@ -71,7 +71,7 @@ const LoginIcon = () => (
 );
 
 const LargeLogoIcon = () => (
-    <div className="w-16 h-16 md:w-24 md:h-24 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-2xl border-2 border-cyan-500/20 relative z-10 p-2">
+    <div className="w-12 h-12 md:w-24 md:h-24 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-2xl border-2 border-cyan-500/20 relative z-10 p-2">
         <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
     </div>
 );
@@ -134,36 +134,36 @@ const HomeModal: React.FC<HomeModalProps> = ({
     const MainMenu = () => (
         <div className="flex flex-col gap-2 md:gap-4 flex-grow md:flex-grow-0">
             <div className="grid grid-cols-2 gap-2 md:gap-4">
-                <button onClick={() => setMenuStep('analyze')} className="flex flex-col items-center justify-center p-3 md:p-6 bg-cyan-600/5 hover:bg-cyan-600/10 border-2 border-cyan-500/20 hover:border-cyan-400 rounded-xl md:rounded-2xl transition-all group active:scale-95 shadow-lg min-h-[90px] md:min-h-[120px]">
+                <button onClick={() => setMenuStep('analyze')} className="flex flex-col items-center justify-center p-2 md:p-6 bg-cyan-600/5 hover:bg-cyan-600/10 border-2 border-cyan-500/20 hover:border-cyan-400 rounded-xl md:rounded-2xl transition-all group active:scale-95 shadow-lg min-h-[85px] md:min-h-[120px]">
                     <div className="text-2xl md:text-4xl mb-1 md:mb-2 group-hover:scale-110 transition-transform">📥</div>
-                    <span className="text-xs md:text-lg font-black text-white uppercase tracking-tight">Carica Dati</span>
-                    <span className="text-[9px] md:text-[10px] text-cyan-400 font-bold uppercase tracking-widest mt-0.5 md:mt-1 opacity-60">GPX, Strava, Backup</span>
+                    <span className="text-[10px] md:text-lg font-black text-white uppercase tracking-tight">Carica Dati</span>
+                    <span className="text-[8px] md:text-[10px] text-cyan-400 font-bold uppercase tracking-widest mt-0.5 md:mt-1 opacity-60">GPX, Strava, Backup</span>
                 </button>
 
-                <button onClick={() => setMenuStep('plan')} className="flex flex-col items-center justify-center p-3 md:p-6 bg-purple-600/5 hover:bg-purple-600/10 border-2 border-purple-500/20 hover:border-purple-400 rounded-xl md:rounded-2xl transition-all group active:scale-95 shadow-lg min-h-[90px] md:min-h-[120px]">
+                <button onClick={() => setMenuStep('plan')} className="flex flex-col items-center justify-center p-2 md:p-6 bg-purple-600/5 hover:bg-purple-600/10 border-2 border-purple-500/20 hover:border-purple-400 rounded-xl md:rounded-2xl transition-all group active:scale-95 shadow-lg min-h-[85px] md:min-h-[120px]">
                     <div className="text-2xl md:text-4xl mb-1 md:mb-2 group-hover:scale-110 transition-transform">📅</div>
-                    <span className="text-xs md:text-lg font-black text-white uppercase tracking-tight">Pianifica</span>
-                    <span className="text-[9px] md:text-[10px] text-purple-400 font-bold uppercase tracking-widest mt-0.5 md:mt-1 opacity-60">Calendario & AI</span>
+                    <span className="text-[10px] md:text-lg font-black text-white uppercase tracking-tight">Pianifica</span>
+                    <span className="text-[8px] md:text-[10px] text-purple-400 font-bold uppercase tracking-widest mt-0.5 md:mt-1 opacity-60">Calendario & AI</span>
                 </button>
 
-                <button onClick={() => { onOpenExplorer(); }} className="flex flex-col items-center justify-center p-3 md:p-6 bg-slate-700/20 hover:bg-slate-700/40 border-2 border-slate-600/40 hover:border-white/40 rounded-xl md:rounded-2xl transition-all group active:scale-95 shadow-lg min-h-[90px] md:min-h-[120px]">
+                <button onClick={() => { onOpenExplorer(); }} className="flex flex-col items-center justify-center p-2 md:p-6 bg-slate-700/20 hover:bg-slate-700/40 border-2 border-slate-600/40 hover:border-white/40 rounded-xl md:rounded-2xl transition-all group active:scale-95 shadow-lg min-h-[85px] md:min-h-[120px]">
                     <div className="text-2xl md:text-4xl mb-1 md:mb-2 group-hover:scale-110 transition-transform">👁️</div>
-                    <span className="text-xs md:text-lg font-black text-white uppercase tracking-tight">Archivio</span>
-                    <span className="text-[9px] md:text-[10px] text-slate-400 group-hover:text-white font-bold uppercase tracking-widest mt-0.5 md:mt-1 opacity-60">Esplora storico</span>
+                    <span className="text-[10px] md:text-lg font-black text-white uppercase tracking-tight">Archivio</span>
+                    <span className="text-[8px] md:text-[10px] text-slate-400 group-hover:text-white font-bold uppercase tracking-widest mt-0.5 md:mt-1 opacity-60">Esplora storico</span>
                 </button>
 
-                <button onClick={() => setMenuStep('race')} className="flex flex-col items-center justify-center p-3 md:p-6 bg-green-600/5 hover:bg-green-600/10 border-2 border-green-500/20 hover:border-green-400 rounded-xl md:rounded-2xl transition-all group active:scale-95 shadow-lg min-h-[90px] md:min-h-[120px]">
+                <button onClick={() => setMenuStep('race')} className="flex flex-col items-center justify-center p-2 md:p-6 bg-green-600/5 hover:bg-green-600/10 border-2 border-green-500/20 hover:border-green-400 rounded-xl md:rounded-2xl transition-all group active:scale-95 shadow-lg min-h-[85px] md:min-h-[120px]">
                     <div className="text-2xl md:text-4xl mb-1 md:mb-2 group-hover:scale-110 transition-transform">🏁</div>
-                    <span className="text-xs md:text-lg font-black text-white uppercase tracking-tight">Gareggia</span>
-                    <span className="text-[9px] md:text-[10px] text-green-400 font-bold uppercase tracking-widest mt-0.5 md:mt-1 opacity-60">Simulazione Live</span>
+                    <span className="text-[10px] md:text-lg font-black text-white uppercase tracking-tight">Gareggia</span>
+                    <span className="text-[8px] md:text-[10px] text-green-400 font-bold uppercase tracking-widest mt-0.5 md:mt-1 opacity-60">Simulazione Live</span>
                 </button>
 
-                <button onClick={onOpenSocial} className="flex flex-col items-center justify-center p-3 md:p-6 bg-pink-600/5 hover:bg-pink-600/10 border-2 border-pink-500/20 hover:border-pink-400 rounded-xl md:rounded-2xl transition-all group active:scale-95 shadow-lg min-h-[90px] md:min-h-[120px] relative col-span-2 sm:col-span-1">
+                <button onClick={onOpenSocial} className="flex flex-col items-center justify-center p-2 md:p-6 bg-pink-600/5 hover:bg-pink-600/10 border-2 border-pink-500/20 hover:border-pink-400 rounded-xl md:rounded-2xl transition-all group active:scale-95 shadow-lg min-h-[85px] md:min-h-[120px] relative col-span-1">
                     <div className="text-2xl md:text-4xl mb-1 md:mb-2 group-hover:scale-110 transition-transform"><UserGroupIcon /></div>
-                    <span className="text-xs md:text-lg font-black text-white uppercase tracking-tight">Social Hub</span>
-                    <div className="flex items-center gap-2 mt-0.5 md:mt-1">
-                        <span className="text-[9px] md:text-[10px] text-pink-400 font-bold uppercase tracking-widest opacity-60">Amici & Chat</span>
-                        {onlineCount > 0 && <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.8)]"></span>}
+                    <span className="text-[10px] md:text-lg font-black text-white uppercase tracking-tight">Social</span>
+                    <div className="flex items-center gap-1 mt-0.5 md:mt-1 justify-center w-full">
+                        <span className="text-[8px] md:text-[10px] text-pink-400 font-bold uppercase tracking-widest opacity-60 truncate">Crew</span>
+                        {onlineCount > 0 && <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.8)]"></span>}
                     </div>
                     {unreadCount > 0 && (
                         <div className="absolute top-2 right-2 md:top-3 md:right-3 bg-red-500 text-white text-[9px] font-black w-4 h-4 md:w-5 md:h-5 flex items-center justify-center rounded-full shadow-lg border-2 border-slate-900 animate-bounce">
@@ -172,10 +172,10 @@ const HomeModal: React.FC<HomeModalProps> = ({
                     )}
                 </button>
 
-                <button onClick={onClose} className="flex flex-col items-center justify-center p-3 md:p-6 bg-gradient-to-br from-slate-800 to-slate-700 border-2 border-slate-600/50 hover:border-cyan-400/50 rounded-xl md:rounded-2xl transition-all group active:scale-95 shadow-lg min-h-[90px] md:min-h-[120px] col-span-2 sm:col-span-1">
+                <button onClick={onClose} className="flex flex-col items-center justify-center p-2 md:p-6 bg-gradient-to-br from-slate-800 to-slate-700 border-2 border-slate-600/50 hover:border-cyan-400/50 rounded-xl md:rounded-2xl transition-all group active:scale-95 shadow-lg min-h-[85px] md:min-h-[120px] col-span-1">
                     <div className="text-2xl md:text-4xl mb-1 md:mb-2 group-hover:scale-110 transition-transform">🗺️</div>
-                    <span className="text-xs md:text-lg font-black text-white uppercase tracking-tight">Esplora Mappa</span>
-                    <span className="text-[9px] md:text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-0.5 md:mt-1 opacity-60">Visuale Completa</span>
+                    <span className="text-[10px] md:text-lg font-black text-white uppercase tracking-tight">Mappa</span>
+                    <span className="text-[8px] md:text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-0.5 md:mt-1 opacity-60">Full View</span>
                 </button>
             </div>
         </div>
@@ -183,7 +183,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
 
     const AnalyzeMenu = () => (
         <div className="flex flex-col gap-3 md:gap-4 animate-fade-in">
-            <h3 className="text-base md:text-lg font-black text-white uppercase tracking-tighter mb-1 md:mb-2 border-b border-slate-700 pb-2">Caricamento & Dati</h3>
+            <h3 className="text-sm md:text-lg font-black text-white uppercase tracking-tighter mb-1 md:mb-2 border-b border-slate-700 pb-2">Caricamento & Dati</h3>
             
             <button onClick={() => trackInputRef.current?.click()} className="p-3 md:p-4 bg-slate-700/30 hover:bg-slate-700 border border-slate-600 rounded-xl text-left transition-all hover:border-green-500 group">
                 <span className="block text-xs md:text-sm font-bold text-white group-hover:text-green-400 mb-0.5 md:mb-1">📤 Nuova Traccia (GPX/TCX)</span>
@@ -217,7 +217,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
 
     const PlanMenu = () => (
         <div className="flex flex-col gap-3 md:gap-4 animate-fade-in">
-            <h3 className="text-base md:text-lg font-black text-white uppercase tracking-tighter mb-1 md:mb-2 border-b border-slate-700 pb-2">Diario & Allenamento</h3>
+            <h3 className="text-sm md:text-lg font-black text-white uppercase tracking-tighter mb-1 md:mb-2 border-b border-slate-700 pb-2">Diario & Allenamento</h3>
             <button onClick={() => { onOpenDiary(); }} className="p-3 md:p-4 bg-slate-700/30 hover:bg-slate-700 border border-slate-600 rounded-xl text-left transition-all hover:border-purple-500 group">
                 <span className="block text-xs md:text-sm font-bold text-white group-hover:text-purple-400 mb-0.5 md:mb-1">📅 Calendario Allenamenti</span>
                 <span className="text-[10px] md:text-xs text-slate-400">Gestisci i tuoi impegni e segui la scheda suggerita dal Coach AI.</span>
@@ -237,7 +237,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
 
     const RaceMenu = () => (
         <div className="flex flex-col gap-3 md:gap-4 animate-fade-in">
-            <h3 className="text-base md:text-lg font-black text-white uppercase tracking-tighter mb-1 md:mb-2 border-b border-slate-700 pb-2">Virtual Race Mode</h3>
+            <h3 className="text-sm md:text-lg font-black text-white uppercase tracking-tighter mb-1 md:mb-2 border-b border-slate-700 pb-2">Virtual Race Mode</h3>
             <button onClick={() => { onEnterRaceMode?.(); }} className="p-3 md:p-4 bg-slate-700/30 hover:bg-slate-700 border border-slate-600 rounded-xl text-left transition-all hover:border-green-500 group">
                 <span className="block text-xs md:text-sm font-bold text-white group-hover:text-green-400 mb-0.5 md:mb-1">🏎️ Gestione Griglia Gara</span>
                 <span className="text-[10px] md:text-xs text-slate-400">Seleziona le tracce dallo storico e avvia il replay simultaneo.</span>
@@ -253,7 +253,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
 
     return (
         <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[5000] flex items-center justify-center p-2 sm:p-4 md:p-6 animate-fade-in" onClick={onClose}>
-            <div className="bg-slate-900 text-white rounded-[2rem] shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh] overflow-hidden border border-slate-700/50 ring-1 ring-white/10 relative" onClick={e => e.stopPropagation()}>
+            <div className="bg-slate-900 text-white rounded-[2rem] shadow-2xl w-full max-w-lg flex flex-col max-h-[95vh] overflow-hidden border border-slate-700/50 ring-1 ring-white/10 relative" onClick={e => e.stopPropagation()}>
                 {/* Header Banner - Fixed */}
                 <div className="shrink-0 relative z-10">
                     {isGuest ? (
@@ -261,8 +261,8 @@ const HomeModal: React.FC<HomeModalProps> = ({
                     ) : (
                         <div className="bg-gradient-to-r from-cyan-600 to-blue-600 text-white text-[10px] font-black text-center py-1 uppercase tracking-widest shadow-md relative z-20">☁️ Connesso al Database Cloud</div>
                     )}
-                    <header className="p-4 md:p-8 text-center relative z-10">
-                        <div className="flex justify-center mb-2 md:mb-4"><LargeLogoIcon /></div>
+                    <header className="p-3 md:p-8 text-center relative z-10">
+                        <div className="flex justify-center mb-1 md:mb-4"><LargeLogoIcon /></div>
                         <h2 className="text-xl md:text-3xl font-black text-white italic tracking-tighter uppercase mb-1">Ciao, <span className="text-cyan-400">{userProfile?.name || 'Atleta'}</span></h2>
                         <div className="flex items-center justify-center gap-2 mt-1 md:mt-2">
                              <button onClick={onOpenChangelog} className="bg-slate-800 border border-slate-700 text-slate-400 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider hover:bg-slate-700 hover:text-white transition-colors">v1.41</button>
@@ -271,15 +271,15 @@ const HomeModal: React.FC<HomeModalProps> = ({
                     </header>
                 </div>
 
-                <div className="absolute top-0 left-0 w-full h-32 md:h-48 bg-gradient-to-b from-cyan-900/20 to-transparent pointer-events-none"></div>
+                <div className="absolute top-0 left-0 w-full h-24 md:h-48 bg-gradient-to-b from-cyan-900/20 to-transparent pointer-events-none"></div>
 
                 {/* Scrollable Content */}
-                <div className="flex-grow overflow-y-auto custom-scrollbar px-4 md:px-8 pb-4 relative z-10">
+                <div className="flex-grow overflow-y-auto custom-scrollbar px-4 md:px-8 pb-2 relative z-10">
                     {menuStep === 'main' ? <MainMenu /> : menuStep === 'analyze' ? <AnalyzeMenu /> : menuStep === 'plan' ? <PlanMenu /> : <RaceMenu />}
                 </div>
                 
                 {/* Footer - Fixed */}
-                <footer className="bg-slate-950/50 p-3 md:p-4 border-t border-slate-800/50 flex flex-col md:flex-row justify-between items-center text-[10px] md:text-[11px] font-black uppercase tracking-widest text-slate-500 relative gap-3 md:gap-0 shrink-0 z-10">
+                <footer className="bg-slate-950/50 p-2 md:p-4 border-t border-slate-800/50 flex flex-col md:flex-row justify-between items-center text-[10px] md:text-[11px] font-black uppercase tracking-widest text-slate-500 relative gap-2 md:gap-0 shrink-0 z-10">
                     <div className="flex w-full md:w-auto justify-between md:justify-start gap-2 md:gap-6">
                         <button onClick={onOpenProfile} className="hover:text-white transition-colors flex flex-col md:flex-row items-center gap-1">
                             <UserIcon /> 
@@ -295,7 +295,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
                         </button>
                     </div>
                     
-                    <div className="flex w-full md:w-auto justify-center md:justify-end gap-6 md:gap-4 border-t md:border-t-0 border-slate-800/50 pt-3 md:pt-0">
+                    <div className="flex w-full md:w-auto justify-center md:justify-end gap-6 md:gap-4 border-t md:border-t-0 border-slate-800/50 pt-2 md:pt-0">
                         <button onClick={handleRestart} className="hover:text-amber-400 transition-colors flex flex-col md:flex-row items-center gap-1" title="Riavvia App">
                             <ReloadIcon />
                             <span>Riavvia</span>
