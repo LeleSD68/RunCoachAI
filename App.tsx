@@ -991,6 +991,8 @@ const App: React.FC = () => {
                                         tracks={tracks} visibleTrackIds={mapVisibleIds} raceRunners={raceRunners}
                                         isAnimationPlaying={false} fitBoundsCounter={fitBoundsCounter}
                                         runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
+                                        onToggleFullScreen={() => setIsSidebarOpen(true)} // Torna alla sidebar
+                                        isFullScreen={true}
                                     />
                                     <button onClick={() => setShowGlobalChat(true)} className="absolute bottom-4 right-4 z-[1000] bg-purple-600 hover:bg-purple-500 text-white p-1 rounded-2xl shadow-2xl active:scale-90 border border-purple-400/50 transition-all">
                                         <img src="/icona.png" alt="AI" className="w-12 h-12 object-cover rounded-xl" />
@@ -1069,6 +1071,8 @@ const App: React.FC = () => {
                                                 tracks={tracks} visibleTrackIds={mapVisibleIds} raceRunners={raceRunners}
                                                 isAnimationPlaying={false} fitBoundsCounter={fitBoundsCounter}
                                                 runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
+                                                onToggleFullScreen={() => setIsSidebarOpen(prev => !prev)}
+                                                isFullScreen={!isSidebarOpen}
                                             />
                                             <button onClick={() => setShowGlobalChat(true)} className="fixed bottom-24 right-4 z-[4000] bg-purple-600 hover:bg-purple-500 text-white p-1 rounded-2xl shadow-2xl active:scale-90 border border-purple-400/50 transition-all">
                                                 <img src="/icona.png" alt="AI" className="w-12 h-12 object-cover rounded-xl" />
@@ -1081,6 +1085,8 @@ const App: React.FC = () => {
                                                     tracks={tracks} visibleTrackIds={mapVisibleIds} raceRunners={raceRunners}
                                                     isAnimationPlaying={false} fitBoundsCounter={fitBoundsCounter}
                                                     runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
+                                                    onToggleFullScreen={() => setIsSidebarOpen(false)} // Passa a full screen
+                                                    isFullScreen={false} // In split view non è full screen
                                                 />
                                                 <button onClick={() => setShowGlobalChat(true)} className="absolute bottom-24 right-4 z-[1000] bg-purple-600 hover:bg-purple-500 text-white p-1 rounded-2xl shadow-2xl active:scale-90 border border-purple-400/50 transition-all">
                                                     <img src="/icona.png" alt="AI" className="w-12 h-12 object-cover rounded-xl" />
