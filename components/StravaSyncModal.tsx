@@ -7,6 +7,7 @@ interface StravaSyncModalProps {
     onClose: () => void;
     onImportFinished: (tracks: Track[]) => void;
     lastSyncDate: Date | null;
+    autoStart?: boolean; // Nuova prop per avvio automatico
 }
 
 const StravaLogo = () => (
@@ -15,7 +16,7 @@ const StravaLogo = () => (
     </svg>
 );
 
-const StravaSyncModal: React.FC<StravaSyncModalProps> = ({ onClose, onImportFinished, lastSyncDate }) => {
+const StravaSyncModal: React.FC<StravaSyncModalProps> = ({ onClose, onImportFinished, lastSyncDate, autoStart = false }) => {
     const [view, setView] = useState<'options' | 'range' | 'select'>('options');
     const [loading, setLoading] = useState(false);
     const [activities, setActivities] = useState<any[]>([]);
@@ -24,29 +25,45 @@ const StravaSyncModal: React.FC<StravaSyncModalProps> = ({ onClose, onImportFini
     const [dateFrom, setDateFrom] = useState(lastSyncDate ? lastSyncDate.toISOString().split('T')[0] : '');
     const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0]);
 
-    const handleFetchActivities = async (after?: number, before?: number) => {
+    // Handle Fetch Logic
+    const executeFetch = async (after?: number, before?: number) => {
         setLoading(true);
         try {
             const data = await fetchStravaActivitiesMetadata(after, before);
             const runningOnly = data.filter((a: any) => ['Run', 'TrailRun', 'VirtualRun'].includes(a.type));
             setActivities(runningOnly);
+            
+            // Auto-select all by default if auto-started
+            if (autoStart) {
+                setSelectedIds(new Set(runningOnly.map((a: any) => a.id)));
+            }
+            
             setView('select');
         } catch (e) {
-            alert("Impossibile caricare le attività da Strava.");
+            // Se fallisce in auto-start, non mostrare alert invasivi, chiudi solo o logga
+            if (!autoStart) alert("Impossibile caricare le attività da Strava.");
+            else console.error(e);
         } finally {
             setLoading(false);
         }
     };
 
+    // Auto-start logic
+    useEffect(() => {
+        if (autoStart) {
+            handleSyncQuick();
+        }
+    }, [autoStart]);
+
     const handleSyncQuick = () => {
         const after = lastSyncDate ? Math.floor(lastSyncDate.getTime() / 1000) + 1 : undefined;
-        handleFetchActivities(after);
+        executeFetch(after);
     };
 
     const handleSyncRange = () => {
         const after = dateFrom ? Math.floor(new Date(dateFrom).getTime() / 1000) : undefined;
         const before = dateTo ? Math.floor(new Date(dateTo).getTime() / 1000) + 86400 : undefined;
-        handleFetchActivities(after, before);
+        executeFetch(after, before);
     };
 
     const handleConfirmImport = async () => {
@@ -88,7 +105,9 @@ const StravaSyncModal: React.FC<StravaSyncModalProps> = ({ onClose, onImportFini
                         <StravaLogo />
                         <div>
                             <h2 className="text-lg font-black text-white uppercase tracking-tight">Strava Sync</h2>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Importa le tue sessioni</p>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                                {autoStart ? 'Nuove attività trovate' : 'Importa le tue sessioni'}
+                            </p>
                         </div>
                     </div>
                     {!loading && <button onClick={onClose} className="text-slate-500 hover:text-white text-2xl">&times;</button>}
@@ -111,7 +130,7 @@ const StravaSyncModal: React.FC<StravaSyncModalProps> = ({ onClose, onImportFini
                                 <div className="font-black text-white text-sm uppercase">Intervallo Date</div>
                                 <p className="text-xs text-slate-400">Scegli un periodo specifico da importare.</p>
                             </button>
-                            <button onClick={() => handleFetchActivities(undefined, undefined)} className="w-full p-4 bg-slate-800 border border-slate-700 rounded-2xl text-left hover:border-purple-500 transition-all">
+                            <button onClick={() => executeFetch(undefined, undefined)} className="w-full p-4 bg-slate-800 border border-slate-700 rounded-2xl text-left hover:border-purple-500 transition-all">
                                 <div className="font-black text-white text-sm uppercase">Lista Completa</div>
                                 <p className="text-xs text-slate-400">Vedi le ultime 50 attività e scegli cosa salvare.</p>
                             </button>
