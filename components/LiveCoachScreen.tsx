@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { PlannedWorkout, ActivityType } from '../types';
+import { PlannedWorkout } from '../types';
 
 interface LiveCoachScreenProps {
     workout: PlannedWorkout | null; // Null means "Free Run"
@@ -10,276 +10,379 @@ interface LiveCoachScreenProps {
 
 interface TrainingPhase {
     name: string;
-    duration: number; // Seconds (0 = open ended)
+    targetValue: number; // Seconds OR Meters
+    targetType: 'time' | 'distance'; 
     type: 'warmup' | 'work' | 'rest' | 'cooldown';
 }
 
+// Haversine formula for distance between two coords (in meters)
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371e3; // metres
+    const φ1 = lat1 * Math.PI/180;
+    const φ2 = lat2 * Math.PI/180;
+    const Δφ = (lat2-lat1) * Math.PI/180;
+    const Δλ = (lon2-lon1) * Math.PI/180;
+
+    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+            Math.cos(φ1) * Math.cos(φ2) *
+            Math.sin(Δλ/2) * Math.sin(Δλ/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+    return R * c;
+};
+
 const speak = (text: string) => {
     if (!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel(); // Interrompe frasi precedenti
-    
-    // Pulizia testo per lettura migliore (rimuove markdown e caratteri strani)
+    window.speechSynthesis.cancel();
     const cleanText = text.replace(/\*\*/g, '').replace(/[-]/g, ' ').trim();
-
     const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.lang = 'it-IT';
-    utterance.rate = 1.0; 
-    utterance.pitch = 1.0;
-    
+    utterance.rate = 1.05; 
     const voices = window.speechSynthesis.getVoices();
     const itVoice = voices.find(v => v.lang === 'it-IT' && v.name.includes('Google')) || voices.find(v => v.lang === 'it-IT');
     if (itVoice) utterance.voice = itVoice;
-
     window.speechSynthesis.speak(utterance);
 };
 
 const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
+    const s = Math.floor(seconds % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+};
+
+const formatPace = (pace: number) => {
+    if (!isFinite(pace) || pace <= 0 || pace > 30) return '--:--';
+    const m = Math.floor(pace);
+    const s = Math.round((pace - m) * 60);
     return `${m}:${s.toString().padStart(2, '0')}`;
 };
 
 const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, onExit }) => {
+    // State
     const [isRunning, setIsRunning] = useState(false);
-    const [totalTime, setTotalTime] = useState(0);
-    const [currentPhaseIndex, setCurrentPhaseIndex] = useState(0);
-    const [phaseTime, setPhaseTime] = useState(0);
-    const [wakeLock, setWakeLock] = useState<any>(null);
     const [phases, setPhases] = useState<TrainingPhase[]>([]);
+    const [currentPhaseIndex, setCurrentPhaseIndex] = useState(0);
+    
+    // Metrics
+    const [totalTime, setTotalTime] = useState(0);
+    const [totalDistance, setTotalDistance] = useState(0); // Meters
+    const [phaseValue, setPhaseValue] = useState(0); // Elapsed Time OR Distance based on phase type
+    const [currentPace, setCurrentPace] = useState(0); // min/km
+    const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null); // meters
 
+    // Refs for logic (avoid stale closures)
+    const watchIdRef = useRef<number | null>(null);
+    const lastPosRef = useRef<{ lat: number; lon: number; time: number } | null>(null);
+    const paceBufferRef = useRef<number[]>([]); // For smoothing pace
+    const wakeLock = useRef<any>(null);
     const timerRef = useRef<number | null>(null);
 
-    // 1. Initialize Workout Structure based on Diary Entry
+    // 1. Initialize Workout Structure (Smart Parsing)
     useEffect(() => {
         let generatedPhases: TrainingPhase[] = [];
 
         if (workout) {
-            // Struttura base: Riscaldamento -> Lavoro -> Defaticamento
+            // Regex detection for "10x400", "5km", etc. would go here.
+            // For stability, we define standard structures based on ActivityType for now.
+            // BUT we add logic to detect if the user put a distance in the title like "5km" or "10k"
             
-            if (workout.activityType === 'Gara') {
+            const titleLower = workout.title.toLowerCase();
+            const distMatch = titleLower.match(/(\d+)(?:[.,]\d+)?\s*(k|km|m)/);
+            
+            let targetDistMeters = 0;
+            if (distMatch) {
+                const val = parseFloat(distMatch[1]);
+                if (distMatch[2] === 'm') targetDistMeters = val;
+                else targetDistMeters = val * 1000;
+            }
+
+            if (workout.activityType === 'Gara' || targetDistMeters > 0) {
+                // Distance Based
+                const mainDist = targetDistMeters > 0 ? targetDistMeters : 5000; // Default 5k if unknown
                 generatedPhases = [
-                    { name: "Riscaldamento", duration: 900, type: 'warmup' }, // 15 min
-                    { name: `GARA: ${workout.title}`, duration: 0, type: 'work' },
-                    { name: "Defaticamento", duration: 300, type: 'cooldown' }
+                    { name: "Riscaldamento", targetValue: 600, targetType: 'time', type: 'warmup' }, // 10 min
+                    { name: workout.title, targetValue: mainDist, targetType: 'distance', type: 'work' },
+                    { name: "Defaticamento", targetValue: 300, targetType: 'time', type: 'cooldown' }
                 ];
-            } else if (['Ripetute', 'Fartlek', 'Lungo', 'Medio'].includes(workout.activityType)) {
+            } else if (['Ripetute', 'Fartlek'].includes(workout.activityType)) {
+                // Time Based Structure (Simplified for safety unless we parse "10x400")
                 generatedPhases = [
-                    { name: "Riscaldamento", duration: 600, type: 'warmup' }, // 10 min default
-                    { name: workout.title, duration: 0, type: 'work' },
-                    { name: "Defaticamento", duration: 300, type: 'cooldown' }
+                    { name: "Riscaldamento", targetValue: 900, targetType: 'time', type: 'warmup' },
+                    { name: "Fase Centrale", targetValue: 0, targetType: 'time', type: 'work' }, // Open ended
+                    { name: "Defaticamento", targetValue: 300, targetType: 'time', type: 'cooldown' }
                 ];
             } else {
-                // Lenti o altro
+                // Free Run
                 generatedPhases = [
-                    { name: "Corsa", duration: 0, type: 'work' }
+                    { name: workout.title, targetValue: 0, targetType: 'time', type: 'work' }
                 ];
             }
         } else {
-            // Corsa Libera
-            generatedPhases = [
-                { name: "Corsa Libera", duration: 0, type: 'work' }
-            ];
+            // Free Run
+            generatedPhases = [{ name: "Corsa Libera", targetValue: 0, targetType: 'distance', type: 'work' }];
         }
         setPhases(generatedPhases);
     }, [workout]);
 
-    // 2. Manage Wake Lock (Screen Always On)
+    // 2. Wake Lock
     useEffect(() => {
         const requestWakeLock = async () => {
             if ('wakeLock' in navigator) {
                 try {
-                    const lock = await (navigator as any).wakeLock.request('screen');
-                    setWakeLock(lock);
-                } catch (err) {
-                    console.warn(`Wake Lock failed: ${err}`);
-                }
+                    wakeLock.current = await (navigator as any).wakeLock.request('screen');
+                } catch (err) { console.warn("Wake Lock failed", err); }
             }
         };
-
         requestWakeLock();
-        const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible') requestWakeLock();
-        };
-        document.addEventListener('visibilitychange', handleVisibilityChange);
-
-        return () => {
-            if (wakeLock) wakeLock.release();
-            document.removeEventListener('visibilitychange', handleVisibilityChange);
-        };
+        return () => { if (wakeLock.current) wakeLock.current.release(); };
     }, []);
 
-    // 3. Timer Logic
+    // 3. Timer (Ticks every second)
     useEffect(() => {
         if (isRunning) {
             timerRef.current = window.setInterval(() => {
                 setTotalTime(t => t + 1);
-                setPhaseTime(t => t + 1);
+                
+                // Only increment phase value if it's TIME based
+                const currentPhase = phases[currentPhaseIndex];
+                if (currentPhase && currentPhase.targetType === 'time') {
+                    setPhaseValue(v => v + 1);
+                }
             }, 1000);
         } else if (timerRef.current) {
             clearInterval(timerRef.current);
         }
         return () => { if (timerRef.current) clearInterval(timerRef.current); };
-    }, [isRunning]);
+    }, [isRunning, phases, currentPhaseIndex]);
 
-    // 4. Phase Monitoring & Audio Feedback - LOGICA MIGLIORATA
+    // 4. GPS Tracking Engine
+    useEffect(() => {
+        if (!isRunning) {
+            if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
+            return;
+        }
+
+        if ('geolocation' in navigator) {
+            watchIdRef.current = navigator.geolocation.watchPosition(
+                (position) => {
+                    const { latitude, longitude, accuracy, speed } = position.coords;
+                    const timestamp = position.timestamp;
+                    
+                    setGpsAccuracy(accuracy);
+
+                    // A. FILTER: Ignora precisione bassa (> 25m)
+                    if (accuracy > 25) return;
+
+                    // B. FILTER: Inizializzazione o primo punto valido
+                    if (!lastPosRef.current) {
+                        lastPosRef.current = { lat: latitude, lon: longitude, time: timestamp };
+                        return;
+                    }
+
+                    // C. CALCOLO DISTANZA
+                    const distDelta = calculateDistance(lastPosRef.current.lat, lastPosRef.current.lon, latitude, longitude);
+                    const timeDelta = (timestamp - lastPosRef.current.time) / 1000; // seconds
+
+                    // D. FILTER: Teleportation Check (es. > 36 km/h è improbabile per un runner)
+                    if (timeDelta > 0 && (distDelta / timeDelta) > 10) {
+                        return; 
+                    }
+
+                    // E. UPDATE STATE (Solo se ci siamo mossi davvero > 2 metri per ridurre jitter da fermo)
+                    if (distDelta > 2) {
+                        setTotalDistance(d => d + distDelta);
+                        
+                        // Increment phase value if DISTANCE based
+                        if (phases[currentPhaseIndex] && phases[currentPhaseIndex].targetType === 'distance') {
+                            setPhaseValue(v => v + distDelta);
+                        }
+
+                        // F. PACE SMOOTHING (Media ultimi 5 punti)
+                        const rawPace = (timeDelta / 60) / (distDelta / 1000); // min/km
+                        paceBufferRef.current.push(rawPace);
+                        if (paceBufferRef.current.length > 5) paceBufferRef.current.shift();
+                        
+                        const avgPace = paceBufferRef.current.reduce((a,b) => a+b, 0) / paceBufferRef.current.length;
+                        setCurrentPace(avgPace);
+
+                        // Update ref
+                        lastPosRef.current = { lat: latitude, lon: longitude, time: timestamp };
+                    }
+                },
+                (error) => console.warn("GPS Error", error),
+                {
+                    enableHighAccuracy: true,
+                    maximumAge: 0,
+                    timeout: 10000
+                }
+            );
+        }
+
+        return () => {
+            if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
+        };
+    }, [isRunning, phases, currentPhaseIndex]);
+
+    // 5. Phase Logic & Audio Feedback Check (Runs on every render update of phaseValue)
     useEffect(() => {
         if (!isRunning || phases.length === 0) return;
 
         const currentPhase = phases[currentPhaseIndex];
-        
-        // --- START OF PHASE ANNOUNCEMENTS ---
-        if (phaseTime === 0) {
-            
-            if (currentPhase.type === 'warmup') {
-                // Inizio Riscaldamento
-                const durationMsg = currentPhase.duration > 0 ? `per ${Math.round(currentPhase.duration / 60)} minuti.` : ".";
-                speak(`Iniziamo. Fase di riscaldamento ${durationMsg} Corri piano.`);
-            } 
-            else if (currentPhase.type === 'work') {
-                // Fine Riscaldamento -> Inizio Lavoro
-                // Qui leggiamo la descrizione completa (es: "10 ripetute da 400m")
-                let instruction = `Riscaldamento terminato. Inizia la fase centrale: ${currentPhase.name}. `;
-                
-                if (workout?.description) {
-                    // Aggiungi la descrizione specifica se presente
-                    instruction += `Ecco il programma: ${workout.description}`;
-                } else {
-                    instruction += "Segui il tuo ritmo obiettivo.";
-                }
-                speak(instruction);
-            }
-            else if (currentPhase.type === 'cooldown') {
-                // Fine Lavoro -> Inizio Defaticamento
-                const durationMsg = currentPhase.duration > 0 ? `per ${Math.round(currentPhase.duration / 60)} minuti.` : ".";
-                speak(`Ottimo lavoro, parte centrale conclusa. Ora defaticamento ${durationMsg} Corri molto lentamente.`);
-            }
-            else {
-                // Fallback generico
-                speak(`Fase: ${currentPhase.name}.`);
-            }
+        const target = currentPhase.targetValue;
+        const isDistanceBased = currentPhase.targetType === 'distance';
+
+        // Initial Phase Announcement
+        if (phaseValue === 0 || (isDistanceBased && phaseValue < 5)) { // Small buffer for GPS start
+             // Logic handled by separate effect triggered on index change to avoid repetition
         }
 
-        // --- DURING PHASE FEEDBACK ---
-        if (currentPhase.duration > 0) {
-            const remaining = currentPhase.duration - phaseTime;
+        // Milestone Feedback & Transition
+        if (target > 0) {
+            const remaining = target - phaseValue;
 
-            // Metà fase
-            if (remaining === Math.floor(currentPhase.duration / 2) && remaining > 60) {
-                speak("Sei a metà di questa fase.");
+            // --- AUDIO FEEDBACK ---
+            if (isDistanceBased) {
+                // Distance Milestones (every km or last meters)
+                if (remaining > 200 && phaseValue > 0 && Math.floor(phaseValue) % 1000 < 5) { // Every km
+                    const km = Math.floor(phaseValue / 1000);
+                    speak(`${km} chilometri. Passo ${formatPace(currentPace)}.`);
+                }
+                if (remaining <= 200 && remaining > 190) speak("Ultimi 200 metri!");
+                if (remaining <= 50 && remaining > 40) speak("50 metri, spingi!");
+            } else {
+                // Time Milestones
+                if (remaining === 60) speak("Un minuto al cambio.");
+                if (remaining <= 5 && remaining > 0) speak(`${Math.floor(remaining)}`);
             }
 
-            // Ultimi secondi
-            if (remaining === 60) speak("Un minuto al cambio.");
-            if (remaining === 10) speak("10 secondi.");
-            if (remaining <= 3 && remaining > 0) speak(`${remaining}`);
-
-            // Cambio fase automatico (per le fasi a tempo)
+            // --- PHASE TRANSITION ---
             if (remaining <= 0) {
                 if (currentPhaseIndex < phases.length - 1) {
                     setCurrentPhaseIndex(i => i + 1);
-                    setPhaseTime(0);
+                    setPhaseValue(0);
+                    // Reset Pace buffer for new phase
+                    paceBufferRef.current = [];
                 } else {
                     setIsRunning(false);
-                    speak("Allenamento completato. Grande prestazione!");
+                    speak("Allenamento completato. Ottimo lavoro!");
+                }
+            }
+        } else {
+            // Open ended phase: Feedback every 1km or 5 min
+            if (isDistanceBased) {
+                if (phaseValue > 0 && Math.floor(phaseValue) % 1000 < 5) {
+                    speak(`${Math.floor(phaseValue/1000)} km. Ritmo ${formatPace(currentPace)}.`);
                 }
             }
         }
-        
-        // --- FEEDBACK PERIODICO (Ogni 5 min nelle fasi libere) ---
-        if (currentPhase.duration === 0 && phaseTime > 0 && phaseTime % 300 === 0) {
-            const mins = phaseTime / 60;
-            speak(`${mins} minuti trascorsi nella fase ${currentPhase.name}.`);
-        }
 
-    }, [phaseTime, isRunning, phases, currentPhaseIndex, workout]);
+    }, [phaseValue, isRunning, phases, currentPhaseIndex, currentPace]);
+
+    // Phase Change Announcement Effect
+    useEffect(() => {
+        if (phases.length > 0) {
+            const p = phases[currentPhaseIndex];
+            const typeStr = p.targetType === 'distance' ? `${(p.targetValue/1000).toFixed(2)} km` : `${Math.round(p.targetValue/60)} minuti`;
+            const msg = p.targetValue > 0 ? `Inizia: ${p.name} per ${typeStr}.` : `Inizia: ${p.name}.`;
+            speak(msg);
+        }
+    }, [currentPhaseIndex, phases]);
+
 
     const handleToggle = () => {
-        if (!isRunning) speak(totalTime === 0 ? "Pronto a partire." : "Riprendo.");
+        if (!isRunning) speak(totalTime === 0 ? "Ricerca GPS... Partiamo." : "Riprendo.");
         else speak("Pausa.");
         setIsRunning(!isRunning);
     };
 
     const handleNextPhase = () => {
-        // Quando l'utente preme "Next", forziamo il cambio fase
         if (currentPhaseIndex < phases.length - 1) {
-            // Il messaggio vocale del "cosa fare dopo" sarà gestito dal phaseTime === 0 del prossimo render
+            speak("Passo alla prossima fase.");
             setCurrentPhaseIndex(i => i + 1);
-            setPhaseTime(0);
+            setPhaseValue(0);
         } else {
-            speak("Non ci sono altre fasi. Allenamento finito.");
+            speak("Allenamento finito.");
             setIsRunning(false);
         }
     };
 
-    const currentPhase = phases[currentPhaseIndex] || { name: '...', duration: 0, type: 'work' };
-    const remainingTime = currentPhase.duration > 0 ? currentPhase.duration - phaseTime : null;
-    const progressPercent = currentPhase.duration > 0 ? (phaseTime / currentPhase.duration) * 100 : 0;
+    const currentPhase = phases[currentPhaseIndex] || { name: '...', targetValue: 0, targetType: 'time' };
+    const progressPercent = currentPhase.targetValue > 0 ? Math.min(100, (phaseValue / currentPhase.targetValue) * 100) : 0;
+    const remaining = Math.max(0, currentPhase.targetValue - phaseValue);
 
     return (
-        <div className="fixed inset-0 z-[20000] bg-black text-white flex flex-col items-center justify-between font-sans overflow-hidden">
-            {/* Top Bar: Total Time */}
-            <div className="w-full p-6 flex justify-between items-start bg-gradient-to-b from-gray-900 to-transparent pt-safe-top">
+        <div className="fixed inset-0 z-[20000] bg-black text-white flex flex-col font-sans overflow-hidden">
+            {/* Top Bar */}
+            <div className="w-full p-4 flex justify-between items-start bg-slate-900 border-b border-slate-800 pt-safe-top">
                 <div>
-                    <div className="text-gray-400 text-xs font-bold uppercase tracking-widest">Totale</div>
-                    <div className="text-3xl font-mono font-bold text-white">{formatTime(totalTime)}</div>
+                    <div className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Totale</div>
+                    <div className="text-2xl font-mono font-bold text-white">{formatTime(totalTime)}</div>
+                    <div className="text-xs text-slate-500 font-mono">{(totalDistance/1000).toFixed(2)} km</div>
                 </div>
+                
+                {/* GPS Indicator */}
                 <div className="flex flex-col items-end">
-                    <div className="text-gray-400 text-xs font-bold uppercase tracking-widest">Fase</div>
-                    <div className="text-3xl font-mono font-bold text-cyan-400">{currentPhaseIndex + 1}<span className="text-sm text-gray-500">/{phases.length}</span></div>
+                    <div className="flex items-center gap-1">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">GPS</span>
+                        <div className={`w-2 h-2 rounded-full ${gpsAccuracy && gpsAccuracy < 20 ? 'bg-green-500' : gpsAccuracy ? 'bg-amber-500' : 'bg-red-500 animate-pulse'}`}></div>
+                    </div>
+                    {gpsAccuracy && <span className="text-[9px] text-slate-600">±{Math.round(gpsAccuracy)}m</span>}
                 </div>
             </div>
 
-            {/* Main Center: Current Phase */}
-            <div className="flex-grow flex flex-col items-center justify-center w-full px-6">
-                <h1 className="text-4xl sm:text-6xl font-black uppercase text-center mb-2 leading-tight tracking-tighter text-white drop-shadow-lg break-words max-w-full">
-                    {currentPhase.name}
-                </h1>
+            {/* Main Center */}
+            <div className="flex-grow flex flex-col items-center justify-center w-full px-6 relative">
                 
-                {/* Description Text (Subtitles) */}
-                {currentPhase.type === 'work' && workout?.description && (
-                    <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700 max-w-md w-full mb-4">
-                        <p className="text-sm text-slate-300 text-center italic leading-relaxed">
-                            "{workout.description}"
-                        </p>
-                    </div>
-                )}
-                
-                <div className="my-4 relative">
-                    <div className={`text-[80px] sm:text-[120px] font-mono font-bold leading-none tracking-tighter ${isRunning ? 'text-white' : 'text-gray-500'}`}>
-                        {remainingTime !== null ? formatTime(remainingTime) : formatTime(phaseTime)}
-                    </div>
-                    {remainingTime === null && (
-                        <div className="text-center text-xs text-gray-400 uppercase tracking-[0.3em] mt-2 font-bold">Tempo Trascorso</div>
-                    )}
+                {/* Phase Info */}
+                <div className="absolute top-6 left-0 right-0 text-center">
+                    <h2 className="text-sm font-black text-slate-500 uppercase tracking-widest mb-1">Fase {currentPhaseIndex + 1}/{phases.length}</h2>
+                    <h1 className="text-2xl sm:text-3xl font-black text-white uppercase leading-tight truncate px-4">{currentPhase.name}</h1>
                 </div>
 
-                {/* Progress Bar for Timed Phases */}
-                {currentPhase.duration > 0 && (
-                    <div className="w-full max-w-sm h-3 bg-gray-800 rounded-full overflow-hidden mt-4 border border-gray-700">
-                        <div 
-                            className="h-full bg-cyan-500 transition-all duration-1000 ease-linear"
-                            style={{ width: `${progressPercent}%` }}
-                        ></div>
+                {/* Big Metric: Remaining Distance/Time or Pace */}
+                <div className="flex flex-col items-center gap-2">
+                    <div className={`text-[90px] sm:text-[120px] font-mono font-bold leading-none tracking-tighter ${isRunning ? 'text-white' : 'text-slate-600'}`}>
+                        {currentPhase.targetType === 'distance' 
+                            ? (remaining > 1000 ? (remaining/1000).toFixed(2) : Math.round(remaining))
+                            : formatTime(remaining > 0 ? remaining : phaseValue)
+                        }
                     </div>
-                )}
+                    <div className="text-sm font-black text-cyan-400 uppercase tracking-[0.3em] bg-cyan-900/20 px-3 py-1 rounded-full border border-cyan-500/30">
+                        {currentPhase.targetType === 'distance' 
+                            ? (remaining > 1000 ? 'CHILOMETRI' : 'METRI') 
+                            : (remaining > 0 ? 'RIMANENTI' : 'TRASCORSI')
+                        }
+                    </div>
+                </div>
+
+                {/* Secondary Metric: Pace */}
+                <div className="mt-12 text-center">
+                    <div className="text-4xl font-mono font-bold text-slate-200">{formatPace(currentPace)}</div>
+                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Passo (min/km)</div>
+                </div>
+
             </div>
+
+            {/* Progress Bar */}
+            {currentPhase.targetValue > 0 && (
+                <div className="w-full h-2 bg-slate-800">
+                    <div 
+                        className="h-full bg-cyan-500 transition-all duration-1000 ease-linear shadow-[0_0_15px_rgba(6,182,212,0.8)]"
+                        style={{ width: `${progressPercent}%` }}
+                    ></div>
+                </div>
+            )}
 
             {/* Controls */}
-            <div className="w-full p-8 pb-12 bg-gray-900 border-t border-gray-800 flex flex-col gap-6">
-                
+            <div className="w-full p-8 pb-12 bg-slate-900 border-t border-slate-800 flex flex-col gap-6">
                 <div className="flex justify-center items-center gap-8">
-                    {/* Skip Phase Button */}
                     <button 
                         onClick={handleNextPhase}
-                        className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center text-white active:bg-gray-700 transition-colors border border-gray-700"
-                        title="Salta alla fase successiva"
+                        className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center text-white active:bg-slate-700 transition-colors border border-slate-700"
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8">
-                            <path d="M5.055 7.06C3.805 6.347 2.25 7.25 2.25 8.69v8.122c0 1.44 1.555 2.343 2.805 1.628L12 14.471v2.34c0 1.44 1.555 2.343 2.805 1.628l7.108-4.061c1.26-.72 1.26-2.536 0-3.256L14.805 7.06C13.555 6.346 12 7.25 12 8.69v2.34L5.055 7.061Z" />
-                        </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8"><path d="M5.055 7.06C3.805 6.347 2.25 7.25 2.25 8.69v8.122c0 1.44 1.555 2.343 2.805 1.628L12 14.471v2.34c0 1.44 1.555 2.343 2.805 1.628l7.108-4.061c1.26-.72 1.26-2.536 0-3.256L14.805 7.06C13.555 6.346 12 7.25 12 8.69v2.34L5.055 7.061Z" /></svg>
                     </button>
 
-                    {/* Main Play/Pause */}
                     <button 
                         onClick={handleToggle}
                         className={`w-24 h-24 rounded-full flex items-center justify-center text-white shadow-2xl transition-all active:scale-95 ${isRunning ? 'bg-amber-500 hover:bg-amber-400' : 'bg-green-600 hover:bg-green-500'}`}
@@ -291,23 +394,18 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
                         )}
                     </button>
 
-                    {/* Stop/Finish Button */}
                     <button 
                         onClick={() => {
                             speak("Allenamento concluso.");
                             onFinish(totalTime * 1000);
                         }}
-                        className="w-16 h-16 rounded-full bg-red-900/30 border border-red-500/50 text-red-500 flex items-center justify-center active:bg-red-900/50 transition-colors"
-                        title="Termina e Salva"
+                        className="w-16 h-16 rounded-full bg-red-900/20 border border-red-500/50 text-red-500 flex items-center justify-center active:bg-red-900/40 transition-colors"
                     >
                         <div className="w-6 h-6 bg-current rounded-sm"></div>
                     </button>
                 </div>
-
                 <div className="text-center">
-                    <button onClick={onExit} className="text-gray-500 text-xs uppercase font-bold tracking-widest hover:text-white transition-colors p-2">
-                        Esci senza salvare
-                    </button>
+                    <button onClick={onExit} className="text-slate-500 text-[10px] uppercase font-bold tracking-widest hover:text-white transition-colors p-2">Esci senza salvare</button>
                 </div>
             </div>
         </div>
