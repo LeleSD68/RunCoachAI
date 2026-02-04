@@ -68,20 +68,45 @@ export const fetchMonthWeather = async (
                 const startStr = formatDateLocal(monthStart);
                 const endStr = formatDateLocal(historyEnd);
                 
-                const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${startStr}&end_date=${endStr}&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto`;
+                // Richiediamo anche hourly per i dettagli
+                const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${startStr}&end_date=${endStr}&daily=weather_code,temperature_2m_max,temperature_2m_min&hourly=temperature_2m,weather_code&timezone=auto`;
                 
                 const res = await fetch(url);
                 const data = await res.json();
                 
                 if (data.daily && data.daily.time) {
                     data.daily.time.forEach((d: string, i: number) => {
+                        // Estrai dettagli orari per il giorno corrente
+                        const morningIdx = i * 24 + 9;  // 09:00
+                        const afternoonIdx = i * 24 + 15; // 15:00
+                        const eveningIdx = i * 24 + 21;   // 21:00
+
+                        const details = {
+                            morning: {
+                                label: 'Mattino',
+                                temp: data.hourly.temperature_2m[morningIdx],
+                                icon: getWeatherIcon(data.hourly.weather_code[morningIdx])
+                            },
+                            afternoon: {
+                                label: 'Pomeriggio',
+                                temp: data.hourly.temperature_2m[afternoonIdx],
+                                icon: getWeatherIcon(data.hourly.weather_code[afternoonIdx])
+                            },
+                            evening: {
+                                label: 'Sera',
+                                temp: data.hourly.temperature_2m[eveningIdx],
+                                icon: getWeatherIcon(data.hourly.weather_code[eveningIdx])
+                            }
+                        };
+
                         results[d] = {
                             dateStr: d,
                             maxTemp: data.daily.temperature_2m_max[i],
                             minTemp: data.daily.temperature_2m_min[i],
                             weatherCode: data.daily.weather_code[i],
                             icon: getWeatherIcon(data.daily.weather_code[i]),
-                            isForecast: false
+                            isForecast: false,
+                            details: details
                         };
                     });
                 }
@@ -107,13 +132,36 @@ export const fetchMonthWeather = async (
                 const startStr = formatDateLocal(reqStart);
                 const endStr = formatDateLocal(reqEnd);
 
-                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&start_date=${startStr}&end_date=${endStr}`;
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code,temperature_2m_max,temperature_2m_min&hourly=temperature_2m,weather_code&timezone=auto&start_date=${startStr}&end_date=${endStr}`;
                 
                 const res = await fetch(url);
                 const data = await res.json();
 
                 if (data.daily && data.daily.time) {
                     data.daily.time.forEach((d: string, i: number) => {
+                        // Estrai dettagli orari
+                        const morningIdx = i * 24 + 9;
+                        const afternoonIdx = i * 24 + 15;
+                        const eveningIdx = i * 24 + 21;
+
+                        const details = {
+                            morning: {
+                                label: 'Mattino',
+                                temp: data.hourly.temperature_2m[morningIdx],
+                                icon: getWeatherIcon(data.hourly.weather_code[morningIdx])
+                            },
+                            afternoon: {
+                                label: 'Pomeriggio',
+                                temp: data.hourly.temperature_2m[afternoonIdx],
+                                icon: getWeatherIcon(data.hourly.weather_code[afternoonIdx])
+                            },
+                            evening: {
+                                label: 'Sera',
+                                temp: data.hourly.temperature_2m[eveningIdx],
+                                icon: getWeatherIcon(data.hourly.weather_code[eveningIdx])
+                            }
+                        };
+
                         // Sovrascrivi se esiste (il forecast è più aggiornato per oggi)
                         results[d] = {
                             dateStr: d,
@@ -121,7 +169,8 @@ export const fetchMonthWeather = async (
                             minTemp: data.daily.temperature_2m_min[i],
                             weatherCode: data.daily.weather_code[i],
                             icon: getWeatherIcon(data.daily.weather_code[i]),
-                            isForecast: true
+                            isForecast: true,
+                            details: details
                         };
                     });
                 }

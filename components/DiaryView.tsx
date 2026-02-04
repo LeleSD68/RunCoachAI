@@ -10,6 +10,7 @@ import { loadChatFromDB } from '../services/dbService';
 import WorkoutRescheduleModal from './WorkoutRescheduleModal';
 import { fetchMonthWeather } from '../services/weatherService';
 import RatingStars from './RatingStars';
+import WeatherDayPopup from './WeatherDayPopup';
 
 interface DiaryViewProps {
     tracks: Track[];
@@ -81,6 +82,9 @@ const DiaryView: React.FC<DiaryViewProps> = ({
     const [globalChatDates, setGlobalChatDates] = useState<Set<string>>(new Set());
     const [showRescheduleModal, setShowRescheduleModal] = useState(false);
     const [weatherData, setWeatherData] = useState<Record<string, CalendarWeather>>({});
+    
+    // Popup Meteo State
+    const [selectedWeather, setSelectedWeather] = useState<{ weather: CalendarWeather, date: Date } | null>(null);
 
     // Load global chat history to identify dates with messages
     useEffect(() => {
@@ -285,24 +289,31 @@ const DiaryView: React.FC<DiaryViewProps> = ({
                                 return (
                                     <div key={cell.day} className={`rounded-lg p-1 sm:p-2 flex flex-col border relative transition-colors overflow-hidden ${isCurrentDay ? 'bg-slate-800/90 border-cyan-500/50 shadow-[inset_0_0_10px_rgba(6,182,212,0.1)]' : 'bg-slate-800 border-slate-700/50 hover:bg-slate-700/50'}`}>
                                         <div className="flex justify-between items-start mb-1 flex-shrink-0">
-                                            <div className="flex items-center gap-1">
+                                            <div className="flex flex-col sm:flex-row sm:items-center gap-1 w-full">
                                                 <span className={`text-[10px] sm:text-sm font-bold ${isCurrentDay ? 'text-cyan-400' : 'text-slate-400'}`}>
                                                     {cell.day}
                                                 </span>
                                                 {cell.weather && (
-                                                    <span className="text-[10px] sm:text-xs" title={`${cell.weather.maxTemp}° / ${cell.weather.minTemp}°`}>
-                                                        {cell.weather.icon}
-                                                    </span>
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); setSelectedWeather({ weather: cell.weather!, date: cell.date }); }}
+                                                        className="flex items-center gap-1 bg-slate-700/50 hover:bg-slate-700 px-1 py-0.5 rounded cursor-pointer transition-colors w-fit"
+                                                    >
+                                                        <span className="text-xl sm:text-2xl leading-none" title="Vedi Previsioni Dettagliate">{cell.weather.icon}</span>
+                                                        <span className="text-[8px] sm:text-[9px] font-mono text-slate-300 leading-none flex flex-col">
+                                                            <span>{cell.weather.maxTemp}°</span>
+                                                            <span className="text-slate-500">{cell.weather.minTemp}°</span>
+                                                        </span>
+                                                    </button>
                                                 )}
                                             </div>
                                             {cell.hasGlobalChat && (
-                                                <div className="bg-purple-900/50 p-0.5 rounded-full" title="Conversazione con Coach Generale">
+                                                <div className="bg-purple-900/50 p-0.5 rounded-full absolute top-1 right-1" title="Conversazione con Coach Generale">
                                                     <GlobeIcon />
                                                 </div>
                                             )}
                                         </div>
                                         
-                                        <div className="space-y-1 flex-grow overflow-y-auto no-scrollbar">
+                                        <div className="space-y-1 flex-grow overflow-y-auto no-scrollbar mt-1">
                                             {cell.planned.map(workout => (
                                                 <div 
                                                     key={workout.id}
@@ -377,6 +388,14 @@ const DiaryView: React.FC<DiaryViewProps> = ({
                     </div>
                 )}
             </div>
+
+            {selectedWeather && (
+                <WeatherDayPopup 
+                    weather={selectedWeather.weather} 
+                    date={selectedWeather.date} 
+                    onClose={() => setSelectedWeather(null)} 
+                />
+            )}
 
             {currentSelectedWorkout && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[3000] flex items-center justify-center p-4 animate-fade-in" onClick={() => setSelectedWorkoutId(null)}>

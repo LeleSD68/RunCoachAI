@@ -238,6 +238,12 @@ export interface Weather {
   condition: string;
 }
 
+export interface DayPartForecast {
+    label: string; // Mattina, Pomeriggio, Sera
+    temp: number;
+    icon: string;
+}
+
 export interface CalendarWeather {
     dateStr: string; // YYYY-MM-DD
     maxTemp: number;
@@ -245,6 +251,11 @@ export interface CalendarWeather {
     weatherCode: number;
     icon: string; // Emoji
     isForecast: boolean;
+    details?: {
+        morning: DayPartForecast;
+        afternoon: DayPartForecast;
+        evening: DayPartForecast;
+    };
 }
 
 export interface PersonalRecord {
