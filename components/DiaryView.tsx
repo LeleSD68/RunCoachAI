@@ -25,7 +25,7 @@ interface DiaryViewProps {
     onOpenTrackChat?: (trackId: string) => void;
     initialSelectedWorkoutId?: string | null;
     onCheckAiAccess?: () => boolean;
-    onStartWorkout?: (workout: PlannedWorkout) => void; // New callback
+    onStartWorkout?: (workout: PlannedWorkout) => void;
 }
 
 const DAYS_OF_WEEK = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
@@ -82,7 +82,7 @@ const DiaryView: React.FC<DiaryViewProps> = ({
     onOpenTrackChat, 
     initialSelectedWorkoutId,
     onCheckAiAccess,
-    onStartWorkout // New prop
+    onStartWorkout
 }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedWorkoutId, setSelectedWorkoutId] = useState<string | null>(initialSelectedWorkoutId || null);
@@ -91,10 +91,11 @@ const DiaryView: React.FC<DiaryViewProps> = ({
     const [showRescheduleModal, setShowRescheduleModal] = useState(false);
     const [weatherData, setWeatherData] = useState<Record<string, CalendarWeather>>({});
     
-    // Popup Meteo State
+    // Action States
+    const [actionDate, setActionDate] = useState<Date | null>(null);
+    const [aiTargetDate, setAiTargetDate] = useState<Date | undefined>(undefined);
     const [selectedWeather, setSelectedWeather] = useState<{ weather: CalendarWeather, date: Date } | null>(null);
 
-    // ... (rest of logic: useEffects, fetchWeather, etc.) ...
     // Load global chat history to identify dates with messages
     useEffect(() => {
         const fetchGlobalChatDates = async () => {
@@ -238,9 +239,20 @@ const DiaryView: React.FC<DiaryViewProps> = ({
         setShowRescheduleModal(false);
     };
 
+    const handleAiRequest = (date: Date, mode: 'today' | 'weekly', days?: number[]) => {
+        if (onCheckAiAccess && !onCheckAiAccess()) return;
+        setActionDate(null);
+        setShowAiCoach(true);
+        if (mode === 'today') {
+            setAiTargetDate(date);
+        } else {
+            setAiTargetDate(undefined);
+        }
+    };
+
     return (
         <div className="absolute inset-0 z-[2000] bg-slate-900 flex flex-col font-sans text-white animate-fade-in overflow-hidden">
-            {/* Header ... */}
+            {/* Header */}
             <header className="flex items-center justify-between p-2 sm:p-4 bg-slate-800 border-b border-slate-700 shadow-md flex-shrink-0 z-10">
                 <div className="flex items-center space-x-2 sm:space-x-6">
                     <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors flex items-center gap-1 font-bold text-sm sm:text-base">
@@ -297,7 +309,11 @@ const DiaryView: React.FC<DiaryViewProps> = ({
                                 if (!cell) return <div key={`empty-${idx}`} className="bg-slate-800/20 rounded-lg"></div>;
                                 const isCurrentDay = isToday(cell.date);
                                 return (
-                                    <div key={cell.day} className={`rounded-lg p-1 sm:p-2 flex flex-col border relative transition-colors overflow-hidden ${isCurrentDay ? 'bg-slate-800/90 border-cyan-500/50 shadow-[inset_0_0_10px_rgba(6,182,212,0.1)]' : 'bg-slate-800 border-slate-700/50 hover:bg-slate-700/50'}`}>
+                                    <div 
+                                        key={cell.day} 
+                                        onClick={() => setActionDate(cell.date)}
+                                        className={`rounded-lg p-1 sm:p-2 flex flex-col border relative transition-colors overflow-hidden cursor-pointer ${isCurrentDay ? 'bg-slate-800/90 border-cyan-500/50 shadow-[inset_0_0_10px_rgba(6,182,212,0.1)]' : 'bg-slate-800 border-slate-700/50 hover:bg-slate-700/50'}`}
+                                    >
                                         <div className="flex justify-between items-start mb-1 flex-shrink-0">
                                             <div className="flex flex-col sm:flex-row sm:items-center gap-1 w-full">
                                                 <span className={`text-[10px] sm:text-sm font-bold ${isCurrentDay ? 'text-cyan-400' : 'text-slate-400'}`}>
@@ -327,7 +343,7 @@ const DiaryView: React.FC<DiaryViewProps> = ({
                                             {cell.planned.map(workout => (
                                                 <div 
                                                     key={workout.id}
-                                                    onClick={() => setSelectedWorkoutId(workout.id)}
+                                                    onClick={(e) => { e.stopPropagation(); setSelectedWorkoutId(workout.id); }}
                                                     className={`border border-dashed rounded p-1 sm:p-1.5 cursor-pointer transition-all flex flex-col gap-0.5 group ${
                                                         workout.completedTrackId 
                                                             ? 'bg-green-900/30 border-green-500/60 hover:bg-green-900/50' 
@@ -345,7 +361,7 @@ const DiaryView: React.FC<DiaryViewProps> = ({
                                             ))}
 
                                             {cell.tracks.map(track => (
-                                                <div key={track.id} onClick={() => onSelectTrack(track.id)} className="group cursor-pointer bg-slate-700 rounded p-1 border border-transparent hover:border-cyan-500/50 hover:bg-slate-600 transition-all flex flex-col gap-0.5 shadow-sm">
+                                                <div key={track.id} onClick={(e) => { e.stopPropagation(); onSelectTrack(track.id); }} className="group cursor-pointer bg-slate-700 rounded p-1 border border-transparent hover:border-cyan-500/50 hover:bg-slate-600 transition-all flex flex-col gap-0.5 shadow-sm">
                                                     <div className="w-full h-8 sm:h-10 bg-slate-900 rounded overflow-hidden relative flex-shrink-0">
                                                         <TrackPreview points={track.points} color={track.color} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
                                                         <div className="absolute bottom-0 right-0 bg-black/70 px-1 text-[8px] font-mono text-white rounded-tl">{track.distance.toFixed(1)}k</div>
@@ -391,6 +407,7 @@ const DiaryView: React.FC<DiaryViewProps> = ({
                                 onAddPlannedWorkout={onAddPlannedWorkout}
                                 isCompact={false}
                                 layoutMode="horizontal"
+                                targetDate={aiTargetDate}
                                 onCheckAiAccess={onCheckAiAccess}
                             />
                         </div>
@@ -403,6 +420,15 @@ const DiaryView: React.FC<DiaryViewProps> = ({
                     weather={selectedWeather.weather} 
                     date={selectedWeather.date} 
                     onClose={() => setSelectedWeather(null)} 
+                />
+            )}
+
+            {actionDate && (
+                <DiaryActionModal 
+                    date={actionDate}
+                    onClose={() => setActionDate(null)}
+                    onAddEntry={(entry) => { onAddPlannedWorkout?.(entry); setActionDate(null); }}
+                    onGenerateAi={handleAiRequest}
                 />
             )}
 
