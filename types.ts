@@ -118,10 +118,17 @@ export interface Toast {
   type: 'success' | 'error' | 'info';
 }
 
+export interface DailyCounts {
+    workout: number;
+    analysis: number;
+    chat: number;
+}
+
 export interface ApiUsage {
     requests: number;
     tokens: number;
     lastReset: string;
+    dailyCounts: DailyCounts;
 }
 
 export type ApiUsageStats = ApiUsage;
