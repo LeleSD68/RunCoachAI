@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { UserProfile, DirectMessage, Track } from '../types';
 import { sendDirectMessage, getDirectMessages, updateTrackSharing, getTrackById, markMessagesAsRead } from '../services/socialService';
 import { supabase } from '../services/supabaseClient';
@@ -250,13 +251,13 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
         return groups;
     }, [messages]);
 
-    return (
+    return createPortal(
         <div 
             className="fixed inset-0 z-[20000] flex items-center justify-center p-0 md:p-4 bg-black/80 backdrop-blur-sm animate-fade-in"
             onClick={onClose}
         >
             <div 
-                className="w-full md:max-w-md bg-[#0b141a] md:border md:border-slate-700 md:rounded-2xl shadow-2xl flex flex-col h-full md:h-[600px] overflow-hidden animate-pop-in relative"
+                className="w-full md:max-w-md bg-[#0b141a] md:border md:border-slate-700 md:rounded-2xl shadow-2xl flex flex-col h-[100dvh] md:h-[600px] overflow-hidden animate-pop-in relative"
                 onClick={(e) => e.stopPropagation()} 
             >
                 {/* Header WhatsApp Style */}
@@ -399,7 +400,10 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
                 )}
 
                 {/* Input Area */}
-                <form onSubmit={(e) => handleSend(e)} className="p-2 md:p-3 bg-[#202c33] flex gap-2 shrink-0 items-center z-20">
+                <form 
+                    onSubmit={(e) => handleSend(e)} 
+                    className="p-2 md:p-3 bg-[#202c33] flex gap-2 shrink-0 items-center z-20 pb-[env(safe-area-inset-bottom)] md:pb-3"
+                >
                     <button 
                         type="button"
                         onClick={() => setShowShareMenu(!showShareMenu)}
@@ -432,7 +436,8 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
                 @keyframes slide-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
                 .animate-slide-up { animation: slide-up 0.2s ease-out forwards; }
             `}</style>
-        </div>
+        </div>,
+        document.body
     );
 };
 
