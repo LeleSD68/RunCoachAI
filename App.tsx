@@ -989,7 +989,7 @@ const App: React.FC = () => {
                     unreadCount={unreadMessages}
                     onlineCount={onlineFriendsCount}
                     plannedWorkouts={plannedWorkouts} 
-                    onOpenWorkout={(id) => { 
+                    onOpenWorkout={(id: string) => { 
                         // If user clicks a workout in Home, go to Diary with that ID selected
                         // But wait, HomeModal doesn't render Diary. 
                         // We must close Home, open Diary, and select the workout.
@@ -1119,7 +1119,7 @@ const App: React.FC = () => {
                                                         onStartRace={openRaceSetup}
                                                         onViewDetails={(id) => { setViewingTrack(tracks.find(t => t.id === id) || null); pushViewState('trackDetail'); }}
                                                         onEditTrack={(id) => setEditingTrack(tracks.find(t => t.id === id) || null)}
-                                                        onDeleteTrack={async (id) => { 
+                                                        onDeleteTrack={async (id: string) => { 
                                                             const track = tracks.find(t => t.id === id); if (track) markStravaTrackAsDeleted(track);
                                                             const u = tracks.filter(t => t.id !== id); setTracks(u); await saveTracksToDB(u); await deleteTrackFromCloud(id); 
                                                         }}
