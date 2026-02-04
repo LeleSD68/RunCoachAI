@@ -1,20 +1,49 @@
 
-import { ApiUsage } from '../types';
+import { ApiUsage, DailyCounts } from '../types';
 
 const USAGE_KEY = 'runcoach_api_usage';
+
+// LIMITS FOR GUEST USERS
+export const LIMITS = {
+    workout: 1,
+    analysis: 1,
+    chat: 10 // Approx 2 dialogues (5 messages each)
+};
 
 export const getApiUsage = (): ApiUsage => {
     const stored = localStorage.getItem(USAGE_KEY);
     const today = new Date().toDateString();
     
+    const defaultUsage: ApiUsage = { 
+        requests: 0, 
+        tokens: 0, 
+        lastReset: today,
+        dailyCounts: { workout: 0, analysis: 0, chat: 0 }
+    };
+
     if (stored) {
-        const usage = JSON.parse(stored) as ApiUsage;
-        if (usage.lastReset !== today) {
-            return { requests: 0, tokens: 0, lastReset: today };
+        try {
+            const usage = JSON.parse(stored) as ApiUsage;
+            // Reset daily counts if day changed
+            if (usage.lastReset !== today) {
+                const resetUsage = { 
+                    ...usage, 
+                    lastReset: today,
+                    dailyCounts: { workout: 0, analysis: 0, chat: 0 }
+                };
+                localStorage.setItem(USAGE_KEY, JSON.stringify(resetUsage));
+                return resetUsage;
+            }
+            // Ensure dailyCounts structure exists for old data
+            if (!usage.dailyCounts) {
+                usage.dailyCounts = { workout: 0, analysis: 0, chat: 0 };
+            }
+            return usage;
+        } catch (e) {
+            return defaultUsage;
         }
-        return usage;
     }
-    return { requests: 0, tokens: 0, lastReset: today };
+    return defaultUsage;
 };
 
 export const trackUsage = (tokens: number = 0) => {
@@ -36,4 +65,25 @@ export const addTokensToUsage = (tokens: number) => {
     };
     localStorage.setItem(USAGE_KEY, JSON.stringify(updated));
     return updated;
+};
+
+export const getRemainingCredits = (): DailyCounts => {
+    const usage = getApiUsage();
+    return {
+        workout: Math.max(0, LIMITS.workout - usage.dailyCounts.workout),
+        analysis: Math.max(0, LIMITS.analysis - usage.dailyCounts.analysis),
+        chat: Math.max(0, LIMITS.chat - usage.dailyCounts.chat),
+    };
+};
+
+export const checkDailyLimit = (type: keyof DailyCounts): boolean => {
+    const usage = getApiUsage();
+    return usage.dailyCounts[type] < LIMITS[type];
+};
+
+export const incrementDailyLimit = (type: keyof DailyCounts) => {
+    const usage = getApiUsage();
+    usage.dailyCounts[type] = (usage.dailyCounts[type] || 0) + 1;
+    localStorage.setItem(USAGE_KEY, JSON.stringify(usage));
+    return usage;
 };
