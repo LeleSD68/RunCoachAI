@@ -969,7 +969,19 @@ const App: React.FC = () => {
             {showLoginModal && (
                 <LoginModal 
                     onClose={() => { setShowLoginModal(false); setAuthLimitReached(false); }} 
-                    onLoginSuccess={() => { setShowLoginModal(false); setAuthLimitReached(false); checkSession(); }} 
+                    onLoginSuccess={() => { 
+                        setShowLoginModal(false); 
+                        setAuthLimitReached(false); 
+                        
+                        // Refresh session data
+                        checkSession(); 
+                        
+                        // If we are logging in from the landing page, navigate to Home
+                        if (showAuthSelection) {
+                            setShowAuthSelection(false);
+                            setShowHome(true);
+                        }
+                    }} 
                     tracks={tracks} userProfile={userProfile} plannedWorkouts={plannedWorkouts} limitReached={authLimitReached}
                 />
             )}
