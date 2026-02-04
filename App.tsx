@@ -398,6 +398,25 @@ const App: React.FC = () => {
         return false;
     }, [isGuest]);
 
+    // Handle logout logic centrally
+    const handleLogout = async () => {
+        await supabase.auth.signOut();
+        setUserId(null);
+        setIsGuest(false);
+        setTracks([]);
+        setPlannedWorkouts([]);
+        setUserProfile({ autoAnalyzeEnabled: true });
+        
+        // Reset navigation state
+        setShowHome(false);
+        setShowProfile(false);
+        setShowSettings(false);
+        setShowDiary(false);
+        setShowSocial(false);
+        
+        setShowAuthSelection(true);
+    };
+
     useEffect(() => {
         const checkStravaCallback = async () => {
             const urlParams = new URLSearchParams(window.location.search);
@@ -1006,15 +1025,12 @@ const App: React.FC = () => {
                     onlineCount={onlineFriendsCount}
                     plannedWorkouts={plannedWorkouts} 
                     onOpenWorkout={(id: string) => { 
-                        // If user clicks a workout in Home, go to Diary with that ID selected
-                        // But wait, HomeModal doesn't render Diary. 
-                        // We must close Home, open Diary, and select the workout.
                         setShowHome(false);
                         setShowDiary(true);
-                        // We need a mechanism to select the workout in DiaryView. 
-                        // Currently DiaryView doesn't accept an initial selection prop.
-                        // I will add it in step 2.
                     }}
+                    isGuest={isGuest}
+                    onLogout={handleLogout}
+                    onLogin={() => setShowLoginModal(true)}
                 />
             )}
 
@@ -1039,7 +1055,7 @@ const App: React.FC = () => {
                     onSave={async (p) => { setUserProfile(p); await saveProfileToDB(p); addToast("Profilo salvato!", "success"); }} 
                     currentProfile={userProfile} 
                     tracks={tracks}
-                    onLogout={async () => { await supabase.auth.signOut(); setShowAuthSelection(true); setIsGuest(false); setUserId(null); }}
+                    onLogout={handleLogout}
                 />
             )}
 
