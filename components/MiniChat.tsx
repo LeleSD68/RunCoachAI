@@ -70,6 +70,7 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
     const [showShareMenu, setShowShareMenu] = useState(false);
     const [shareTracks, setShareTracks] = useState<Track[]>([]);
     const [fullAccessMode, setFullAccessMode] = useState(false);
+    const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
 
     const loadMessages = async () => {
         if (!currentUser.id || !friend.id) return;
@@ -210,7 +211,8 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
                     );
                 }
             } catch (e) {
-                alert("Impossibile concedere permessi. Condivisione annullata.");
+                setFeedbackMsg("Errore concessione permessi.");
+                setTimeout(() => setFeedbackMsg(null), 2000);
                 return;
             }
         }
@@ -228,22 +230,31 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
     };
 
     const handleTrackClick = async (trackData: any) => {
-        if (trackData.access === 'full') {
-            if (onViewTrack) {
-                try {
-                    const fullTrack = await getTrackById(trackData.id);
-                    if (fullTrack) onViewTrack(fullTrack);
-                    else alert("Errore caricamento traccia.");
-                } catch(e) { alert("Impossibile caricare traccia."); }
+        if (!onViewTrack) return;
+        setFeedbackMsg("Caricamento corsa...");
+        
+        try {
+            // Tentiamo SEMPRE di caricare la traccia.
+            // Se i permessi DB lo consentono (es. è pubblica o condivisa), la otterremo.
+            // Se fallisce, mostriamo un messaggio di errore soft.
+            const fullTrack = await getTrackById(trackData.id);
+            
+            if (fullTrack) {
+                onViewTrack(fullTrack);
+                setFeedbackMsg(null);
+            } else {
+                setFeedbackMsg(`🔒 Accesso limitato.\nChiedi a ${friend.name} di attivare l'Analisi Ospite.`);
+                setTimeout(() => setFeedbackMsg(null), 4000);
             }
-        } else {
-            alert(`Anteprima: ${trackData.name} (${trackData.dist}km). Chiedi l'accesso completo per analizzarla!`);
+        } catch(e) { 
+            setFeedbackMsg("Impossibile recuperare la traccia.");
+            setTimeout(() => setFeedbackMsg(null), 3000);
         }
     };
 
     const groupedMessages = useMemo<Record<string, DirectMessage[]>>(() => {
         const groups: Record<string, DirectMessage[]> = {};
-        messages.forEach(msg => {
+        messages.forEach((msg, index) => {
             const dateLabel = getMessageDateLabel(msg.createdAt);
             if (!groups[dateLabel]) groups[dateLabel] = [];
             groups[dateLabel].push(msg);
@@ -280,6 +291,15 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
                         <CloseIcon />
                     </button>
                 </div>
+
+                {/* Feedback Toast Overlay inside Chat */}
+                {feedbackMsg && (
+                    <div className="absolute top-20 left-4 right-4 z-50 flex justify-center animate-fade-in-down pointer-events-none">
+                        <div className="bg-slate-800/95 text-white px-4 py-3 rounded-xl border border-slate-600 shadow-xl text-xs font-bold text-center whitespace-pre-line backdrop-blur-md max-w-xs">
+                            {feedbackMsg}
+                        </div>
+                    </div>
+                )}
 
                 {/* Messages Area */}
                 <div 
@@ -334,7 +354,7 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
                                                                     </div>
                                                                 </div>
                                                                 <div className="px-1 pb-1">
-                                                                    <button className="w-full bg-[#2a3942] hover:bg-[#374248] text-[#00a884] font-bold text-xs py-2 rounded uppercase tracking-wide">
+                                                                    <button className="w-full bg-[#2a3942] hover:bg-[#374248] text-[#00a884] font-bold text-xs py-2 rounded uppercase tracking-wide transition-colors">
                                                                         Vedi Attività
                                                                     </button>
                                                                 </div>
@@ -435,6 +455,8 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
                 .animate-pop-in { animation: pop-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
                 @keyframes slide-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
                 .animate-slide-up { animation: slide-up 0.2s ease-out forwards; }
+                @keyframes fade-in-down { from { opacity: 0; transform: translate(-50%, -10px); } to { opacity: 1; transform: translate(-50%, 0); } }
+                .animate-fade-in-down { animation: fade-in-down 0.2s ease-out forwards; }
             `}</style>
         </div>,
         document.body
