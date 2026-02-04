@@ -17,7 +17,7 @@ interface AiTrainingCoachPanelProps {
     isCompact?: boolean;
     layoutMode?: 'vertical' | 'horizontal';
     targetDate?: Date; 
-    onCheckAiAccess?: () => boolean; 
+    onCheckAiAccess?: (feature: 'workout' | 'analysis' | 'chat') => boolean; 
 }
 
 type GenerationMode = 'today' | 'next2' | 'weekly' | 'specific';
@@ -105,7 +105,7 @@ const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({
     };
 
     const handleGenerateProgram = async () => {
-        if (onCheckAiAccess && !onCheckAiAccess()) return;
+        if (onCheckAiAccess && !onCheckAiAccess('workout')) return;
 
         setIsGenerating(true);
         setError('');
