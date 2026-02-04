@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { PlannedWorkout } from '../types';
 
 interface LiveCoachScreenProps {
@@ -10,45 +10,49 @@ interface LiveCoachScreenProps {
 
 interface TrainingPhase {
     name: string;
-    instruction: string; 
+    instruction: string; // Cosa fare in questa fase
     targetValue: number; // Seconds OR Meters
     targetType: 'time' | 'distance'; 
     type: 'warmup' | 'work' | 'rest' | 'cooldown';
-    repInfo?: { current: number, total: number };
-    targetPace?: number; // min/km (es. 4.5 per 4:30)
+    repInfo?: { current: number, total: number }; // Per dire "Ripetuta 1 di 10"
 }
 
-// --- UTILS ---
-
+// Haversine formula for distance between two coords (in meters)
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = 6371e3; 
+    const R = 6371e3; // metres
     const φ1 = lat1 * Math.PI/180;
     const φ2 = lat2 * Math.PI/180;
     const Δφ = (lat2-lat1) * Math.PI/180;
     const Δλ = (lon2-lon1) * Math.PI/180;
-    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ/2) * Math.sin(Δλ/2);
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+            Math.cos(φ1) * Math.cos(φ2) *
+            Math.sin(Δλ/2) * Math.sin(Δλ/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+    return R * c;
 };
 
-const speak = (text: string, priority: boolean = false) => {
+const speak = (text: string) => {
     if (!('speechSynthesis' in window)) return;
     
-    if (priority) window.speechSynthesis.cancel(); // Interrompi tutto per messaggi urgenti
-
-    // Pulizia testo per sintesi vocale naturale
-    let cleanText = text
-        .replace(/\*\*/g, '')
-        .replace(/:/g, ' e ') // 4:30 -> 4 e 30
-        .replace(/km\/h/g, 'chilometri orari')
-        .replace(/min\/km/g, 'minuti al chilometro')
-        .replace(/['"]/g, ' minuti ');
+    // Cancella code precedenti per dare priorità al messaggio attuale
+    window.speechSynthesis.cancel();
+    
+    // Pulizia testo per lettura naturale
+    let cleanText = text.replace(/\*\*/g, '').replace(/[-]/g, ' ').trim();
+    // Migliora lettura tempi (es. "5:30" -> "5 e 30")
+    cleanText = cleanText.replace(/(\d{1,2}):(\d{2})/g, '$1 e $2');
+    // Migliora lettura "x" (es "10x" -> "10 per")
+    cleanText = cleanText.replace(/(\d+)x/gi, '$1 per');
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.lang = 'it-IT';
-    utterance.rate = 1.05; 
+    utterance.rate = 1.05; // Leggermente più veloce
     utterance.pitch = 1.0;
 
     const voices = window.speechSynthesis.getVoices();
+    // Cerca voce Google o fallback italiana
     const itVoice = voices.find(v => v.lang === 'it-IT' && v.name.includes('Google')) || voices.find(v => v.lang === 'it-IT');
     if (itVoice) utterance.voice = itVoice;
     
@@ -68,39 +72,34 @@ const formatPace = (pace: number) => {
     return `${m}:${s.toString().padStart(2, '0')}`;
 };
 
-const parsePaceFromText = (text: string): number | undefined => {
-    // Cerca pattern come "4:30", "5.00", "3'45"
-    const regex = /(\d{1,2})[:'.](\d{2})/;
-    const match = text.match(regex);
-    if (match) {
-        const min = parseInt(match[1]);
-        const sec = parseInt(match[2]);
-        return min + (sec / 60);
-    }
-    return undefined;
-};
-
 /**
- * PARSER INTELLIGENTE
+ * PARSER LOGIC: Tenta di estrarre la struttura delle ripetute dal testo.
+ * Supporta formati come:
+ * "10x 2 min veloci, 1 min lento"
+ * "5x 1000m rec 3 min"
+ * "8 ripetute da 400 metri con 200 metri recupero"
  */
 const parseWorkoutStructure = (description: string, title: string): TrainingPhase[] => {
     const fullText = (title + " " + description).toLowerCase();
     
-    // Pattern Ripetute: "10x 400m", "10 ripetute da 2 minuti"
+    // Regex per trovare pattern tipo "10x", "10 ripetute", "10 volte"
+    // Cattura: Gruppo 1 = Numero ripetizioni
     const repRegex = /(\d+)\s*(?:x|per|volte|ripetute)/i;
     const repMatch = fullText.match(repRegex);
 
-    if (!repMatch) return []; 
+    if (!repMatch) return []; // Nessuna struttura ripetuta trovata
 
     const count = parseInt(repMatch[1]);
-    if (count < 2 || count > 50) return [];
+    if (count < 2 || count > 50) return []; // Sanity check
 
-    const textAfterReps = fullText.substring(fullText.indexOf(repMatch[0]) + repMatch[0].length);
-    
-    // Fase Attiva (Work)
+    // Regex per trovare durata/distanza fase attiva (Work)
+    // Cerca dopo il numero di ripetizioni. Es: "2 min", "400m", "1km"
+    // Cattura: Gruppo 1 = Valore, Gruppo 2 = Unità (m, km, min, ')
     const workRegex = /(?:da|di)?\s*(\d+(?:[.,]\d+)?)\s*(min|m|km|secondi|'|”)/i;
+    // Rimuoviamo la parte "Nx" per cercare il resto
+    const textAfterReps = fullText.substring(fullText.indexOf(repMatch[0]) + repMatch[0].length);
     const workMatch = textAfterReps.match(workRegex);
-    
+
     if (!workMatch) return [];
 
     const workValRaw = parseFloat(workMatch[1].replace(',', '.'));
@@ -109,18 +108,20 @@ const parseWorkoutStructure = (description: string, title: string): TrainingPhas
     let workTarget = 0;
     let workType: 'time' | 'distance' = 'time';
 
-    if ((workUnit.startsWith('m') && workUnit !== 'min') || workUnit === 'km') {
-        workTarget = workUnit === 'km' ? workValRaw * 1000 : workValRaw;
+    if (workUnit.startsWith('m') && workUnit !== 'min') { // meters
+        workTarget = workValRaw;
         workType = 'distance';
-    } else {
-        workTarget = (workUnit === 'secondi' || workUnit === '”') ? workValRaw : workValRaw * 60;
+    } else if (workUnit === 'km') {
+        workTarget = workValRaw * 1000;
+        workType = 'distance';
+    } else { // minutes or seconds
+        if (workUnit === 'secondi' || workUnit === '”') workTarget = workValRaw;
+        else workTarget = workValRaw * 60; // minutes
         workType = 'time';
     }
 
-    // Cerchiamo un passo target nella descrizione (es. "a 4:00")
-    const targetPace = parsePaceFromText(description);
-
-    // Fase Recupero (Rest)
+    // Regex per trovare recupero
+    // Cerca parole chiave come "recupero", "lento", "piano", "rest", "off"
     const restRegex = /(?:recupero|rec|lento|piano|rest|off)\s*(\d+(?:[.,]\d+)?)\s*(min|m|km|secondi|'|”)/i;
     const restMatch = textAfterReps.match(restRegex);
 
@@ -130,44 +131,52 @@ const parseWorkoutStructure = (description: string, title: string): TrainingPhas
     if (restMatch) {
         const restValRaw = parseFloat(restMatch[1].replace(',', '.'));
         const restUnit = restMatch[2];
-        if ((restUnit.startsWith('m') && restUnit !== 'min') || restUnit === 'km') {
-            restTarget = restUnit === 'km' ? restValRaw * 1000 : restValRaw;
+        if (restUnit.startsWith('m') && restUnit !== 'min') {
+            restTarget = restValRaw;
+            restType = 'distance';
+        } else if (restUnit === 'km') {
+            restTarget = restValRaw * 1000;
             restType = 'distance';
         } else {
-            restTarget = (restUnit === 'secondi' || restUnit === '”') ? restValRaw : restValRaw * 60;
+            if (restUnit === 'secondi' || restUnit === '”') restTarget = restValRaw;
+            else restTarget = restValRaw * 60;
             restType = 'time';
         }
     } else {
-        restTarget = 120; // Default 2 min se non specificato ma ci sono ripetute
+        // Default recovery if not found but reps detected
+        restTarget = 120; // 2 min default
         restType = 'time';
     }
 
-    // Costruzione Fasi
+    // Costruzione Fasi Sequenziali
     const phases: TrainingPhase[] = [];
     
+    // Riscaldamento Standard
     phases.push({ 
         name: "Riscaldamento", 
-        instruction: "Iniziamo. Corri piano per scaldarti bene.", 
+        instruction: "Corri piano per attivare i muscoli.", 
         targetValue: 600, // 10 min default
         targetType: 'time', 
         type: 'warmup' 
     });
 
+    // Generazione Ripetute
     for (let i = 1; i <= count; i++) {
+        // Fase Veloce
         phases.push({
             name: `Ripetuta ${i}`,
-            instruction: `Vai! ${workType === 'time' ? formatTime(workTarget) + ' minuti' : (workTarget/1000).toFixed(2)+'km'} a buon ritmo!`,
+            instruction: `Vai! ${workType === 'time' ? formatTime(workTarget) : (workTarget/1000).toFixed(2)+'km'} ritmo forte!`,
             targetValue: workTarget,
             targetType: workType,
             type: 'work',
-            repInfo: { current: i, total: count },
-            targetPace: targetPace // Assegna il passo target solo alle fasi attive
+            repInfo: { current: i, total: count }
         });
 
-        if (restTarget > 0 && i < count) { // Niente recupero dopo l'ultima, si va al defaticamento
+        // Fase Recupero (se non è l'ultima o se c'è defaticamento dopo)
+        if (restTarget > 0) {
             phases.push({
                 name: `Recupero ${i}`,
-                instruction: `Piano. Recupera fiato per ${restType === 'time' ? formatTime(restTarget) + ' minuti' : (restTarget).toFixed(0)+' metri'}.`,
+                instruction: `Piano. Recupera per ${restType === 'time' ? formatTime(restTarget) : (restTarget).toFixed(0)+'m'}.`,
                 targetValue: restTarget,
                 targetType: restType,
                 type: 'rest',
@@ -176,10 +185,11 @@ const parseWorkoutStructure = (description: string, title: string): TrainingPhas
         }
     }
 
+    // Defaticamento Standard
     phases.push({ 
         name: "Defaticamento", 
-        instruction: "Ottimo lavoro. Corsetta sciolta per finire.", 
-        targetValue: 300, 
+        instruction: "Ottimo lavoro. Corsetta sciolta finale.", 
+        targetValue: 300, // 5 min default
         targetType: 'time', 
         type: 'cooldown' 
     });
@@ -187,54 +197,65 @@ const parseWorkoutStructure = (description: string, title: string): TrainingPhas
     return phases;
 };
 
-// --- COMPONENT ---
-
 const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, onExit }) => {
+    // State
     const [isRunning, setIsRunning] = useState(false);
     const [phases, setPhases] = useState<TrainingPhase[]>([]);
     const [currentPhaseIndex, setCurrentPhaseIndex] = useState(0);
     
+    // Metrics
     const [totalTime, setTotalTime] = useState(0);
-    const [totalDistance, setTotalDistance] = useState(0);
-    const [phaseValue, setPhaseValue] = useState(0); 
-    const [currentPace, setCurrentPace] = useState(0); 
-    const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
+    const [totalDistance, setTotalDistance] = useState(0); // Meters
+    const [phaseValue, setPhaseValue] = useState(0); // Elapsed Time OR Distance based on phase type
+    const [currentPace, setCurrentPace] = useState(0); // min/km
+    const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null); // meters
 
+    // Refs for logic (avoid stale closures)
     const watchIdRef = useRef<number | null>(null);
     const lastPosRef = useRef<{ lat: number; lon: number; time: number } | null>(null);
-    const paceBufferRef = useRef<number[]>([]); 
+    const paceBufferRef = useRef<number[]>([]); // For smoothing pace
     const wakeLock = useRef<any>(null);
     const timerRef = useRef<number | null>(null);
-    const lastFeedbackTimeRef = useRef<number>(0); // Per non spammare correzioni
+    const hasStartedRef = useRef(false); // To track if initial briefing was done
 
-    // 1. Inizializzazione Struttura Allenamento
+    // 1. Initialize Workout Structure (Smart Parsing or Fallback)
     useEffect(() => {
         let generatedPhases: TrainingPhase[] = [];
 
         if (workout) {
+            // Tenta parsing avanzato per ripetute
             const structuredPhases = parseWorkoutStructure(workout.description, workout.title);
             
             if (structuredPhases.length > 0) {
                 generatedPhases = structuredPhases;
             } else {
-                // Fallback Intelligente per altri tipi (Gara, Lungo, Lento)
+                // Fallback Logic per allenamenti semplici / non parsabili
                 const titleLower = workout.title.toLowerCase();
                 const distMatch = titleLower.match(/(\d+)(?:[.,]\d+)?\s*(k|km|m)/);
+                
                 let targetDistMeters = 0;
                 if (distMatch) {
                     const val = parseFloat(distMatch[1]);
-                    targetDistMeters = distMatch[2] === 'm' ? val : val * 1000;
+                    if (distMatch[2] === 'm') targetDistMeters = val;
+                    else targetDistMeters = val * 1000;
                 }
 
                 if (workout.activityType === 'Gara' || targetDistMeters > 0) {
                     const mainDist = targetDistMeters > 0 ? targetDistMeters : 5000;
                     generatedPhases = [
-                        { name: "Riscaldamento", instruction: "Riscaldamento libero. Corri sciolto.", targetValue: 300, targetType: 'time', type: 'warmup' },
-                        { name: workout.title, instruction: `${workout.description || 'Mantieni il ritmo gara costante.'}`, targetValue: mainDist, targetType: 'distance', type: 'work' },
-                        { name: "Defaticamento", instruction: "Defaticamento finale.", targetValue: 0, targetType: 'time', type: 'cooldown' }
+                        { name: "Riscaldamento", instruction: "Riscaldamento libero. Corri piano.", targetValue: 600, targetType: 'time', type: 'warmup' }, // 0 = open ended till manual skip? No, let's put 5 min default or make it manual
+                        { name: workout.title, instruction: `${workout.description || 'Mantieni il ritmo gara.'}`, targetValue: mainDist, targetType: 'distance', type: 'work' },
+                        { name: "Defaticamento", instruction: "Defaticamento finale.", targetValue: 300, targetType: 'time', type: 'cooldown' }
+                    ];
+                } else if (['Ripetute', 'Fartlek'].includes(workout.activityType)) {
+                    // Fallback se il parser ha fallito ma è un workout di qualità
+                    generatedPhases = [
+                        { name: "Riscaldamento", instruction: "Inizia molto lentamente.", targetValue: 600, targetType: 'time', type: 'warmup' },
+                        { name: "Lavoro Centrale", instruction: `Segui le indicazioni: ${workout.description}`, targetValue: 0, targetType: 'time', type: 'work' }, 
+                        { name: "Defaticamento", instruction: "Corsetta sciolta finale.", targetValue: 300, targetType: 'time', type: 'cooldown' }
                     ];
                 } else {
-                    // Allenamento semplice a sensazione
+                    // Lento / Lungo / Altro
                     generatedPhases = [
                         { name: workout.title, instruction: workout.description || "Corri a sensazione costante.", targetValue: 0, targetType: 'time', type: 'work' }
                     ];
@@ -244,6 +265,9 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
             generatedPhases = [{ name: "Corsa Libera", instruction: "Divertiti!", targetValue: 0, targetType: 'distance', type: 'work' }];
         }
         
+        // Ensure manual advance for warmup if 0
+        if(generatedPhases[0].targetValue === 0) generatedPhases[0].targetValue = 600; // Default 10 min
+
         setPhases(generatedPhases);
     }, [workout]);
 
@@ -251,74 +275,34 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
     useEffect(() => {
         const requestWakeLock = async () => {
             if ('wakeLock' in navigator) {
-                try { wakeLock.current = await (navigator as any).wakeLock.request('screen'); } catch (e) {}
+                try {
+                    wakeLock.current = await (navigator as any).wakeLock.request('screen');
+                } catch (err) { console.warn("Wake Lock failed", err); }
             }
         };
         requestWakeLock();
         return () => { if (wakeLock.current) wakeLock.current.release(); };
     }, []);
 
-    // 3. Timer & Monitoraggio Performance (Feedback Loop)
+    // 3. Timer (Ticks every second)
     useEffect(() => {
         if (isRunning) {
             timerRef.current = window.setInterval(() => {
-                setTotalTime(t => {
-                    const newTime = t + 1;
-                    
-                    // --- MONITORAGGIO INTELLIGENTE (Ogni 20s) ---
-                    if (newTime % 20 === 0 && phases.length > 0) {
-                        monitorPerformance(phases[currentPhaseIndex], currentPace);
-                    }
-                    return newTime;
-                });
+                setTotalTime(t => t + 1);
                 
+                // Only increment phase value if it's TIME based
                 const currentPhase = phases[currentPhaseIndex];
                 if (currentPhase && currentPhase.targetType === 'time') {
                     setPhaseValue(v => v + 1);
                 }
             }, 1000);
-        } else {
-            if (timerRef.current) clearInterval(timerRef.current);
+        } else if (timerRef.current) {
+            clearInterval(timerRef.current);
         }
         return () => { if (timerRef.current) clearInterval(timerRef.current); };
-    }, [isRunning, phases, currentPhaseIndex, currentPace]);
+    }, [isRunning, phases, currentPhaseIndex]);
 
-    // Funzione "Cervello" del Coach
-    const monitorPerformance = (phase: TrainingPhase, pace: number) => {
-        const now = Date.now();
-        // Evita di parlare troppo spesso (minimo 40s tra correzioni)
-        if (now - lastFeedbackTimeRef.current < 40000) return;
-        if (pace <= 0 || pace > 30) return; // Dati GPS non validi
-
-        // Controllo Ripetute (Fase Work)
-        if (phase.type === 'work' && phase.targetPace) {
-            const diff = pace - phase.targetPace;
-            // Tolleranza: +/- 15 sec/km
-            if (diff > 0.25) { // Troppo lento (>15s sopra target)
-                speak("Sei in ritardo sul passo. Aumenta il ritmo!", true);
-                lastFeedbackTimeRef.current = now;
-            } else if (diff < -0.25) { // Troppo veloce (>15s sotto target)
-                speak("Stai andando troppo forte! Gestisci le energie.", true);
-                lastFeedbackTimeRef.current = now;
-            } else {
-                // Feedback positivo ogni tanto
-                if (Math.random() > 0.7) {
-                    speak("Perfetto. Ritmo ideale, mantienilo.", true);
-                    lastFeedbackTimeRef.current = now;
-                }
-            }
-        } 
-        
-        // Controllo Recupero (Fase Rest)
-        else if (phase.type === 'rest') {
-            if (pace < 5.5) { // Se corre sotto i 5:30/km durante il recupero (generico)
-                speak("Rallenta. È un recupero, respira a fondo.", true);
-                lastFeedbackTimeRef.current = now;
-            }
-        }
-    };
-
-    // 4. GPS Engine
+    // 4. GPS Tracking Engine
     useEffect(() => {
         if (!isRunning) {
             if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
@@ -329,21 +313,26 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
             watchIdRef.current = navigator.geolocation.watchPosition(
                 (position) => {
                     const { latitude, longitude, accuracy } = position.coords;
+                    const timestamp = position.timestamp;
+                    
                     setGpsAccuracy(accuracy);
-                    if (accuracy > 25) return; // Filtro precisione
+
+                    if (accuracy > 30) return; // Ignore poor signal
 
                     if (!lastPosRef.current) {
-                        lastPosRef.current = { lat: latitude, lon: longitude, time: position.timestamp };
+                        lastPosRef.current = { lat: latitude, lon: longitude, time: timestamp };
                         return;
                     }
 
                     const distDelta = calculateDistance(lastPosRef.current.lat, lastPosRef.current.lon, latitude, longitude);
-                    const timeDelta = (position.timestamp - lastPosRef.current.time) / 1000;
+                    const timeDelta = (timestamp - lastPosRef.current.time) / 1000;
 
-                    if (timeDelta > 0 && (distDelta / timeDelta) > 9.0) return; // Speed sanity check (Usain Bolt filter)
+                    // Speed filter (max 30km/h ~ 8.3 m/s to avoid jumps)
+                    if (timeDelta > 0 && (distDelta / timeDelta) > 8.3) return; 
 
-                    if (distDelta > 3) {
+                    if (distDelta > 2) { // Minimum movement threshold
                         setTotalDistance(d => d + distDelta);
+                        
                         if (phases[currentPhaseIndex] && phases[currentPhaseIndex].targetType === 'distance') {
                             setPhaseValue(v => v + distDelta);
                         }
@@ -355,17 +344,20 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
                         const avgPace = paceBufferRef.current.reduce((a,b) => a+b, 0) / paceBufferRef.current.length;
                         setCurrentPace(avgPace);
 
-                        lastPosRef.current = { lat: latitude, lon: longitude, time: position.timestamp };
+                        lastPosRef.current = { lat: latitude, lon: longitude, time: timestamp };
                     }
                 },
                 (error) => console.warn("GPS Error", error),
-                { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+                { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
             );
         }
-        return () => { if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current); };
+
+        return () => {
+            if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
+        };
     }, [isRunning, phases, currentPhaseIndex]);
 
-    // 5. Phase Logic & Transitions
+    // 5. Phase Logic & Audio Feedback Check
     useEffect(() => {
         if (!isRunning || phases.length === 0) return;
 
@@ -377,76 +369,106 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
         if (target > 0) {
             const remaining = target - phaseValue;
 
-            // Avvisi Distanza
+            // --- AUDIO FEEDBACK & PRE-WARNING ---
             if (isDistanceBased) {
+                // Distance Milestones (every km)
+                if (remaining > 200 && phaseValue > 0 && Math.floor(phaseValue) % 1000 < 5 && phaseValue > 100) { 
+                    const km = Math.floor(phaseValue / 1000);
+                    // Avoid spamming if updating fast
+                    if (km > 0) speak(`${km} chilometri. Passo ${formatPace(currentPace)}.`);
+                }
+                
+                // Pre-Warning Distanza
                 if (remaining <= 50 && remaining > 40) {
-                    speak(`Ultimi 50 metri. Preparati per ${nextPhase ? nextPhase.name : 'la fine'}.`);
+                    let msg = "Ultimi 50 metri.";
+                    if (nextPhase) msg += ` Poi: ${nextPhase.name}.`;
+                    speak(msg);
                 }
             } else {
-                // Avvisi Tempo
-                if (remaining === 60) speak("Ultimo minuto.");
-                if (remaining === 30 && currentPhase.type === 'work') speak("30 secondi, tieni duro!");
-                if (remaining === 10) speak("10 secondi al cambio.");
-                if (remaining <= 3 && remaining > 0) speak(`${Math.floor(remaining)}`);
+                // Time Milestones
+                if (remaining === 60) speak("Un minuto al cambio.");
+                
+                // Pre-Warning Tempo (10 secondi)
+                if (remaining === 10) {
+                    let msg = "10 secondi.";
+                    if (nextPhase) msg += ` Preparati per: ${nextPhase.name}.`;
+                    else msg += " Alla fine.";
+                    speak(msg);
+                }
+                
+                if (remaining <= 3 && remaining > 0.5) speak(`${Math.floor(remaining)}`);
             }
 
-            // Transizione Fase
+            // --- PHASE TRANSITION (AUTO) ---
             if (remaining <= 0) {
                 if (currentPhaseIndex < phases.length - 1) {
+                    // Next phase
                     const p = phases[currentPhaseIndex + 1];
                     setCurrentPhaseIndex(i => i + 1);
                     setPhaseValue(0);
-                    paceBufferRef.current = []; // Reset passo medio per nuova fase
+                    paceBufferRef.current = [];
                     
-                    // Messaggio Transizione Intelligente
+                    // SPEAK NEW PHASE IMMEDIATELY
                     let msg = "";
-                    if (p.type === 'work') {
-                        msg = `Via! ${p.name}. ${p.instruction}`;
-                        if (p.targetPace) msg += ` Obiettivo passo ${formatPace(p.targetPace)}.`;
-                    } else if (p.type === 'rest') {
-                        msg = `Recupero. ${p.instruction} Respira.`;
+                    if (p.type === 'work' && p.repInfo) {
+                        msg = `Ripetuta ${p.repInfo.current}. ${p.instruction}`;
+                    } else if (p.type === 'rest' && p.repInfo) {
+                        msg = `Recupero. ${p.instruction}`;
                     } else {
-                        msg = `Cambio fase: ${p.name}.`;
+                        msg = `Fase successiva: ${p.name}. ${p.instruction}`;
                     }
-                    speak(msg, true); // Priorità alta
+                    speak(msg);
 
                 } else {
+                    // Finish
                     setIsRunning(false);
-                    speak("Allenamento completato! Sei stato grande.", true);
+                    speak("Allenamento completato! Ottimo lavoro.");
                 }
             }
         } 
-    }, [phaseValue, isRunning, phases, currentPhaseIndex]);
+
+    }, [phaseValue, isRunning, phases, currentPhaseIndex, currentPace]);
+
 
     const handleToggle = () => {
         if (!isRunning) {
+            // START LOGIC
             if (totalTime === 0) {
-                // START
+                hasStartedRef.current = true;
+                
+                // BRIEFING INIZIALE
                 const p = phases[0];
-                speak(`Iniziamo l'allenamento: ${workout?.title || 'Sessione'}. Prima fase: ${p.name}. ${p.instruction}`, true);
+                let briefing = `Si parte. ${workout?.title || 'Allenamento'}. `;
+                briefing += `Prima fase: ${p.name}. ${p.instruction}`;
+                speak(briefing);
             } else {
-                speak("Riprendo l'allenamento.", true);
+                speak("Riprendo.");
             }
         } else {
-            speak("Allenamento in pausa.", true);
+            speak("Pausa.");
         }
         setIsRunning(!isRunning);
     };
 
     const handleNextPhase = () => {
         if (currentPhaseIndex < phases.length - 1) {
+            // Forziamo il cambio manuale
             const nextP = phases[currentPhaseIndex + 1];
-            speak(`Salto alla fase successiva: ${nextP.name}.`, true);
+            speak(`Passo a: ${nextP.name}.`);
             setCurrentPhaseIndex(i => i + 1);
             setPhaseValue(0);
         } else {
-            speak("Allenamento terminato manualmente.");
+            speak("Allenamento finito.");
             setIsRunning(false);
         }
     };
 
     const currentPhase: TrainingPhase = phases[currentPhaseIndex] || { 
-        name: '...', targetValue: 0, targetType: 'time', instruction: '', type: 'work' 
+        name: '...', 
+        targetValue: 0, 
+        targetType: 'time', 
+        instruction: '', 
+        type: 'work' 
     };
     const progressPercent = currentPhase.targetValue > 0 ? Math.min(100, (phaseValue / currentPhase.targetValue) * 100) : 0;
     const remaining = Math.max(0, currentPhase.targetValue - phaseValue);
@@ -480,6 +502,8 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
                     <div className="text-2xl font-mono font-bold text-white">{formatTime(totalTime)}</div>
                     <div className="text-xs text-slate-500 font-mono">{(totalDistance/1000).toFixed(2)} km</div>
                 </div>
+                
+                {/* GPS Indicator */}
                 <div className="flex flex-col items-end">
                     <div className="flex items-center gap-1">
                         <span className="text-[10px] font-bold text-slate-400 uppercase">GPS</span>
@@ -491,12 +515,15 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
 
             {/* Main Center */}
             <div className="flex-grow flex flex-col items-center justify-center w-full px-6 relative">
+                
+                {/* Rep Counter Overlay (if applicable) */}
                 {currentPhase.repInfo && (
                     <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-slate-800/80 px-4 py-1 rounded-full border border-slate-700 text-xs font-black uppercase tracking-widest text-slate-300">
                         Ripetuta {currentPhase.repInfo.current} / {currentPhase.repInfo.total}
                     </div>
                 )}
 
+                {/* Phase Info */}
                 <div className="text-center w-full mb-8">
                     <h2 className="text-sm font-black text-slate-500 uppercase tracking-widest mb-2">Fase {currentPhaseIndex + 1}/{phases.length}</h2>
                     <h1 className={`text-3xl sm:text-4xl font-black uppercase leading-tight truncate ${getPhaseColor(currentPhase.type)}`}>
@@ -507,6 +534,7 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
                     </div>
                 </div>
 
+                {/* Big Metric: Remaining Distance/Time or Pace */}
                 <div className="flex flex-col items-center gap-2">
                     <div className={`text-[80px] sm:text-[120px] font-mono font-bold leading-none tracking-tighter ${isRunning ? 'text-white' : 'text-slate-600'}`}>
                         {currentPhase.targetType === 'distance' 
@@ -522,13 +550,12 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
                     </div>
                 </div>
 
+                {/* Secondary Metric: Pace */}
                 <div className="mt-10 text-center">
                     <div className="text-4xl font-mono font-bold text-slate-200">{formatPace(currentPace)}</div>
-                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Passo Attuale (min/km)</div>
-                    {currentPhase.targetPace && (
-                        <div className="text-xs text-green-400 mt-1 font-mono">Target: {formatPace(currentPhase.targetPace)}</div>
-                    )}
+                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Passo (min/km)</div>
                 </div>
+
             </div>
 
             {/* Progress Bar */}
@@ -544,11 +571,17 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
             {/* Controls */}
             <div className="w-full p-8 pb-12 bg-slate-900 border-t border-slate-800 flex flex-col gap-6">
                 <div className="flex justify-center items-center gap-8">
-                    <button onClick={handleNextPhase} className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center text-white active:bg-slate-700 transition-colors border border-slate-700 hover:border-slate-500">
+                    <button 
+                        onClick={handleNextPhase}
+                        className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center text-white active:bg-slate-700 transition-colors border border-slate-700 hover:border-slate-500"
+                    >
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8"><path d="M5.055 7.06C3.805 6.347 2.25 7.25 2.25 8.69v8.122c0 1.44 1.555 2.343 2.805 1.628L12 14.471v2.34c0 1.44 1.555 2.343 2.805 1.628l7.108-4.061c1.26-.72 1.26-2.536 0-3.256L14.805 7.06C13.555 6.346 12 7.25 12 8.69v2.34L5.055 7.061Z" /></svg>
                     </button>
 
-                    <button onClick={handleToggle} className={`w-24 h-24 rounded-full flex items-center justify-center text-white shadow-2xl transition-all active:scale-95 ${isRunning ? 'bg-amber-500 hover:bg-amber-400' : 'bg-green-600 hover:bg-green-500'}`}>
+                    <button 
+                        onClick={handleToggle}
+                        className={`w-24 h-24 rounded-full flex items-center justify-center text-white shadow-2xl transition-all active:scale-95 ${isRunning ? 'bg-amber-500 hover:bg-amber-400' : 'bg-green-600 hover:bg-green-500'}`}
+                    >
                         {isRunning ? (
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-12 h-12"><path fillRule="evenodd" d="M6.75 5.25a.75.75 0 0 1 .75.75v12a.75.75 0 0 1-1.5 0V6a.75.75 0 0 1 .75-.75Zm9 0a.75.75 0 0 1 .75.75v12a.75.75 0 0 1-1.5 0V6a.75.75 0 0 1 .75-.75Z" clipRule="evenodd" /></svg>
                         ) : (
