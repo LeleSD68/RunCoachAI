@@ -279,8 +279,12 @@ const App: React.FC = () => {
 
     useEffect(() => {
         if (!userId || userId === 'guest') return;
+        
+        console.log("Setting up Supabase Realtime subscription for user:", userId);
+
         const channel = supabase.channel('global_notifications')
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages', filter: `receiver_id=eq.${userId}` }, (payload) => {
+                console.log("Realtime: New Message", payload);
                 if (!showSocial) {
                     const msg = "Nuovo messaggio ricevuto!";
                     addToast(msg, "info");
@@ -294,20 +298,24 @@ const App: React.FC = () => {
                 fetchUnreadCount();
             })
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'friends', filter: `user_id_2=eq.${userId}` }, (payload) => {
+                console.log("Realtime: New Friend Request", payload);
                 const msg = "Nuova richiesta di amicizia!";
                 addToast(msg, "info");
                 fetchUnreadCount();
                 sendNotification("RunCoachAI Crew", "Qualcuno vuole aggiungerti agli amici!");
             })
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tracks' }, (payload) => {
+                // Check if track is from a friend
                 const newRecord = payload.new as { user_id: string; name: string };
                 if (friendsIdRef.current.has(newRecord.user_id)) {
+                    console.log("Realtime: New Friend Track", payload);
                     const msg = `Un amico ha caricato una nuova corsa: ${newRecord.name}`;
                     addToast(msg, "info");
                     sendNotification("Feed Attività", `${newRecord.name} è appena stata caricata.`);
                 }
             })
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'social_group_members', filter: `user_id=eq.${userId}` }, async (payload) => {
+                console.log("Realtime: New Group Invite/Join", payload);
                 const newMember = payload.new as any;
                 const { data: groupData } = await supabase.from('social_groups').select('name').eq('id', newMember.group_id).single();
                 const groupName = groupData?.name || 'un gruppo';
@@ -315,8 +323,20 @@ const App: React.FC = () => {
                 addToast(msg, "success");
                 sendNotification("Nuovo Gruppo", msg);
             })
-            .subscribe();
-        return () => { supabase.removeChannel(channel); };
+            .subscribe((status) => {
+                if (status === 'SUBSCRIBED') {
+                    console.log("✅ Supabase Realtime connected!");
+                } else if (status === 'CHANNEL_ERROR') {
+                    console.error("❌ Supabase Realtime connection error.");
+                } else if (status === 'TIMED_OUT') {
+                    console.warn("⚠️ Supabase Realtime timed out.");
+                }
+            });
+
+        return () => { 
+            console.log("Cleaning up Supabase subscription");
+            supabase.removeChannel(channel); 
+        };
     }, [userId, showSocial, fetchUnreadCount]);
 
     const saveLayoutPrefs = (newPrefs: Partial<{ desktopSidebar: number, mobileListRatio: number }>) => {
