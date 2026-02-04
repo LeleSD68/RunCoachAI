@@ -25,6 +25,7 @@ interface DiaryViewProps {
     onOpenTrackChat?: (trackId: string) => void;
     initialSelectedWorkoutId?: string | null;
     onCheckAiAccess?: () => boolean;
+    onStartWorkout?: (workout: PlannedWorkout) => void; // New callback
 }
 
 const DAYS_OF_WEEK = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
@@ -54,6 +55,12 @@ const GlobeIcon = () => (
     </svg>
 );
 
+const HeadsetIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 mr-2">
+        <path fillRule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75v5.25c0 .621.504 1.125 1.125 1.125h2.25c1.243 0 2.25-1.007 2.25-2.25v-4.5c0-1.243-1.007-2.25-2.25-2.25h-1.5v-2.625a7.5 7.5 0 0 1 15 0v2.625h-1.5c-1.243 0-2.25 1.007-2.25 2.25v4.5c0 1.243 1.007 2.25 2.25 2.25h2.25c.621 0 1.125-.504 1.125-1.125v-5.25c0-5.385-4.365-9.75-9.75-9.75Z" clipRule="evenodd" />
+    </svg>
+);
+
 // Helper per formattare la data locale YYYY-MM-DD
 const formatDateKey = (date: Date) => {
     const y = date.getFullYear();
@@ -74,7 +81,8 @@ const DiaryView: React.FC<DiaryViewProps> = ({
     onMassUpdatePlannedWorkouts, 
     onOpenTrackChat, 
     initialSelectedWorkoutId,
-    onCheckAiAccess
+    onCheckAiAccess,
+    onStartWorkout // New prop
 }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedWorkoutId, setSelectedWorkoutId] = useState<string | null>(initialSelectedWorkoutId || null);
@@ -86,6 +94,7 @@ const DiaryView: React.FC<DiaryViewProps> = ({
     // Popup Meteo State
     const [selectedWeather, setSelectedWeather] = useState<{ weather: CalendarWeather, date: Date } | null>(null);
 
+    // ... (rest of logic: useEffects, fetchWeather, etc.) ...
     // Load global chat history to identify dates with messages
     useEffect(() => {
         const fetchGlobalChatDates = async () => {
@@ -144,7 +153,6 @@ const DiaryView: React.FC<DiaryViewProps> = ({
     useEffect(() => {
         if (initialSelectedWorkoutId) {
             setSelectedWorkoutId(initialSelectedWorkoutId);
-            // Optionally, switch to the month of the workout
             const workout = plannedWorkouts.find(w => w.id === initialSelectedWorkoutId);
             if (workout) {
                 setCurrentDate(new Date(workout.date));
@@ -181,7 +189,7 @@ const DiaryView: React.FC<DiaryViewProps> = ({
 
         for (let i = 1; i <= daysInMonth; i++) {
             const date = new Date(year, month, i);
-            const dateStr = formatDateKey(date); // Use local formatter to match weather service keys
+            const dateStr = formatDateKey(date);
             
             const dayTracks = tracks.filter(t => {
                 const d = t.points[0].time;
@@ -232,6 +240,7 @@ const DiaryView: React.FC<DiaryViewProps> = ({
 
     return (
         <div className="absolute inset-0 z-[2000] bg-slate-900 flex flex-col font-sans text-white animate-fade-in overflow-hidden">
+            {/* Header ... */}
             <header className="flex items-center justify-between p-2 sm:p-4 bg-slate-800 border-b border-slate-700 shadow-md flex-shrink-0 z-10">
                 <div className="flex items-center space-x-2 sm:space-x-6">
                     <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors flex items-center gap-1 font-bold text-sm sm:text-base">
@@ -273,6 +282,7 @@ const DiaryView: React.FC<DiaryViewProps> = ({
                 </div>
             </header>
 
+            {/* Grid & Content */}
             <div className="flex-grow flex flex-col overflow-hidden relative">
                 <div className="flex-grow flex flex-col overflow-hidden">
                     <div className="grid grid-cols-7 bg-slate-800 border-b border-slate-700 flex-shrink-0">
@@ -375,7 +385,6 @@ const DiaryView: React.FC<DiaryViewProps> = ({
                             <button onClick={() => setShowAiCoach(false)} className="text-slate-500 hover:text-white transition-colors">&times;</button>
                         </header>
                         <div className="flex-grow overflow-hidden relative">
-                            {/* Pass layoutMode="horizontal" to display cards in a row */}
                             <AiTrainingCoachPanel 
                                 userProfile={userProfile} 
                                 allHistory={tracks} 
@@ -444,23 +453,38 @@ const DiaryView: React.FC<DiaryViewProps> = ({
                                     </button>
                                 </div>
                             ) : (
-                                <div className="mb-4">
+                                <div className="space-y-3 mb-6">
+                                    {/* NUOVO PULSANTE AVVIA COACH */}
+                                    {onStartWorkout && (
+                                        <button 
+                                            onClick={() => {
+                                                if (onCheckAiAccess && !onCheckAiAccess()) return;
+                                                onStartWorkout(currentSelectedWorkout);
+                                                setSelectedWorkoutId(null);
+                                            }}
+                                            className="w-full bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white font-black py-4 rounded-xl shadow-xl transition-all active:scale-95 flex items-center justify-center gap-3 border border-white/10"
+                                        >
+                                            <HeadsetIcon />
+                                            AVVIA COACH VOCALE
+                                        </button>
+                                    )}
+
                                     <button 
                                         onClick={() => setShowRescheduleModal(true)}
-                                        className="w-full bg-slate-700 hover:bg-cyan-600 hover:text-white text-cyan-400 font-bold py-2 rounded-lg border border-cyan-500/30 transition-colors text-xs flex items-center justify-center gap-2"
+                                        className="w-full bg-slate-700 hover:bg-slate-600 text-cyan-400 font-bold py-3 rounded-xl border border-cyan-500/30 transition-colors text-xs flex items-center justify-center gap-2"
                                     >
                                         <SparklesIcon /> Sposta con AI
                                     </button>
                                 </div>
                             )}
 
-                            <div className="flex gap-3">
+                            <div className="flex gap-3 pt-4 border-t border-slate-700">
                                 <button 
                                     onClick={() => {
                                         onDeletePlannedWorkout?.(currentSelectedWorkout.id);
                                         setSelectedWorkoutId(null);
                                     }}
-                                    className="flex-1 py-3 bg-red-900/20 text-red-400 border border-red-900/30 rounded-lg hover:bg-red-900/40 transition-colors font-bold text-sm"
+                                    className="flex-1 py-3 bg-red-900/10 text-red-400 border border-red-900/30 rounded-lg hover:bg-red-900/30 transition-colors font-bold text-sm"
                                 >
                                     Rimuovi
                                 </button>

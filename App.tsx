@@ -33,6 +33,7 @@ import ResizablePanel from './components/ResizablePanel';
 import RaceGapChart from './components/RaceGapChart'; 
 import WorkoutConfirmationModal from './components/WorkoutConfirmationModal'; 
 import InstallPromptModal from './components/InstallPromptModal'; 
+import LiveCoachScreen from './components/LiveCoachScreen'; 
 
 import { 
     saveTracksToDB, loadTracksFromDB, 
@@ -65,7 +66,7 @@ const App: React.FC = () => {
     // States for startup flow
     const [showSplash, setShowSplash] = useState(() => !sessionStorage.getItem(SESSION_ACTIVE_KEY));
     const [showInfographic, setShowInfographic] = useState(false); 
-    const [isAppReady, setIsAppReady] = useState(false); // NEW: Tracks if background loading is done
+    const [isAppReady, setIsAppReady] = useState(false); 
     
     // PWA Install State
     const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -90,6 +91,10 @@ const App: React.FC = () => {
     const [stravaAutoModal, setStravaAutoModal] = useState(false);
     const [showStravaConfig, setShowStravaConfig] = useState(false);
     
+    // Live Coach State
+    const [showLiveCoach, setShowLiveCoach] = useState(false);
+    const [activeWorkout, setActiveWorkout] = useState<PlannedWorkout | null>(null);
+
     const [pendingWorkoutMatch, setPendingWorkoutMatch] = useState<{ track: Track, workout: PlannedWorkout } | null>(null);
 
     const [viewingTrack, setViewingTrack] = useState<Track | null>(null);
@@ -151,7 +156,6 @@ const App: React.FC = () => {
     };
 
     // --- BACKGROUND INIT & LOADING ---
-    // This runs immediately on mount, in parallel with Splash/Infographics
     useEffect(() => {
         checkSession();
     }, []);
@@ -167,6 +171,7 @@ const App: React.FC = () => {
         setShowGuide(false);
         setShowChangelog(false);
         setShowGlobalChat(false);
+        setShowLiveCoach(false); 
         setViewingTrack(null);
         setEditingTrack(null);
     }, []);
@@ -219,11 +224,9 @@ const App: React.FC = () => {
         }
     };
 
-    // --- FIX FOR MOBILE LIST BUTTON ---
     const handleOpenListFromHome = useCallback(() => {
         setShowHome(false);
         setIsSidebarOpen(true);
-        // Force reset any other view
         resetNavigation();
         pushViewState('sidebar');
     }, [resetNavigation]);
@@ -279,43 +282,33 @@ const App: React.FC = () => {
 
     useEffect(() => {
         if (!userId || userId === 'guest') return;
-        
-        console.log("Setting up Supabase Realtime subscription for user:", userId);
-
         const channel = supabase.channel('global_notifications')
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages', filter: `receiver_id=eq.${userId}` }, (payload) => {
-                console.log("Realtime: New Message", payload);
                 if (!showSocial) {
                     const msg = "Nuovo messaggio ricevuto!";
                     addToast(msg, "info");
                     sendNotification("RunCoachAI Social", "Hai ricevuto un nuovo messaggio privato.");
                 }
-                // Refresh unread count on insert
                 fetchUnreadCount();
             })
-            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'direct_messages', filter: `receiver_id=eq.${userId}` }, (payload) => {
-                // Refresh unread count on update (when read_at changes)
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'direct_messages', filter: `receiver_id=eq.${userId}` }, () => {
                 fetchUnreadCount();
             })
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'friends', filter: `user_id_2=eq.${userId}` }, (payload) => {
-                console.log("Realtime: New Friend Request", payload);
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'friends', filter: `user_id_2=eq.${userId}` }, () => {
                 const msg = "Nuova richiesta di amicizia!";
                 addToast(msg, "info");
                 fetchUnreadCount();
                 sendNotification("RunCoachAI Crew", "Qualcuno vuole aggiungerti agli amici!");
             })
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tracks' }, (payload) => {
-                // Check if track is from a friend
                 const newRecord = payload.new as { user_id: string; name: string };
                 if (friendsIdRef.current.has(newRecord.user_id)) {
-                    console.log("Realtime: New Friend Track", payload);
                     const msg = `Un amico ha caricato una nuova corsa: ${newRecord.name}`;
                     addToast(msg, "info");
                     sendNotification("Feed Attività", `${newRecord.name} è appena stata caricata.`);
                 }
             })
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'social_group_members', filter: `user_id=eq.${userId}` }, async (payload) => {
-                console.log("Realtime: New Group Invite/Join", payload);
                 const newMember = payload.new as any;
                 const { data: groupData } = await supabase.from('social_groups').select('name').eq('id', newMember.group_id).single();
                 const groupName = groupData?.name || 'un gruppo';
@@ -323,20 +316,9 @@ const App: React.FC = () => {
                 addToast(msg, "success");
                 sendNotification("Nuovo Gruppo", msg);
             })
-            .subscribe((status) => {
-                if (status === 'SUBSCRIBED') {
-                    console.log("✅ Supabase Realtime connected!");
-                } else if (status === 'CHANNEL_ERROR') {
-                    console.error("❌ Supabase Realtime connection error.");
-                } else if (status === 'TIMED_OUT') {
-                    console.warn("⚠️ Supabase Realtime timed out.");
-                }
-            });
+            .subscribe();
 
-        return () => { 
-            console.log("Cleaning up Supabase subscription");
-            supabase.removeChannel(channel); 
-        };
+        return () => { supabase.removeChannel(channel); };
     }, [userId, showSocial, fetchUnreadCount]);
 
     const saveLayoutPrefs = (newPrefs: Partial<{ desktopSidebar: number, mobileListRatio: number }>) => {
@@ -429,14 +411,27 @@ const App: React.FC = () => {
         setShowInfographic(false);
         sessionStorage.setItem(SESSION_ACTIVE_KEY, 'true'); 
         
-        // After Splash, determine where to go based on session state
-        // If session exists, HomeModal will show. If not, AuthSelection.
         if (userId) {
             setShowHome(true);
             setShowAuthSelection(false);
         } else {
             setShowAuthSelection(true);
         }
+    };
+
+    // Live Coach Handlers
+    const startLiveCoach = (workout: PlannedWorkout | null) => {
+        // Se workout è nullo, è una corsa libera. Altrimenti è strutturata.
+        setActiveWorkout(workout);
+        setShowHome(false); // Chiudi home se aperta
+        setShowDiary(false); // Chiudi diario se aperto
+        setShowLiveCoach(true);
+    };
+
+    const handleLiveCoachFinish = (durationMs: number) => {
+        addToast(`Allenamento completato! Durata: ${(durationMs/60000).toFixed(0)} min.`, "success");
+        setShowLiveCoach(false);
+        setActiveWorkout(null);
     };
 
     const checkAndPromptWorkoutMatch = (newTracks: Track[]) => {
@@ -487,7 +482,9 @@ const App: React.FC = () => {
     };
 
     const cancelWorkoutMatch = () => {
-        setPendingWorkoutMatch(null);
+        if (pendingWorkoutMatch) {
+            setPendingWorkoutMatch(null);
+        }
     };
 
     const runAutoStravaSync = async (currentTracks: Track[]) => {
@@ -514,12 +511,11 @@ const App: React.FC = () => {
     };
 
     const checkSession = async () => {
-        // Safety timeout to prevent infinite loading state if supabase or network hangs
         const safetyTimer = setTimeout(() => {
             console.warn("Session check timed out - forcing ready state");
             setIsAppReady(true);
             setIsDataLoading(false);
-        }, 5000); // 5 seconds max wait
+        }, 5000); 
 
         setIsDataLoading(true);
         try {
@@ -527,18 +523,12 @@ const App: React.FC = () => {
             if (session) {
                 setUserId(session.user.id);
                 setIsGuest(false);
-                
-                // Track app open - Update timestamp on profile
                 updatePresence(session.user.id);
-
-                // Start loading in background, show home logic will happen in handleInfographicNext or immediately if no splash
                 await loadData();
             } else {
-                // Not logged in yet
                 setIsAppReady(true);
             }
         } catch (e) {
-            // Error checking session, assume not logged in but ready to show Auth
             console.error("Session check error", e);
             setIsAppReady(true);
         } finally {
@@ -568,7 +558,6 @@ const App: React.FC = () => {
             });
 
             if (duplicatesFound > 0) {
-                // Clean up duplicates if found
                 await saveTracksToDB(uniqueTracks);
             }
 
@@ -591,17 +580,13 @@ const App: React.FC = () => {
 
             setPlannedWorkouts(uniqueWorkouts);
 
-            // Auto-Import from Strava Logic
-            // Must check if profile has it enabled AND if connected
             if (loadedProfile?.stravaAutoSync && isStravaConnected()) {
                 await runAutoStravaSync(uniqueTracks);
             }
 
         } catch (e: any) {
-            // Fail silently/gracefully
             console.warn("Error loading data", e);
         } finally {
-            // Signal that background loading is complete
             setIsAppReady(true);
         }
     };
@@ -914,7 +899,6 @@ const App: React.FC = () => {
 
     if (showSplash) return <SplashScreen onFinish={handleSplashFinish} />;
     
-    // PWA INSTALL MODAL (Shown before infographics if needed)
     if (showInstallPrompt) return (
         <InstallPromptModal 
             onInstall={handlePwaInstall} 
@@ -923,7 +907,6 @@ const App: React.FC = () => {
         />
     );
 
-    // Pass 'isReady' prop to control button appearance
     if (showInfographic) return <InfographicScreen isLoading={!isAppReady} onNext={handleInfographicNext} />;
 
     return (
@@ -931,12 +914,20 @@ const App: React.FC = () => {
             <ToastContainer toasts={toasts} setToasts={setToasts} />
             <ReminderNotification entries={todayEntries} />
 
-            {/* General Loading Overlay (Non-blocking usually, but for specific actions) */}
             {isDataLoading && !showInfographic && (
                 <div className="fixed inset-0 z-[99999] bg-slate-950/80 flex flex-col items-center justify-center">
                     <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mb-4"></div>
                     <p className="text-cyan-400 font-bold uppercase animate-pulse">Elaborazione...</p>
                 </div>
+            )}
+
+            {/* LIVE COACH SCREEN */}
+            {showLiveCoach && (
+                <LiveCoachScreen 
+                    workout={activeWorkout}
+                    onFinish={handleLiveCoachFinish}
+                    onExit={() => { setShowLiveCoach(false); setActiveWorkout(null); }}
+                />
             )}
 
             {showAuthSelection && <AuthSelectionModal onGuest={() => { setIsGuest(true); setUserId('guest'); setShowAuthSelection(false); setShowHome(true); }} onLogin={() => setShowLoginModal(true)} />}
@@ -954,7 +945,7 @@ const App: React.FC = () => {
                     onOpenDiary={() => toggleView('diary')}
                     onOpenExplorer={() => toggleView('explorer')}
                     onOpenHelp={() => toggleView('guide')}
-                    onOpenList={handleOpenListFromHome} // Pass explicit handler for mobile
+                    onOpenList={handleOpenListFromHome}
                     onOpenStravaConfig={() => {
                         if (isStravaConnected()) {
                             setShowStravaSyncOptions(true);
@@ -994,10 +985,20 @@ const App: React.FC = () => {
                     onEnterRaceMode={openRaceSetup}
                     trackCount={tracks.length}
                     userProfile={userProfile}
-                    // Passaggio props per Social Hub
                     onOpenSocial={() => toggleView('social')}
                     unreadCount={unreadMessages}
                     onlineCount={onlineFriendsCount}
+                    plannedWorkouts={plannedWorkouts} 
+                    onOpenWorkout={(id) => { 
+                        // If user clicks a workout in Home, go to Diary with that ID selected
+                        // But wait, HomeModal doesn't render Diary. 
+                        // We must close Home, open Diary, and select the workout.
+                        setShowHome(false);
+                        setShowDiary(true);
+                        // We need a mechanism to select the workout in DiaryView. 
+                        // Currently DiaryView doesn't accept an initial selection prop.
+                        // I will add it in step 2.
+                    }}
                 />
             )}
 
@@ -1039,10 +1040,8 @@ const App: React.FC = () => {
                 />
             )}
 
-            {/* ... Rest of components ... */}
             {!showHome && !showAuthSelection && !showInfographic && (
                 <div className="flex-grow flex flex-col lg:flex-row overflow-hidden relative">
-                    {/* ... Map and Sidebar logic remains same ... */}
                     {isRacing ? (
                         <div className="w-full h-full flex flex-col bg-slate-900">
                             <div className="flex-grow relative bg-slate-900 overflow-hidden">
@@ -1090,7 +1089,7 @@ const App: React.FC = () => {
                                         tracks={tracks} visibleTrackIds={mapVisibleIds} raceRunners={raceRunners}
                                         isAnimationPlaying={false} fitBoundsCounter={fitBoundsCounter}
                                         runnerSpeeds={new Map()} hoveredTrackId={hoveredTrackId}
-                                        onToggleFullScreen={() => setIsSidebarOpen(true)} // Torna alla sidebar
+                                        onToggleFullScreen={() => setIsSidebarOpen(true)} 
                                         isFullScreen={true}
                                     />
                                 </div>
@@ -1192,8 +1191,7 @@ const App: React.FC = () => {
                 </div>
             )}
 
-            {/* GLOBAL MOBILE DOCK */}
-            {!isDesktop && !showSplash && !showInfographic && !showHome && !showInstallPrompt && !showAuthSelection && !showLoginModal && (
+            {!isDesktop && !showSplash && !showInfographic && !showHome && !showInstallPrompt && !showAuthSelection && !showLoginModal && !showLiveCoach && (
                 <div className="fixed bottom-0 left-0 right-0 z-[12000] bg-slate-950 border-t border-slate-800 pb-safe">
                     <NavigationDock 
                         onOpenSidebar={() => { setIsSidebarOpen(true); pushViewState('sidebar'); }} 
@@ -1210,7 +1208,6 @@ const App: React.FC = () => {
                 </div>
             )}
 
-            {/* Other Modals... (no changes needed) */}
             {showRaceSetup && (
                 <RaceSetupModal 
                     tracks={tracks}
@@ -1234,6 +1231,7 @@ const App: React.FC = () => {
                     workout={pendingWorkoutMatch.workout}
                     onConfirm={confirmWorkoutMatch}
                     onCancel={cancelWorkoutMatch}
+                    onStartLiveCoach={() => startLiveCoach(pendingWorkoutMatch.workout)} // Nuova callback
                 />
             )}
 
@@ -1268,6 +1266,7 @@ const App: React.FC = () => {
                             onAddPlannedWorkout={handleAddPlannedWorkout} onUpdatePlannedWorkout={handleUpdatePlannedWorkout} 
                             onDeletePlannedWorkout={handleDeletePlannedWorkout}
                             onCheckAiAccess={onCheckAiAccess}
+                            onStartWorkout={startLiveCoach} // New prop
                         />
                     </div>
                 </div>

@@ -6,6 +6,7 @@ interface WorkoutConfirmationModalProps {
     workout: PlannedWorkout;
     onConfirm: () => void;
     onCancel: () => void;
+    onStartLiveCoach?: () => void; // New optional prop
 }
 
 const CalendarIcon = () => (
@@ -14,7 +15,13 @@ const CalendarIcon = () => (
     </svg>
 );
 
-const WorkoutConfirmationModal: React.FC<WorkoutConfirmationModalProps> = ({ workout, onConfirm, onCancel }) => {
+const HeadsetIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 mr-2">
+        <path fillRule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75v5.25c0 .621.504 1.125 1.125 1.125h2.25c1.243 0 2.25-1.007 2.25-2.25v-4.5c0-1.243-1.007-2.25-2.25-2.25h-1.5v-2.625a7.5 7.5 0 0 1 15 0v2.625h-1.5c-1.243 0-2.25 1.007-2.25 2.25v4.5c0 1.243 1.007 2.25 2.25 2.25h2.25c.621 0 1.125-.504 1.125-1.125v-5.25c0-5.385-4.365-9.75-9.75-9.75Z" clipRule="evenodd" />
+    </svg>
+);
+
+const WorkoutConfirmationModal: React.FC<WorkoutConfirmationModalProps> = ({ workout, onConfirm, onCancel, onStartLiveCoach }) => {
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-fade-in">
             <div className="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl max-w-md w-full p-6 text-center">
@@ -24,7 +31,7 @@ const WorkoutConfirmationModal: React.FC<WorkoutConfirmationModalProps> = ({ wor
                 
                 <h3 className="text-xl font-black text-white mb-2 uppercase tracking-tight">Allenamento Trovato</h3>
                 <p className="text-slate-400 text-sm mb-6">
-                    Per la data di questa corsa c'è un allenamento pianificato nel diario. Corrisponde a questa uscita?
+                    Per la data di questa corsa c'è un allenamento pianificato nel diario.
                 </p>
 
                 <div className="bg-slate-700/50 rounded-xl p-4 mb-6 border border-slate-600 text-left">
@@ -34,6 +41,15 @@ const WorkoutConfirmationModal: React.FC<WorkoutConfirmationModalProps> = ({ wor
                     </div>
                     <p className="text-slate-300 text-sm italic line-clamp-3">"{workout.description}"</p>
                 </div>
+
+                {onStartLiveCoach && (
+                    <button 
+                        onClick={onStartLiveCoach}
+                        className="w-full mb-4 bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-xl uppercase tracking-widest text-xs flex items-center justify-center shadow-lg active:scale-95 transition-all"
+                    >
+                        <HeadsetIcon /> Avvia Coach Vocale (Live)
+                    </button>
+                )}
 
                 <div className="flex gap-3">
                     <button 
@@ -46,7 +62,7 @@ const WorkoutConfirmationModal: React.FC<WorkoutConfirmationModalProps> = ({ wor
                         onClick={onConfirm}
                         className="flex-1 py-3 px-4 rounded-xl font-bold text-sm bg-cyan-600 text-white hover:bg-cyan-500 shadow-lg shadow-cyan-900/20 transition-all active:scale-95"
                     >
-                        Sì, Analizza Esecuzione
+                        Abbina e Salva
                     </button>
                 </div>
             </div>
