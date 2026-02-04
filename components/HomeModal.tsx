@@ -276,7 +276,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
                                 </button>
                                 <button onClick={isGuest ? onLogin : onLogout} className="bg-slate-800/60 hover:bg-red-900/20 border border-slate-700 hover:border-red-900/50 rounded-xl md:rounded-2xl p-2 md:p-3 flex flex-col items-center justify-center gap-1 transition-colors group">
                                     <span className="text-red-400"><LogoutIcon /></span> 
-                                    <span className="text-[8px] md:text-[9px] font-bold uppercase text-slate-400 group-hover:text-red-400">{isGuest ? 'Login' : 'Esci'}</span>
+                                    <span className="text-[8px] md:text-[9px] font-bold uppercase text-slate-400 group-hover:text-red-400">{isGuest ? 'Login' : 'Logout'}</span>
                                 </button>
                                 {onManualCloudSave && !isGuest && (
                                     <button onClick={onManualCloudSave} className="hidden md:flex bg-slate-800/60 hover:bg-green-900/20 border border-slate-700 hover:border-green-900/50 rounded-xl md:rounded-2xl p-2 md:p-3 flex-col items-center justify-center gap-1 transition-colors group">
