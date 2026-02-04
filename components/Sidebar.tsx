@@ -13,6 +13,7 @@ const MergeIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20
 const FolderIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M2 4.75A2.75 2.75 0 0 1 4.75 2h3.185a.75.75 0 0 1 .53.22l2.25 2.25a.75.75 0 0 0 .53.22h4.005A2.75 2.75 0 0 1 18 7.64v7.61a2.75 2.75 0 0 1-2.75 2.75H4.75A2.75 2.75 0 0 1 2 15.25V4.75Z" /></svg>);
 const FlagIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M3.5 2A1.5 1.5 0 0 0 2 3.5V15a3 3 0 1 0 6 0V3.5A1.5 1.5 0 0 0 6.5 2h-3Zm11.753 3.29a1 1 0 0 0-1.242-.92l-4.215.91a4.5 4.5 0 0 1-1.796 0l-.603-.13a3 3 0 0 0-3.627 2.112l-.028.113c-.308 1.23.473 2.453 1.726 2.657l.012.002.493.08a4.5 4.5 0 0 1 1.93 5.432l.06-.239c.29-1.157 1.492-1.874 2.645-1.577l4.331 1.116a1 1 0 0 0 1.229-1.233l-.915-8.325Z" clipRule="evenodd" /></svg>);
 const CloseIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" /></svg>);
+const ShareIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path d="M13 12a3 3 0 1 1-2.5 1.34l-3.15-1.92a3 3 0 1 1 0-2.83l3.15-1.92a3.001 3.001 0 0 1 5 1.33Z" /></svg>);
 
 const StarIcon = ({ filled }: { filled: boolean }) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill={filled ? "#fbbf24" : "currentColor"} className={`w-4 h-4 ${filled ? 'text-amber-400' : 'text-slate-500 hover:text-amber-300'}`}>
@@ -191,6 +192,8 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                         </div>
                         {groupTracks.map(track => {
                             const isStrava = track.id.startsWith('strava-') || track.tags?.includes('Strava');
+                            const isShared = (track.sharedWithUsers && track.sharedWithUsers.length > 0) || (track.sharedWithGroups && track.sharedWithGroups.length > 0) || track.isPublic;
+                            
                             return (
                                 <div key={track.id} className={`flex items-center p-2 hover:bg-slate-800 transition-all group ${focusedTrackId === track.id ? 'bg-slate-800/80 border-l-2 border-cyan-500' : ''} ${track.isFavorite ? 'ring-1 ring-amber-500/20 ring-inset' : ''}`}>
                                     <input type="checkbox" checked={raceSelectionIds.has(track.id)} onChange={() => onToggleRaceSelection(track.id)} className="mr-2 accent-cyan-500 cursor-pointer" />
@@ -206,6 +209,11 @@ const Sidebar: React.FC<SidebarProps> = (props) => {
                                             <div className={`text-[11px] font-bold truncate ${track.isArchived ? 'text-purple-300' : 'group-hover:text-cyan-400'}`}>{track.name}</div>
                                             {isStrava && <StravaSmallIcon />}
                                             {track.isFavorite && <StarIcon filled={true} />}
+                                            {isShared && (
+                                                <Tooltip text="Condivisa">
+                                                    <span className="text-blue-400 ml-1"><ShareIcon /></span>
+                                                </Tooltip>
+                                            )}
                                         </div>
                                         <div className="text-[9px] text-slate-500 font-mono flex items-center gap-1">
                                             {track.distance.toFixed(1)}km • {track.points?.[0]?.time ? new Date(track.points[0].time).toLocaleDateString() : 'N/A'}
