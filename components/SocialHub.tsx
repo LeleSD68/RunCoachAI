@@ -154,6 +154,7 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
         setLoading(true);
         await acceptFriendRequest(reqId);
         loadData();
+        if (onReadMessages) onReadMessages();
     };
 
     const handleReject = async (reqId: string) => {
@@ -161,6 +162,7 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
             setLoading(true);
             await rejectFriendRequest(reqId);
             loadData();
+            if (onReadMessages) onReadMessages();
         }
     };
 
@@ -448,6 +450,7 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
                     currentUser={{ id: currentUserId }} 
                     friend={activeChatFriend} 
                     onClose={() => setActiveChatFriend(null)} 
+                    onMessagesRead={onReadMessages}
                 />
             )}
         </div>
