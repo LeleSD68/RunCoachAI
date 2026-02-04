@@ -27,16 +27,17 @@ export const getWeatherIcon = (code: number): string => {
     return '❓';
 };
 
-const formatDate = (date: Date): string => {
-    return date.toISOString().split('T')[0];
+// Utilizza data locale YYYY-MM-DD per evitare disallineamenti UTC
+const formatDateLocal = (date: Date): string => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
 };
 
 interface WeatherCache {
     [key: string]: CalendarWeather;
 }
-
-// Simple in-memory cache to avoid rate limits
-const weatherCache: WeatherCache = {};
 
 export const fetchMonthWeather = async (
     year: number, 
@@ -46,32 +47,33 @@ export const fetchMonthWeather = async (
 ): Promise<Record<string, CalendarWeather>> => {
     const results: Record<string, CalendarWeather> = {};
     
-    // Calculate date range for the month
-    const startDate = new Date(year, month, 1);
-    const endDate = new Date(year, month + 1, 0); // Last day of month
+    // Range del mese richiesto
+    const monthStart = new Date(year, month, 1);
+    const monthEnd = new Date(year, month + 1, 0); 
     
+    // Oggi (reset ore)
     const today = new Date();
     today.setHours(0,0,0,0);
 
-    const startStr = formatDate(startDate);
-    const endStr = formatDate(endDate);
-    const todayStr = formatDate(today);
-
-    // 1. HISTORICAL DATA (Past -> Yesterday)
-    // Open-Meteo Historical API is free
-    if (startDate < today) {
-        const historyEnd = endDate < today ? endDate : new Date(today.getTime() - 86400000);
-        const historyEndStr = formatDate(historyEnd);
+    // 1. DATI STORICI (Dall'inizio del mese fino a ieri)
+    if (monthStart < today) {
+        // La storia finisce ieri o alla fine del mese (se il mese è passato)
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
         
-        // Only fetch if range is valid
-        if (startDate <= historyEnd) {
+        const historyEnd = monthEnd < yesterday ? monthEnd : yesterday;
+        
+        if (monthStart <= historyEnd) {
             try {
-                const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${startStr}&end_date=${historyEndStr}&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto`;
+                const startStr = formatDateLocal(monthStart);
+                const endStr = formatDateLocal(historyEnd);
+                
+                const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${startStr}&end_date=${endStr}&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto`;
                 
                 const res = await fetch(url);
                 const data = await res.json();
                 
-                if (data.daily) {
+                if (data.daily && data.daily.time) {
                     data.daily.time.forEach((d: string, i: number) => {
                         results[d] = {
                             dateStr: d,
@@ -89,28 +91,40 @@ export const fetchMonthWeather = async (
         }
     }
 
-    // 2. FORECAST DATA (Today -> Future)
-    // Open-Meteo Forecast API (up to 16 days usually free)
-    if (endDate >= today) {
+    // 2. PREVISIONI (Da oggi al futuro)
+    // Se il mese richiesto include giorni futuri
+    if (monthEnd >= today) {
         try {
-            // Fetch forecast from today
-            const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&start_date=${todayStr}&end_date=${endStr}`;
-            
-            const res = await fetch(url);
-            const data = await res.json();
+            // Calcolo orizzonte massimo previsioni (max 15 giorni da oggi per API free)
+            const maxForecastDate = new Date(today);
+            maxForecastDate.setDate(today.getDate() + 15);
 
-            if (data.daily) {
-                data.daily.time.forEach((d: string, i: number) => {
-                    // Only overwrite if we don't have it (though forecast should take priority for today/future)
-                    results[d] = {
-                        dateStr: d,
-                        maxTemp: data.daily.temperature_2m_max[i],
-                        minTemp: data.daily.temperature_2m_min[i],
-                        weatherCode: data.daily.weather_code[i],
-                        icon: getWeatherIcon(data.daily.weather_code[i]),
-                        isForecast: true
-                    };
-                });
+            // L'intervallo di richiesta è l'intersezione tra [monthStart, monthEnd] e [today, maxForecastDate]
+            const reqStart = monthStart > today ? monthStart : today;
+            const reqEnd = monthEnd < maxForecastDate ? monthEnd : maxForecastDate;
+
+            if (reqStart <= reqEnd) {
+                const startStr = formatDateLocal(reqStart);
+                const endStr = formatDateLocal(reqEnd);
+
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&start_date=${startStr}&end_date=${endStr}`;
+                
+                const res = await fetch(url);
+                const data = await res.json();
+
+                if (data.daily && data.daily.time) {
+                    data.daily.time.forEach((d: string, i: number) => {
+                        // Sovrascrivi se esiste (il forecast è più aggiornato per oggi)
+                        results[d] = {
+                            dateStr: d,
+                            maxTemp: data.daily.temperature_2m_max[i],
+                            minTemp: data.daily.temperature_2m_min[i],
+                            weatherCode: data.daily.weather_code[i],
+                            icon: getWeatherIcon(data.daily.weather_code[i]),
+                            isForecast: true
+                        };
+                    });
+                }
             }
         } catch (e) {
             console.warn("Weather forecast fetch failed", e);
