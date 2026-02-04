@@ -500,6 +500,10 @@ const App: React.FC = () => {
             if (session) {
                 setUserId(session.user.id);
                 setIsGuest(false);
+                
+                // Track app open - Update timestamp on profile
+                updatePresence(session.user.id);
+
                 // Start loading in background, show home logic will happen in handleInfographicNext or immediately if no splash
                 await loadData();
             } else {

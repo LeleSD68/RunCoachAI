@@ -238,6 +238,15 @@ export interface Weather {
   condition: string;
 }
 
+export interface CalendarWeather {
+    dateStr: string; // YYYY-MM-DD
+    maxTemp: number;
+    minTemp: number;
+    weatherCode: number;
+    icon: string; // Emoji
+    isForecast: boolean;
+}
+
 export interface PersonalRecord {
   distance: number;
   time: number;
