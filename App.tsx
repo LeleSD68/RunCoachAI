@@ -45,7 +45,7 @@ import {
 import { supabase } from './services/supabaseClient';
 import { handleStravaCallback, fetchStravaActivitiesMetadata, isStravaConnected } from './services/stravaService';
 import { getTrackStateAtTime, mergeTracks } from './services/trackEditorUtils';
-import { getApiUsage, trackUsage, addTokensToUsage } from './services/usageService';
+import { getApiUsage, trackUsage, addTokensToUsage, checkDailyLimit, incrementDailyLimit, getRemainingCredits, LIMITS } from './services/usageService';
 import { parseGpx } from './services/gpxService';
 import { parseTcx } from './services/tcxService';
 import { generateSmartTitle } from './services/titleGenerator';
@@ -61,7 +61,7 @@ const App: React.FC = () => {
     const [plannedWorkouts, setPlannedWorkouts] = useState<PlannedWorkout[]>([]);
     const [userProfile, setUserProfile] = useState<UserProfile>({ autoAnalyzeEnabled: true });
     const [toasts, setToasts] = useState<Toast[]>([]);
-    const [usage, setUsage] = useState<ApiUsage>({ requests: 0, tokens: 0, lastReset: '' });
+    const [usage, setUsage] = useState<ApiUsage>({ requests: 0, tokens: 0, lastReset: '', dailyCounts: { workout: 0, analysis: 0, chat: 0 } });
     
     // States for startup flow
     const [showSplash, setShowSplash] = useState(() => !sessionStorage.getItem(SESSION_ACTIVE_KEY));
@@ -373,13 +373,29 @@ const App: React.FC = () => {
         setToasts(prev => [...prev, { id, message, type }]);
     };
 
-    const onCheckAiAccess = useCallback(() => {
-        if (isGuest) {
+    const onCheckAiAccess = useCallback((feature: 'workout' | 'analysis' | 'chat' = 'chat') => {
+        if (!isGuest) return true;
+
+        if (!checkDailyLimit(feature)) {
             setAuthLimitReached(true);
             setShowLoginModal(true);
+            // Non usiamo alert qui, il LoginModal ha un messaggio specifico
             return false;
         }
-        return true;
+
+        const remaining = getRemainingCredits();
+        let message = '';
+        if (feature === 'workout') message = `Vuoi generare un allenamento?\nHai ancora ${remaining.workout} generazione/i oggi.`;
+        if (feature === 'analysis') message = `Vuoi analizzare questa corsa?\nHai ancora ${remaining.analysis} analisi completa/e oggi.`;
+        if (feature === 'chat') message = `Vuoi parlare con il coach?\nHai ancora ${remaining.chat} messaggi disponibili oggi.`;
+
+        if (confirm(`MODALITÀ OSPITE\n\n${message}\n\nConfermi l'uso del credito?`)) {
+            incrementDailyLimit(feature);
+            setUsage(getApiUsage()); // Aggiorna stato
+            return true;
+        }
+        
+        return false;
     }, [isGuest]);
 
     useEffect(() => {
@@ -1312,6 +1328,7 @@ const App: React.FC = () => {
                         isStandalone={true}
                         onAddPlannedWorkout={handleAddPlannedWorkout}
                         plannedWorkouts={plannedWorkouts}
+                        onCheckAiAccess={() => onCheckAiAccess('chat')}
                     />
                 </div>
             )}
