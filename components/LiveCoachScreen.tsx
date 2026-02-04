@@ -16,9 +16,12 @@ interface TrainingPhase {
 
 const speak = (text: string) => {
     if (!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
+    window.speechSynthesis.cancel(); // Interrompe frasi precedenti
     
-    const utterance = new SpeechSynthesisUtterance(text);
+    // Pulizia testo per lettura migliore (rimuove markdown e caratteri strani)
+    const cleanText = text.replace(/\*\*/g, '').replace(/[-]/g, ' ').trim();
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.lang = 'it-IT';
     utterance.rate = 1.0; 
     utterance.pitch = 1.0;
@@ -51,27 +54,24 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
         let generatedPhases: TrainingPhase[] = [];
 
         if (workout) {
-            // Se c'è una struttura testuale semplice, usiamola
-            // Altrimenti default standard
-            // Esempio parsing semplice: cerchiamo di capire se è una gara o un lavoro specifico
+            // Struttura base: Riscaldamento -> Lavoro -> Defaticamento
             
             if (workout.activityType === 'Gara') {
                 generatedPhases = [
-                    { name: "Riscaldamento Gara", duration: 900, type: 'warmup' }, // 15 min
+                    { name: "Riscaldamento", duration: 900, type: 'warmup' }, // 15 min
                     { name: `GARA: ${workout.title}`, duration: 0, type: 'work' },
                     { name: "Defaticamento", duration: 300, type: 'cooldown' }
                 ];
-            } else if (workout.activityType === 'Ripetute' || workout.activityType === 'Fartlek') {
-                // Generico per lavori: Riscaldamento + Lavoro Centrale + Defaticamento
+            } else if (['Ripetute', 'Fartlek', 'Lungo', 'Medio'].includes(workout.activityType)) {
                 generatedPhases = [
-                    { name: "Riscaldamento", duration: 600, type: 'warmup' },
+                    { name: "Riscaldamento", duration: 600, type: 'warmup' }, // 10 min default
                     { name: workout.title, duration: 0, type: 'work' },
                     { name: "Defaticamento", duration: 300, type: 'cooldown' }
                 ];
             } else {
-                // Lenti, Lunghi, ecc.
+                // Lenti o altro
                 generatedPhases = [
-                    { name: workout.title, duration: 0, type: 'work' }
+                    { name: "Corsa", duration: 0, type: 'work' }
                 ];
             }
         } else {
@@ -121,73 +121,93 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
         return () => { if (timerRef.current) clearInterval(timerRef.current); };
     }, [isRunning]);
 
-    // 4. Phase Monitoring & Audio Feedback
+    // 4. Phase Monitoring & Audio Feedback - LOGICA MIGLIORATA
     useEffect(() => {
         if (!isRunning || phases.length === 0) return;
 
         const currentPhase = phases[currentPhaseIndex];
         
-        // Initial Announcement
+        // --- START OF PHASE ANNOUNCEMENTS ---
         if (phaseTime === 0) {
-            // Announce Phase
-            speak(`Fase ${currentPhaseIndex + 1}: ${currentPhase.name}.`);
             
-            // Read instructions if it's the main work phase and we have a description
-            if (currentPhase.type === 'work' && workout?.description && currentPhaseIndex === (phases.length > 1 ? 1 : 0)) {
-                // Clean markdown for speech
-                const cleanDesc = workout.description.replace(/\*\*/g, '').replace(/[\n\r]/g, '. ');
-                // Delay slightly to let the phase name sink in
-                setTimeout(() => speak(`Istruzioni: ${cleanDesc}`), 3000);
+            if (currentPhase.type === 'warmup') {
+                // Inizio Riscaldamento
+                const durationMsg = currentPhase.duration > 0 ? `per ${Math.round(currentPhase.duration / 60)} minuti.` : ".";
+                speak(`Iniziamo. Fase di riscaldamento ${durationMsg} Corri piano.`);
+            } 
+            else if (currentPhase.type === 'work') {
+                // Fine Riscaldamento -> Inizio Lavoro
+                // Qui leggiamo la descrizione completa (es: "10 ripetute da 400m")
+                let instruction = `Riscaldamento terminato. Inizia la fase centrale: ${currentPhase.name}. `;
+                
+                if (workout?.description) {
+                    // Aggiungi la descrizione specifica se presente
+                    instruction += `Ecco il programma: ${workout.description}`;
+                } else {
+                    instruction += "Segui il tuo ritmo obiettivo.";
+                }
+                speak(instruction);
             }
-
-            if (currentPhase.duration > 0) {
-                setTimeout(() => speak(`Durata: ${Math.round(currentPhase.duration / 60)} minuti.`), 2500);
+            else if (currentPhase.type === 'cooldown') {
+                // Fine Lavoro -> Inizio Defaticamento
+                const durationMsg = currentPhase.duration > 0 ? `per ${Math.round(currentPhase.duration / 60)} minuti.` : ".";
+                speak(`Ottimo lavoro, parte centrale conclusa. Ora defaticamento ${durationMsg} Corri molto lentamente.`);
+            }
+            else {
+                // Fallback generico
+                speak(`Fase: ${currentPhase.name}.`);
             }
         }
 
-        // Phase Transition Logic
+        // --- DURING PHASE FEEDBACK ---
         if (currentPhase.duration > 0) {
             const remaining = currentPhase.duration - phaseTime;
 
+            // Metà fase
             if (remaining === Math.floor(currentPhase.duration / 2) && remaining > 60) {
-                speak("Sei a metà della fase.");
+                speak("Sei a metà di questa fase.");
             }
 
-            if (remaining === 30) speak("30 secondi al termine.");
+            // Ultimi secondi
+            if (remaining === 60) speak("Un minuto al cambio.");
+            if (remaining === 10) speak("10 secondi.");
             if (remaining <= 3 && remaining > 0) speak(`${remaining}`);
 
+            // Cambio fase automatico (per le fasi a tempo)
             if (remaining <= 0) {
                 if (currentPhaseIndex < phases.length - 1) {
                     setCurrentPhaseIndex(i => i + 1);
                     setPhaseTime(0);
                 } else {
                     setIsRunning(false);
-                    speak("Allenamento terminato. Ottimo lavoro!");
+                    speak("Allenamento completato. Grande prestazione!");
                 }
             }
         }
         
-        // Periodic Feedback for open-ended phases (every 5 mins)
+        // --- FEEDBACK PERIODICO (Ogni 5 min nelle fasi libere) ---
         if (currentPhase.duration === 0 && phaseTime > 0 && phaseTime % 300 === 0) {
             const mins = phaseTime / 60;
-            speak(`${mins} minuti trascorsi.`);
+            speak(`${mins} minuti trascorsi nella fase ${currentPhase.name}.`);
         }
 
     }, [phaseTime, isRunning, phases, currentPhaseIndex, workout]);
 
     const handleToggle = () => {
-        if (!isRunning) speak(totalTime === 0 ? "Iniziamo. Buon allenamento." : "Riprendo.");
+        if (!isRunning) speak(totalTime === 0 ? "Pronto a partire." : "Riprendo.");
         else speak("Pausa.");
         setIsRunning(!isRunning);
     };
 
     const handleNextPhase = () => {
+        // Quando l'utente preme "Next", forziamo il cambio fase
         if (currentPhaseIndex < phases.length - 1) {
-            speak("Passo alla fase successiva.");
+            // Il messaggio vocale del "cosa fare dopo" sarà gestito dal phaseTime === 0 del prossimo render
             setCurrentPhaseIndex(i => i + 1);
             setPhaseTime(0);
         } else {
-            speak("Non ci sono altre fasi.");
+            speak("Non ci sono altre fasi. Allenamento finito.");
+            setIsRunning(false);
         }
     };
 
@@ -217,9 +237,11 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
                 
                 {/* Description Text (Subtitles) */}
                 {currentPhase.type === 'work' && workout?.description && (
-                    <p className="text-sm text-slate-400 text-center max-w-md line-clamp-3 mb-4 italic">
-                        "{workout.description}"
-                    </p>
+                    <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700 max-w-md w-full mb-4">
+                        <p className="text-sm text-slate-300 text-center italic leading-relaxed">
+                            "{workout.description}"
+                        </p>
+                    </div>
                 )}
                 
                 <div className="my-4 relative">
@@ -250,6 +272,7 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
                     <button 
                         onClick={handleNextPhase}
                         className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center text-white active:bg-gray-700 transition-colors border border-gray-700"
+                        title="Salta alla fase successiva"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8">
                             <path d="M5.055 7.06C3.805 6.347 2.25 7.25 2.25 8.69v8.122c0 1.44 1.555 2.343 2.805 1.628L12 14.471v2.34c0 1.44 1.555 2.343 2.805 1.628l7.108-4.061c1.26-.72 1.26-2.536 0-3.256L14.805 7.06C13.555 6.346 12 7.25 12 8.69v2.34L5.055 7.061Z" />
@@ -275,6 +298,7 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
                             onFinish(totalTime * 1000);
                         }}
                         className="w-16 h-16 rounded-full bg-red-900/30 border border-red-500/50 text-red-500 flex items-center justify-center active:bg-red-900/50 transition-colors"
+                        title="Termina e Salva"
                     >
                         <div className="w-6 h-6 bg-current rounded-sm"></div>
                     </button>
