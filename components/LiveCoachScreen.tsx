@@ -34,7 +34,15 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
 const speak = (text: string) => {
     if (!('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
-    const cleanText = text.replace(/\*\*/g, '').replace(/[-]/g, ' ').trim();
+    
+    // 1. Rimuovi caratteri speciali
+    let cleanText = text.replace(/\*\*/g, '').replace(/[-]/g, ' ').trim();
+
+    // 2. Correzione cruciale per la lettura dei tempi (Passo/Timer)
+    // Trasforma "5:40" in "5 e 40" per evitare che legga "6 meno 20" o "5 e 40 minuti"
+    // Cerca un numero (1 o 2 cifre), due punti, un numero (2 cifre)
+    cleanText = cleanText.replace(/(\d{1,2}):(\d{2})/g, '$1 e $2');
+
     const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.lang = 'it-IT';
     utterance.rate = 1.05; 
