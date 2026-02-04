@@ -1,371 +1,557 @@
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { GoogleGenAI, Chat, GenerateContentResponse } from "@google/genai";
-import { Track, UserProfile, ChatMessage, PlannedWorkout, ActivityType } from '../types';
-import { calculateTrackStats } from '../services/trackStatsService';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Track, PlannedWorkout, UserProfile, ActivityType, CalendarWeather } from '../types';
+import TrackPreview from './TrackPreview';
+import AiTrainingCoachPanel from './AiTrainingCoachPanel';
 import FormattedAnalysis from './FormattedAnalysis';
-import { getGenAI, retryWithPolicy } from '../services/aiHelper';
-import { saveChatToDB, loadChatFromDB } from '../services/dbService';
+import DiaryActionModal from './DiaryActionModal';
+import { exportToGoogleCalendar, exportToAppleCalendar, exportRangeToIcal } from '../services/calendarExportService';
+import { loadChatFromDB } from '../services/dbService';
+import WorkoutRescheduleModal from './WorkoutRescheduleModal';
+import { fetchMonthWeather } from '../services/weatherService';
+import RatingStars from './RatingStars';
+import WeatherDayPopup from './WeatherDayPopup';
 
-interface ChatbotProps {
-    tracksToAnalyze?: Track[];
+interface DiaryViewProps {
+    tracks: Track[];
+    plannedWorkouts?: PlannedWorkout[];
     userProfile: UserProfile;
     onClose: () => void;
-    isStandalone?: boolean;
+    onSelectTrack: (trackId: string) => void;
+    onDeletePlannedWorkout?: (id: string) => void;
     onAddPlannedWorkout?: (workout: PlannedWorkout) => void;
-    plannedWorkouts?: PlannedWorkout[];
+    onUpdatePlannedWorkout?: (workout: PlannedWorkout) => void; 
+    onMassUpdatePlannedWorkouts?: (workouts: PlannedWorkout[]) => void;
+    onOpenTrackChat?: (trackId: string) => void;
+    initialSelectedWorkoutId?: string | null;
+    onCheckAiAccess?: (feature: 'workout' | 'analysis' | 'chat') => boolean;
+    onStartWorkout?: (workout: PlannedWorkout) => void;
 }
 
-const GLOBAL_CHAT_ID = 'global-coach';
+const DAYS_OF_WEEK = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
 
-const SendIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-      <path d="M3.105 2.289a.75.75 0 0 0-.826.95l1.414 4.949a.75.75 0 0 0 .95.95l4.95-1.414a.75.75 0 0 0-.95-.95l-3.539 1.01-1.01-3.54a.75.75 0 0 0-.95-.826ZM12.23 7.77a.75.75 0 0 0-1.06 0l-4.25 4.25a.75.75 0 0 0 0 1.06l4.25 4.25a.75.75 0 0 0 1.06-1.06l-3.72-3.72 3.72-3.72a.75.75 0 0 0 0-1.06ZM15.5 10a.75.75 0 0 1 .75-.75h.01a.75.75 0 0 1 0 1.5H16.25a.75.75 0 0 1-.75-.75Z" />
+const SparklesIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 text-purple-400">
+        <path d="M8 1.75a.75.75 0 0 1 .75.75V4a.75.75 0 0 1-1.5 0V2.5a.75.75 0 0 1 .75-.75Z M3.25 3.25a.75.75 0 0 1 1.06 0L5.37 4.31a.75.75 0 0 1-1.06 1.06L3.25 4.31a.75.75 0 0 1 0-1.06ZM1.75 8a.75.75 0 0 1 .75-.75H4a.75.75 0 0 1 0 1.5H2.5a.75.75 0 0 1-.75-.75ZM4.31 10.63a.75.75 0 0 1 1.06 1.06L4.31 12.75a.75.75 0 0 1-1.06-1.06l1.06-1.06Z M8 12a.75.75 0 0 1 .75.75v1.75a.75.75 0 0 1-1.5 0V12.75a.75.75 0 0 1 .75-.75ZM10.63 11.69a.75.75 0 0 1 1.06-1.06l1.06 1.06a.75.75 0 0 1-1.06 1.06l-1.06-1.06ZM12 8a.75.75 0 0 1 .75.75v.01a.75.75 0 0 1-1.5 0V8.75a.75.75 0 0 1 .75-.75ZM10.69 4.31a.75.75 0 0 1 1.06 0l1.06 1.06a.75.75 0 1 1-1.06 1.06l-1.06-1.06a.75.75 0 0 1 0-1.06Z M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z" />
     </svg>
 );
 
-const TrashIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
-        <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.1499.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149-.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clipRule="evenodd" />
+const ChatBubbleIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 text-cyan-400">
+        <path fillRule="evenodd" d="M10 2c-2.236 0-4.43.18-6.57.524C1.993 2.755 1 4.014 1 5.426v5.148c0 1.413.993 2.67 2.43 2.902.848.137 1.705.248 2.57.331v3.443a.75.75 0 0 0 1.28.53l3.58-3.579a.78.78 0 0 1 .527-.224 41.202 41.202 0 0 0 5.183-.5c1.437-.232 2.43-1.49 2.43-2.903V5.426c0-1.413-.993-2.67-2.43-2.902A41.289 41.289 0 0 0 10 2Zm0 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM8 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm5 1a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd" />
     </svg>
 );
 
-const ExpandIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-        <path fillRule="evenodd" d="M3.25 3.25a.75.75 0 0 1 .75.75v3.25a.25.25 0 0 0 .25.25h3.25a.75.75 0 0 1 0 1.5H4.25A1.75 1.75 0 0 1 2.5 7.25V4a.75.75 0 0 1 .75-.75Zm13.5 0a.75.75 0 0 1 .75.75v3.25a1.75 1.75 0 0 1-1.75 1.75h-3.25a.75.75 0 0 1 0-1.5h3.25a.25.25 0 0 0 .25-.25V4a.75.75 0 0 1 .75-.75Zm-13.5 13.5a.75.75 0 0 1 .75-.75h3.25a.75.75 0 0 1 0 1.5H4.25a.25.25 0 0 0-.25.25v3.25a.75.75 0 0 1-1.5 0v-3.25a1.75 1.75 0 0 1 1.75-1.75Zm13.5 0a.75.75 0 0 1-.75.75h-3.25a.75.75 0 0 1 0-1.5h3.25a.25.25 0 0 0 .25.25v-3.25a.75.75 0 0 1 1.5 0v3.25a1.75 1.75 0 0 1-1.75 1.75Z" clipRule="evenodd" />
+const CheckIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 text-green-400">
+        <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clipRule="evenodd" />
     </svg>
 );
 
-const CollapseIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-        <path fillRule="evenodd" d="M9.75 2.5a.75.75 0 0 1 .75.75v3.25a.25.25 0 0 0 .25.25h3.25a.75.75 0 0 1 0 1.5h-3.25a1.75 1.75 0 0 1-1.75-1.75V3.25a.75.75 0 0 1 .75-.75Zm-7 7.75a.75.75 0 0 1 .75-.75h3.25a.25.25 0 0 0 .25-.25V6a.75.75 0 0 1 1.5 0v3.25a1.75 1.75 0 0 1-1.75 1.75H3.5a.75.75 0 0 1-.75-.75Zm13.5 6.5a.75.75 0 0 1 .75-.75v-3.25a1.75 1.75 0 0 1-1.75-1.75h-3.25a.75.75 0 0 1 0-1.5h3.25a.25.25 0 0 0 .25.25v3.25a.75.75 0 0 1-.75.75Zm-7-7.75a.75.75 0 0 1-.75.75H5.25a.25.25 0 0 0-.25.25v3.25a.75.75 0 0 1-1.5 0v-3.25a1.75 1.75 0 0 1 1.75-1.75h3.25a.75.75 0 0 1 .75.75Z" clipRule="evenodd" />
+const GlobeIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 text-purple-400">
+        <path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-1.5 0a6.5 6.5 0 1 1-11-4.69v.447a3.5 3.5 0 0 0 1.025 2.475L8.293 10 8 10.293a1 1 0 0 0 0 1.414l1.06 1.06a1.5 1.5 0 0 1 .44 1.061v.363a6.5 6.5 0 0 1-5.5-2.259V10a6.5 6.5 0 0 1 12.5 0Z" clipRule="evenodd" />
+        <path fillRule="evenodd" d="M9 2.5a.5.5 0 0 1 .5-.5 1 1 0 0 1 1 1 .5.5 0 0 1-.5.5h-1ZM5.5 5a.5.5 0 0 1 .5-.5 1 1 0 0 1 1 1 .5.5 0 0 1-.5.5h-1ZM14.5 13a.5.5 0 0 1 .5-.5 1 1 0 0 1 1 1 .5.5 0 0 1-.5.5h-1ZM12.5 16a.5.5 0 0 1 .5-.5 1 1 0 0 1 1 1 .5.5 0 0 1-.5.5h-1Z" clipRule="evenodd" />
     </svg>
 );
 
-const Chatbot: React.FC<ChatbotProps> = ({ tracksToAnalyze = [], userProfile, onClose, isStandalone = false, onAddPlannedWorkout, plannedWorkouts = [] }) => {
-    const [messages, setMessages] = useState<ChatMessage[]>([]);
-    const [input, setInput] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
-    const messagesEndRef = useRef<HTMLDivElement>(null);
-    const chatSessionRef = useRef<Chat | null>(null);
-    const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
-    const [isExpanded, setIsExpanded] = useState(false);
+const HeadsetIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 mr-2">
+        <path fillRule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75v5.25c0 .621.504 1.125 1.125 1.125h2.25c1.243 0 2.25-1.007 2.25-2.25v-4.5c0-1.243-1.007-2.25-2.25-2.25h-1.5v-2.625a7.5 7.5 0 0 1 15 0v2.625h-1.5c-1.243 0-2.25 1.007-2.25 2.25v4.5c0 1.243 1.007 2.25 2.25 2.25h2.25c.621 0 1.125-.504 1.125-1.125v-5.25c0-5.385-4.365-9.75-9.75-9.75Z" clipRule="evenodd" />
+    </svg>
+);
 
+// Helper per formattare la data locale YYYY-MM-DD
+const formatDateKey = (date: Date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+};
+
+const DiaryView: React.FC<DiaryViewProps> = ({ 
+    tracks, 
+    plannedWorkouts = [], 
+    userProfile, 
+    onClose, 
+    onSelectTrack, 
+    onDeletePlannedWorkout, 
+    onAddPlannedWorkout, 
+    onUpdatePlannedWorkout, 
+    onMassUpdatePlannedWorkouts, 
+    onOpenTrackChat, 
+    initialSelectedWorkoutId,
+    onCheckAiAccess,
+    onStartWorkout
+}) => {
+    const [currentDate, setCurrentDate] = useState(new Date());
+    const [selectedWorkoutId, setSelectedWorkoutId] = useState<string | null>(initialSelectedWorkoutId || null);
+    const [showAiCoach, setShowAiCoach] = useState(false);
+    const [globalChatDates, setGlobalChatDates] = useState<Set<string>>(new Set());
+    const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+    const [weatherData, setWeatherData] = useState<Record<string, CalendarWeather>>({});
+    
+    // Action States
+    const [actionDate, setActionDate] = useState<Date | null>(null);
+    const [aiTargetDate, setAiTargetDate] = useState<Date | undefined>(undefined);
+    const [selectedWeather, setSelectedWeather] = useState<{ weather: CalendarWeather, date: Date } | null>(null);
+
+    // Load global chat history to identify dates with messages
     useEffect(() => {
-        loadChatFromDB(GLOBAL_CHAT_ID).then(saved => {
-            if (saved && saved.length > 0) {
-                setMessages(saved);
-                // Open only the latest date by default
-                const dates = new Set(saved.map(m => new Date(m.timestamp).toLocaleDateString()));
-                setExpandedDates(dates);
-            } else {
-                setMessages([{
-                    role: 'model',
-                    text: `Ciao ${userProfile.name || 'Atleta'}! Sono il tuo Head Coach globale. Conosco il tuo storico, le tue note personali e il tuo programma futuro. Come posso aiutarti a migliorare oggi?`,
-                    timestamp: Date.now(),
-                    suggestedReplies: ["Analizza il mio stato", "Cosa corro domani?", "Consiglio per maratona"]
-                }]);
-                setExpandedDates(new Set([new Date().toLocaleDateString()]));
-            }
-        });
-    }, [userProfile.name]);
-
-    useEffect(() => {
-        if (messages.length > 0) {
-            saveChatToDB(GLOBAL_CHAT_ID, messages).catch(console.error);
-        }
-    }, [messages]);
-
-    useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages, expandedDates, isExpanded]); 
-
-    const generateSystemInstruction = () => {
-        const personality = userProfile.aiPersonality || 'pro_balanced';
-        const userName = userProfile.name || 'Atleta';
-        const today = new Date().toLocaleDateString('it-IT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-        
-        const historyContext = tracksToAnalyze.slice(0, 10).map(t => {
-            const stats = calculateTrackStats(t);
-            return `- ${t.points[0].time.toLocaleDateString()}: ${t.distance.toFixed(1)}km, Passo ${stats.movingAvgPace.toFixed(2)}/km, Voto: ${t.rating || 'N/D'}. Note: "${t.notes || 'Nessuna nota'}"`;
-        }).join('\n');
-
-        const futureContext = plannedWorkouts
-            .filter(w => !w.completedTrackId && new Date(w.date) >= new Date())
-            .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-            .map(w => `- ${new Date(w.date).toLocaleDateString()}: ${w.title} (${w.activityType}) [${w.entryType}]`)
-            .join('\n');
-
-        if (personality === 'friend_coach') {
-            return `Agisci come il mio Coach Personale di Corsa e il mio miglior amico. Il tuo nome è COACH AI, hai un tono empatico, sei un supporto costante e mi conosci a fondo. Il tuo obiettivo è portarmi al raggiungimento dei miei obiettivi stagionali (${userProfile.goals?.join(', ')}), adattando costantemente il programma al mio stile di vita reale.
-
-            DATA ODIERNA: ${today}.
-            
-            PROFILO UTENTE:
-            - Nome: ${userName}
-            - Età: ${userProfile.age || 'N/D'} anni
-            - Peso: ${userProfile.weight || 'N/D'} kg
-            - Impara a prevedere le mie reazioni e i miei limiti.
-
-            STORICO RECENTE (LEGGI ATTENTAMENTE LE NOTE PERSONALI!):
-            ${historyContext || "Nessuna corsa registrata."}
-            
-            DIARIO DI BORDO (Note, Impegni, Programma):
-            ${futureContext || "Nessun impegno futuro."}
-
-            REGOLE DI INTERFACCIA E STILE:
-            1. Integrazione Dati: Analizza costantemente dati tecnici, diario di bordo e storico chat per una visione a 360°.
-            2. Flessibilità Totale: Se noto che una settimana sono libero solo nel weekend o se preferisco correre 2 o 4 volte, adatta il piano istantaneamente senza farmi sentire in colpa, ma motivandomi.
-            3. Sintonia Psicologica: Analizza il mio stile. Se uso ironia, rispondi con ironia. Se sono giù, sii il mio pilastro. Anticipa le mie necessità.
-            4. Evoluzione: Affina il modello su di me man mano che parliamo.
-            5. CONTESTO NOTE: Se nello storico recente vedo note come "stanco", "male al piede", ecc., DEVI tenerne conto.
-            6. Se proponi un nuovo allenamento, usa questo formato JSON speciale:
-               :::WORKOUT_PROPOSAL={"title": "Titolo", "activityType": "Lento/Fartlek/Ripetute/Lungo/Gara/Altro", "date": "YYYY-MM-DD", "description": "Dettagli tecnici..."}:::
-            7. Rispondi sempre in ITALIANO.
-            `;
-        }
-
-        // Fallback for other personalities
-        return `Sei l'HEAD COACH AI di ${userName} (Personalità: ${personality}).
-        DATA ODIERNA: ${today}.
-        STORICO RECENTE (CON FOCUS SU NOTE PERSONALI):
-        ${historyContext || "Nessuna corsa registrata."}
-        CALENDARIO FUTURO:
-        ${futureContext || "Nessun allenamento pianificato."}
-        OBIETTIVI: ${userProfile.goals?.join(', ') || 'Miglioramento generale'}.
-        REGOLE:
-        1. Sii proattivo.
-        2. Se le note indicano problemi fisici o stanchezza, adatta il consiglio.
-        3. Formato JSON per allenamenti: :::WORKOUT_PROPOSAL={"title": "Titolo", "activityType": "Type", "date": "YYYY-MM-DD", "description": "Desc"}:::
-        4. Rispondi sempre in ITALIANO.
-        `;
-    };
-
-    const initChat = (forceRecreation = false) => {
-        if (!chatSessionRef.current || forceRecreation) {
-            try {
-                const ai = getGenAI();
-                chatSessionRef.current = ai.chats.create({
-                    model: 'gemini-3-flash-preview',
-                    config: { systemInstruction: generateSystemInstruction() },
-                    history: messages.map(m => ({ role: m.role, parts: [{ text: m.text }] }))
-                });
-            } catch (e: any) {
-                console.warn("AI Init failed", e);
-            }
-        }
-    };
-
-    const handleSend = async (text: string) => {
-        if (!text.trim() || isLoading) return;
-        
-        (window as any).gpxApp?.trackApiRequest();
-        const userMsg = { role: 'user' as const, text, timestamp: Date.now() };
-        
-        // Optimistic update
-        setMessages(prev => {
-            const next = [...prev, userMsg];
-            // Ensure today is expanded
-            setExpandedDates(d => new Set(d).add(new Date().toLocaleDateString()));
-            return next;
-        });
-        
-        setInput('');
-        setIsLoading(true);
-
-        try {
-            await retryWithPolicy(async () => {
-                initChat();
-                if (chatSessionRef.current) {
-                    const result = await chatSessionRef.current.sendMessageStream({ message: text });
-                    // Placeholder for AI message
-                    setMessages(prev => [...prev, { role: 'model', text: '', timestamp: Date.now() }]);
-                    
-                    let fullText = '';
-                    for await (const chunk of result) {
-                        const c = chunk as GenerateContentResponse;
-                        fullText += c.text || '';
-                        setMessages((prev) => {
-                            const next = [...prev];
-                            if (next.length > 0) next[next.length - 1].text = fullText;
-                            return next;
-                        });
+        const fetchGlobalChatDates = async () => {
+            const messages = await loadChatFromDB('global-coach');
+            if (messages) {
+                const dates = new Set<string>();
+                messages.forEach(msg => {
+                    if (msg.timestamp) {
+                        dates.add(new Date(msg.timestamp).toDateString());
                     }
-                }
-            });
-        } catch (e) {
-            setMessages(prev => [...prev, { role: 'model', text: "⚠️ Connessione interrotta. Riprova.", timestamp: Date.now() }]);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleDeleteMessage = (indexToDelete: number) => {
-        setMessages(prev => {
-            const next = prev.filter((_, i) => i !== indexToDelete);
-            // We need to re-initialize chat history context next time user sends message
-            // Ideally we should do it immediately or on next send
-            chatSessionRef.current = null; 
-            return next;
-        });
-    };
-
-    const handleAddProposal = (jsonStr: string) => {
-        try {
-            const data = JSON.parse(jsonStr);
-            if (onAddPlannedWorkout) {
-                onAddPlannedWorkout({
-                    id: `ai-gen-${Date.now()}`,
-                    title: data.title,
-                    description: data.description,
-                    date: new Date(data.date),
-                    activityType: data.activityType as ActivityType,
-                    isAiSuggested: true
                 });
+                setGlobalChatDates(dates);
             }
-        } catch (e) {
-            console.error("JSON Error", e);
+        };
+        fetchGlobalChatDates();
+    }, []);
+
+    // Weather Fetching Logic
+    useEffect(() => {
+        const fetchWeather = async () => {
+            let lat = 41.9028; // Default: Roma
+            let lon = 12.4964;
+            let foundLocation = false;
+
+            // 1. Try to get location from the last uploaded track (Preferred)
+            const sortedTracks = [...tracks].sort((a, b) => b.points[0].time.getTime() - a.points[0].time.getTime());
+            const lastTrack = sortedTracks[0];
+            
+            if (lastTrack && lastTrack.points.length > 0) {
+                lat = lastTrack.points[0].lat;
+                lon = lastTrack.points[0].lon;
+                foundLocation = true;
+            }
+
+            // 2. If no tracks, try Browser Geolocation
+            if (!foundLocation && 'geolocation' in navigator) {
+                try {
+                    const position: any = await new Promise((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 3000 });
+                    });
+                    lat = position.coords.latitude;
+                    lon = position.coords.longitude;
+                } catch (e) {
+                    console.log("Geolocation fallback to Rome");
+                }
+            }
+
+            const data = await fetchMonthWeather(currentDate.getFullYear(), currentDate.getMonth(), lat, lon);
+            setWeatherData(data);
+        };
+
+        fetchWeather();
+    }, [currentDate, tracks.length]); 
+
+    // Effect to update selected workout if prop changes
+    useEffect(() => {
+        if (initialSelectedWorkoutId) {
+            setSelectedWorkoutId(initialSelectedWorkoutId);
+            const workout = plannedWorkouts.find(w => w.id === initialSelectedWorkoutId);
+            if (workout) {
+                setCurrentDate(new Date(workout.date));
+            }
+        }
+    }, [initialSelectedWorkoutId, plannedWorkouts]);
+
+    const { stats } = useMemo(() => {
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+        
+        const filteredTracks = tracks.filter(t => {
+            const tDate = t.points[0].time;
+            return tDate.getFullYear() === year && tDate.getMonth() === month;
+        });
+
+        const totalDistance = filteredTracks.reduce((sum, t) => sum + t.distance, 0);
+        const totalDuration = filteredTracks.reduce((sum, t) => sum + t.duration, 0);
+
+        return { stats: { totalDistance, totalDuration, count: filteredTracks.length } };
+    }, [tracks, currentDate]);
+
+    const { calendarGrid, weeksCount } = useMemo(() => {
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+        
+        const firstDayOfMonth = new Date(year, month, 1);
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        
+        const startDayIndex = (firstDayOfMonth.getDay() + 6) % 7; 
+
+        const days = [];
+        for (let i = 0; i < startDayIndex; i++) days.push(null);
+
+        for (let i = 1; i <= daysInMonth; i++) {
+            const date = new Date(year, month, i);
+            const dateStr = formatDateKey(date);
+            
+            const dayTracks = tracks.filter(t => {
+                const d = t.points[0].time;
+                return d.getDate() === i && d.getMonth() === month && d.getFullYear() === year;
+            });
+            const dayPlanned = plannedWorkouts.filter(w => {
+                const d = new Date(w.date);
+                return d.getDate() === i && d.getMonth() === month && d.getFullYear() === year;
+            });
+            const hasGlobalChat = globalChatDates.has(date.toDateString());
+            const weather = weatherData[dateStr];
+            
+            days.push({ day: i, tracks: dayTracks, planned: dayPlanned, date, hasGlobalChat, weather });
+        }
+
+        const weeksCount = Math.ceil(days.length / 7);
+        return { calendarGrid: days, weeksCount };
+    }, [currentDate, tracks, plannedWorkouts, globalChatDates, weatherData]);
+
+    const changeMonth = (delta: number) => {
+        const newDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + delta, 1);
+        setCurrentDate(newDate);
+    };
+
+    const isToday = (date: Date) => {
+        const today = new Date();
+        return date.getDate() === today.getDate() &&
+               date.getMonth() === today.getMonth() &&
+               date.getFullYear() === today.getFullYear();
+    };
+
+    const currentSelectedWorkout = useMemo(() => 
+        plannedWorkouts.find(w => w.id === selectedWorkoutId),
+    [selectedWorkoutId, plannedWorkouts]);
+
+    const handleRescheduleConfirm = (updatedWorkouts: PlannedWorkout | PlannedWorkout[]) => {
+        if (Array.isArray(updatedWorkouts)) {
+            if (onMassUpdatePlannedWorkouts) {
+                onMassUpdatePlannedWorkouts(updatedWorkouts);
+            }
+        } else {
+            if (onUpdatePlannedWorkout) {
+                onUpdatePlannedWorkout(updatedWorkouts);
+            }
+        }
+        setShowRescheduleModal(false);
+    };
+
+    const handleAiRequest = (date: Date, mode: 'today' | 'weekly', days?: number[]) => {
+        if (onCheckAiAccess && !onCheckAiAccess('workout')) return;
+        setActionDate(null);
+        setShowAiCoach(true);
+        if (mode === 'today') {
+            setAiTargetDate(date);
+        } else {
+            setAiTargetDate(undefined);
         }
     };
-
-    const toggleDateGroup = (date: string) => {
-        setExpandedDates(prev => {
-            const next = new Set(prev);
-            if (next.has(date)) next.delete(date);
-            else next.add(date);
-            return next;
-        });
-    };
-
-    const groupedMessages = useMemo(() => {
-        const groups: Record<string, { msg: ChatMessage, index: number }[]> = {};
-        messages.forEach((msg, index) => {
-            const date = new Date(msg.timestamp).toLocaleDateString();
-            if (!groups[date]) groups[date] = [];
-            groups[date].push({ msg, index });
-        });
-        return groups;
-    }, [messages]);
-
-    const renderMessage = (msg: ChatMessage, index: number) => {
-        const parts = msg.text.split(/:::WORKOUT_PROPOSAL=(.*?):::/g);
-        
-        return (
-            <div key={index} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} mb-4 animate-fade-in group relative`}>
-                <div className={`max-w-[90%] p-3 rounded-2xl text-sm relative ${msg.role === 'user' ? 'bg-purple-600 text-white rounded-br-none' : 'bg-slate-700 text-slate-100 rounded-bl-none'}`}>
-                    
-                    {/* Delete Button (Visible on Hover) */}
-                    <button 
-                        onClick={() => handleDeleteMessage(index)}
-                        className={`absolute -top-2 ${msg.role === 'user' ? '-left-2' : '-right-2'} bg-slate-800 text-slate-400 hover:text-red-400 p-1 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity z-10 border border-slate-600`}
-                        title="Elimina messaggio"
-                    >
-                        <TrashIcon />
-                    </button>
-
-                    {parts.map((part, i) => {
-                        if (i % 2 === 1) { // It's a JSON block
-                            try {
-                                const w = JSON.parse(part);
-                                return (
-                                    <div key={i} className="my-3 bg-slate-800 p-3 rounded-lg border border-purple-500/50 shadow-inner">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <span className="text-[10px] font-black text-purple-400 uppercase tracking-widest">{w.activityType}</span>
-                                            <span className="text-[10px] text-slate-500 font-mono">{w.date}</span>
-                                        </div>
-                                        <div className="font-bold text-white mb-2">{w.title}</div>
-                                        <p className="text-xs text-slate-400 mb-3 italic">"{w.description.substring(0, 100)}..."</p>
-                                        <button 
-                                            onClick={() => handleAddProposal(part)}
-                                            className="w-full bg-purple-600 hover:bg-purple-500 text-white py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
-                                        >
-                                            + Aggiungi al Diario
-                                        </button>
-                                    </div>
-                                );
-                            } catch { return null; }
-                        }
-                        return <FormattedAnalysis key={i} text={part} />;
-                    })}
-                </div>
-            </div>
-        );
-    };
-
-    const containerClasses = isExpanded 
-        ? "fixed inset-0 z-[13000] w-full h-full rounded-none" 
-        : `relative ${isStandalone ? 'w-full md:w-[450px] h-[600px] md:rounded-3xl' : 'h-full'}`;
 
     return (
-        <div className={`flex flex-col bg-slate-900 border border-slate-700 shadow-2xl overflow-hidden transition-all duration-300 ease-in-out ${containerClasses}`}>
-            <header className="p-4 bg-slate-800 border-b border-slate-700 flex justify-between items-center shrink-0">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-purple-600 rounded-xl flex items-center justify-center shadow-lg border border-purple-400/50 p-1">
-                        <img src="/icona.png" alt="AI Coach" className="w-full h-full object-cover rounded-lg" />
-                    </div>
-                    <div>
-                        <h3 className="font-black text-white uppercase text-sm tracking-tight">Coach AI</h3>
-                        <div className="flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
-                            <span className="text-[9px] text-slate-400 uppercase font-bold tracking-widest">
-                                {userProfile.aiPersonality === 'friend_coach' ? 'Best Friend Mode' : 'Online'}
-                            </span>
-                        </div>
+        <div className="absolute inset-0 z-[2000] bg-slate-900 flex flex-col font-sans text-white animate-fade-in overflow-hidden">
+            {/* Header */}
+            <header className="flex items-center justify-between p-2 sm:p-4 bg-slate-800 border-b border-slate-700 shadow-md flex-shrink-0 z-10">
+                <div className="flex items-center space-x-2 sm:space-x-6">
+                    <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors flex items-center gap-1 font-bold text-sm sm:text-base">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M17 10a.75.75 0 0 1-.75.75H5.612l4.158 3.96a.75.75 0 1 1-1.04 1.08l-5.5-5.25a.75.75 0 0 1 0-1.08l5.5-5.25a.75.75 0 1 1 1.04 1.08L5.612 9.25H16.25A.75.75 0 0 1 17 10Z" clipRule="evenodd" /></svg>
+                        <span className="hidden sm:inline">Esci</span>
+                    </button>
+                    <div className="flex items-center bg-slate-700 rounded-lg p-0.5 sm:p-1">
+                        <button onClick={() => changeMonth(-1)} className="p-1 sm:p-2 hover:bg-slate-600 rounded-md transition-colors"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 sm:w-5 sm:h-5"><path fillRule="evenodd" d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z" clipRule="evenodd" /></svg></button>
+                        <h2 className="text-sm sm:text-lg font-bold w-32 sm:w-40 text-center capitalize truncate">
+                            {currentDate.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}
+                        </h2>
+                        <button onClick={() => changeMonth(1)} className="p-1 sm:p-2 hover:bg-slate-600 rounded-md transition-colors"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 sm:w-5 sm:h-5"><path fillRule="evenodd" d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" /></svg></button>
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
+
+                <div className="flex items-center space-x-2 sm:space-x-6">
                     <button 
-                        onClick={() => setIsExpanded(!isExpanded)} 
-                        className="text-slate-400 hover:text-white p-2 rounded-lg hover:bg-slate-700 transition-colors"
-                        title={isExpanded ? "Comprimi" : "Espandi a tutto schermo"}
+                        onClick={() => {
+                            if (onCheckAiAccess && !onCheckAiAccess('workout')) return;
+                            setShowAiCoach(!showAiCoach);
+                        }}
+                        className={`flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-bold text-[10px] sm:text-xs uppercase transition-all shadow-md active:scale-95 ${showAiCoach ? 'bg-cyan-700 border border-cyan-400 text-white' : 'bg-slate-700 hover:bg-slate-600 border border-slate-600 text-cyan-400'}`}
                     >
-                        {isExpanded ? <CollapseIcon /> : <ExpandIcon />}
+                        <SparklesIcon />
+                        <span className="hidden sm:inline">{showAiCoach ? 'Nascondi Schede' : 'Fai scheda Allenamento'}</span>
+                        <span className="sm:hidden">Scheda AI</span>
                     </button>
-                    <button onClick={onClose} className="text-slate-400 hover:text-white text-2xl p-2 rounded-lg hover:bg-slate-700 transition-colors leading-none">&times;</button>
+
+                    <div className="hidden lg:flex space-x-4 text-xs border-l border-slate-700 pl-6">
+                        <div className="flex flex-col items-center">
+                            <span className="text-slate-400 text-[10px] uppercase tracking-wider">Km Mese</span>
+                            <span className="font-bold text-cyan-400 text-base">{stats.totalDistance.toFixed(1)}</span>
+                        </div>
+                        <div className="flex flex-col items-center">
+                            <span className="text-slate-400 text-[10px] uppercase tracking-wider">Uscite</span>
+                            <span className="font-bold text-white text-base">{stats.count}</span>
+                        </div>
+                    </div>
                 </div>
             </header>
-            
-            <div className="flex-grow overflow-y-auto p-4 custom-scrollbar bg-slate-900/50">
-                {Object.entries(groupedMessages).map(([date, items]) => (
-                    <div key={date} className="mb-6">
-                        <div 
-                            onClick={() => toggleDateGroup(date)}
-                            className="flex items-center justify-center mb-4 cursor-pointer group"
-                        >
-                            <span className="text-[9px] font-bold text-slate-500 bg-slate-800 px-3 py-1 rounded-full uppercase tracking-widest border border-slate-700 group-hover:border-slate-500 transition-colors">
-                                {date} {expandedDates.has(date) ? '▼' : '▶'}
-                            </span>
-                        </div>
-                        
-                        {expandedDates.has(date) && (
-                            <div className="space-y-2">
-                                {(items as { msg: ChatMessage, index: number }[]).map(({ msg, index }) => renderMessage(msg, index))}
-                            </div>
-                        )}
+
+            {/* Grid & Content */}
+            <div className="flex-grow flex flex-col overflow-hidden relative">
+                <div className="flex-grow flex flex-col overflow-hidden">
+                    <div className="grid grid-cols-7 bg-slate-800 border-b border-slate-700 flex-shrink-0">
+                        {DAYS_OF_WEEK.map(day => (
+                            <div key={day} className="p-1 sm:p-2 text-center text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest truncate">{day}</div>
+                        ))}
                     </div>
-                ))}
-                
-                {isLoading && (
-                    <div className="flex items-center gap-2 text-slate-500 text-xs italic p-2 animate-pulse">
-                        <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                        Il coach sta scrivendo...
+
+                    <div className="flex-grow overflow-hidden bg-slate-900 p-1 sm:p-2">
+                        <div className="grid grid-cols-7 gap-1 sm:gap-2 h-full w-full" style={{ gridTemplateRows: `repeat(${weeksCount}, minmax(0, 1fr))` }}>
+                            {calendarGrid.map((cell, idx) => {
+                                if (!cell) return <div key={`empty-${idx}`} className="bg-slate-800/20 rounded-lg"></div>;
+                                const isCurrentDay = isToday(cell.date);
+                                return (
+                                    <div 
+                                        key={cell.day} 
+                                        onClick={() => setActionDate(cell.date)}
+                                        className={`rounded-lg p-1 sm:p-2 flex flex-col border relative transition-colors overflow-hidden cursor-pointer ${isCurrentDay ? 'bg-slate-800/90 border-cyan-500/50 shadow-[inset_0_0_10px_rgba(6,182,212,0.1)]' : 'bg-slate-800 border-slate-700/50 hover:bg-slate-700/50'}`}
+                                    >
+                                        <div className="flex justify-between items-start mb-1 flex-shrink-0">
+                                            <div className="flex flex-col sm:flex-row sm:items-center gap-1 w-full">
+                                                <span className={`text-[10px] sm:text-sm font-bold ${isCurrentDay ? 'text-cyan-400' : 'text-slate-400'}`}>
+                                                    {cell.day}
+                                                </span>
+                                                {cell.weather && (
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); setSelectedWeather({ weather: cell.weather!, date: cell.date }); }}
+                                                        className="flex items-center gap-1 bg-slate-700/50 hover:bg-slate-700 px-1 py-0.5 rounded cursor-pointer transition-colors w-fit"
+                                                    >
+                                                        <span className="text-xl sm:text-2xl leading-none" title="Vedi Previsioni Dettagliate">{cell.weather.icon}</span>
+                                                        <span className="text-[8px] sm:text-[9px] font-mono text-slate-300 leading-none flex flex-col">
+                                                            <span>{cell.weather.maxTemp}°</span>
+                                                            <span className="text-slate-500">{cell.weather.minTemp}°</span>
+                                                        </span>
+                                                    </button>
+                                                )}
+                                            </div>
+                                            {cell.hasGlobalChat && (
+                                                <div className="bg-purple-900/50 p-0.5 rounded-full absolute top-1 right-1" title="Conversazione con Coach Generale">
+                                                    <GlobeIcon />
+                                                </div>
+                                            )}
+                                        </div>
+                                        
+                                        <div className="space-y-1 flex-grow overflow-y-auto no-scrollbar mt-1">
+                                            {cell.planned.map(workout => (
+                                                <div 
+                                                    key={workout.id}
+                                                    onClick={(e) => { e.stopPropagation(); setSelectedWorkoutId(workout.id); }}
+                                                    className={`border border-dashed rounded p-1 sm:p-1.5 cursor-pointer transition-all flex flex-col gap-0.5 group ${
+                                                        workout.completedTrackId 
+                                                            ? 'bg-green-900/30 border-green-500/60 hover:bg-green-900/50' 
+                                                            : 'bg-purple-900/30 border-purple-500/60 hover:bg-purple-900/50 animate-pulse-slow'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center gap-1">
+                                                        {workout.completedTrackId ? <CheckIcon /> : <SparklesIcon />}
+                                                        <span className={`text-[8px] sm:text-[9px] font-bold uppercase truncate ${workout.completedTrackId ? 'text-green-400' : 'text-purple-400'}`}>
+                                                            {workout.completedTrackId ? 'FATTO' : 'AI'}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-[8px] sm:text-[9px] font-medium text-slate-100 truncate leading-tight group-hover:text-white">{workout.title}</div>
+                                                </div>
+                                            ))}
+
+                                            {cell.tracks.map(track => (
+                                                <div key={track.id} onClick={(e) => { e.stopPropagation(); onSelectTrack(track.id); }} className="group cursor-pointer bg-slate-700 rounded p-1 border border-transparent hover:border-cyan-500/50 hover:bg-slate-600 transition-all flex flex-col gap-0.5 shadow-sm">
+                                                    <div className="w-full h-8 sm:h-10 bg-slate-900 rounded overflow-hidden relative flex-shrink-0">
+                                                        <TrackPreview points={track.points} color={track.color} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                                                        <div className="absolute bottom-0 right-0 bg-black/70 px-1 text-[8px] font-mono text-white rounded-tl">{track.distance.toFixed(1)}k</div>
+                                                        <div className="absolute top-0 right-0 flex gap-0.5 p-0.5">
+                                                            {track.hasChat && (
+                                                                <button 
+                                                                    onClick={(e) => { e.stopPropagation(); onOpenTrackChat?.(track.id); }}
+                                                                    className="bg-cyan-900/80 p-0.5 rounded hover:bg-cyan-700 transition-colors"
+                                                                    title="Chat Attività"
+                                                                >
+                                                                    <ChatBubbleIcon />
+                                                                </button>
+                                                            )}
+                                                            {track.rating !== undefined && (
+                                                                <div className="bg-black/50 rounded p-0.5">
+                                                                    <RatingStars rating={track.rating} reason={track.ratingReason} size="xs" />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+
+                {showAiCoach && (
+                    <div className="w-full h-auto max-h-[45%] shrink-0 border-t border-slate-700 bg-slate-800 flex flex-col animate-slide-up shadow-2xl z-20">
+                        <header className="p-3 border-b border-slate-700 bg-slate-900 flex justify-between items-center flex-shrink-0">
+                            <h3 className="font-bold text-cyan-400 uppercase tracking-widest text-sm flex items-center gap-2">
+                                <SparklesIcon /> Prossime Sessioni Consigliate
+                            </h3>
+                            <button onClick={() => setShowAiCoach(false)} className="text-slate-500 hover:text-white transition-colors">&times;</button>
+                        </header>
+                        <div className="flex-grow overflow-hidden relative">
+                            <AiTrainingCoachPanel 
+                                userProfile={userProfile} 
+                                allHistory={tracks} 
+                                onAddPlannedWorkout={onAddPlannedWorkout}
+                                isCompact={false}
+                                layoutMode="horizontal"
+                                targetDate={aiTargetDate}
+                                onCheckAiAccess={(type) => onCheckAiAccess ? onCheckAiAccess(type) : true}
+                            />
+                        </div>
                     </div>
                 )}
-                <div ref={messagesEndRef} />
             </div>
 
-            <form onSubmit={(e) => { e.preventDefault(); handleSend(input); }} className="p-4 bg-slate-800 border-t border-slate-700 flex gap-2">
-                <input 
-                    type="text" 
-                    value={input} 
-                    onChange={e => setInput(e.target.value)} 
-                    placeholder="Chiedi un consiglio o aggiorna il coach..."
-                    className="flex-grow bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:border-purple-500 outline-none transition-colors"
+            {selectedWeather && (
+                <WeatherDayPopup 
+                    weather={selectedWeather.weather} 
+                    date={selectedWeather.date} 
+                    onClose={() => setSelectedWeather(null)} 
                 />
-                <button type="submit" disabled={!input.trim() || isLoading} className="bg-purple-600 hover:bg-purple-500 text-white p-3 rounded-xl transition-all shadow-lg"><SendIcon /></button>
-            </form>
+            )}
+
+            {actionDate && (
+                <DiaryActionModal 
+                    date={actionDate}
+                    onClose={() => setActionDate(null)}
+                    onAddEntry={(entry) => { onAddPlannedWorkout?.(entry); setActionDate(null); }}
+                    onGenerateAi={handleAiRequest}
+                />
+            )}
+
+            {currentSelectedWorkout && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[3000] flex items-center justify-center p-4 animate-fade-in" onClick={() => setSelectedWorkoutId(null)}>
+                    <div className="bg-slate-800 rounded-2xl border border-slate-700 shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
+                        <header className="p-4 bg-slate-900 border-b border-slate-700 flex justify-between items-center">
+                            <div className="flex items-center gap-2">
+                                {currentSelectedWorkout.completedTrackId ? <CheckIcon /> : <SparklesIcon />}
+                                <h3 className={`font-bold uppercase tracking-widest text-sm ${currentSelectedWorkout.completedTrackId ? 'text-green-400' : 'text-purple-400'}`}>
+                                    {currentSelectedWorkout.completedTrackId ? 'Allenamento Completato' : 'Programma Diario AI'}
+                                </h3>
+                            </div>
+                            <button onClick={() => setSelectedWorkoutId(null)} className="text-slate-500 hover:text-white text-xl">&times;</button>
+                        </header>
+                        <div className="p-6">
+                            <div className="flex justify-between items-start mb-4">
+                                <div>
+                                    <h4 className="text-xl font-bold text-white mb-1">{currentSelectedWorkout.title}</h4>
+                                    <p className="text-xs text-slate-400 font-mono uppercase">
+                                        {new Date(currentSelectedWorkout.date).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })}
+                                    </p>
+                                </div>
+                                <span className={`border px-3 py-1 rounded text-[10px] font-bold uppercase ${
+                                    currentSelectedWorkout.completedTrackId 
+                                    ? 'bg-green-600/20 text-green-400 border-green-500/30' 
+                                    : 'bg-purple-600/20 text-purple-400 border-purple-500/30'
+                                }`}>{currentSelectedWorkout.activityType}</span>
+                            </div>
+                            
+                            <div className="bg-slate-700/30 p-4 rounded-xl border border-slate-600/50 mb-6">
+                                <div className="text-sm text-slate-200 leading-relaxed italic prose prose-invert prose-sm">
+                                    <FormattedAnalysis text={currentSelectedWorkout.description} />
+                                </div>
+                            </div>
+
+                            {currentSelectedWorkout.completedTrackId ? (
+                                <div className="mb-6 p-3 bg-green-900/20 border border-green-500/30 rounded-lg flex items-center justify-between">
+                                    <span className="text-xs font-bold text-green-400 uppercase tracking-wider">Eseguito il {new Date(currentSelectedWorkout.date).toLocaleDateString()}</span>
+                                    <button 
+                                        onClick={() => {
+                                            onSelectTrack(currentSelectedWorkout.completedTrackId!);
+                                            setSelectedWorkoutId(null);
+                                        }}
+                                        className="text-xs bg-green-700 hover:bg-green-600 text-white px-3 py-1.5 rounded transition-colors"
+                                    >
+                                        Vedi Corsa
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="space-y-3 mb-6">
+                                    {/* NUOVO PULSANTE AVVIA COACH */}
+                                    {onStartWorkout && (
+                                        <button 
+                                            onClick={() => {
+                                                if (onCheckAiAccess && !onCheckAiAccess('chat')) return; // Chat/Voice uses credits too
+                                                onStartWorkout(currentSelectedWorkout);
+                                                setSelectedWorkoutId(null);
+                                            }}
+                                            className="w-full bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white font-black py-4 rounded-xl shadow-xl transition-all active:scale-95 flex items-center justify-center gap-3 border border-white/10"
+                                        >
+                                            <HeadsetIcon />
+                                            AVVIA COACH VOCALE
+                                        </button>
+                                    )}
+
+                                    <button 
+                                        onClick={() => setShowRescheduleModal(true)}
+                                        className="w-full bg-slate-700 hover:bg-slate-600 text-cyan-400 font-bold py-3 rounded-xl border border-cyan-500/30 transition-colors text-xs flex items-center justify-center gap-2"
+                                    >
+                                        <SparklesIcon /> Sposta con AI
+                                    </button>
+                                </div>
+                            )}
+
+                            <div className="flex gap-3 pt-4 border-t border-slate-700">
+                                <button 
+                                    onClick={() => {
+                                        onDeletePlannedWorkout?.(currentSelectedWorkout.id);
+                                        setSelectedWorkoutId(null);
+                                    }}
+                                    className="flex-1 py-3 bg-red-900/10 text-red-400 border border-red-900/30 rounded-lg hover:bg-red-900/30 transition-colors font-bold text-sm"
+                                >
+                                    Rimuovi
+                                </button>
+                                <button onClick={() => setSelectedWorkoutId(null)} className="flex-1 py-3 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors font-bold text-sm">
+                                    Chiudi
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showRescheduleModal && currentSelectedWorkout && (
+                <WorkoutRescheduleModal 
+                    workout={currentSelectedWorkout}
+                    allWorkouts={plannedWorkouts}
+                    tracks={tracks}
+                    userProfile={userProfile}
+                    onConfirm={handleRescheduleConfirm}
+                    onCancel={() => setShowRescheduleModal(false)}
+                />
+            )}
+
+            <style>{`
+                .no-scrollbar::-webkit-scrollbar { display: none; }
+                .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+                @keyframes pulse-slow {
+                    0%, 100% { opacity: 1; transform: scale(1); }
+                    50% { opacity: 0.8; transform: scale(0.98); }
+                }
+                .animate-pulse-slow {
+                    animation: pulse-slow 3s infinite ease-in-out;
+                }
+                @keyframes fade-in-right { from { opacity: 0; transform: translateX(50px); } to { opacity: 1; transform: translateX(0); } }
+                .animate-fade-in-right { animation: fade-in-right 0.3s ease-out forwards; }
+                
+                @keyframes slide-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+                .animate-slide-up { animation: slide-up 0.3s ease-out forwards; }
+            `}</style>
         </div>
     );
 };
 
-export default Chatbot;
+export default DiaryView;
