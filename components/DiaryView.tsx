@@ -8,7 +8,7 @@ import DiaryActionModal from './DiaryActionModal';
 import { exportToGoogleCalendar, exportToAppleCalendar, exportRangeToIcal } from '../services/calendarExportService';
 import { loadChatFromDB } from '../services/dbService';
 import WorkoutRescheduleModal from './WorkoutRescheduleModal';
-import { fetchMonthWeather, getWeatherDescription } from '../services/weatherService';
+import { fetchMonthWeather } from '../services/weatherService';
 
 interface DiaryViewProps {
     tracks: Track[];
@@ -72,7 +72,6 @@ const DiaryView: React.FC<DiaryViewProps> = ({
     const [globalChatDates, setGlobalChatDates] = useState<Set<string>>(new Set());
     const [showRescheduleModal, setShowRescheduleModal] = useState(false);
     const [weatherData, setWeatherData] = useState<Record<string, CalendarWeather>>({});
-    const [selectedWeatherDay, setSelectedWeatherDay] = useState<CalendarWeather | null>(null);
 
     // Load global chat history to identify dates with messages
     useEffect(() => {
@@ -282,13 +281,9 @@ const DiaryView: React.FC<DiaryViewProps> = ({
                                                     {cell.day}
                                                 </span>
                                                 {cell.weather && (
-                                                    <button 
-                                                        onClick={(e) => { e.stopPropagation(); setSelectedWeatherDay(cell.weather); }}
-                                                        className="text-lg sm:text-xl hover:scale-110 transition-transform cursor-pointer" 
-                                                        title="Info Meteo"
-                                                    >
+                                                    <span className="text-[10px] sm:text-xs" title={`${cell.weather.maxTemp}° / ${cell.weather.minTemp}°`}>
                                                         {cell.weather.icon}
-                                                    </button>
+                                                    </span>
                                                 )}
                                             </div>
                                             {cell.hasGlobalChat && (
@@ -368,35 +363,6 @@ const DiaryView: React.FC<DiaryViewProps> = ({
                     </div>
                 )}
             </div>
-
-            {/* Weather Info Modal */}
-            {selectedWeatherDay && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[11000] flex items-center justify-center p-4 animate-fade-in" onClick={() => setSelectedWeatherDay(null)}>
-                    <div className="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
-                        <div className="bg-slate-900 p-6 text-center border-b border-slate-700">
-                            <div className="text-6xl mb-4">{selectedWeatherDay.icon}</div>
-                            <h3 className="text-2xl font-black text-white">{selectedWeatherDay.maxTemp.toFixed(1)}° <span className="text-slate-500 text-lg font-normal">/ {selectedWeatherDay.minTemp.toFixed(1)}°</span></h3>
-                            <p className="text-cyan-400 text-sm font-bold uppercase tracking-widest mt-2">
-                                {getWeatherDescription(selectedWeatherDay.weatherCode)}
-                            </p>
-                        </div>
-                        <div className="p-4 bg-slate-800">
-                            <div className="flex justify-between items-center text-xs text-slate-300 font-mono mb-4">
-                                <span>Data: {selectedWeatherDay.dateStr}</span>
-                                <span className={`px-2 py-0.5 rounded ${selectedWeatherDay.isForecast ? 'bg-purple-900/50 text-purple-300' : 'bg-slate-700 text-slate-400'}`}>
-                                    {selectedWeatherDay.isForecast ? 'PREVISIONE' : 'STORICO'}
-                                </span>
-                            </div>
-                            <button 
-                                onClick={() => setSelectedWeatherDay(null)}
-                                className="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 rounded-xl text-xs uppercase"
-                            >
-                                Chiudi
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {currentSelectedWorkout && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[3000] flex items-center justify-center p-4 animate-fade-in" onClick={() => setSelectedWorkoutId(null)}>
