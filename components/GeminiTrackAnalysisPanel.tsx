@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { GoogleGenAI, Chat, GenerateContentResponse } from "@google/genai";
 import { Track, TrackStats, UserProfile, PlannedWorkout, ChatMessage, AiPersonality } from '../types';
@@ -49,7 +50,7 @@ const MinimizeIcon = () => (
 
 const CloseIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-        <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
+        <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72-3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
     </svg>
 );
 
@@ -70,7 +71,7 @@ interface GeminiTrackAnalysisPanelProps {
     onUpdateTrackMetadata?: (id: string, metadata: Partial<Track>) => void;
     onAddPlannedWorkout?: (workout: PlannedWorkout) => void;
     startOpen?: boolean;
-    onCheckAiAccess?: () => boolean; 
+    onCheckAiAccess?: (feature: 'workout' | 'analysis' | 'chat') => boolean; 
 }
 
 const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ stats, userProfile, track, allHistory = [], plannedWorkouts = [], onUpdateTrackMetadata, onAddPlannedWorkout, startOpen = false, onCheckAiAccess }) => {
@@ -190,7 +191,12 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
 
     const performSendMessage = async (text: string) => {
         if (!text.trim() || isLoading) return;
-        if (onCheckAiAccess && !onCheckAiAccess()) return;
+        
+        // CHECK LIMITS
+        // If it's the very first message (analysis request), check analysis limit
+        // Otherwise check chat limit
+        const limitType = messages.length <= 1 ? 'analysis' : 'chat';
+        if (onCheckAiAccess && !onCheckAiAccess(limitType)) return;
 
         (window as any).gpxApp?.trackApiRequest();
         onUpdateTrackMetadata?.(track.id, { hasChat: true });
@@ -257,7 +263,10 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
                 <>
                     <button 
                         onClick={() => { 
-                            if(onCheckAiAccess && !onCheckAiAccess()) return;
+                            // Analysis check happens inside performSendMessage if msg count is low, 
+                            // but we can check here to prevent opening if no credits.
+                            // But usually users can open history. 
+                            // Let's allow opening history, check is on SEND.
                             setIsOpen(true); 
                             setIsMinimized(false);
                             if (messages.length <= 1) performSendMessage("Analizza questa corsa.");

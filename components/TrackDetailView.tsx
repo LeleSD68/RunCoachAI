@@ -49,7 +49,7 @@ const TrackDetailView: React.FC<{
     plannedWorkouts?: PlannedWorkout[], 
     onUpdateTrackMetadata?: (id: string, metadata: Partial<Track>) => void, 
     onAddPlannedWorkout?: any, 
-    onCheckAiAccess?: any 
+    onCheckAiAccess?: (feature: 'workout' | 'analysis' | 'chat') => boolean 
 }> = ({ 
     track, userProfile, onExit, allHistory = [], plannedWorkouts = [], 
     onUpdateTrackMetadata, onAddPlannedWorkout, onCheckAiAccess 
@@ -233,7 +233,7 @@ const TrackDetailView: React.FC<{
                 </div>
             )}</div>
 
-            <div className="bg-slate-900/20 rounded border border-slate-800/50">{sectionHeader("Segmenti AI", "aiSegments", "🔍")}{sections.aiSegments && <div className="p-2"><GeminiSegmentsPanel track={track} stats={stats} userProfile={userProfile} onSegmentSelect={() => {}} selectedSegment={null} onCheckAiAccess={onCheckAiAccess} /></div>}</div>
+            <div className="bg-slate-900/20 rounded border border-slate-800/50">{sectionHeader("Segmenti AI", "aiSegments", "🔍")}{sections.aiSegments && <div className="p-2"><GeminiSegmentsPanel track={track} stats={stats} userProfile={userProfile} onSegmentSelect={() => {}} selectedSegment={null} onCheckAiAccess={() => onCheckAiAccess ? onCheckAiAccess('analysis') : true} /></div>}</div>
             <div className="bg-slate-900/20 rounded border border-slate-800/50">{sectionHeader("Coach AI", "aiAnalysis", "🧠")}{sections.aiAnalysis && <div className="p-2"><GeminiTrackAnalysisPanel stats={stats} userProfile={userProfile} track={track} plannedWorkouts={plannedWorkouts} allHistory={allHistory} onAddPlannedWorkout={onAddPlannedWorkout} onUpdateTrackMetadata={onUpdateTrackMetadata} onCheckAiAccess={onCheckAiAccess} /></div>}</div>
         </div>
     );

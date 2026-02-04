@@ -1,6 +1,4 @@
 
-
-
 import React, { useState, useCallback } from 'react';
 import { Type } from '@google/genai';
 import { Track, TrackStats, AiSegment, UserProfile } from '../types';
