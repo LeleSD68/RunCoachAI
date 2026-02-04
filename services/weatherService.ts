@@ -27,41 +27,6 @@ export const getWeatherIcon = (code: number): string => {
     return '❓';
 };
 
-// Mappa codici WMO a Descrizione Italiana
-export const getWeatherDescription = (code: number): string => {
-    switch (code) {
-        case 0: return "Cielo Sereno";
-        case 1: return "Prevalentemente Sereno";
-        case 2: return "Parzialmente Nuvoloso";
-        case 3: return "Coperto";
-        case 45: return "Nebbia";
-        case 48: return "Nebbia con brina";
-        case 51: return "Pioggerella Leggera";
-        case 53: return "Pioggerella Moderata";
-        case 55: return "Pioggerella Intensa";
-        case 56: return "Pioggerella Gelata Leggera";
-        case 57: return "Pioggerella Gelata Intensa";
-        case 61: return "Pioggia Leggera";
-        case 63: return "Pioggia Moderata";
-        case 65: return "Pioggia Forte";
-        case 66: return "Pioggia Gelata Leggera";
-        case 67: return "Pioggia Gelata Forte";
-        case 71: return "Nevicata Leggera";
-        case 73: return "Nevicata Moderata";
-        case 75: return "Nevicata Forte";
-        case 77: return "Nevischio";
-        case 80: return "Rovesci di Pioggia Leggeri";
-        case 81: return "Rovesci di Pioggia Moderati";
-        case 82: return "Rovesci di Pioggia Violenti";
-        case 85: return "Rovesci di Neve Leggeri";
-        case 86: return "Rovesci di Neve Forti";
-        case 95: return "Temporale";
-        case 96: return "Temporale con Grandine Leggera";
-        case 99: return "Temporale con Grandine Forte";
-        default: return "Condizione Sconosciuta";
-    }
-};
-
 const formatDate = (date: Date): string => {
     return date.toISOString().split('T')[0];
 };
