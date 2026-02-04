@@ -155,15 +155,32 @@ const TrackDetailView: React.FC<{
     const toggleSection = (key: keyof SectionState) => setSections(prev => ({ ...prev, [key]: !prev[key] }));
 
     const handleSplitSelect = (split: Split | PauseSegment | AiSegment | null) => {
-        if (split && 'splitNumber' in split) {
-            const start = (split.splitNumber - 1) * 1.0; 
-            const end = start + split.distance;
-            setSelectedRange({ startDistance: start, endDistance: end });
-            setHighlightedSegments(null); 
-            setFitTrigger(prev => prev + 1);
-        } else if (split === null) {
+        if (split === null) {
             setSelectedRange(null);
+            setHighlightedSegments(null);
+            return;
         }
+
+        let start = 0;
+        let end = 0;
+
+        if ('splitNumber' in split) {
+            // Standard Split
+            start = (split.splitNumber - 1) * 1.0; 
+            end = start + split.distance;
+        } else if ('startDistance' in split) {
+            // AI Segment
+            start = split.startDistance;
+            end = split.endDistance;
+        } else if ('startPoint' in split) {
+            // Pause Segment
+            start = split.startPoint.cummulativeDistance;
+            end = split.endPoint.cummulativeDistance;
+        }
+
+        setSelectedRange({ startDistance: start, endDistance: end });
+        setHighlightedSegments(null); 
+        setFitTrigger(prev => prev + 1);
     };
 
     const sectionHeader = (title: string, key: keyof SectionState, icon?: string) => (
@@ -233,7 +250,16 @@ const TrackDetailView: React.FC<{
                 </div>
             )}</div>
 
-            <div className="bg-slate-900/20 rounded border border-slate-800/50">{sectionHeader("Segmenti AI", "aiSegments", "🔍")}{sections.aiSegments && <div className="p-2"><GeminiSegmentsPanel track={track} stats={stats} userProfile={userProfile} onSegmentSelect={() => {}} selectedSegment={null} onCheckAiAccess={() => onCheckAiAccess ? onCheckAiAccess('analysis') : true} /></div>}</div>
+            <div className="bg-slate-900/20 rounded border border-slate-800/50">{sectionHeader("Segmenti AI", "aiSegments", "🔍")}{sections.aiSegments && <div className="p-2">
+                <GeminiSegmentsPanel 
+                    track={track} 
+                    stats={stats} 
+                    userProfile={userProfile} 
+                    onSegmentSelect={handleSplitSelect} 
+                    selectedSegment={selectedRange ? { startDistance: selectedRange.startDistance, endDistance: selectedRange.endDistance } as AiSegment : null} 
+                    onCheckAiAccess={() => onCheckAiAccess ? onCheckAiAccess('analysis') : true} 
+                />
+            </div>}</div>
             <div className="bg-slate-900/20 rounded border border-slate-800/50">{sectionHeader("Coach AI", "aiAnalysis", "🧠")}{sections.aiAnalysis && <div className="p-2"><GeminiTrackAnalysisPanel stats={stats} userProfile={userProfile} track={track} plannedWorkouts={plannedWorkouts} allHistory={allHistory} onAddPlannedWorkout={onAddPlannedWorkout} onUpdateTrackMetadata={onUpdateTrackMetadata} onCheckAiAccess={onCheckAiAccess} /></div>}</div>
         </div>
     );
