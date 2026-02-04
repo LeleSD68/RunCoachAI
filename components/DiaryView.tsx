@@ -9,6 +9,7 @@ import { exportToGoogleCalendar, exportToAppleCalendar, exportRangeToIcal } from
 import { loadChatFromDB } from '../services/dbService';
 import WorkoutRescheduleModal from './WorkoutRescheduleModal';
 import { fetchMonthWeather } from '../services/weatherService';
+import RatingStars from './RatingStars';
 
 interface DiaryViewProps {
     tracks: Track[];
