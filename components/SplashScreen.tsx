@@ -16,29 +16,29 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
 
     return (
         <div 
-            className="fixed inset-0 z-[100000] flex items-center justify-center transition-opacity duration-700 ease-in-out bg-slate-950"
+            className="fixed inset-0 z-[100000] flex items-center justify-center transition-opacity duration-700 ease-in-out bg-[#02040a]"
             style={{ opacity }}
         >
             <div className="relative w-full h-full overflow-hidden flex flex-col items-center justify-center">
                 
                 {/* 1. Background Layer (Splash Cover) */}
                 <div className="absolute inset-0 z-0">
-                    {/* Fallback gradient if image fails or while loading */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-[#0f172a] to-slate-900"></div>
+                    {/* Colore di base "Blu scuro quasi nero" per matchare i bordi se l'immagine non copre tutto (su schermi ultra-wide) */}
+                    <div className="absolute inset-0 bg-[#02040a]"></div>
                     
-                    {/* Splash Image Cover */}
+                    {/* Splash Image Cover - Full Opacity */}
                     <img 
                         src="/splash.png" 
                         alt="" 
-                        className="absolute inset-0 w-full h-full object-cover opacity-40 mix-blend-overlay"
+                        className="absolute inset-0 w-full h-full object-cover opacity-100"
                         onError={(e) => e.currentTarget.style.display = 'none'} 
                     />
                     
-                    {/* Blur overlay for text readability */}
-                    <div className="absolute w-full h-full bg-slate-900/60 backdrop-blur-sm"></div>
+                    {/* Gradient Overlay: Scuro in basso per il testo, trasparente in alto per l'immagine */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#02040a] via-[#02040a]/80 to-transparent"></div>
                     
                     {/* Ambient Glow */}
-                    <div className="absolute w-64 h-64 bg-cyan-500/20 rounded-full blur-[80px] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"></div>
+                    <div className="absolute w-64 h-64 bg-cyan-500/10 rounded-full blur-[100px] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 mix-blend-screen"></div>
                 </div>
 
                 {/* 2. Logo Layer */}
