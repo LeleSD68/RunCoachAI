@@ -514,6 +514,13 @@ const App: React.FC = () => {
     };
 
     const checkSession = async () => {
+        // Safety timeout to prevent infinite loading state if supabase or network hangs
+        const safetyTimer = setTimeout(() => {
+            console.warn("Session check timed out - forcing ready state");
+            setIsAppReady(true);
+            setIsDataLoading(false);
+        }, 5000); // 5 seconds max wait
+
         setIsDataLoading(true);
         try {
             const { data: { session } } = await supabase.auth.getSession();
@@ -532,8 +539,10 @@ const App: React.FC = () => {
             }
         } catch (e) {
             // Error checking session, assume not logged in but ready to show Auth
+            console.error("Session check error", e);
             setIsAppReady(true);
         } finally {
+            clearTimeout(safetyTimer);
             setIsDataLoading(false);
         }
     };
@@ -590,6 +599,7 @@ const App: React.FC = () => {
 
         } catch (e: any) {
             // Fail silently/gracefully
+            console.warn("Error loading data", e);
         } finally {
             // Signal that background loading is complete
             setIsAppReady(true);
