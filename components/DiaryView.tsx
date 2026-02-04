@@ -52,6 +52,14 @@ const GlobeIcon = () => (
     </svg>
 );
 
+// Helper per formattare la data locale YYYY-MM-DD
+const formatDateKey = (date: Date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+};
+
 const DiaryView: React.FC<DiaryViewProps> = ({ 
     tracks, 
     plannedWorkouts = [], 
@@ -168,7 +176,7 @@ const DiaryView: React.FC<DiaryViewProps> = ({
 
         for (let i = 1; i <= daysInMonth; i++) {
             const date = new Date(year, month, i);
-            const dateStr = date.toISOString().split('T')[0];
+            const dateStr = formatDateKey(date); // Use local formatter to match weather service keys
             
             const dayTracks = tracks.filter(t => {
                 const d = t.points[0].time;
@@ -328,6 +336,11 @@ const DiaryView: React.FC<DiaryViewProps> = ({
                                                                 >
                                                                     <ChatBubbleIcon />
                                                                 </button>
+                                                            )}
+                                                            {track.rating !== undefined && (
+                                                                <div className="bg-black/50 rounded p-0.5">
+                                                                    <RatingStars rating={track.rating} reason={track.ratingReason} size="xs" />
+                                                                </div>
                                                             )}
                                                         </div>
                                                     </div>
