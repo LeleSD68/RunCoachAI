@@ -258,11 +258,31 @@ export const sendDirectMessage = async (senderId: string, receiverId: string, co
     if (error) throw error;
 };
 
+export const deleteMessage = async (messageId: string, deleteForEveryone: boolean, userId: string) => {
+    if (deleteForEveryone) {
+        // Physical deletion (only possible via RLS if user is sender)
+        const { error } = await supabase.from('direct_messages').delete().eq('id', messageId);
+        if (error) throw error;
+    } else {
+        // Logical deletion for this user (Delete for me)
+        const { data } = await supabase.from('direct_messages').select('deleted_for_users').eq('id', messageId).single();
+        const currentDeleted = data?.deleted_for_users || [];
+        
+        if (!currentDeleted.includes(userId)) {
+            const { error } = await supabase.from('direct_messages').update({
+                deleted_for_users: [...currentDeleted, userId]
+            }).eq('id', messageId);
+            if (error) throw error;
+        }
+    }
+};
+
 export const getDirectMessages = async (currentUserId: string, friendId: string): Promise<DirectMessage[]> => {
     const { data, error } = await supabase
         .from('direct_messages')
-        .select('id, sender_id, receiver_id, content, created_at, read_at')
+        .select('id, sender_id, receiver_id, content, created_at, read_at, deleted_for_users')
         .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${currentUserId})`)
+        .not('deleted_for_users', 'cs', `{${currentUserId}}`) // Filter out messages deleted for this user
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -304,7 +324,8 @@ export const getUnreadNotificationsCount = async (userId: string): Promise<numbe
         .from('direct_messages')
         .select('*', { count: 'exact', head: true })
         .eq('receiver_id', userId)
-        .is('read_at', null);
+        .is('read_at', null)
+        .not('deleted_for_users', 'cs', `{${userId}}`);
 
     // 2. Pending Friend Requests
     const { count: reqCount } = await supabase
