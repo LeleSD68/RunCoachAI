@@ -74,134 +74,162 @@ const formatPace = (pace: number) => {
     return `${m}:${s.toString().padStart(2, '0')}`;
 };
 
+// Helper per parsare valore e unità (es. "10 min" -> {val: 600, type: 'time'})
+const parseValueAndUnit = (rawVal: string, unit: string): { targetValue: number, targetType: 'time' | 'distance' } => {
+    const val = parseFloat(rawVal.replace(',', '.'));
+    
+    // Distanza
+    if (unit.startsWith('km') || unit.startsWith('chilometr')) return { targetValue: val * 1000, targetType: 'distance' };
+    if (unit.startsWith('m') && !unit.startsWith('min')) return { targetValue: val, targetType: 'distance' };
+    
+    // Tempo
+    if (unit.startsWith('sec') || unit === '”' || unit === '"') return { targetValue: val, targetType: 'time' };
+    // Default minuti
+    return { targetValue: val * 60, targetType: 'time' };
+};
+
 /**
  * PARSER LOGIC
  */
 const parseWorkoutStructure = (description: string, title: string): TrainingPhase[] => {
     const fullText = (title + " " + description).toLowerCase();
-    
-    // Tentativo di parsing semplice per ripetute (es: 10x 400m rec 1:30)
+    const phases: TrainingPhase[] = [];
+
+    // --- 1. RISCALDAMENTO (Warmup) ---
+    // Cerca esplicitamente "riscaldamento 10 min" o simili
+    const warmupRegex = /(?:riscaldamento|warmup)\s*(?:di|per)?\s*(\d+(?:[.,]\d+)?)\s*(min|m|km|secondi|sec|'|”|chilometri|metri)/i;
+    const warmupMatch = fullText.match(warmupRegex);
+
+    if (warmupMatch) {
+        const { targetValue, targetType } = parseValueAndUnit(warmupMatch[1], warmupMatch[2]);
+        phases.push({
+            name: "Riscaldamento",
+            instruction: `Iniziamo. Riscaldamento di ${targetType === 'time' ? formatTime(targetValue) : targetValue + 'm'}.`,
+            targetValue,
+            targetType,
+            type: 'warmup'
+        });
+    }
+
+    // --- 2. CORE WORKOUT (Ripetute o Corsa Continua) ---
     const repRegex = /(\d+)\s*(?:x|per|volte|ripetute)/i;
     const repMatch = fullText.match(repRegex);
 
-    if (!repMatch) {
-        // Fallback: Allenamento semplice o Gara
-        const distMatch = fullText.match(/(\d+)(?:[.,]\d+)?\s*(k|km|m)/);
-        let targetDistMeters = 0;
-        if (distMatch) {
-            const val = parseFloat(distMatch[1]);
-            if (distMatch[2] === 'm') targetDistMeters = val;
-            else targetDistMeters = val * 1000;
-        }
-
-        const phases: TrainingPhase[] = [];
-        // Riscaldamento standard se non specificato
-        phases.push({ name: "Riscaldamento", instruction: "Riscaldamento libero. Corri piano per attivare le gambe.", targetValue: 300, targetType: 'time', type: 'warmup' });
+    if (repMatch) {
+        // --- CASO A: RIPETUTE ---
+        const count = parseInt(repMatch[1]);
         
-        // Fase centrale
-        if (targetDistMeters > 0) {
-            phases.push({ name: "Lavoro Centrale", instruction: `Obiettivo: ${targetDistMeters/1000}km. ${description}`, targetValue: targetDistMeters, targetType: 'distance', type: 'work' });
-        } else {
-            // Tempo o libero
-            phases.push({ name: "Allenamento", instruction: description || "Corri a sensazione.", targetValue: 1200, targetType: 'time', type: 'work' });
-        }
-
-        // Defaticamento
-        phases.push({ name: "Defaticamento", instruction: "Ottimo. Ora recupera con corsa lenta.", targetValue: 300, targetType: 'time', type: 'cooldown' });
-        return phases;
-    } 
-
-    const count = parseInt(repMatch[1]);
-    if (count < 2 || count > 50) return []; 
-
-    const workRegex = /(?:da|di)?\s*(\d+(?:[.,]\d+)?)\s*(min|m|km|secondi|'|”)/i;
-    const textAfterReps = fullText.substring(fullText.indexOf(repMatch[0]) + repMatch[0].length);
-    const workMatch = textAfterReps.match(workRegex);
-
-    if (!workMatch) return [];
-
-    const workValRaw = parseFloat(workMatch[1].replace(',', '.'));
-    const workUnit = workMatch[2];
-    
-    let workTarget = 0;
-    let workType: 'time' | 'distance' = 'time';
-
-    if (workUnit.startsWith('m') && workUnit !== 'min') { 
-        workTarget = workValRaw;
-        workType = 'distance';
-    } else if (workUnit === 'km') {
-        workTarget = workValRaw * 1000;
-        workType = 'distance';
-    } else { 
-        if (workUnit === 'secondi' || workUnit === '”') workTarget = workValRaw;
-        else workTarget = workValRaw * 60; 
-        workType = 'time';
-    }
-
-    const restRegex = /(?:recupero|rec|lento|piano|rest|off)\s*(\d+(?:[.,]\d+)?)\s*(min|m|km|secondi|'|”)/i;
-    const restMatch = textAfterReps.match(restRegex);
-
-    let restTarget = 0;
-    let restType: 'time' | 'distance' = 'time';
-
-    if (restMatch) {
-        const restValRaw = parseFloat(restMatch[1].replace(',', '.'));
-        const restUnit = restMatch[2];
-        if (restUnit.startsWith('m') && restUnit !== 'min') {
-            restTarget = restValRaw;
-            restType = 'distance';
-        } else if (restUnit === 'km') {
-            restTarget = restValRaw * 1000;
-            restType = 'distance';
-        } else {
-            if (restUnit === 'secondi' || restUnit === '”') restTarget = restValRaw;
-            else restTarget = restValRaw * 60;
-            restType = 'time';
-        }
-    } else {
-        restTarget = 120; // Default 2 min rest
-        restType = 'time';
-    }
-
-    const phases: TrainingPhase[] = [];
-    
-    phases.push({ 
-        name: "Riscaldamento", 
-        instruction: "Iniziamo. Corri piano per 10 minuti di riscaldamento.", 
-        targetValue: 600, 
-        targetType: 'time', 
-        type: 'warmup' 
-    });
-
-    for (let i = 1; i <= count; i++) {
-        phases.push({
-            name: `Ripetuta ${i}`,
-            instruction: `Vai! ${workType === 'time' ? formatTime(workTarget) : (workTarget < 1000 ? workTarget+' metri' : (workTarget/1000).toFixed(2)+' km')} ritmo forte!`,
-            targetValue: workTarget,
-            targetType: workType,
-            type: 'work',
-            repInfo: { current: i, total: count }
-        });
-
-        if (restTarget > 0 && i < count) { // No rest after last rep, go to cooldown
-            phases.push({
-                name: `Recupero ${i}`,
-                instruction: `Piano. Recupera per ${restType === 'time' ? formatTime(restTarget) : (restTarget).toFixed(0)+'m'}.`,
-                targetValue: restTarget,
-                targetType: restType,
-                type: 'rest',
-                repInfo: { current: i, total: count }
+        // Se non c'era riscaldamento esplicito MA sono ripetute, mettiamo un default di 10 min
+        if (phases.length === 0) {
+            phases.push({ 
+                name: "Riscaldamento", 
+                instruction: "Iniziamo. Corri piano per 10 minuti di riscaldamento standard.", 
+                targetValue: 600, 
+                targetType: 'time', 
+                type: 'warmup' 
             });
         }
+
+        const textAfterReps = fullText.substring(fullText.indexOf(repMatch[0]) + repMatch[0].length);
+        const workRegex = /(?:da|di)?\s*(\d+(?:[.,]\d+)?)\s*(min|m|km|secondi|sec|'|”)/i;
+        const workMatch = textAfterReps.match(workRegex);
+
+        if (workMatch) {
+            const { targetValue: workTarget, targetType: workType } = parseValueAndUnit(workMatch[1], workMatch[2]);
+            
+            // Cerca recupero
+            const restRegex = /(?:recupero|rec|lento|piano|rest|off)\s*(\d+(?:[.,]\d+)?)\s*(min|m|km|secondi|sec|'|”)/i;
+            const restMatch = textAfterReps.match(restRegex);
+            
+            let restTarget = 0;
+            let restType: 'time' | 'distance' = 'time';
+
+            if (restMatch) {
+                const res = parseValueAndUnit(restMatch[1], restMatch[2]);
+                restTarget = res.targetValue;
+                restType = res.targetType;
+            } else {
+                restTarget = 120; // Default 2 min se non specificato in ripetute
+            }
+
+            for (let i = 1; i <= count; i++) {
+                phases.push({
+                    name: `Ripetuta ${i}`,
+                    instruction: `Vai! ${workType === 'time' ? formatTime(workTarget) : (workTarget < 1000 ? workTarget+' metri' : (workTarget/1000).toFixed(2)+' km')} ritmo forte!`,
+                    targetValue: workTarget,
+                    targetType: workType,
+                    type: 'work',
+                    repInfo: { current: i, total: count }
+                });
+
+                if (restTarget > 0 && i < count) {
+                    phases.push({
+                        name: `Recupero ${i}`,
+                        instruction: `Piano. Recupera per ${restType === 'time' ? formatTime(restTarget) : (restTarget).toFixed(0)+'m'}.`,
+                        targetValue: restTarget,
+                        targetType: restType,
+                        type: 'rest',
+                        repInfo: { current: i, total: count }
+                    });
+                }
+            }
+        }
+    } else {
+        // --- CASO B: CORSA CONTINUA / LIBERA ---
+        // Se non sono ripetute, cerchiamo la durata/distanza totale dell'allenamento
+        // Escludiamo la parte "riscaldamento" già parsata
+        
+        // Regex per trovare la parte principale (spesso "Corsa 30 min" o "Lungo 10km")
+        // Cerchiamo numeri che NON sono quelli del riscaldamento (se presente)
+        let mainWorkRegex = /(\d+(?:[.,]\d+)?)\s*(min|m|km|secondi|sec|'|”|chilometri|metri)/g;
+        let match;
+        let foundMain = false;
+
+        while ((match = mainWorkRegex.exec(fullText)) !== null) {
+            // Se questo match è identico a quello del riscaldamento (stessa stringa), saltalo
+            if (warmupMatch && match[0] === warmupMatch[0]) continue;
+            
+            // Ignora anche defaticamento per ora
+            if (fullText.substring(Math.max(0, match.index - 15), match.index).includes('defaticamento')) continue;
+
+            const { targetValue, targetType } = parseValueAndUnit(match[1], match[2]);
+            
+            phases.push({
+                name: "Allenamento",
+                instruction: description || "Corri al ritmo previsto.",
+                targetValue,
+                targetType,
+                type: 'work'
+            });
+            foundMain = true;
+            break; // Prendiamo il primo valore "libero" come lavoro principale
+        }
+
+        if (!foundMain) {
+            // Se non troviamo nulla e non c'è nemmeno riscaldamento, mettiamo default
+            if (phases.length === 0) {
+                phases.push({ name: "Corsa Libera", instruction: "Allenamento libero. Corri a sensazione.", targetValue: 3600, targetType: 'time', type: 'work' });
+            }
+        }
     }
 
-    phases.push({ 
-        name: "Defaticamento", 
-        instruction: "Lavoro finito! Corsetta sciolta finale.", 
-        targetValue: 300, 
-        targetType: 'time', 
-        type: 'cooldown' 
-    });
+    // --- 3. DEFATICAMENTO (Cooldown) ---
+    const cooldownRegex = /(?:defaticamento|cooldown)\s*(?:di|per)?\s*(\d+(?:[.,]\d+)?)\s*(min|m|km|secondi|sec|'|”)/i;
+    const cooldownMatch = fullText.match(cooldownRegex);
+
+    if (cooldownMatch) {
+        const { targetValue, targetType } = parseValueAndUnit(cooldownMatch[1], cooldownMatch[2]);
+        phases.push({
+            name: "Defaticamento",
+            instruction: "Ottimo lavoro. Defaticamento finale.",
+            targetValue,
+            targetType,
+            type: 'cooldown'
+        });
+    } else if (repMatch) {
+        // Se erano ripetute, aggiungi defaticamento standard se non specificato
+        phases.push({ name: "Defaticamento", instruction: "Lavoro finito! Corsetta sciolta.", targetValue: 300, targetType: 'time', type: 'cooldown' });
+    }
 
     return phases;
 };
