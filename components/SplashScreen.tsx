@@ -9,15 +9,16 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
     const [opacity, setOpacity] = useState(1);
 
     useEffect(() => {
-        // Aumentata durata di 0.5s (3000->3500, 3700->4200)
-        const fadeTimer = setTimeout(() => setOpacity(0), 3500);
-        const finishTimer = setTimeout(() => onFinish(), 4200);
+        // Increased total duration to ~4.7s. 
+        // Fade starts at 4.0s, finishes at 4.5s (smoother transition)
+        const fadeTimer = setTimeout(() => setOpacity(0), 4000);
+        const finishTimer = setTimeout(() => onFinish(), 4500);
         return () => { clearTimeout(fadeTimer); clearTimeout(finishTimer); };
     }, [onFinish]);
 
     return (
         <div 
-            className="fixed inset-0 z-[100000] flex items-center justify-center transition-opacity duration-700 ease-in-out bg-[#02040a]"
+            className="fixed inset-0 z-[100000] flex items-center justify-center transition-opacity duration-500 ease-in-out bg-[#02040a]"
             style={{ opacity }}
         >
             {/* Layout cambiato in flex-col justify-end per mettere il testo in basso sopra il gradiente scuro */}
