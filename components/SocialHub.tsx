@@ -24,7 +24,8 @@ const GhostIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20
 const GroupIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M7 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM14.5 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM1.615 16.428a1.224 1.224 0 0 1-.569-1.175 6.002 6.002 0 0 1 11.908 0c.058.467-.172.92-.57 1.174A9.953 9.953 0 0 1 7 18a9.953 9.953 0 0 1-5.385-1.572ZM14.5 16h-.106c.07-.38.106-.772.106-1.175 0-.537-.067-1.054-.191-1.543A7.001 7.001 0 0 1 17 18a9.952 9.952 0 0 1-2.5-2Z" /></svg>);
 
 const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallengeGhost, onReadMessages, initialChatUserId }) => {
-    const [activeTab, setActiveTab] = useState<'feed' | 'friends' | 'groups' | 'add'>('feed');
+    // Default to 'friends' as requested for better UX
+    const [activeTab, setActiveTab] = useState<'feed' | 'friends' | 'groups' | 'add'>('friends');
     const [friends, setFriends] = useState<UserProfile[]>([]);
     const [requests, setRequests] = useState<FriendRequest[]>([]);
     const [groups, setGroups] = useState<SocialGroup[]>([]);
@@ -209,8 +210,6 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
                 
                 {/* Navigation Tabs */}
                 <div className="flex border-b border-slate-700 bg-slate-900/50 shrink-0 overflow-x-auto no-scrollbar">
-                    <button onClick={() => { setActiveTab('feed'); setActiveGroupFilter(null); }} className={`flex-1 min-w-[80px] py-3 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${activeTab === 'feed' ? 'text-cyan-400 border-b-2 border-cyan-400 bg-slate-800' : 'text-slate-500 hover:text-slate-300'}`}><ActivityIcon /> Feed</button>
-                    <button onClick={() => setActiveTab('groups')} className={`flex-1 min-w-[80px] py-3 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${activeTab === 'groups' ? 'text-purple-400 border-b-2 border-purple-400 bg-slate-800' : 'text-slate-500 hover:text-slate-300'}`}><GroupIcon /> Gruppi</button>
                     <button onClick={() => setActiveTab('friends')} className={`flex-1 min-w-[80px] py-3 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors relative ${activeTab === 'friends' ? 'text-cyan-400 border-b-2 border-cyan-400 bg-slate-800' : 'text-slate-500 hover:text-slate-300'}`}>
                         <UserIcon /> Amici
                         {(requests.length > 0 || unreadSenders.size > 0) && (
@@ -220,6 +219,8 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
                             </span>
                         )}
                     </button>
+                    <button onClick={() => { setActiveTab('feed'); setActiveGroupFilter(null); }} className={`flex-1 min-w-[80px] py-3 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${activeTab === 'feed' ? 'text-cyan-400 border-b-2 border-cyan-400 bg-slate-800' : 'text-slate-500 hover:text-slate-300'}`}><ActivityIcon /> Feed</button>
+                    <button onClick={() => setActiveTab('groups')} className={`flex-1 min-w-[80px] py-3 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${activeTab === 'groups' ? 'text-purple-400 border-b-2 border-purple-400 bg-slate-800' : 'text-slate-500 hover:text-slate-300'}`}><GroupIcon /> Gruppi</button>
                     <button onClick={() => setActiveTab('add')} className={`flex-1 min-w-[80px] py-3 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${activeTab === 'add' ? 'text-cyan-400 border-b-2 border-cyan-400 bg-slate-800' : 'text-slate-500 hover:text-slate-300'}`}><AddUserIcon /> Cerca</button>
                 </div>
 
