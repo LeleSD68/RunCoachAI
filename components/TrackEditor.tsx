@@ -193,6 +193,10 @@ const TrackEditor: React.FC<TrackEditorProps> = ({ initialTracks, onExit, addToa
         return editedTrack?.points.some(p => p.hr !== undefined && p.hr > 0) ?? false;
     }, [editedTrack]);
 
+    const hasPowerData = useMemo(() => {
+        return editedTrack?.points.some(p => p.power !== undefined && p.power > 0) ?? false;
+    }, [editedTrack]);
+
     const pauseSegments = useMemo((): PauseSegment[] => {
         if (editedTrack) {
             return findPauses(editedTrack);
@@ -486,7 +490,7 @@ const TrackEditor: React.FC<TrackEditorProps> = ({ initialTracks, onExit, addToa
                                     <div className="absolute top-2 left-12 z-10 flex items-center bg-slate-700/50 p-1 rounded-md overflow-x-auto no-scrollbar max-w-[calc(100%-60px)]">
                                         <div className="flex space-x-1 shrink-0">
                                             {(['pace', 'elevation', 'speed', 'hr', 'power'] as const).map(metric => {
-                                                const isDisabled = metric === 'hr' && !hasHrData;
+                                                const isDisabled = (metric === 'hr' && !hasHrData) || (metric === 'power' && !hasPowerData);
                                                 const isActive = yAxisMetrics.includes(metric);
                                                 return (
                                                     <button
