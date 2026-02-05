@@ -202,9 +202,9 @@ const WeatherWidget: React.FC<{ className?: string }> = ({ className }) => {
                         </div>
                     )}
 
-                    {/* Right: Advice (Hide on very small screens if needed, or keep small) */}
-                    <div className="text-right hidden sm:block max-w-[120px]">
-                        <div className="bg-white/10 px-2 py-1 rounded-lg backdrop-blur-md border border-white/10 inline-block">
+                    {/* Right: Advice */}
+                    <div className="w-full sm:w-auto sm:max-w-[140px] mt-1 sm:mt-0">
+                        <div className="bg-white/10 px-2 py-1 rounded-lg backdrop-blur-md border border-white/10 w-full sm:w-auto inline-block text-center sm:text-right">
                             <p className="text-[9px] text-white leading-tight font-medium truncate">
                                 {runConditions.advice}
                             </p>
