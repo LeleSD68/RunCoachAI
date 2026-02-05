@@ -65,11 +65,30 @@ create policy "Manage own groups" on public.social_groups for all using (auth.ui
 drop policy if exists "View group members" on public.social_group_members;
 create policy "View group members" on public.social_group_members for select using (true);
 
-drop policy if exists "Join groups" on public.social_group_members;
-create policy "Join groups" on public.social_group_members for insert with check (auth.uid() = user_id);
+-- FIX: Modificata policy per permettere l'aggiunta sia self-join che da parte del proprietario
+drop policy if exists "Manage group members" on public.social_group_members;
+drop policy if exists "Join groups" on public.social_group_members; -- Remove old policy name if exists
+
+create policy "Manage group members" on public.social_group_members for insert with check (
+  auth.uid() = user_id -- L'utente si unisce da solo
+  OR
+  exists ( -- OPPURE l'utente attuale è il proprietario del gruppo
+    select 1 from public.social_groups
+    where id = group_id
+    and owner_id = auth.uid()
+  )
+);
 
 drop policy if exists "Leave groups" on public.social_group_members;
-create policy "Leave groups" on public.social_group_members for delete using (auth.uid() = user_id);
+create policy "Leave groups" on public.social_group_members for delete using (
+    auth.uid() = user_id -- Lascia il gruppo
+    OR
+    exists ( -- Il proprietario rimuove un membro
+        select 1 from public.social_groups
+        where id = group_id
+        and owner_id = auth.uid()
+    )
+);
 
 -- 4. AGGIORNA TRACKS CON CAMPI CONDIVISIONE
 do $$ 
