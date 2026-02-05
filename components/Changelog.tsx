@@ -7,6 +7,16 @@ interface ChangelogProps {
 
 const changelogData = [
     {
+        version: 'v1.45',
+        date: '2026-02-02',
+        changes: [
+            '🎧 **Live Coach Vocale**: Il tuo allenatore scende in pista con te! Avvia un allenamento pianificato dal Diario e il coach ti guiderà vocalmente fase per fase (Riscaldamento, Ripetute, Recuperi). Monitora il tuo passo via GPS, ti avvisa se vai troppo piano/forte e gestisce i timer automaticamente.',
+            '☀️ **Meteo Intelligente**: Il calendario ora mostra le condizioni meteo. Per il passato recupera i dati storici (utile per capire perché hai faticato col caldo), per il futuro mostra previsioni a 15 giorni con dettagli su temperatura, vento e umidità per mattina, pomeriggio e sera.',
+            '⚡ **Dati di Potenza (Watt)**: Se il tuo dispositivo (Garmin, Stryd, Coros) registra la potenza, ora puoi visualizzare il grafico dei Watt, analizzare la potenza media nei parziali e colorare la mappa in base allo sforzo in Watt.',
+            '👥 **Gruppi Social**: Crea le tue "Squadre" o gruppi di allenamento nel Social Hub. Invita amici, gestisci i membri e filtra il feed per vedere solo le attività del tuo gruppo.'
+        ]
+    },
+    {
         version: 'v1.44',
         date: '2026-02-01',
         changes: [
@@ -364,7 +374,7 @@ const Changelog: React.FC<ChangelogProps> = ({ onClose }) => {
                     <button onClick={onClose} className="text-2xl leading-none p-1 rounded-full hover:bg-slate-700" aria-label="Close changelog">&times;</button>
                 </header>
 
-                <div className="flex-grow p-6 overflow-y-auto space-y-6">
+                <div className="flex-grow p-6 overflow-y-auto space-y-6 custom-scrollbar">
                     {changelogData.map(entry => (
                         <div key={entry.version} className="relative pl-6 border-l-2 border-slate-700">
                             <div className="absolute -left-[9px] top-1 w-4 h-4 bg-cyan-500 rounded-full border-4 border-slate-800"></div>
