@@ -27,6 +27,120 @@ export const getWeatherIcon = (code: number): string => {
     return '❓';
 };
 
+export interface RunConditions {
+    score: number; // 0-100
+    verdict: 'Perfetto' | 'Buono' | 'Accettabile' | 'Difficile' | 'Estremo';
+    color: string; // Tailwind text color class
+    bgGradient: string; // Tailwind gradient class
+    advice: string;
+    bestPhase?: string; // 'Mattina', 'Pomeriggio', 'Sera'
+}
+
+export const analyzeRunningConditions = (weather: CalendarWeather): RunConditions => {
+    let score = 100;
+    const penalties: string[] = [];
+    
+    // 1. Analisi Pioggia/Neve (Codici WMO)
+    const badWeatherCodes = [95, 96, 99, 66, 67, 56, 57]; // Temporali, Freezing Rain
+    const rainCodes = [61, 63, 65, 80, 81, 82]; // Pioggia
+    const snowCodes = [71, 73, 75, 85, 86]; // Neve
+
+    if (badWeatherCodes.includes(weather.weatherCode)) {
+        score -= 40;
+        penalties.push("Temporali o ghiaccio");
+    } else if (rainCodes.includes(weather.weatherCode)) {
+        score -= 20;
+        penalties.push("Pioggia");
+    } else if (snowCodes.includes(weather.weatherCode)) {
+        score -= 15; // Correre con la neve può essere bello ma faticoso
+        penalties.push("Neve");
+    }
+
+    // 2. Analisi Temperatura
+    // Ideale corsa: 8°C - 15°C
+    const maxTemp = weather.maxTemp;
+    const minTemp = weather.minTemp;
+
+    if (maxTemp > 30) {
+        score -= 35;
+        penalties.push("Caldo estremo");
+    } else if (maxTemp > 25) {
+        score -= 20;
+        penalties.push("Molto caldo");
+    } else if (maxTemp > 18) {
+        score -= 5; // Un po' caldino
+    }
+
+    if (minTemp < -5) {
+        score -= 25;
+        penalties.push("Gelo intenso");
+    } else if (minTemp < 2) {
+        score -= 10; // Freddo
+    }
+
+    // 3. Determinazione Fase Migliore
+    let bestPhase = '';
+    const details = weather.details;
+    if (details) {
+        // Logica semplice: 
+        // Se fa caldo (>20), meglio la fase più fresca (di solito mattina o sera)
+        // Se fa freddo (<5), meglio la fase più calda (pomeriggio)
+        const temps = [
+            { label: 'Mattina', val: details.morning.temp },
+            { label: 'Pomeriggio', val: details.afternoon.temp },
+            { label: 'Sera', val: details.evening.temp }
+        ];
+
+        if (maxTemp > 22) {
+            // Cerca il più fresco
+            const best = temps.reduce((prev, curr) => prev.val < curr.val ? prev : curr);
+            bestPhase = best.label;
+        } else if (maxTemp < 10) {
+            // Cerca il più caldo
+            const best = temps.reduce((prev, curr) => prev.val > curr.val ? prev : curr);
+            bestPhase = best.label;
+        } else {
+            // Temperature miti: evita pioggia se possibile, altrimenti indifferente
+            bestPhase = 'Qualsiasi';
+        }
+    }
+
+    // Costruzione Verdetto
+    let verdict: RunConditions['verdict'] = 'Perfetto';
+    let color = 'text-green-400';
+    let bgGradient = 'from-green-600/20 to-emerald-600/20';
+    let advice = "Condizioni ideali per correre!";
+
+    if (score < 40) {
+        verdict = 'Estremo';
+        color = 'text-red-500';
+        bgGradient = 'from-red-600/20 to-orange-600/20';
+        advice = penalties.length > 0 ? `Attenzione: ${penalties.join(', ')}.` : "Condizioni molto difficili.";
+    } else if (score < 60) {
+        verdict = 'Difficile';
+        color = 'text-orange-400';
+        bgGradient = 'from-orange-600/20 to-amber-600/20';
+        advice = penalties.length > 0 ? `Sfida: ${penalties.join(', ')}.` : "Giornata impegnativa.";
+    } else if (score < 80) {
+        verdict = 'Accettabile';
+        color = 'text-yellow-400';
+        bgGradient = 'from-yellow-600/20 to-lime-600/20';
+        advice = penalties.length > 0 ? `Occhio a: ${penalties.join(', ')}.` : "Buone condizioni generali.";
+    } else if (score < 95) {
+        verdict = 'Buono';
+        color = 'text-cyan-400';
+        bgGradient = 'from-cyan-600/20 to-blue-600/20';
+        advice = "Ottima giornata per allenarsi.";
+    }
+
+    // Aggiungi consiglio fase
+    if (bestPhase && bestPhase !== 'Qualsiasi' && score > 40) {
+        advice += ` Fase consigliata: ${bestPhase}.`;
+    }
+
+    return { score, verdict, color, advice, bestPhase, bgGradient };
+};
+
 // Utilizza data locale YYYY-MM-DD per evitare disallineamenti UTC
 const formatDateLocal = (date: Date): string => {
     const y = date.getFullYear();
