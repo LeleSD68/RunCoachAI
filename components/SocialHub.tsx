@@ -172,6 +172,7 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
             setGroups(updatedGroups);
         } catch (e) {
             console.error(e);
+            alert("Impossibile aggiungere l'utente. Controlla i permessi o se è già presente.");
         }
     };
 
