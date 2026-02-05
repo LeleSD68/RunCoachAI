@@ -231,8 +231,32 @@ export const leaveGroup = async (groupId: string, userId: string) => {
 export const addMemberToGroup = async (groupId: string, userId: string) => {
     const { error } = await supabase.from('social_group_members').insert({ group_id: groupId, user_id: userId });
     if (error) {
-        if (error.code !== '23505') throw error;
+        if (error.code !== '23505') throw error; // Ignore duplicate key errors (already member)
     }
+};
+
+export const removeMemberFromGroup = async (groupId: string, userId: string) => {
+    const { error } = await supabase.from('social_group_members').delete().match({ group_id: groupId, user_id: userId });
+    if (error) throw error;
+};
+
+// Return full profile objects for members
+export const getGroupMembersDetails = async (groupId: string): Promise<UserProfile[]> => {
+    const { data: memberIds, error } = await supabase
+        .from('social_group_members')
+        .select('user_id')
+        .eq('group_id', groupId);
+    
+    if (error || !memberIds || memberIds.length === 0) return [];
+    
+    const ids = memberIds.map((m: any) => m.user_id);
+    
+    const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, name, last_seen_at')
+        .in('id', ids);
+    
+    return profiles || [];
 };
 
 export const getGroupMembers = async (groupId: string): Promise<string[]> => {
