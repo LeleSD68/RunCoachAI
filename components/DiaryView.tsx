@@ -26,6 +26,7 @@ interface DiaryViewProps {
     initialSelectedWorkoutId?: string | null;
     onCheckAiAccess?: (feature: 'workout' | 'analysis' | 'chat') => boolean;
     onStartWorkout?: (workout: PlannedWorkout) => void;
+    onUpdateTrack?: (id: string, metadata: Partial<Track>) => void; // New prop for renaming
 }
 
 const DAYS_OF_WEEK = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
@@ -82,7 +83,8 @@ const DiaryView: React.FC<DiaryViewProps> = ({
     onOpenTrackChat, 
     initialSelectedWorkoutId,
     onCheckAiAccess,
-    onStartWorkout
+    onStartWorkout,
+    onUpdateTrack 
 }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedWorkoutId, setSelectedWorkoutId] = useState<string | null>(initialSelectedWorkoutId || null);
@@ -95,6 +97,9 @@ const DiaryView: React.FC<DiaryViewProps> = ({
     const [actionDate, setActionDate] = useState<Date | null>(null);
     const [aiTargetDate, setAiTargetDate] = useState<Date | undefined>(undefined);
     const [selectedWeather, setSelectedWeather] = useState<{ weather: CalendarWeather, date: Date } | null>(null);
+
+    // Rename Interaction State
+    const [renameStep, setRenameStep] = useState<'ask' | 'rename' | null>(null);
 
     // Load global chat history to identify dates with messages
     useEffect(() => {
@@ -161,6 +166,25 @@ const DiaryView: React.FC<DiaryViewProps> = ({
         }
     }, [initialSelectedWorkoutId, plannedWorkouts]);
 
+    const currentSelectedWorkout = useMemo(() => 
+        plannedWorkouts.find(w => w.id === selectedWorkoutId),
+    [selectedWorkoutId, plannedWorkouts]);
+
+    // Check for AI Questions or Rename Opportunities
+    useEffect(() => {
+        if (currentSelectedWorkout && currentSelectedWorkout.completedTrackId) {
+            const hasQuestion = currentSelectedWorkout.description.includes("È questa la sessione?") || currentSelectedWorkout.description.includes("è questa la sessione?");
+            
+            if (hasQuestion) {
+                setRenameStep('ask');
+            } else {
+                setRenameStep(null);
+            }
+        } else {
+            setRenameStep(null);
+        }
+    }, [currentSelectedWorkout]);
+
     const { stats } = useMemo(() => {
         const year = currentDate.getFullYear();
         const month = currentDate.getMonth();
@@ -222,10 +246,6 @@ const DiaryView: React.FC<DiaryViewProps> = ({
                date.getFullYear() === today.getFullYear();
     };
 
-    const currentSelectedWorkout = useMemo(() => 
-        plannedWorkouts.find(w => w.id === selectedWorkoutId),
-    [selectedWorkoutId, plannedWorkouts]);
-
     const handleRescheduleConfirm = (updatedWorkouts: PlannedWorkout | PlannedWorkout[]) => {
         if (Array.isArray(updatedWorkouts)) {
             if (onMassUpdatePlannedWorkouts) {
@@ -247,6 +267,32 @@ const DiaryView: React.FC<DiaryViewProps> = ({
             setAiTargetDate(date);
         } else {
             setAiTargetDate(undefined);
+        }
+    };
+
+    // Rename Logic Handlers
+    const handleAnswerQuestion = (isYes: boolean) => {
+        if (!isYes) {
+            setRenameStep(null);
+            // Optionally update description to remove question? Keeping it simple.
+            return;
+        }
+
+        // If Yes, check if rename is needed
+        if (currentSelectedWorkout && currentSelectedWorkout.completedTrackId) {
+            const track = tracks.find(t => t.id === currentSelectedWorkout.completedTrackId);
+            if (track && track.name !== currentSelectedWorkout.title) {
+                setRenameStep('rename');
+            } else {
+                setRenameStep(null);
+            }
+        }
+    };
+
+    const handleRenameConfirm = () => {
+        if (currentSelectedWorkout && currentSelectedWorkout.completedTrackId && onUpdateTrack) {
+            onUpdateTrack(currentSelectedWorkout.completedTrackId, { name: currentSelectedWorkout.title });
+            setRenameStep(null);
         }
     };
 
@@ -459,6 +505,40 @@ const DiaryView: React.FC<DiaryViewProps> = ({
                                 }`}>{currentSelectedWorkout.activityType}</span>
                             </div>
                             
+                            {/* NEW: Rename / Question Flow Block */}
+                            {renameStep && (
+                                <div className="bg-purple-900/20 border-l-4 border-purple-500 p-4 mb-4 rounded-r-lg shadow-inner animate-fade-in-right">
+                                    <div className="flex items-start gap-3">
+                                        <div className="text-2xl pt-1">🤔</div>
+                                        <div className="flex-grow">
+                                            <h4 className="text-purple-300 font-bold text-sm mb-1 uppercase tracking-tight">
+                                                {renameStep === 'ask' ? 'Domanda dal Coach' : 'Titoli Differenti'}
+                                            </h4>
+                                            <p className="text-xs text-slate-300 mb-3">
+                                                {renameStep === 'ask' 
+                                                    ? 'L\'AI chiede: confermi che questa corsa corrisponde all\'allenamento pianificato?' 
+                                                    : `Il titolo della corsa ("${tracks.find(t=>t.id===currentSelectedWorkout.completedTrackId)?.name}") è diverso dal piano. Vuoi usare "${currentSelectedWorkout.title}"?`
+                                                }
+                                            </p>
+                                            
+                                            <div className="flex gap-2">
+                                                {renameStep === 'ask' ? (
+                                                    <>
+                                                        <button onClick={() => handleAnswerQuestion(true)} className="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded text-xs font-bold transition-colors">Sì, Confermo</button>
+                                                        <button onClick={() => handleAnswerQuestion(false)} className="px-4 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded text-xs font-bold transition-colors">No</button>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <button onClick={handleRenameConfirm} className="px-4 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded text-xs font-bold transition-colors">Sì, Rinomina Corsa</button>
+                                                        <button onClick={() => setRenameStep(null)} className="px-4 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded text-xs font-bold transition-colors">No, Mantieni</button>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="bg-slate-700/30 p-4 rounded-xl border border-slate-600/50 mb-6">
                                 <div className="text-sm text-slate-200 leading-relaxed italic prose prose-invert prose-sm">
                                     <FormattedAnalysis text={currentSelectedWorkout.description} />
