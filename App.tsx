@@ -414,13 +414,13 @@ const App: React.FC = () => {
         setUserProfile({ autoAnalyzeEnabled: true });
         
         // Reset navigation state
-        setShowHome(false);
+        setShowHome(true); // Keep home open
         setShowProfile(false);
         setShowSettings(false);
         setShowDiary(false);
         setShowSocial(false);
         
-        setShowAuthSelection(true);
+        // Don't show AuthSelectionModal, just refresh Home to guest/logged out state
     };
 
     useEffect(() => {
@@ -452,12 +452,9 @@ const App: React.FC = () => {
         setShowInfographic(false);
         sessionStorage.setItem(SESSION_ACTIVE_KEY, 'true'); 
         
-        if (userId) {
-            setShowHome(true);
-            setShowAuthSelection(false);
-        } else {
-            setShowAuthSelection(true);
-        }
+        // ALWAYS go to Home first, navigation starts there
+        setShowHome(true);
+        setShowAuthSelection(false);
     };
 
     // Live Coach Handlers
