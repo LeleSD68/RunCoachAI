@@ -57,18 +57,18 @@ const StatsPanel: React.FC<StatsPanelProps> = ({ stats, selectedSegment, onSegme
     return (
         <div className="text-white flex flex-col h-full bg-slate-900/30 rounded-xl border border-slate-700/50 overflow-hidden">
             
-            {/* TABS HEADER */}
-            <div className="flex border-b border-slate-700 bg-slate-800/80 shrink-0">
+            {/* TABS HEADER - WRAP ENABLED */}
+            <div className="flex flex-wrap border-b border-slate-700 bg-slate-800/80 shrink-0">
                 <button 
                     onClick={() => setActiveTab('summary')}
-                    className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all relative ${activeTab === 'summary' ? 'text-cyan-400 bg-slate-800/50' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'}`}
+                    className={`flex-1 min-w-[120px] py-3 text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all relative ${activeTab === 'summary' ? 'text-cyan-400 bg-slate-800/50' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'}`}
                 >
                     <ChartBarIcon /> Dati Totali
                     {activeTab === 'summary' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-cyan-500"></div>}
                 </button>
                 <button 
                     onClick={() => setActiveTab('splits')}
-                    className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all relative ${activeTab === 'splits' ? 'text-cyan-400 bg-slate-800/50' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'}`}
+                    className={`flex-1 min-w-[120px] py-3 text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all relative ${activeTab === 'splits' ? 'text-cyan-400 bg-slate-800/50' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'}`}
                 >
                     <ListBulletIcon /> Parziali ({stats.splits?.length || 0})
                     {activeTab === 'splits' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-cyan-500"></div>}
