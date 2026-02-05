@@ -214,15 +214,9 @@ const App: React.FC = () => {
         const isOpen = currentStates[view];
         if (!isOpen) {
             pushViewState(view);
-            // Don't call resetNavigation here completely, handle it per case or ensure targeted state persists
-            // But resetNavigation clears everything including targetWorkoutId. 
-            // We need to keep targetWorkoutId if we are opening diary.
-            // Simplified: resetNavigation first, then set specific true.
             
-            // Special handling for preserving targetWorkoutId if transitioning to diary
-            const preserveTarget = view === 'diary' ? targetWorkoutId : null;
+            // NOTE: When toggling views normally, we reset navigation to clear previous states
             resetNavigation(); 
-            if (view === 'diary' && preserveTarget) setTargetWorkoutId(preserveTarget);
 
             switch(view) {
                 case 'diary': setShowDiary(true); break;
@@ -1057,8 +1051,11 @@ const App: React.FC = () => {
                     onlineCount={onlineFriendsCount}
                     plannedWorkouts={plannedWorkouts} 
                     onOpenWorkout={(id: string) => { 
+                        // Manually switch views to prevent resetNavigation() from clearing the ID
+                        setShowHome(false);
                         setTargetWorkoutId(id);
-                        toggleView('diary');
+                        setShowDiary(true);
+                        // Do NOT call toggleView('diary') because it resets navigation again
                     }}
                     isGuest={isGuest}
                     onLogout={handleLogout}
