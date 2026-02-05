@@ -406,7 +406,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
                                         </button>
                                     )}
                                     <button onClick={isGuest ? onLogin : onLogout} className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-3 py-2 rounded-lg transition-colors border border-transparent ${isGuest ? 'hover:bg-green-900/20 text-green-400 hover:border-green-500/30' : 'hover:bg-red-900/20 text-red-400 hover:border-red-500/30'}`}>
-                                        {isGuest ? <LoginIcon /> : <LogoutIcon />} <span className="text-xs font-bold uppercase">{isGuest ? 'Login' : 'Esci'}</span>
+                                        {isGuest ? <LoginIcon /> : <LogoutIcon />} <span className="text-xs font-bold uppercase">{isGuest ? 'Login' : 'Logout'}</span>
                                     </button>
                                 </div>
                             </div>
