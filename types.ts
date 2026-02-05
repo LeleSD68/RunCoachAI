@@ -116,6 +116,7 @@ export interface Toast {
   id: number;
   message: string;
   type: 'success' | 'error' | 'info';
+  action?: () => void; // Optional click action
 }
 
 export interface DailyCounts {
