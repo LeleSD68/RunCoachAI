@@ -4,6 +4,7 @@ import { PlannedWorkout, UserProfile, CalendarWeather } from '../types';
 import { isStravaConnected } from '../services/stravaService';
 import { fetchMonthWeather, analyzeRunningConditions, RunConditions } from '../services/weatherService';
 import { loadTracksFromDB } from '../services/dbService';
+import WeatherForecastModal from './WeatherForecastModal';
 
 interface HomeModalProps {
     onOpenDiary: () => void;
@@ -36,7 +37,7 @@ interface HomeModalProps {
 
 // --- ICONS ---
 const UserIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0ZM3.751 20.105a8.25 8.25 0 0 1 16.498 0 .75.75 0 0 1-.437.695A18.683 18.683 0 0 1 12 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 0 1-.437-.695Z" clipRule="evenodd" /></svg>);
-const CogIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M11.078 2.25c-.917 0-1.699.663-1.85 1.567L9.05 5.389c-.42.12-.83.263-1.228.428l-1.09-1.09a1.875 1.875 0 0 0-2.652 0l-2.25 2.25a1.875 1.875 0 0 0 0 2.652l1.09 1.09c-.165.398-.309.809-.428 1.228L.683 13.23a1.875 1.875 0 0 0 1.566 1.849l1.554.17c.12.42.263.83.428 1.228l-1.09 1.09a1.875 1.875 0 0 0 0 2.652l2.25 2.25a1.875 1.875 0 0 0 2.652 0l1.09-1.09c.398.165.809.309 1.228.428l.17 1.554a1.875 1.875 0 0 0 1.848 1.566h3.182a1.875 1.875 0 0 0 1.849-1.566l.17-1.554c.42-.12.83-.263 1.228-.428l1.09 1.09a1.875 1.875 0 0 0 2.652 0l2.25-2.25a1.875 1.875 0 0 0 0-2.652l-1.09-1.09c.165-.398.309-.809.428-1.228l1.554-.17a1.875 1.875 0 0 0 1.566-1.849v-3.182a1.875 1.875 0 0 0-1.566-1.849l-1.554-.17c-.12-.42-.263-.83-.428-1.228l1.09-1.09a1.875 1.875 0 0 0 0-2.652l-2.25-2.25a1.875 1.875 0 0 0-2.652 0l-1.09 1.09c-.398-.165-.809-.309-1.228-.428l-.17-1.554a1.875 1.875 0 0 0-1.849-1.566h-3.182Zm-.638 1.95a.375.375 0 0 1 .375-.375h3.182a.375.375 0 0 1 .375.375v.85c0 .552.392 1.03.921 1.136 1.077.215 2.072.7 2.922 1.36a1.125 1.125 0 0 0 1.401-.065l.6-.6a.375.375 0 0 1 .53 0l2.25 2.25a.375.375 0 0 1 0 .53l-.6.6a1.125 1.125 0 0 0 .065 1.401c.66.85 1.145 1.845 1.36 2.922.106.529.584.921 1.136.921h.85a.375.375 0 0 1 .375.375v3.182a.375.375 0 0 1-.375.375h-.85a1.125 1.125 0 0 0-1.136.921c-.215 1.077-.7 2.072-1.36 2.922a1.125 1.125 0 0 0 .065 1.401l.6.6a.375.375 0 0 1 0 .53l-2.25 2.25a.375.375 0 0 1-.53 0l-.6-.6a1.125 1.125 0 0 0-1.401-.065c-.85.66-1.846 1.145-2.922 1.36a1.125 1.125 0 0 0-.921 1.136v.85a.375.375 0 0 1-.375-.375Z" clipRule="evenodd" /><path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" /></svg>);
+const CogIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M11.078 2.25c-.917 0-1.699.663-1.85 1.567L9.05 5.389c-.42.12-.83.263-1.228.428l-1.09-1.09a1.875 1.875 0 0 0-2.652 0l-2.25 2.25a1.875 1.875 0 0 0 0 2.652l1.09 1.09c-.165.398-.309.809-.428 1.228L.683 13.23a1.875 1.875 0 0 0 1.566 1.849l1.554.17c.12.42.263.83.428 1.228l-1.09 1.09a1.875 1.875 0 0 0 0 2.652l2.25 2.25a1.875 1.875 0 0 0 2.652 0l1.09-1.09c.398.165.809.309 1.228.428l.17 1.554a1.875 1.875 0 0 0 1.848 1.566h3.182a1.875 1.875 0 0 0 1.849-1.566l.17-1.554c.42-.12.83-.263 1.228-.428l1.09 1.09a1.875 1.875 0 0 0 2.652 0l2.25-2.25a1.875 1.875 0 0 0 0-2.652l-1.09-1.09c.165-.398.309-.809.428-1.228l1.554-.17a1.875 1.875 0 0 0 1.566-1.849v-3.182a1.875 1.875 0 0 0-1.566-1.849l-1.554-.17c-.12-.42-.263-.83-.428-1.228l1.09-1.09a1.875 1.875 0 0 0 0-2.652l-2.25-2.25a1.875 1.875 0 0 0-2.652 0l-1.09 1.09c-.398-.165-.809-.309-1.228-.428l-.17-1.554a1.875 1.875 0 0 0-1.849-1.566h-3.182Zm-.638 1.95a.375.375 0 0 1 .375-.375h3.182a.375.375 0 0 1 .375.375v.85c0 .552.392 1.03.921 1.136 1.077.215 2.072.7 2.922 1.36a1.125 1.125 0 0 0 1.401-.065l.6-.6a.375.375 0 0 1 .53 0l2.25 2.25a.375.375 0 0 1 0 .53l-.6.6a1.125 1.125 0 0 0 .065 1.401c.66.85 1.145 1.845 1.36 2.922.106.529.584.921 1.136.921h.85a.375.375 0 0 1 .375.375v3.182a.375.375 0 0 1-.375.375h-.85a1.125 1.125 0 0 0-1.136.921c-.215 1.077-.7 2.072-1.36 2.922a1.125 1.125 0 0 0 .065 1.401l.6.6a.375.375 0 0 1 0 .53l-2.25 2.25a.375.375 0 0 1-.53 0l-.6-.6a1.125 1.125 0 0 0-1.401-.065c-.85.66-1.846 1.145-2.922 1.36a1.125 1.125 0 0 0-.921 1.136v.85a.375.375 0 0 1-.375.375h-3.182a.375.375 0 0 1-.375-.375v-.85a1.125 1.125 0 0 0-.921-1.136c-1.077-.215-2.072-.7-2.922-1.36a1.125 1.125 0 0 0-1.401.065l-.6.6a.375.375 0 0 1-.53 0l-2.25-2.25a.375.375 0 0 1 0-.53l.6.6a1.125 1.125 0 0 0-1.401.065c.85-.66 1.845-1.145 2.922-1.36a1.125 1.125 0 0 0 .921-1.136v-.85a.375.375 0 0 1 .375-.375Z" clipRule="evenodd" /><path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" /></svg>);
 const HelpIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12Zm11.378-3.917c-.89-.777-2.366-.777-3.255 0a.75.75 0 0 1-.988-1.129c1.454-1.272 3.776-1.272 5.23 0 1.513 1.324 1.513 3.518 0 4.842a3.75 3.75 0 0 1-.837.552c-.676.328-1.028.774-1.028 1.152v.202a.75.75 0 0 1-1.5 0v-.202c0-1.009.9-1.97 2.028-2.48a5.25 5.25 0 0 0 1.12-.737c.89-.777.89-2.036 0-2.814Zm.122 7.132a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" clipRule="evenodd" /></svg>);
 const LogoutIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M7.5 3.75A1.5 1.5 0 0 0 6 5.25v13.5a1.5 1.5 0 0 0 1.5 1.5h6a1.5 1.5 0 0 0 1.5-1.5V15a.75.75 0 0 1 1.5 0v3.75a3 3 0 0 1-3 3h-6a3 3 0 0 1-3-3V5.25a3 3 0 0 1 3-3h6a3 3 0 0 1 3 3V9A.75.75 0 0 1 13.5 9V5.25a1.5 1.5 0 0 0-1.5-1.5h-6Zm10.72 4.72a.75.75 0 0 1 1.06 0l3 3a.75.75 0 0 1 0 1.06l-3 3a.75.75 0 1 1-1.06-1.06l1.72-1.72H9a.75.75 0 0 1 0-1.5h10.94l-1.72-1.72a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" /></svg>);
 const LoginIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" clipRule="evenodd" /></svg>);
@@ -69,6 +70,11 @@ const ListIcon = () => (
         <path fillRule="evenodd" d="M3 6.75A.75.75 0 0 1 3.75 6h16.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 6.75ZM3 12a.75.75 0 0 1 .75-.75h16.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 12Zm0 5.25a.75.75 0 0 1 .75-.75h16.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 15.25ZM2 10a.75.75 0 0 1-.75-.75Z" clipRule="evenodd" />
     </svg>
 );
+const SearchIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+        <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clipRule="evenodd" />
+    </svg>
+);
 
 const LargeLogoIcon = () => (
     <div className="w-12 h-12 md:w-16 md:h-16 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-2xl border border-white/10 p-1.5">
@@ -80,6 +86,7 @@ const WeatherWidget: React.FC<{ className?: string }> = ({ className }) => {
     const [todaysWeather, setTodaysWeather] = useState<CalendarWeather | null>(null);
     const [runConditions, setRunConditions] = useState<RunConditions | null>(null);
     const [loading, setLoading] = useState(true);
+    const [showSearchModal, setShowSearchModal] = useState(false);
 
     useEffect(() => {
         const loadWeather = async () => {
@@ -136,59 +143,71 @@ const WeatherWidget: React.FC<{ className?: string }> = ({ className }) => {
     if (!todaysWeather || !runConditions) return null;
 
     return (
-        <div className={`bg-gradient-to-r ${runConditions.bgGradient} border border-white/10 rounded-2xl p-3 relative overflow-hidden group shadow-lg transition-all hover:shadow-xl ${className}`}>
-            {/* Background Icon */}
-            <div className="absolute -right-4 -bottom-4 text-8xl opacity-10 select-none pointer-events-none">
-                {todaysWeather.icon}
-            </div>
+        <>
+            <div className={`bg-gradient-to-r ${runConditions.bgGradient} border border-white/10 rounded-2xl p-3 relative overflow-hidden group shadow-lg transition-all hover:shadow-xl ${className}`}>
+                {/* Background Icon */}
+                <div className="absolute -right-4 -bottom-4 text-8xl opacity-10 select-none pointer-events-none">
+                    {todaysWeather.icon}
+                </div>
 
-            <div className="flex flex-col sm:flex-row justify-between items-center relative z-10 gap-2 h-full">
-                {/* Top/Left: Main Stats */}
-                <div className="flex items-center gap-3 w-full sm:w-auto">
-                    <div className="text-3xl sm:text-4xl">{todaysWeather.icon}</div>
-                    <div>
-                        <h3 className="text-[9px] font-black text-white/60 uppercase tracking-widest mb-0.5">Oggi</h3>
-                        <div className="flex items-baseline gap-1">
-                            <span className="text-xl sm:text-2xl font-black text-white">{todaysWeather.maxTemp}°</span>
-                            <span className="text-xs sm:text-sm text-white/60 font-medium">/ {todaysWeather.minTemp}°</span>
+                <div className="flex flex-col sm:flex-row justify-between items-center relative z-10 gap-2 h-full">
+                    {/* Top/Left: Main Stats */}
+                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                        <div className="text-3xl sm:text-4xl">{todaysWeather.icon}</div>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <h3 className="text-[9px] font-black text-white/60 uppercase tracking-widest mb-0.5">Oggi</h3>
+                                <button 
+                                    onClick={() => setShowSearchModal(true)} 
+                                    className="bg-black/20 hover:bg-black/40 text-white p-1 rounded transition-colors"
+                                    title="Cerca meteo città/gara"
+                                >
+                                    <SearchIcon />
+                                </button>
+                            </div>
+                            <div className="flex items-baseline gap-1">
+                                <span className="text-xl sm:text-2xl font-black text-white">{todaysWeather.maxTemp}°</span>
+                                <span className="text-xs sm:text-sm text-white/60 font-medium">/ {todaysWeather.minTemp}°</span>
+                            </div>
+                            <div className={`text-[9px] font-bold ${runConditions.color} mt-0.5`}>
+                                {runConditions.verdict}
+                            </div>
                         </div>
-                        <div className={`text-[9px] font-bold ${runConditions.color} mt-0.5`}>
-                            {runConditions.verdict}
+                    </div>
+
+                    {/* Middle: Phases (Restored) */}
+                    {todaysWeather.details && (
+                        <div className="flex items-center gap-2 sm:gap-4 bg-black/10 rounded-lg p-1.5 backdrop-blur-sm border border-white/5 w-full sm:w-auto justify-between sm:justify-center">
+                            <div className="flex flex-col items-center px-2 border-r border-white/10 last:border-0">
+                                <span className="text-[8px] text-white/50 uppercase font-bold mb-0.5">Mattina</span>
+                                <span className="text-sm">{todaysWeather.details.morning.icon}</span>
+                                <span className="text-[10px] font-mono font-bold text-white">{todaysWeather.details.morning.temp}°</span>
+                            </div>
+                            <div className="flex flex-col items-center px-2 border-r border-white/10 last:border-0">
+                                <span className="text-[8px] text-white/50 uppercase font-bold mb-0.5">Pom.</span>
+                                <span className="text-sm">{todaysWeather.details.afternoon.icon}</span>
+                                <span className="text-[10px] font-mono font-bold text-white">{todaysWeather.details.afternoon.temp}°</span>
+                            </div>
+                            <div className="flex flex-col items-center px-2">
+                                <span className="text-[8px] text-white/50 uppercase font-bold mb-0.5">Sera</span>
+                                <span className="text-sm">{todaysWeather.details.evening.icon}</span>
+                                <span className="text-[10px] font-mono font-bold text-white">{todaysWeather.details.evening.temp}°</span>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Right: Advice (Hide on very small screens if needed, or keep small) */}
+                    <div className="text-right hidden sm:block max-w-[120px]">
+                        <div className="bg-white/10 px-2 py-1 rounded-lg backdrop-blur-md border border-white/10 inline-block">
+                            <p className="text-[9px] text-white leading-tight font-medium truncate">
+                                {runConditions.advice}
+                            </p>
                         </div>
                     </div>
                 </div>
-
-                {/* Middle: Phases (Restored) */}
-                {todaysWeather.details && (
-                    <div className="flex items-center gap-2 sm:gap-4 bg-black/10 rounded-lg p-1.5 backdrop-blur-sm border border-white/5 w-full sm:w-auto justify-between sm:justify-center">
-                        <div className="flex flex-col items-center px-2 border-r border-white/10 last:border-0">
-                            <span className="text-[8px] text-white/50 uppercase font-bold mb-0.5">Mattina</span>
-                            <span className="text-sm">{todaysWeather.details.morning.icon}</span>
-                            <span className="text-[10px] font-mono font-bold text-white">{todaysWeather.details.morning.temp}°</span>
-                        </div>
-                        <div className="flex flex-col items-center px-2 border-r border-white/10 last:border-0">
-                            <span className="text-[8px] text-white/50 uppercase font-bold mb-0.5">Pom.</span>
-                            <span className="text-sm">{todaysWeather.details.afternoon.icon}</span>
-                            <span className="text-[10px] font-mono font-bold text-white">{todaysWeather.details.afternoon.temp}°</span>
-                        </div>
-                        <div className="flex flex-col items-center px-2">
-                            <span className="text-[8px] text-white/50 uppercase font-bold mb-0.5">Sera</span>
-                            <span className="text-sm">{todaysWeather.details.evening.icon}</span>
-                            <span className="text-[10px] font-mono font-bold text-white">{todaysWeather.details.evening.temp}°</span>
-                        </div>
-                    </div>
-                )}
-
-                {/* Right: Advice (Hide on very small screens if needed, or keep small) */}
-                <div className="text-right hidden sm:block max-w-[120px]">
-                    <div className="bg-white/10 px-2 py-1 rounded-lg backdrop-blur-md border border-white/10 inline-block">
-                        <p className="text-[9px] text-white leading-tight font-medium truncate">
-                            {runConditions.advice}
-                        </p>
-                    </div>
-                </div>
             </div>
-        </div>
+            {showSearchModal && <WeatherForecastModal onClose={() => setShowSearchModal(false)} />}
+        </>
     );
 };
 
@@ -431,6 +450,9 @@ const HomeModal: React.FC<HomeModalProps> = ({
                 
                 @keyframes fade-in-right { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
                 .animate-fade-in-right { animation: fade-in-right 0.2s ease-out forwards; }
+                
+                @keyframes fade-in-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+                .animate-fade-in-up { animation: fade-in-up 0.3s ease-out forwards; }
 
                 /* Custom Scrollbar for Hub */
                 .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
