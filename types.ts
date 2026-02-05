@@ -97,10 +97,11 @@ export interface UserProfile {
   gender?: 'M' | 'F' | 'Altro';
   maxHr?: number;
   restingHr?: number;
-  goals?: RunningGoal[];
+  goals?: string[]; // Changed from RunningGoal[] to string[] to support custom strings
   aiPersonality?: AiPersonality;
   personalNotes?: string; 
   shoes?: string[]; 
+  retiredShoes?: string[]; // NEW: List of retired shoe names
   autoAnalyzeEnabled?: boolean;
   googleCalendarSyncEnabled?: boolean;
   calendarPreference?: CalendarPreference;
