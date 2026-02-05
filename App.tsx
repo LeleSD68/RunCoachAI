@@ -670,11 +670,11 @@ const App: React.FC = () => {
     const lastHistoryUpdateRef = useRef(0); 
 
     const openRaceSetup = async () => {
-        if (raceSelectionIds.size < 1 && tracks.length > 0) {
-            addToast("Seleziona almeno una corsa per iniziare.", "info");
-            return;
-        }
+        // Fix per richiesta utente: Il pulsante Gara ora apre SEMPRE la modale,
+        // chiudendo la Home e permettendo la selezione successiva se nessuna traccia è scelta.
+        setShowHome(false);
         setShowRaceSetup(true);
+        
         if (userId) {
             try {
                 const feed = await getFriendsActivityFeed(userId);
