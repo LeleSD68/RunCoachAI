@@ -863,7 +863,7 @@ const App: React.FC = () => {
         const next = plannedWorkouts.filter(w => w.id !== id);
         setPlannedWorkouts(next);
         await savePlannedWorkoutsToDB(next);
-        await deletePlannedWorkoutFromCloud(String(id));
+        await deletePlannedWorkoutFromCloud(id);
         addToast("Rimossa dal diario.", "info");
     };
 
@@ -879,7 +879,7 @@ const App: React.FC = () => {
             if (file.name.toLowerCase().endsWith('.gpx')) parsed = parseGpx(text, file.name);
             else if (file.name.toLowerCase().endsWith('.tcx')) parsed = parseTcx(text, file.name);
             if (parsed) {
-                const { title, activityType, folder } = generateSmartTitle(parsed.points, parsed.distance, String(parsed.name));
+                const { title, activityType, folder } = generateSmartTitle(parsed.points, parsed.distance, parsed.name);
                 const tempTrack: Track = { id: crypto.randomUUID(), name: title, points: parsed.points, distance: parsed.distance, duration: parsed.duration, color: `hsl(${Math.random() * 360}, 70%, 60%)`, activityType, folder };
                 if (!isDuplicateTrack(tempTrack, [...tracks, ...newTracks])) { newTracks.push(tempTrack); newCount++; } 
                 else skipCount++;
