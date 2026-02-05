@@ -299,7 +299,8 @@ const GeminiTrackAnalysisPanel: React.FC<GeminiTrackAnalysisPanelProps> = ({ sta
                     </div>
                 </div>
             ) : (
-                <div className="fixed inset-0 z-[10000] bg-slate-900 flex flex-col animate-fade-in">
+                // FIX: Z-INDEX aumentato a z-[20000] per stare sopra alla NavigationDock (z-[12000])
+                <div className="fixed inset-0 z-[20000] bg-slate-900 flex flex-col animate-fade-in">
                     <header className="flex items-center justify-between p-4 border-b border-slate-700 bg-slate-800 flex-shrink-0">
                         <div className="flex items-center gap-2">
                             <div className="bg-purple-600 p-1.5 rounded-lg"><SparklesIcon /></div>
