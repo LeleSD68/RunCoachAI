@@ -43,8 +43,13 @@ export const parseGpx = (gpxString: string, fileName: string): { name: string; p
       const lon = pt.getAttribute("lon");
       const ele = pt.querySelector("ele")?.textContent;
       const time = pt.querySelector("time")?.textContent;
-      const hr = pt.querySelector("hr")?.textContent || pt.querySelector("HeartRateBpm Value")?.textContent;
-      const cad = pt.querySelector("cad")?.textContent || pt.querySelector("cadence")?.textContent;
+      
+      // Try to find HR and Cadence with standard tags
+      const hr = pt.querySelector("hr")?.textContent || pt.querySelector("HeartRateBpm Value")?.textContent || pt.querySelector("gpxtpx\\:hr")?.textContent;
+      const cad = pt.querySelector("cad")?.textContent || pt.querySelector("cadence")?.textContent || pt.querySelector("gpxtpx\\:cad")?.textContent;
+      
+      // Basic Power check
+      let power = pt.querySelector("power")?.textContent || pt.querySelector("watts")?.textContent;
 
       if (lat && lon && time) {
         const pointData: Omit<TrackPoint, 'cummulativeDistance'> = {
@@ -59,6 +64,27 @@ export const parseGpx = (gpxString: string, fileName: string): { name: string; p
         if (cad) {
             pointData.cad = parseInt(cad, 10);
         }
+
+        // Advanced Power Check in Extensions (Robust to namespaces)
+        if (!power) {
+            const extensions = pt.querySelector("extensions");
+            if (extensions) {
+                const children = extensions.getElementsByTagName("*");
+                for(let i=0; i<children.length; i++) {
+                    const tagName = children[i].tagName.toLowerCase();
+                    if (tagName.endsWith("watts") || tagName.endsWith("power")) {
+                        power = children[i].textContent;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (power) {
+            const pVal = parseInt(power, 10);
+            if (!isNaN(pVal)) pointData.power = pVal;
+        }
+
         points.push(pointData);
       }
     });
