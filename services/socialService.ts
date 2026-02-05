@@ -258,6 +258,16 @@ export const sendDirectMessage = async (senderId: string, receiverId: string, co
     if (error) throw error;
 };
 
+export const deleteDirectMessage = async (messageId: string) => {
+    const { error } = await supabase.from('direct_messages').delete().eq('id', messageId);
+    if (error) throw error;
+};
+
+export const editDirectMessage = async (messageId: string, newContent: string) => {
+    const { error } = await supabase.from('direct_messages').update({ content: newContent }).eq('id', messageId);
+    if (error) throw error;
+};
+
 export const getDirectMessages = async (currentUserId: string, friendId: string): Promise<DirectMessage[]> => {
     const { data, error } = await supabase
         .from('direct_messages')
