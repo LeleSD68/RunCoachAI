@@ -78,7 +78,10 @@ const App: React.FC = () => {
 
     const [showAuthSelection, setShowAuthSelection] = useState(false);
     const [showLoginModal, setShowLoginModal] = useState(false);
-    const [showHome, setShowHome] = useState(false);
+    
+    // CHANGE: Initialize showHome based on session storage to force Hub on reload
+    const [showHome, setShowHome] = useState(() => !!sessionStorage.getItem(SESSION_ACTIVE_KEY));
+    
     const [showProfile, setShowProfile] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
     const [showChangelog, setShowChangelog] = useState(false);
