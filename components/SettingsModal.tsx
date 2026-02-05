@@ -50,7 +50,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, userProfile, onU
 
     const toggleStravaSync = () => {
         if (!stravaConnected) return;
-        onUpdateProfile({ stravaAutoSync: !userProfile.stravaAutoSync });
+        // Explicitly set boolean to avoid undefined issues during toggle
+        const newValue = !(userProfile.stravaAutoSync === true);
+        onUpdateProfile({ stravaAutoSync: newValue });
     };
 
     return (
