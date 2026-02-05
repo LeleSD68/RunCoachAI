@@ -140,8 +140,9 @@ export const saveProfileToDB = async (profile: UserProfile, options: { skipCloud
         ai_personality: profile.aiPersonality,
         personal_notes: profile.personalNotes,
         shoes: profile.shoes || [],
+        retired_shoes: profile.retiredShoes || [], // NEW
         weight_history: profile.weightHistory || [],
-        strava_auto_sync: profile.stravaAutoSync, // New Field
+        strava_auto_sync: profile.stravaAutoSync,
         updated_at: new Date().toISOString()
       });
     }
@@ -167,6 +168,7 @@ export const loadProfileFromDB = async (forceLocal: boolean = false): Promise<Us
         aiPersonality: data.ai_personality,
         personalNotes: data.personal_notes,
         shoes: data.shoes,
+        retiredShoes: data.retired_shoes, // NEW
         weightHistory: data.weight_history,
         stravaAutoSync: data.strava_auto_sync
       };
