@@ -113,10 +113,13 @@ if (!supabaseInstance) {
             if (table === 'social_group_members') return createMockBuilder([]);
             return createMockBuilder([]);
         },
-        channel: () => ({
-            on: () => ({ on: () => ({ on: () => ({ subscribe: () => {} }) }) }),
-            subscribe: () => {}
-        }),
+        channel: () => {
+            const channelMock = {
+                on: () => channelMock,
+                subscribe: () => {}
+            };
+            return channelMock;
+        },
         removeChannel: () => {}
     };
 }
