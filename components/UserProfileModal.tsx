@@ -46,7 +46,7 @@ const formatTime = (ms: number) => {
 // Icons for Tabs
 const UserIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M10 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM3.465 14.493a1.23 1.23 0 0 0 .41 1.412A9.957 9.957 0 0 0 10 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 0 0-13.074.003Z" /></svg>);
 const TargetIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M2 10a8 8 0 1 1 16 0 8 8 0 0 1-16 0Zm8 5a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm-2.5-5a2.5 2.5 0 1 1 5 0 2.5 2.5 0 0 1-5 0Z" clipRule="evenodd" /></svg>);
-const ShoeIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M2.24 6.8a.75.75 0 0 0 1.06-.04l1.95-2.1v8.59a.75.75 0 0 0 1.5 0V4.66l1.95 2.1a.75.75 0 1 0 1.1-1.02l-3.25-3.5a.75.75 0 0 0-1.1 0L2.2 5.74a.75.75 0 0 0 .04 1.06Zm8 6.4a.75.75 0 0 0-.04 1.06l3.25 3.5a.75.75 0 0 0 1.1 0l3.25-3.5a.75.75 0 1 0-1.1-1.02l-1.95 2.1V6.75a.75.75 0 0 0-1.5 0v8.59l-1.95-2.1a.75.75 0 0 0-1.06-.04Z" clipRule="evenodd" /></svg>); // Using arrow sort icon as placeholder, or use generic
+const ShoeIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M2.24 6.8a.75.75 0 0 0 1.06-.04l1.95-2.1v8.59a.75.75 0 0 0 1.5 0V4.66l1.95 2.1a.75.75 0 1 0 1.1-1.02l-3.25-3.5a.75.75 0 0 0-1.1 0L2.2 5.74a.75.75 0 0 0 .04 1.06Zm8 6.4a.75.75 0 0 0-.04 1.06l3.25 3.5a.75.75 0 0 0 1.1 0l3.25-3.5a.75.75 0 1 0-1.1-1.02l-1.95 2.1V6.75a.75.75 0 0 0-1.5 0v8.59l-1.95-2.1a.75.75 0 0 0-1.06-.04Z" clipRule="evenodd" /></svg>);
 const TrophyIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M10 1c3.866 0 7 1.79 7 4s-3.134 4-7 4-7-1.79-7-4 3.134-4 7-4Zm5.694 8.13c.464-.264.91-.583 1.306-.952V10a6.996 6.996 0 0 1-6 6.92l.008-.007a.75.75 0 0 1-1.016 0l-.007.007A6.996 6.996 0 0 1 3 10V8.178c.396.37.842.688 1.306.953C5.838 10.006 7.854 10.5 10 10.5s4.162-.494 5.694-1.37Z" clipRule="evenodd" /></svg>);
 const BrainIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M10 2a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 10 2ZM10 15a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 10 15ZM10 7a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM15.657 5.404a.75.75 0 1 0-1.06-1.06l-1.061 1.06a.75.75 0 0 0 1.06 1.06l1.06-1.06ZM6.464 14.596a.75.75 0 1 0-1.06-1.06l-1.06 1.06a.75.75 0 0 0 1.06 1.06l1.06-1.06ZM15.657 14.596a.75.75 0 0 1-1.061 1.06l-1.06-1.06a.75.75 0 1 1 1.06-1.06l1.06 1.06ZM6.464 5.404a.75.75 0 0 1-1.06-1.06l-1.06 1.06a.75.75 0 0 1 1.06 1.06l1.06-1.06Z" /></svg>);
 
@@ -138,7 +138,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
     const tabs = [
         { id: 'athlete', label: 'Atleta', icon: <UserIcon /> },
         { id: 'goals', label: 'Obiettivi', icon: <TargetIcon /> },
-        { id: 'gear', label: 'Garage', icon: <ShoeIcon /> }, // Using ShoeIcon placeholder
+        { id: 'gear', label: 'Garage', icon: <ShoeIcon /> },
         { id: 'records', label: 'Record', icon: <TrophyIcon /> },
         { id: 'coach', label: 'Coach', icon: <BrainIcon /> },
     ];
@@ -158,13 +158,13 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
                     )}
                 </header>
 
-                {/* Tabs Navigation */}
-                <div className="flex border-b border-slate-700 bg-slate-900/50 overflow-x-auto no-scrollbar shrink-0">
+                {/* Tabs Navigation - WRAP ENABLED */}
+                <div className="flex flex-wrap border-b border-slate-700 bg-slate-900/50 shrink-0">
                     {tabs.map((tab) => (
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id as TabKey)}
-                            className={`flex-1 flex items-center justify-center gap-2 py-4 px-4 text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap border-b-2 ${
+                            className={`flex-1 min-w-[90px] flex items-center justify-center gap-2 py-4 px-4 text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap border-b-2 ${
                                 activeTab === tab.id 
                                 ? 'border-cyan-500 text-white bg-slate-800' 
                                 : 'border-transparent text-slate-500 hover:text-slate-300 hover:bg-slate-800/50'
