@@ -113,6 +113,8 @@ const App: React.FC = () => {
     const [unreadMessages, setUnreadMessages] = useState<number>(0);
     const [onlineFriendsCount, setOnlineFriendsCount] = useState<number>(0);
     const friendsIdRef = useRef<Set<string>>(new Set());
+    
+    const [pendingChatId, setPendingChatId] = useState<string | null>(null);
 
     const [layoutPrefs, setLayoutPrefs] = useState<{ desktopSidebar: number, mobileListRatio: number }>({ desktopSidebar: 320, mobileListRatio: 0.7 });
 
@@ -261,6 +263,11 @@ const App: React.FC = () => {
         }
     }, [userId]);
 
+    const addToast = (message: string, type: Toast['type'], action?: () => void) => {
+        const id = Date.now();
+        setToasts(prev => [...prev, { id, message, type, action }]);
+    };
+
     useEffect(() => {
         if (!userId || userId === 'guest') return;
         const heartbeatAndCheckFriends = async () => {
@@ -284,9 +291,13 @@ const App: React.FC = () => {
         if (!userId || userId === 'guest') return;
         const channel = supabase.channel('global_notifications')
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages', filter: `receiver_id=eq.${userId}` }, (payload) => {
+                const newMessage = payload.new;
                 if (!showSocial) {
                     const msg = "Nuovo messaggio ricevuto!";
-                    addToast(msg, "info");
+                    addToast(msg, "info", () => {
+                        setPendingChatId(newMessage.sender_id);
+                        toggleView('social');
+                    });
                     sendNotification("RunCoachAI Social", "Hai ricevuto un nuovo messaggio privato.");
                 }
                 fetchUnreadCount();
@@ -296,7 +307,7 @@ const App: React.FC = () => {
             })
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'friends', filter: `user_id_2=eq.${userId}` }, () => {
                 const msg = "Nuova richiesta di amicizia!";
-                addToast(msg, "info");
+                addToast(msg, "info", () => toggleView('social'));
                 fetchUnreadCount();
                 sendNotification("RunCoachAI Crew", "Qualcuno vuole aggiungerti agli amici!");
             })
@@ -304,7 +315,7 @@ const App: React.FC = () => {
                 const newRecord = payload.new as { user_id: string; name: string };
                 if (friendsIdRef.current.has(newRecord.user_id)) {
                     const msg = `Un amico ha caricato una nuova corsa: ${newRecord.name}`;
-                    addToast(msg, "info");
+                    addToast(msg, "info", () => toggleView('social'));
                     sendNotification("Feed Attività", `${newRecord.name} è appena stata caricata.`);
                 }
             })
@@ -313,7 +324,7 @@ const App: React.FC = () => {
                 const { data: groupData } = await supabase.from('social_groups').select('name').eq('id', newMember.group_id).single();
                 const groupName = groupData?.name || 'un gruppo';
                 const msg = `Sei stato aggiunto al gruppo: ${groupName}`;
-                addToast(msg, "success");
+                addToast(msg, "success", () => toggleView('social'));
                 sendNotification("Nuovo Gruppo", msg);
             })
             .subscribe();
@@ -367,11 +378,6 @@ const App: React.FC = () => {
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
-
-    const addToast = (message: string, type: Toast['type']) => {
-        const id = Date.now();
-        setToasts(prev => [...prev, { id, message, type }]);
-    };
 
     const onCheckAiAccess = useCallback((feature: 'workout' | 'analysis' | 'chat' = 'chat') => {
         if (!isGuest) return true;
@@ -536,9 +542,10 @@ const App: React.FC = () => {
             });
 
             if (uniqueNew.length > 0) {
-                addToast(`Trovate ${uniqueNew.length} nuove attività su Strava.`, "info");
-                setStravaAutoModal(true);
-                setShowStravaSyncOptions(true);
+                addToast(`Trovate ${uniqueNew.length} nuove attività su Strava.`, "info", () => {
+                    setStravaAutoModal(true);
+                    setShowStravaSyncOptions(true);
+                });
             }
         } catch (e: any) {
             console.error("Auto check failed", e);
@@ -1336,10 +1343,11 @@ const App: React.FC = () => {
 
             {showSocial && (
                 <SocialHub 
-                    onClose={() => toggleView('social')} 
+                    onClose={() => { toggleView('social'); setPendingChatId(null); }}
                     currentUserId={userId || 'guest'} 
                     onChallengeGhost={handleChallengeGhost}
                     onReadMessages={fetchUnreadCount}
+                    initialChatUserId={pendingChatId}
                 />
             )}
 
