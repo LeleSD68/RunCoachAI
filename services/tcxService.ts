@@ -44,6 +44,19 @@ export const parseTcx = (tcxString: string, fileName: string): { name: string; p
       const hrNode = pt.querySelector("HeartRateBpm Value");
       const cadNode = pt.querySelector("Cadence") || pt.querySelector("RunCadence");
       
+      let power: string | null = null;
+      const extensions = pt.querySelector("Extensions");
+      if (extensions) {
+          const children = extensions.getElementsByTagName("*");
+          for(let i=0; i<children.length; i++) {
+              const tagName = children[i].tagName.toLowerCase();
+              if (tagName.endsWith("watts")) {
+                  power = children[i].textContent;
+                  break;
+              }
+          }
+      }
+      
       if (time && latNode?.textContent && lonNode?.textContent) {
         const pointData: Omit<TrackPoint, 'cummulativeDistance'> = {
           lat: parseFloat(latNode.textContent),
@@ -56,6 +69,10 @@ export const parseTcx = (tcxString: string, fileName: string): { name: string; p
         }
         if (cadNode?.textContent) {
             pointData.cad = parseInt(cadNode.textContent, 10);
+        }
+        if (power) {
+            const pVal = parseInt(power, 10);
+            if (!isNaN(pVal)) pointData.power = pVal;
         }
         points.push(pointData);
       }
