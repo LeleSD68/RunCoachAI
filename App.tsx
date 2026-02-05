@@ -98,6 +98,9 @@ const App: React.FC = () => {
     const [showLiveCoach, setShowLiveCoach] = useState(false);
     const [activeWorkout, setActiveWorkout] = useState<PlannedWorkout | null>(null);
 
+    // Deep linking for Diary
+    const [targetWorkoutId, setTargetWorkoutId] = useState<string | null>(null);
+
     const [pendingWorkoutMatch, setPendingWorkoutMatch] = useState<{ track: Track, workout: PlannedWorkout } | null>(null);
 
     const [viewingTrack, setViewingTrack] = useState<Track | null>(null);
@@ -179,6 +182,7 @@ const App: React.FC = () => {
         setShowLiveCoach(false); 
         setViewingTrack(null);
         setEditingTrack(null);
+        setTargetWorkoutId(null);
     }, []);
 
     useEffect(() => {
@@ -210,7 +214,16 @@ const App: React.FC = () => {
         const isOpen = currentStates[view];
         if (!isOpen) {
             pushViewState(view);
+            // Don't call resetNavigation here completely, handle it per case or ensure targeted state persists
+            // But resetNavigation clears everything including targetWorkoutId. 
+            // We need to keep targetWorkoutId if we are opening diary.
+            // Simplified: resetNavigation first, then set specific true.
+            
+            // Special handling for preserving targetWorkoutId if transitioning to diary
+            const preserveTarget = view === 'diary' ? targetWorkoutId : null;
             resetNavigation(); 
+            if (view === 'diary' && preserveTarget) setTargetWorkoutId(preserveTarget);
+
             switch(view) {
                 case 'diary': setShowDiary(true); break;
                 case 'explorer': setShowExplorer(true); break;
@@ -1044,8 +1057,8 @@ const App: React.FC = () => {
                     onlineCount={onlineFriendsCount}
                     plannedWorkouts={plannedWorkouts} 
                     onOpenWorkout={(id: string) => { 
-                        setShowHome(false);
-                        setShowDiary(true);
+                        setTargetWorkoutId(id);
+                        toggleView('diary');
                     }}
                     isGuest={isGuest}
                     onLogout={handleLogout}
@@ -1318,6 +1331,7 @@ const App: React.FC = () => {
                             onDeletePlannedWorkout={handleDeletePlannedWorkout}
                             onCheckAiAccess={onCheckAiAccess}
                             onStartWorkout={startLiveCoach} // New prop
+                            initialSelectedWorkoutId={targetWorkoutId}
                         />
                     </div>
                 </div>
