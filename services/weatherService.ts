@@ -153,6 +153,107 @@ interface WeatherCache {
     [key: string]: CalendarWeather;
 }
 
+export interface SearchResult {
+    id: number;
+    name: string;
+    latitude: number;
+    longitude: number;
+    country: string;
+    admin1?: string;
+}
+
+export const searchCity = async (query: string): Promise<SearchResult[]> => {
+    if (query.length < 3) return [];
+    try {
+        const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5&language=it&format=json`);
+        const data = await res.json();
+        return data.results || [];
+    } catch (e) {
+        console.error("Geocoding failed", e);
+        return [];
+    }
+};
+
+export const fetchDayWeather = async (
+    date: Date, 
+    lat: number, 
+    lon: number
+): Promise<CalendarWeather | null> => {
+    const dateStr = formatDateLocal(date);
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const isFuture = date >= today;
+    
+    // Per il futuro, OpenMeteo forecast arriva a 14-16 giorni. 
+    // Per date più lontane non c'è forecast preciso, usiamo archive (storia dell'anno scorso) o limitiamo?
+    // Usiamo forecast API se entro 14 giorni, altrimenti archive API per "stima storica".
+    
+    const diffTime = date.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+    
+    let url = '';
+    
+    if (diffDays >= 0 && diffDays <= 14) {
+        // Forecast
+        url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code,temperature_2m_max,temperature_2m_min&hourly=temperature_2m,weather_code&timezone=auto&start_date=${dateStr}&end_date=${dateStr}`;
+    } else {
+        // Archive (o troppo nel futuro -> usiamo l'anno scorso come stima statistica?)
+        // Se è futuro lontano, prendiamo l'anno scorso stessa data
+        let queryDateStr = dateStr;
+        if (diffDays > 14) {
+            const lastYear = new Date(date);
+            lastYear.setFullYear(lastYear.getFullYear() - 1);
+            queryDateStr = formatDateLocal(lastYear);
+        }
+        
+        url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${queryDateStr}&end_date=${queryDateStr}&daily=weather_code,temperature_2m_max,temperature_2m_min&hourly=temperature_2m,weather_code&timezone=auto`;
+    }
+
+    try {
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (data.daily && data.daily.time && data.daily.time.length > 0) {
+            const i = 0; // Primo (e unico) giorno richiesto
+            
+            const morningIdx = 9;  // 09:00
+            const afternoonIdx = 15; // 15:00
+            const eveningIdx = 21;   // 21:00
+
+            const details = {
+                morning: {
+                    label: 'Mattino',
+                    temp: data.hourly.temperature_2m[morningIdx],
+                    icon: getWeatherIcon(data.hourly.weather_code[morningIdx])
+                },
+                afternoon: {
+                    label: 'Pomeriggio',
+                    temp: data.hourly.temperature_2m[afternoonIdx],
+                    icon: getWeatherIcon(data.hourly.weather_code[afternoonIdx])
+                },
+                evening: {
+                    label: 'Sera',
+                    temp: data.hourly.temperature_2m[eveningIdx],
+                    icon: getWeatherIcon(data.hourly.weather_code[eveningIdx])
+                }
+            };
+
+            return {
+                dateStr: dateStr,
+                maxTemp: data.daily.temperature_2m_max[i],
+                minTemp: data.daily.temperature_2m_min[i],
+                weatherCode: data.daily.weather_code[i],
+                icon: getWeatherIcon(data.daily.weather_code[i]),
+                isForecast: diffDays >= 0 && diffDays <= 14,
+                details: details
+            };
+        }
+    } catch (e) {
+        console.warn("Single day weather fetch failed", e);
+    }
+    return null;
+};
+
 export const fetchMonthWeather = async (
     year: number, 
     month: number, 
