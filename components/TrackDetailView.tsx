@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Track, TrackPoint, UserProfile, PlannedWorkout, PauseSegment, AiSegment, Split } from '../types';
 import MapDisplay from './MapDisplay';
-import TimelineChart from './TimelineChart';
+import TimelineChart, { YAxisMetric } from './TimelineChart';
 import StatsPanel from './StatsPanel';
 import HeartRateZonePanel from './HeartRateZonePanel';
 import PersonalRecordsPanel from './PersonalRecordsPanel';
@@ -107,6 +107,18 @@ const TrackDetailView: React.FC<{
     }, []);
 
     const stats = useMemo(() => calculateTrackStats(track), [track]);
+
+    // Determine available metrics
+    const hasPowerData = useMemo(() => {
+        return track.points.some(p => p.power !== undefined && p.power > 0);
+    }, [track]);
+
+    // Default metrics to show
+    const defaultMetrics: YAxisMetric[] = useMemo(() => {
+        const m: YAxisMetric[] = ['pace', 'hr', 'elevation'];
+        if (hasPowerData) m.push('power');
+        return m;
+    }, [hasPowerData]);
 
     useEffect(() => {
         const timer = setTimeout(() => setFitTrigger(prev => prev + 1), 600);
@@ -362,7 +374,7 @@ const TrackDetailView: React.FC<{
                         <div className="flex-grow overflow-y-auto bg-slate-950 min-h-0">{SidebarContent}</div>
                         <div className="h-60 border-t border-slate-800 bg-slate-900 shrink-0 flex flex-col w-full">
                             <div className="flex-grow relative min-h-0 w-full">
-                                <TimelineChart track={track} yAxisMetrics={['pace', 'hr']} onChartHover={setHoveredPoint} hoveredPoint={hoveredPoint} onSelectionChange={setSelectedRange} showPauses={false} pauseSegments={[]} animationProgress={progress} isAnimating={isAnimating} userProfile={userProfile} highlightedRange={selectedRange} />
+                                <TimelineChart track={track} yAxisMetrics={defaultMetrics} onChartHover={setHoveredPoint} hoveredPoint={hoveredPoint} onSelectionChange={setSelectedRange} showPauses={false} pauseSegments={[]} animationProgress={progress} isAnimating={isAnimating} userProfile={userProfile} highlightedRange={selectedRange} />
                             </div>
                             {AnimationControlsBar}
                         </div>
@@ -399,7 +411,7 @@ const TrackDetailView: React.FC<{
                                     <div className="h-full flex flex-col bg-slate-900 border-t border-slate-800 overflow-hidden w-full">
                                         {SelectionStatsBar}
                                         <div className="flex-grow relative bg-slate-900/50 p-2 min-h-0">
-                                            <TimelineChart track={track} yAxisMetrics={['pace', 'hr', 'elevation']} onChartHover={setHoveredPoint} hoveredPoint={hoveredPoint} onSelectionChange={setSelectedRange} showPauses={false} pauseSegments={[]} animationProgress={progress} isAnimating={isAnimating} userProfile={userProfile} highlightedRange={selectedRange} />
+                                            <TimelineChart track={track} yAxisMetrics={defaultMetrics} onChartHover={setHoveredPoint} hoveredPoint={hoveredPoint} onSelectionChange={setSelectedRange} showPauses={false} pauseSegments={[]} animationProgress={progress} isAnimating={isAnimating} userProfile={userProfile} highlightedRange={selectedRange} />
                                         </div>
                                     </div>
                                 </ResizablePanel>
