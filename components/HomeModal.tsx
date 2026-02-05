@@ -36,7 +36,7 @@ interface HomeModalProps {
 
 // --- ICONS ---
 const UserIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0ZM3.751 20.105a8.25 8.25 0 0 1 16.498 0 .75.75 0 0 1-.437.695A18.683 18.683 0 0 1 12 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 0 1-.437-.695Z" clipRule="evenodd" /></svg>);
-const CogIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M11.078 2.25c-.917 0-1.699.663-1.85 1.567L9.05 5.389c-.42.12-.83.263-1.228.428l-1.09-1.09a1.875 1.875 0 0 0-2.652 0l-2.25 2.25a1.875 1.875 0 0 0 0 2.652l1.09 1.09c-.165.398-.309.809-.428 1.228L.683 13.23a1.875 1.875 0 0 0 1.566 1.849l1.554.17c.12.42.263.83.428 1.228l-1.09 1.09a1.875 1.875 0 0 0 0 2.652l2.25 2.25a1.875 1.875 0 0 0 2.652 0l1.09-1.09c.398.165.809.309 1.228.428l.17 1.554a1.875 1.875 0 0 0 1.848 1.566h3.182a1.875 1.875 0 0 0 1.849-1.566l.17-1.554c.42-.12.83-.263 1.228-.428l1.09 1.09a1.875 1.875 0 0 0 2.652 0l2.25-2.25a1.875 1.875 0 0 0 0-2.652l-1.09-1.09c.165-.398.309-.809.428-1.228l1.554-.17a1.875 1.875 0 0 0 1.566-1.849v-3.182a1.875 1.875 0 0 0-1.566-1.849l-1.554-.17c-.12-.42-.263-.83-.428-1.228l1.09-1.09a1.875 1.875 0 0 0 0-2.652l-2.25-2.25a1.875 1.875 0 0 0-2.652 0l-1.09 1.09c-.398-.165-.809-.309-1.228-.428l-.17-1.554a1.875 1.875 0 0 0-1.849-1.566h-3.182Zm-.638 1.95a.375.375 0 0 1 .375-.375h3.182a.375.375 0 0 1 .375.375v.85c0 .552.392 1.03.921 1.136 1.077.215 2.072.7 2.922 1.36a1.125 1.125 0 0 0 1.401-.065l.6-.6a.375.375 0 0 1 .53 0l2.25 2.25a.375.375 0 0 1 0 .53l-.6.6a1.125 1.125 0 0 0 .065 1.401c.66.85 1.145 1.845 1.36 2.922.106.529.584.921 1.136.921h.85a.375.375 0 0 1 .375.375v3.182a.375.375 0 0 1-.375.375h-.85a1.125 1.125 0 0 0-1.136.921c-.215 1.077-.7 2.072-1.36 2.922a1.125 1.125 0 0 0 .065 1.401l.6.6a.375.375 0 0 1 0 .53l-2.25 2.25a.375.375 0 0 1-.53 0l-.6-.6a1.125 1.125 0 0 0-1.401-.065c-.85.66-1.846 1.145-2.922 1.36a1.125 1.125 0 0 0-.921 1.136v.85a.375.375 0 0 1-.375.375h-3.182a.375.375 0 0 1-.375-.375v-.85a1.125 1.125 0 0 0-.921-1.136c-1.077-.215-2.072-.7-2.922-1.36a1.125 1.125 0 0 0-1.401.065l-.6.6a.375.375 0 0 1-.53 0l-2.25-2.25a.375.375 0 0 1 0-.53l.6.6a1.125 1.125 0 0 0-1.401.065c.85-.66 1.845-1.145 2.922-1.36a1.125 1.125 0 0 0 .921-1.136v-.85a.375.375 0 0 1 .375-.375Z" clipRule="evenodd" /><path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" /></svg>);
+const CogIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M11.078 2.25c-.917 0-1.699.663-1.85 1.567L9.05 5.389c-.42.12-.83.263-1.228.428l-1.09-1.09a1.875 1.875 0 0 0-2.652 0l-2.25 2.25a1.875 1.875 0 0 0 0 2.652l1.09 1.09c-.165.398-.309.809-.428 1.228L.683 13.23a1.875 1.875 0 0 0 1.566 1.849l1.554.17c.12.42.263.83.428 1.228l-1.09 1.09a1.875 1.875 0 0 0 0 2.652l2.25 2.25a1.875 1.875 0 0 0 2.652 0l1.09-1.09c.398.165.809.309 1.228.428l.17 1.554a1.875 1.875 0 0 0 1.848 1.566h3.182a1.875 1.875 0 0 0 1.849-1.566l.17-1.554c.42-.12.83-.263 1.228-.428l1.09 1.09a1.875 1.875 0 0 0 2.652 0l2.25-2.25a1.875 1.875 0 0 0 0-2.652l-1.09-1.09c.165-.398.309-.809.428-1.228l1.554-.17a1.875 1.875 0 0 0 1.566-1.849v-3.182a1.875 1.875 0 0 0-1.566-1.849l-1.554-.17c-.12-.42-.263-.83-.428-1.228l1.09-1.09a1.875 1.875 0 0 0 0-2.652l-2.25-2.25a1.875 1.875 0 0 0-2.652 0l-1.09 1.09c-.398-.165-.809-.309-1.228-.428l-.17-1.554a1.875 1.875 0 0 0-1.849-1.566h-3.182Zm-.638 1.95a.375.375 0 0 1 .375-.375h3.182a.375.375 0 0 1 .375.375v.85c0 .552.392 1.03.921 1.136 1.077.215 2.072.7 2.922 1.36a1.125 1.125 0 0 0 1.401-.065l.6-.6a.375.375 0 0 1 .53 0l2.25 2.25a.375.375 0 0 1 0 .53l-.6.6a1.125 1.125 0 0 0 .065 1.401c.66.85 1.145 1.845 1.36 2.922.106.529.584.921 1.136.921h.85a.375.375 0 0 1 .375.375v3.182a.375.375 0 0 1-.375.375h-.85a1.125 1.125 0 0 0-1.136.921c-.215 1.077-.7 2.072-1.36 2.922a1.125 1.125 0 0 0 .065 1.401l.6.6a.375.375 0 0 1 0 .53l-2.25 2.25a.375.375 0 0 1-.53 0l-.6-.6a1.125 1.125 0 0 0-1.401-.065c-.85.66-1.846 1.145-2.922 1.36a1.125 1.125 0 0 0-.921 1.136v.85a.375.375 0 0 1-.375-.375Z" clipRule="evenodd" /><path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" /></svg>);
 const HelpIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12Zm11.378-3.917c-.89-.777-2.366-.777-3.255 0a.75.75 0 0 1-.988-1.129c1.454-1.272 3.776-1.272 5.23 0 1.513 1.324 1.513 3.518 0 4.842a3.75 3.75 0 0 1-.837.552c-.676.328-1.028.774-1.028 1.152v.202a.75.75 0 0 1-1.5 0v-.202c0-1.009.9-1.97 2.028-2.48a5.25 5.25 0 0 0 1.12-.737c.89-.777.89-2.036 0-2.814Zm.122 7.132a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" clipRule="evenodd" /></svg>);
 const LogoutIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M7.5 3.75A1.5 1.5 0 0 0 6 5.25v13.5a1.5 1.5 0 0 0 1.5 1.5h6a1.5 1.5 0 0 0 1.5-1.5V15a.75.75 0 0 1 1.5 0v3.75a3 3 0 0 1-3 3h-6a3 3 0 0 1-3-3V5.25a3 3 0 0 1 3-3h6a3 3 0 0 1 3 3V9A.75.75 0 0 1 13.5 9V5.25a1.5 1.5 0 0 0-1.5-1.5h-6Zm10.72 4.72a.75.75 0 0 1 1.06 0l3 3a.75.75 0 0 1 0 1.06l-3 3a.75.75 0 1 1-1.06-1.06l1.72-1.72H9a.75.75 0 0 1 0-1.5h10.94l-1.72-1.72a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" /></svg>);
 const LoginIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" clipRule="evenodd" /></svg>);
@@ -136,33 +136,54 @@ const WeatherWidget: React.FC<{ className?: string }> = ({ className }) => {
     if (!todaysWeather || !runConditions) return null;
 
     return (
-        <div className={`bg-gradient-to-r ${runConditions.bgGradient} border border-white/10 rounded-2xl p-4 relative overflow-hidden group shadow-lg transition-all hover:shadow-xl ${className}`}>
+        <div className={`bg-gradient-to-r ${runConditions.bgGradient} border border-white/10 rounded-2xl p-3 relative overflow-hidden group shadow-lg transition-all hover:shadow-xl ${className}`}>
             {/* Background Icon */}
             <div className="absolute -right-4 -bottom-4 text-8xl opacity-10 select-none pointer-events-none">
                 {todaysWeather.icon}
             </div>
 
-            <div className="flex flex-row justify-between items-center relative z-10 gap-2">
-                {/* Left: Main Stats */}
-                <div className="flex items-center gap-3">
-                    <div className="text-4xl">{todaysWeather.icon}</div>
+            <div className="flex flex-col sm:flex-row justify-between items-center relative z-10 gap-2 h-full">
+                {/* Top/Left: Main Stats */}
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                    <div className="text-3xl sm:text-4xl">{todaysWeather.icon}</div>
                     <div>
-                        <h3 className="text-[10px] font-black text-white/60 uppercase tracking-widest mb-0.5">Meteo Oggi</h3>
+                        <h3 className="text-[9px] font-black text-white/60 uppercase tracking-widest mb-0.5">Oggi</h3>
                         <div className="flex items-baseline gap-1">
-                            <span className="text-2xl font-black text-white">{todaysWeather.maxTemp}°</span>
-                            <span className="text-sm text-white/60 font-medium">/ {todaysWeather.minTemp}°</span>
+                            <span className="text-xl sm:text-2xl font-black text-white">{todaysWeather.maxTemp}°</span>
+                            <span className="text-xs sm:text-sm text-white/60 font-medium">/ {todaysWeather.minTemp}°</span>
                         </div>
-                        <div className={`text-[10px] font-bold ${runConditions.color} mt-0.5`}>
+                        <div className={`text-[9px] font-bold ${runConditions.color} mt-0.5`}>
                             {runConditions.verdict}
                         </div>
                     </div>
                 </div>
 
-                {/* Right: Advice */}
-                <div className="text-right max-w-[120px] sm:max-w-[200px]">
-                    <div className="bg-white/10 px-2 py-1.5 rounded-lg backdrop-blur-md border border-white/10 inline-block">
-                        <p className="text-[10px] text-white leading-tight font-medium">
-                            "{runConditions.advice}"
+                {/* Middle: Phases (Restored) */}
+                {todaysWeather.details && (
+                    <div className="flex items-center gap-2 sm:gap-4 bg-black/10 rounded-lg p-1.5 backdrop-blur-sm border border-white/5 w-full sm:w-auto justify-between sm:justify-center">
+                        <div className="flex flex-col items-center px-2 border-r border-white/10 last:border-0">
+                            <span className="text-[8px] text-white/50 uppercase font-bold mb-0.5">Mattina</span>
+                            <span className="text-sm">{todaysWeather.details.morning.icon}</span>
+                            <span className="text-[10px] font-mono font-bold text-white">{todaysWeather.details.morning.temp}°</span>
+                        </div>
+                        <div className="flex flex-col items-center px-2 border-r border-white/10 last:border-0">
+                            <span className="text-[8px] text-white/50 uppercase font-bold mb-0.5">Pom.</span>
+                            <span className="text-sm">{todaysWeather.details.afternoon.icon}</span>
+                            <span className="text-[10px] font-mono font-bold text-white">{todaysWeather.details.afternoon.temp}°</span>
+                        </div>
+                        <div className="flex flex-col items-center px-2">
+                            <span className="text-[8px] text-white/50 uppercase font-bold mb-0.5">Sera</span>
+                            <span className="text-sm">{todaysWeather.details.evening.icon}</span>
+                            <span className="text-[10px] font-mono font-bold text-white">{todaysWeather.details.evening.temp}°</span>
+                        </div>
+                    </div>
+                )}
+
+                {/* Right: Advice (Hide on very small screens if needed, or keep small) */}
+                <div className="text-right hidden sm:block max-w-[120px]">
+                    <div className="bg-white/10 px-2 py-1 rounded-lg backdrop-blur-md border border-white/10 inline-block">
+                        <p className="text-[9px] text-white leading-tight font-medium truncate">
+                            {runConditions.advice}
                         </p>
                     </div>
                 </div>
@@ -239,20 +260,20 @@ const HomeModal: React.FC<HomeModalProps> = ({
                 </header>
 
                 {/* --- MAIN CONTENT AREA --- */}
-                <div className="flex-grow overflow-y-auto custom-scrollbar z-10 p-4 md:p-8">
+                <div className="flex-grow overflow-y-auto custom-scrollbar z-10 p-2 md:p-8">
                     {activeSection === 'main' ? (
-                        <div className="max-w-5xl mx-auto flex flex-col gap-4 h-full">
+                        <div className="max-w-5xl mx-auto flex flex-col gap-2 md:gap-4 h-full">
                             
-                            {/* SECTION 1: DASHBOARD HEADER (Weather + Status) */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {/* SECTION 1: DASHBOARD HEADER */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-4">
                                 <div className="md:col-span-2">
                                     <WeatherWidget className="h-full w-full" />
                                 </div>
-                                <div className="bg-slate-800/60 border border-slate-700 rounded-2xl p-4 flex flex-col justify-center relative overflow-hidden group hover:border-purple-500/50 transition-colors">
-                                    <div className="flex justify-between items-center mb-2 relative z-10">
+                                <div className="bg-slate-800/60 border border-slate-700 rounded-2xl p-3 flex flex-col justify-center relative overflow-hidden group hover:border-purple-500/50 transition-colors min-h-[80px]">
+                                    <div className="flex justify-between items-center mb-1 relative z-10">
                                         <div className="flex items-center gap-2">
                                             <span className="text-purple-400 text-lg"><CalendarIcon /></span>
-                                            <span className="text-xs font-black uppercase text-slate-400 tracking-widest">Prossimo Allenamento</span>
+                                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Prossimo</span>
                                         </div>
                                     </div>
                                     {nextWorkout ? (
@@ -267,72 +288,72 @@ const HomeModal: React.FC<HomeModalProps> = ({
                                 </div>
                             </div>
 
-                            {/* SECTION 2: HERO ACTIONS (Upload & Diary) */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* SECTION 2: HERO ACTIONS - Grid 2 columns on mobile now */}
+                            <div className="grid grid-cols-2 gap-2 md:gap-4">
                                 <button 
                                     onClick={handleUploadClick}
-                                    className="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 hover:border-cyan-500 rounded-3xl p-6 relative group overflow-hidden transition-all duration-300 hover:shadow-[0_0_25px_rgba(6,182,212,0.15)] flex flex-col justify-between min-h-[160px]"
+                                    className="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 hover:border-cyan-500 rounded-2xl p-3 md:p-6 relative group overflow-hidden transition-all duration-300 hover:shadow-[0_0_25px_rgba(6,182,212,0.15)] flex flex-col justify-between min-h-[100px] md:min-h-[160px]"
                                 >
-                                    <div className="absolute top-4 right-4 bg-cyan-500/20 p-3 rounded-full text-cyan-400 group-hover:scale-110 transition-transform"><PlusIcon /></div>
+                                    <div className="absolute top-2 right-2 md:top-4 md:right-4 bg-cyan-500/20 p-2 md:p-3 rounded-full text-cyan-400 group-hover:scale-110 transition-transform"><PlusIcon /></div>
                                     <div>
-                                        <h3 className="text-2xl md:text-3xl font-black text-white uppercase tracking-tight leading-none mb-2">Nuova<br/>Attività</h3>
-                                        <p className="text-xs md:text-sm text-slate-400 font-medium max-w-[200px]">Carica GPX, collega Strava o ripristina backup.</p>
+                                        <h3 className="text-lg md:text-3xl font-black text-white uppercase tracking-tight leading-none mb-1">Carica</h3>
+                                        <p className="text-[9px] md:text-sm text-slate-400 font-medium hidden md:block">Carica GPX, collega Strava o ripristina backup.</p>
                                     </div>
-                                    <div className="mt-4 flex items-center gap-2 text-xs font-bold text-cyan-400 uppercase tracking-widest group-hover:translate-x-1 transition-transform">
-                                        Inizia Ora <span>→</span>
+                                    <div className="mt-1 flex items-center gap-2 text-[9px] md:text-xs font-bold text-cyan-400 uppercase tracking-widest group-hover:translate-x-1 transition-transform">
+                                        Inizia <span>→</span>
                                     </div>
                                 </button>
 
                                 <button 
                                     onClick={onOpenDiary}
-                                    className="bg-slate-800/50 hover:bg-slate-800 border border-slate-700 hover:border-purple-500 rounded-3xl p-6 relative group transition-all flex flex-col justify-between min-h-[160px]"
+                                    className="bg-slate-800/50 hover:bg-slate-800 border border-slate-700 hover:border-purple-500 rounded-2xl p-3 md:p-6 relative group transition-all flex flex-col justify-between min-h-[100px] md:min-h-[160px]"
                                 >
-                                    <div className="absolute top-4 right-4 bg-purple-500/20 p-3 rounded-full text-purple-400 group-hover:scale-110 transition-transform"><CalendarIcon /></div>
+                                    <div className="absolute top-2 right-2 md:top-4 md:right-4 bg-purple-500/20 p-2 md:p-3 rounded-full text-purple-400 group-hover:scale-110 transition-transform"><CalendarIcon /></div>
                                     <div>
-                                        <h3 className="text-2xl md:text-3xl font-black text-white uppercase tracking-tight leading-none mb-2">Diario<br/>& Coach</h3>
-                                        <p className="text-xs md:text-sm text-slate-400 font-medium max-w-[200px]">Pianifica allenamenti e ricevi consigli AI.</p>
+                                        <h3 className="text-lg md:text-3xl font-black text-white uppercase tracking-tight leading-none mb-1">Diario</h3>
+                                        <p className="text-[9px] md:text-sm text-slate-400 font-medium hidden md:block">Pianifica allenamenti e ricevi consigli AI.</p>
                                     </div>
-                                    <div className="mt-4 flex items-center gap-2 text-xs font-bold text-purple-400 uppercase tracking-widest group-hover:translate-x-1 transition-transform">
-                                        Apri Calendario <span>→</span>
+                                    <div className="mt-1 flex items-center gap-2 text-[9px] md:text-xs font-bold text-purple-400 uppercase tracking-widest group-hover:translate-x-1 transition-transform">
+                                        Apri <span>→</span>
                                     </div>
                                 </button>
                             </div>
 
-                            {/* SECTION 3: FEATURES GRID */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-                                <button onClick={onOpenSocial} className="bg-slate-800/40 hover:bg-slate-800 border border-slate-700 hover:border-pink-500 rounded-2xl p-4 flex flex-col gap-2 transition-all group min-h-[100px]">
-                                    <div className="flex justify-between w-full">
-                                        <div className="p-2 bg-pink-500/20 rounded-lg text-pink-400"><ChatSocialIcon /></div>
-                                        {unreadCount > 0 && <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full h-fit animate-pulse">{unreadCount}</span>}
+                            {/* SECTION 3: FEATURES GRID - 4 columns on mobile */}
+                            <div className="grid grid-cols-4 gap-2 md:gap-4">
+                                <button onClick={onOpenSocial} className="bg-slate-800/40 hover:bg-slate-800 border border-slate-700 hover:border-pink-500 rounded-xl p-2 flex flex-col gap-1 transition-all group min-h-[80px] items-center justify-center md:items-start md:justify-start">
+                                    <div className="flex justify-between w-full md:w-auto">
+                                        <div className="p-2 bg-pink-500/20 rounded-lg text-pink-400 mx-auto md:mx-0"><ChatSocialIcon /></div>
+                                        {unreadCount > 0 && <span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full h-fit animate-pulse absolute top-1 right-1 md:relative md:top-auto md:right-auto">{unreadCount}</span>}
                                     </div>
-                                    <div className="text-left">
-                                        <h4 className="font-bold text-white text-sm">Social</h4>
-                                        <p className="text-[10px] text-slate-400">{onlineCount} online</p>
-                                    </div>
-                                </button>
-
-                                <button onClick={onEnterRaceMode} className="bg-slate-800/40 hover:bg-slate-800 border border-slate-700 hover:border-green-500 rounded-2xl p-4 flex flex-col gap-2 transition-all group min-h-[100px]">
-                                    <div className="p-2 bg-green-500/20 rounded-lg text-green-400 w-fit"><RaceIcon /></div>
-                                    <div className="text-left">
-                                        <h4 className="font-bold text-white text-sm">Gara 3D</h4>
-                                        <p className="text-[10px] text-slate-400">Simulazione</p>
+                                    <div className="text-center md:text-left">
+                                        <h4 className="font-bold text-white text-[10px] md:text-sm">Social</h4>
+                                        <p className="text-[9px] text-slate-400 hidden md:block">{onlineCount} online</p>
                                     </div>
                                 </button>
 
-                                <button onClick={onOpenExplorer} className="bg-slate-800/40 hover:bg-slate-800 border border-slate-700 hover:border-slate-500 rounded-2xl p-4 flex flex-col gap-2 transition-all group min-h-[100px]">
-                                    <div className="p-2 bg-slate-700 rounded-lg text-slate-300 w-fit group-hover:text-white"><ArchiveIcon /></div>
-                                    <div className="text-left">
-                                        <h4 className="font-bold text-white text-sm">Archivio</h4>
-                                        <p className="text-[10px] text-slate-400">{trackCount} attività</p>
+                                <button onClick={onEnterRaceMode} className="bg-slate-800/40 hover:bg-slate-800 border border-slate-700 hover:border-green-500 rounded-xl p-2 flex flex-col gap-1 transition-all group min-h-[80px] items-center justify-center md:items-start md:justify-start">
+                                    <div className="p-2 bg-green-500/20 rounded-lg text-green-400 w-fit mx-auto md:mx-0"><RaceIcon /></div>
+                                    <div className="text-center md:text-left">
+                                        <h4 className="font-bold text-white text-[10px] md:text-sm">Gara</h4>
+                                        <p className="text-[9px] text-slate-400 hidden md:block">Simulazione</p>
+                                    </div>
+                                </button>
+
+                                <button onClick={onOpenExplorer} className="bg-slate-800/40 hover:bg-slate-800 border border-slate-700 hover:border-slate-500 rounded-xl p-2 flex flex-col gap-1 transition-all group min-h-[80px] items-center justify-center md:items-start md:justify-start">
+                                    <div className="p-2 bg-slate-700 rounded-lg text-slate-300 w-fit group-hover:text-white mx-auto md:mx-0"><ArchiveIcon /></div>
+                                    <div className="text-center md:text-left">
+                                        <h4 className="font-bold text-white text-[10px] md:text-sm">Archivio</h4>
+                                        <p className="text-[9px] text-slate-400 hidden md:block">{trackCount} attività</p>
                                     </div>
                                 </button>
 
                                 {/* Mobile: List Button / Desktop: Changelog */}
-                                <button onClick={onOpenList || onOpenChangelog} className="bg-slate-800/40 hover:bg-slate-800 border border-slate-700 hover:border-cyan-500 rounded-2xl p-4 flex flex-col gap-2 transition-all group min-h-[100px]">
-                                    <div className="p-2 bg-cyan-500/20 rounded-lg text-cyan-400 w-fit">{onOpenList ? <ListIcon /> : <SparklesIcon />}</div>
-                                    <div className="text-left">
-                                        <h4 className="font-bold text-white text-sm">{onOpenList ? 'Lista Corse' : 'Novità'}</h4>
-                                        <p className="text-[10px] text-slate-400">Vedi tutto</p>
+                                <button onClick={onOpenList || onOpenChangelog} className="bg-slate-800/40 hover:bg-slate-800 border border-slate-700 hover:border-cyan-500 rounded-xl p-2 flex flex-col gap-1 transition-all group min-h-[80px] items-center justify-center md:items-start md:justify-start">
+                                    <div className="p-2 bg-cyan-500/20 rounded-lg text-cyan-400 w-fit mx-auto md:mx-0">{onOpenList ? <ListIcon /> : <SparklesIcon />}</div>
+                                    <div className="text-center md:text-left">
+                                        <h4 className="font-bold text-white text-[10px] md:text-sm">{onOpenList ? 'Lista' : 'Novità'}</h4>
+                                        <p className="text-[9px] text-slate-400 hidden md:block">Vedi tutto</p>
                                     </div>
                                 </button>
                             </div>
