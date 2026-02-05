@@ -298,6 +298,19 @@ export const getUnreadSenders = async (currentUserId: string): Promise<Set<strin
     return new Set(data.map((msg: any) => msg.sender_id));
 };
 
+export const getMostRecentUnreadSender = async (currentUserId: string): Promise<string | null> => {
+    const { data } = await supabase
+        .from('direct_messages')
+        .select('sender_id')
+        .eq('receiver_id', currentUserId)
+        .is('read_at', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+    
+    return data?.sender_id || null;
+};
+
 export const toggleReaction = async (trackId: string, userId: string, emoji: string) => {
     const { data } = await supabase
         .from('activity_reactions')
