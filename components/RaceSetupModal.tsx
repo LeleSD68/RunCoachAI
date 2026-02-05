@@ -50,8 +50,14 @@ const RaceSetupModal: React.FC<RaceSetupModalProps> = ({
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [names, setNames] = useState<Record<string, string>>({});
-    const [activeTab, setActiveTab] = useState<'grid' | 'select' | 'feed'>('grid');
     const [searchTerm, setSearchTerm] = useState('');
+
+    // Default to 'select' if no tracks are selected, to guide the user
+    const [activeTab, setActiveTab] = useState<'grid' | 'select' | 'feed'>(() => {
+        if (initialSelection.size > 0) return 'grid';
+        if (tracks.length > 0) return 'select';
+        return 'grid'; // Default to grid (allows upload) if no tracks at all
+    });
 
     const selectedTracks = tracks.filter(t => initialSelection.has(t.id));
 
