@@ -50,7 +50,7 @@ import { parseGpx } from './services/gpxService';
 import { parseTcx } from './services/tcxService';
 import { generateSmartTitle } from './services/titleGenerator';
 import { isDuplicateTrack, markStravaTrackAsDeleted, isPreviouslyDeletedStravaTrack, getTrackFingerprint } from './services/trackUtils';
-import { getFriendsActivityFeed, updatePresence, getFriends, getUnreadNotificationsCount, markMessagesAsRead } from './services/socialService';
+import { getFriendsActivityFeed, updatePresence, getFriends, getUnreadNotificationsCount, markMessagesAsRead, getMostRecentUnreadSender } from './services/socialService';
 
 const LAYOUT_PREFS_KEY = 'runcoach_layout_prefs_v6';
 const SESSION_ACTIVE_KEY = 'runcoach_session_active';
@@ -235,6 +235,21 @@ const App: React.FC = () => {
             setIsSidebarOpen(true);
         }
     };
+
+    // Logic for smart social opening
+    const handleOpenSocial = useCallback(async () => {
+        if (userId && userId !== 'guest' && unreadMessages > 0) {
+            try {
+                const senderId = await getMostRecentUnreadSender(userId);
+                if (senderId) {
+                    setPendingChatId(senderId);
+                }
+            } catch (e) {
+                console.error("Smart social open failed", e);
+            }
+        }
+        toggleView('social');
+    }, [userId, unreadMessages]);
 
     const handleOpenListFromHome = useCallback(() => {
         setShowHome(false);
@@ -1046,7 +1061,7 @@ const App: React.FC = () => {
                     onEnterRaceMode={openRaceSetup}
                     trackCount={tracks.length}
                     userProfile={userProfile}
-                    onOpenSocial={() => toggleView('social')}
+                    onOpenSocial={handleOpenSocial}
                     unreadCount={unreadMessages}
                     onlineCount={onlineFriendsCount}
                     plannedWorkouts={plannedWorkouts} 
@@ -1192,7 +1207,7 @@ const App: React.FC = () => {
                                                         onOpenSidebar={() => setIsSidebarOpen(true)} onCloseSidebar={() => setIsSidebarOpen(false)}
                                                         onOpenExplorer={() => toggleView('explorer')} onOpenDiary={() => toggleView('diary')}
                                                         onOpenPerformance={() => toggleView('performance')} onOpenHub={() => toggleView('hub')}
-                                                        onOpenSocial={() => toggleView('social')} onOpenProfile={() => toggleView('profile')}
+                                                        onOpenSocial={handleOpenSocial} onOpenProfile={() => toggleView('profile')}
                                                         onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}} isSidebarOpen={isSidebarOpen}
                                                         unreadCount={unreadMessages}
                                                         onlineCount={onlineFriendsCount}
@@ -1259,7 +1274,7 @@ const App: React.FC = () => {
                         onCloseSidebar={() => { setIsSidebarOpen(false); resetNavigation(); }}
                         onOpenExplorer={() => toggleView('explorer')} onOpenDiary={() => toggleView('diary')}
                         onOpenPerformance={() => toggleView('performance')} onOpenHub={() => toggleView('hub')}
-                        onOpenSocial={() => toggleView('social')} onOpenProfile={() => toggleView('profile')}
+                        onOpenSocial={handleOpenSocial} onOpenProfile={() => toggleView('profile')}
                         onOpenGuide={() => toggleView('guide')} onExportBackup={() => {}} 
                         isSidebarOpen={isSidebarOpen}
                         unreadCount={unreadMessages}
