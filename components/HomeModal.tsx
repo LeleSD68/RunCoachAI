@@ -383,27 +383,29 @@ const HomeModal: React.FC<HomeModalProps> = ({
                                 </button>
                             </div>
 
-                            {/* SECTION 4: SYSTEM FOOTER (Compact) */}
-                            <div className="mt-auto pt-4 border-t border-slate-800/50 flex items-center justify-between gap-2 overflow-x-auto pb-2 md:pb-0 no-scrollbar">
-                                <div className="flex gap-2">
-                                    <button onClick={onOpenProfile} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors border border-transparent hover:border-slate-700">
+                            {/* SECTION 4: SYSTEM FOOTER (Updated Layout for Mobile Overflow) */}
+                            <div className="mt-auto pt-4 border-t border-slate-800/50 flex flex-wrap items-center gap-3">
+                                {/* Navigation Group */}
+                                <div className="flex gap-2 w-full md:w-auto justify-center md:justify-start">
+                                    <button onClick={onOpenProfile} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors border border-transparent hover:border-slate-700">
                                         <UserIcon /> <span className="text-xs font-bold uppercase">Profilo</span>
                                     </button>
-                                    <button onClick={onOpenSettings} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors border border-transparent hover:border-slate-700">
+                                    <button onClick={onOpenSettings} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors border border-transparent hover:border-slate-700">
                                         <SettingsIcon /> <span className="text-xs font-bold uppercase">Settings</span>
                                     </button>
-                                    <button onClick={onOpenHelp} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors border border-transparent hover:border-slate-700">
+                                    <button onClick={onOpenHelp} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors border border-transparent hover:border-slate-700">
                                         <HelpIcon /> <span className="text-xs font-bold uppercase">Aiuto</span>
                                     </button>
                                 </div>
                                 
-                                <div className="flex gap-2">
+                                {/* Actions Group */}
+                                <div className="flex gap-2 w-full md:w-auto justify-center md:ml-auto">
                                     {onManualCloudSave && !isGuest && (
-                                        <button onClick={onManualCloudSave} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-green-900/20 text-green-500/70 hover:text-green-400 transition-colors border border-transparent hover:border-green-500/30" title="Sincronizza">
-                                            <CloudIcon />
+                                        <button onClick={onManualCloudSave} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-3 py-2 rounded-lg hover:bg-green-900/20 text-green-500/70 hover:text-green-400 transition-colors border border-transparent hover:border-green-500/30" title="Sincronizza">
+                                            <CloudIcon /> <span className="md:hidden text-xs font-bold uppercase">Sync</span>
                                         </button>
                                     )}
-                                    <button onClick={isGuest ? onLogin : onLogout} className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors border border-transparent ${isGuest ? 'hover:bg-green-900/20 text-green-400 hover:border-green-500/30' : 'hover:bg-red-900/20 text-red-400 hover:border-red-500/30'}`}>
+                                    <button onClick={isGuest ? onLogin : onLogout} className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-3 py-2 rounded-lg transition-colors border border-transparent ${isGuest ? 'hover:bg-green-900/20 text-green-400 hover:border-green-500/30' : 'hover:bg-red-900/20 text-red-400 hover:border-red-500/30'}`}>
                                         {isGuest ? <LoginIcon /> : <LogoutIcon />} <span className="text-xs font-bold uppercase">{isGuest ? 'Login' : 'Esci'}</span>
                                     </button>
                                 </div>
