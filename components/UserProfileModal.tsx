@@ -17,7 +17,7 @@ interface UserProfileModalProps {
     onLogout?: () => void;
 }
 
-const goalLabels: Record<RunningGoal, string> = {
+const goalLabels: Record<string, string> = {
     'none': 'Nessun obiettivo specifico',
     '5k': 'Migliorare sui 5km',
     '10k': 'Migliorare sui 10km',
@@ -51,8 +51,11 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
         stravaAutoSync: false,
         goals: [],
         shoes: [],
+        retiredShoes: [],
         ...currentProfile 
     });
+
+    const [customGoalInput, setCustomGoalInput] = useState('');
 
     const personalRecords = useMemo(() => getStoredPRs(), []);
 
@@ -63,7 +66,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
         setProfile(prev => ({ ...prev, [name]: val }));
     };
 
-    const toggleGoal = (goal: RunningGoal) => {
+    const toggleGoal = (goal: string) => {
         setProfile(prev => {
             const currentGoals = prev.goals || [];
             const nextGoals = currentGoals.includes(goal) 
@@ -71,6 +74,13 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
                 : [...currentGoals, goal];
             return { ...prev, goals: nextGoals };
         });
+    };
+
+    const addCustomGoal = () => {
+        if (!customGoalInput.trim()) return;
+        const goalStr = `Obiettivo: ${customGoalInput} km`;
+        toggleGoal(goalStr);
+        setCustomGoalInput('');
     };
 
     const handleSave = () => {
@@ -83,6 +93,39 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
             if (confirm("Confermi l'eliminazione definitiva dell'account?")) {
                 await deleteUserAccount();
             }
+        }
+    };
+
+    // Gear Manager Handlers
+    const handleAddShoe = (name: string) => setProfile(p => ({ ...p, shoes: [...(p.shoes || []), name] }));
+    
+    const handleRemoveShoe = (idx: number) => {
+        if (confirm("Eliminare definitivamente questa scarpa? Se vuoi mantenere lo storico, usa 'Ritira' (icona scatola).")) {
+            setProfile(p => ({ ...p, shoes: (p.shoes || []).filter((_, i) => i !== idx) }));
+        }
+    };
+
+    const handleRetireShoe = (idx: number) => {
+        setProfile(p => {
+            const shoeToRetire = (p.shoes || [])[idx];
+            const newActive = (p.shoes || []).filter((_, i) => i !== idx);
+            const newRetired = [...(p.retiredShoes || []), shoeToRetire];
+            return { ...p, shoes: newActive, retiredShoes: newRetired };
+        });
+    };
+
+    const handleRestoreShoe = (idx: number) => {
+        setProfile(p => {
+            const shoeToRestore = (p.retiredShoes || [])[idx];
+            const newRetired = (p.retiredShoes || []).filter((_, i) => i !== idx);
+            const newActive = [...(p.shoes || []), shoeToRestore];
+            return { ...p, shoes: newActive, retiredShoes: newRetired };
+        });
+    };
+
+    const handleDeleteRetiredShoe = (idx: number) => {
+        if (confirm("Eliminare definitivamente dall'archivio?")) {
+            setProfile(p => ({ ...p, retiredShoes: (p.retiredShoes || []).filter((_, i) => i !== idx) }));
         }
     };
 
@@ -154,16 +197,48 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
                     {/* SECTION: OBIETTIVI */}
                     <section className="space-y-3">
                         <h3 className="text-xs font-black text-purple-400 uppercase tracking-[0.2em] border-b border-purple-900/20 pb-2">Obiettivi Stagionali</h3>
-                        <div className="flex flex-wrap gap-2">
-                            {(Object.keys(goalLabels) as RunningGoal[]).map(goal => (
+                        
+                        <div className="flex flex-wrap gap-2 mb-3">
+                            {/* Standard Goals */}
+                            {(Object.keys(goalLabels)).map(goalKey => (
                                 <button
-                                    key={goal}
-                                    onClick={() => toggleGoal(goal)}
-                                    className={`px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-tight transition-all border ${profile.goals?.includes(goal) ? 'bg-purple-600 border-purple-400 text-white shadow-lg' : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'}`}
+                                    key={goalKey}
+                                    onClick={() => toggleGoal(goalKey)}
+                                    className={`px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-tight transition-all border ${profile.goals?.includes(goalKey) ? 'bg-purple-600 border-purple-400 text-white shadow-lg' : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'}`}
                                 >
-                                    {goalLabels[goal]}
+                                    {goalLabels[goalKey]}
                                 </button>
                             ))}
+                            
+                            {/* Custom Goals Display */}
+                            {profile.goals?.filter(g => !goalLabels[g]).map((customGoal, idx) => (
+                                <button
+                                    key={`custom-${idx}`}
+                                    onClick={() => toggleGoal(customGoal)}
+                                    className="px-3 py-2 rounded-full text-[10px] font-black uppercase tracking-tight transition-all border bg-purple-900/40 border-purple-500/50 text-purple-200 hover:bg-red-900/40 hover:border-red-500"
+                                    title="Clicca per rimuovere"
+                                >
+                                    {customGoal} ✕
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Custom Goal Input */}
+                        <div className="flex gap-2 items-center">
+                            <input 
+                                type="number" 
+                                value={customGoalInput}
+                                onChange={(e) => setCustomGoalInput(e.target.value)}
+                                placeholder="Km personalizzati (es. 2000)"
+                                className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:border-purple-500 outline-none w-40"
+                            />
+                            <button 
+                                onClick={addCustomGoal}
+                                disabled={!customGoalInput}
+                                className="bg-slate-700 hover:bg-purple-600 text-white px-3 py-2 rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
+                            >
+                                + Aggiungi Km
+                            </button>
                         </div>
                     </section>
 
@@ -171,8 +246,12 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose, onSave, cu
                     <section>
                          <GearManager 
                             shoes={profile.shoes || []} 
-                            onAddShoe={(name) => setProfile(p => ({ ...p, shoes: [...(p.shoes || []), name] }))}
-                            onRemoveShoe={(idx) => setProfile(p => ({ ...p, shoes: (p.shoes || []).filter((_, i) => i !== idx) }))}
+                            retiredShoes={profile.retiredShoes || []}
+                            onAddShoe={handleAddShoe}
+                            onRemoveShoe={handleRemoveShoe}
+                            onRetireShoe={handleRetireShoe}
+                            onRestoreShoe={handleRestoreShoe}
+                            onDeleteRetiredShoe={handleDeleteRetiredShoe}
                             tracks={tracks}
                          />
                     </section>
