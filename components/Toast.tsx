@@ -27,7 +27,7 @@ const InfoIcon = () => (
 
 const CloseIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-        <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
+        <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
     </svg>
 );
 
@@ -69,19 +69,28 @@ const Toast: React.FC<ToastProps> = ({ toast, onClose }) => {
         }
     }, [exiting, onClose, toast.id]);
 
+    const handleClick = () => {
+        if (toast.action) {
+            toast.action();
+            triggerExit();
+        }
+    };
+
     const config = toastConfig[toast.type];
 
     return (
         <div
-            className={`toast-item w-full max-w-sm bg-slate-800 border border-slate-700 rounded-lg shadow-2xl flex overflow-hidden pointer-events-auto ${exiting ? 'animate-toast-out' : 'animate-toast-in'}`}
+            onClick={handleClick}
+            className={`toast-item w-full max-w-sm bg-slate-800 border border-slate-700 rounded-lg shadow-2xl flex overflow-hidden pointer-events-auto ${exiting ? 'animate-toast-out' : 'animate-toast-in'} ${toast.action ? 'cursor-pointer hover:bg-slate-750 active:scale-[0.98] transition-transform' : ''}`}
             // We still use onAnimationEnd for smoother feeling when it works correctly
             onAnimationEnd={() => { if (exiting) onClose(toast.id); }}
         >
             <div className="flex items-center justify-center w-12 p-3">
                 <span className={config.iconColor}>{config.icon}</span>
             </div>
-            <div className="flex-1 p-3 pr-4 flex items-center">
-                <p className="text-sm text-slate-200 leading-tight">{toast.message}</p>
+            <div className="flex-1 p-3 pr-4 flex flex-col justify-center">
+                <p className="text-sm text-slate-200 leading-tight font-medium">{toast.message}</p>
+                {toast.action && <p className="text-[10px] text-cyan-400 font-bold uppercase mt-1">Clicca per aprire</p>}
             </div>
             <button 
                 onClick={(e) => { e.stopPropagation(); triggerExit(); }} 
