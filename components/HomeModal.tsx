@@ -294,7 +294,10 @@ const HomeModal: React.FC<HomeModalProps> = ({
                                 <div className="md:col-span-2">
                                     <WeatherWidget className="h-full w-full" />
                                 </div>
-                                <div className="bg-slate-800/60 border border-slate-700 rounded-2xl p-3 flex flex-col justify-center relative overflow-hidden group hover:border-purple-500/50 transition-colors min-h-[80px]">
+                                <div 
+                                    onClick={() => nextWorkout && onOpenWorkout?.(nextWorkout.id)}
+                                    className={`bg-slate-800/60 border border-slate-700 rounded-2xl p-3 flex flex-col justify-center relative overflow-hidden group hover:border-purple-500/50 transition-colors min-h-[80px] ${nextWorkout ? 'cursor-pointer hover:bg-slate-800 active:scale-95 transition-transform' : ''}`}
+                                >
                                     <div className="flex justify-between items-center mb-1 relative z-10">
                                         <div className="flex items-center gap-2">
                                             <span className="text-purple-400 text-lg"><CalendarIcon /></span>
@@ -303,7 +306,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
                                     </div>
                                     {nextWorkout ? (
                                         <div className="relative z-10">
-                                            <h4 className="text-white font-bold text-sm truncate">{nextWorkout.title}</h4>
+                                            <h4 className="text-white font-bold text-sm truncate group-hover:text-purple-400 transition-colors">{nextWorkout.title}</h4>
                                             <p className="text-xs text-slate-400">{new Date(nextWorkout.date).toLocaleDateString()}</p>
                                         </div>
                                     ) : (
@@ -406,7 +409,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
                                         </button>
                                     )}
                                     <button onClick={isGuest ? onLogin : onLogout} className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-3 py-2 rounded-lg transition-colors border border-transparent ${isGuest ? 'hover:bg-green-900/20 text-green-400 hover:border-green-500/30' : 'hover:bg-red-900/20 text-red-400 hover:border-red-500/30'}`}>
-                                        {isGuest ? <LoginIcon /> : <LogoutIcon />} <span className="text-xs font-bold uppercase">{isGuest ? 'Login' : 'Logout'}</span>
+                                        {isGuest ? <LoginIcon /> : <LogoutIcon />} <span className="text-xs font-bold uppercase">{isGuest ? 'Login' : 'Esci'}</span>
                                     </button>
                                 </div>
                             </div>
