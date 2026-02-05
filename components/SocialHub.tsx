@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, FriendRequest, Track, DirectMessage, Reaction, SocialGroup } from '../types';
-import { searchUsers, sendFriendRequest, getFriendRequests, acceptFriendRequest, rejectFriendRequest, getFriends, getFriendsActivityFeed, sendDirectMessage, getDirectMessages, toggleReaction, createGroup, getGroups, addMemberToGroup, getGroupMembers, getUnreadSenders } from '../services/socialService';
+import { searchUsers, sendFriendRequest, getFriendRequests, acceptFriendRequest, rejectFriendRequest, getFriends, getFriendsActivityFeed, sendDirectMessage, getDirectMessages, toggleReaction, createGroup, getGroups, addMemberToGroup, getGroupMembers, getUnreadSenders, getGroupMembersDetails, removeMemberFromGroup } from '../services/socialService';
 import { supabase } from '../services/supabaseClient';
 import TrackPreview from './TrackPreview';
 import RatingStars from './RatingStars';
@@ -20,11 +20,10 @@ const AddUserIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 
 const ActivityIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM6.75 9.25a.75.75 0 0 0 0 1.5h4.59l-2.1 2.1a.75.75 0 1 0 1.06 1.06l3.38-3.38a.75.75 0 0 0 0-1.06l-3.38-3.38a.75.75 0 1 0-1.06 1.06l2.1 2.1H6.75Z" clipRule="evenodd" /></svg>);
 const SearchIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clipRule="evenodd" /></svg>);
 const ChatBubbleIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M10 2c-2.236 0-4.43.18-6.57.524C1.993 2.755 1 4.014 1 5.426v5.148c0 1.413.993 2.67 2.43 2.902.848.137 1.705.248 2.57.331v3.443a.75.75 0 0 0 1.28.53l3.58-3.579a.78.78 0 0 1 .527-.224 41.202 41.202 0 0 0 5.183-.5c1.437-.232 2.43-1.49 2.43-2.903V5.426c0-1.413-.993-2.67-2.43-2.902A41.289 41.289 0 0 0 10 2Zm0 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM8 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm5 1a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd" /></svg>);
-const GhostIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M10 1a4.5 4.5 0 0 0-4.5 4.5V9H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-.5V5.5A4.5 4.5 0 0 0 10 1Zm3 8V5.5a3 3 0 1 0-6 0V9h6Z" /></svg>);
 const GroupIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M7 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM14.5 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM1.615 16.428a1.224 1.224 0 0 1-.569-1.175 6.002 6.002 0 0 1 11.908 0c.058.467-.172.92-.57 1.174A9.953 9.953 0 0 1 7 18a9.953 9.953 0 0 1-5.385-1.572ZM14.5 16h-.106c.07-.38.106-.772.106-1.175 0-.537-.067-1.054-.191-1.543A7.001 7.001 0 0 1 17 18a9.952 9.952 0 0 1-2.5-2Z" /></svg>);
+const TrashIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.1499.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149-.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clipRule="evenodd" /></svg>);
 
 const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallengeGhost, onReadMessages, initialChatUserId }) => {
-    // Default to 'friends' as requested for better UX
     const [activeTab, setActiveTab] = useState<'feed' | 'friends' | 'groups' | 'add'>('friends');
     const [friends, setFriends] = useState<UserProfile[]>([]);
     const [requests, setRequests] = useState<FriendRequest[]>([]);
@@ -41,14 +40,16 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
     const [activeGroupFilter, setActiveGroupFilter] = useState<SocialGroup | null>(null);
     const [inviteModeGroup, setInviteModeGroup] = useState<SocialGroup | null>(null);
     const [inviteableFriends, setInviteableFriends] = useState<UserProfile[]>([]);
+    
+    // New State for Viewing Members
+    const [viewMembersGroup, setViewMembersGroup] = useState<SocialGroup | null>(null);
+    const [groupMembers, setGroupMembers] = useState<UserProfile[]>([]);
 
     const [activeChatFriend, setActiveChatFriend] = useState<UserProfile | null>(null);
-    const [selectedFeedTrack, setSelectedFeedTrack] = useState<Track | null>(null);
 
-    // Initial load - Fetch pending requests to show badges immediately even if not on 'friends' tab
+    // Initial load
     useEffect(() => {
         loadData();
-        // Background fetch for badges
         getFriendRequests(currentUserId).then(setRequests);
         refreshUnreadStatus();
     }, [activeTab, activeGroupFilter]);
@@ -66,11 +67,9 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
         }
     };
 
-    // Auto-open chat if initialChatUserId is provided
     useEffect(() => {
         if (initialChatUserId) {
             setActiveTab('friends');
-            // We need to wait for friends to load if they are not loaded yet
             const openChat = async () => {
                 let currentFriends = friends;
                 if (currentFriends.length === 0) {
@@ -106,7 +105,6 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
                 setFeed(await getFriendsActivityFeed(currentUserId, activeGroupFilter?.id));
             } else if (activeTab === 'groups') {
                 setGroups(await getGroups(currentUserId));
-                // If inviting, we need friends list loaded too to pick from
                 if (!friends.length) setFriends(await getFriends(currentUserId));
             }
         } catch (e) {}
@@ -144,11 +142,36 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
         setActiveTab('feed');
     };
 
+    const handleViewMembers = async (group: SocialGroup) => {
+        setLoading(true);
+        try {
+            const members = await getGroupMembersDetails(group.id);
+            setGroupMembers(members);
+            setViewMembersGroup(group);
+        } catch (e) {
+            console.error(e);
+            alert("Errore caricamento membri.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleRemoveMember = async (memberId: string) => {
+        if (!viewMembersGroup) return;
+        if (!confirm("Rimuovere questo utente dal gruppo?")) return;
+        
+        try {
+            await removeMemberFromGroup(viewMembersGroup.id, memberId);
+            setGroupMembers(prev => prev.filter(m => m.id !== memberId));
+            // Update group count in list
+            setGroups(prev => prev.map(g => g.id === viewMembersGroup.id ? {...g, memberCount: g.memberCount - 1} : g));
+        } catch (e) {
+            alert("Errore rimozione membro.");
+        }
+    };
+
     const handleStartInvite = async (group: SocialGroup) => {
         setInviteModeGroup(group);
-        // Filter friends who are NOT in the group? For simplicity, list all friends
-        // A better implementation would fetch current members and filter
-        // We'll rely on the backend ignoring duplicates for now, or fetch:
         setLoading(true);
         try {
             const currentMembers = await getGroupMembers(group.id);
@@ -165,14 +188,12 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
         if (!inviteModeGroup) return;
         try {
             await addMemberToGroup(inviteModeGroup.id, friendId);
-            // Update invite list
             setInviteableFriends(prev => prev.filter(f => f.id !== friendId));
-            // Trigger refresh of group data (member counts)
             const updatedGroups = groups.map(g => g.id === inviteModeGroup.id ? {...g, memberCount: g.memberCount + 1} : g);
             setGroups(updatedGroups);
         } catch (e) {
             console.error(e);
-            alert("Impossibile aggiungere l'utente. Controlla i permessi o se è già presente.");
+            alert("Impossibile aggiungere l'utente.");
         }
     };
 
@@ -254,7 +275,6 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
                                             key={track.id} 
                                             onClick={() => {
                                                 if (onChallengeGhost) {
-                                                    // In a real app we might show track details first
                                                     if(confirm(`Sfidare ${track.userDisplayName} in modalità Ghost?`)) {
                                                         onChallengeGhost(track);
                                                         onClose();
@@ -289,7 +309,7 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
                         </div>
                     )}
 
-                    {activeTab === 'groups' && !inviteModeGroup && (
+                    {activeTab === 'groups' && !inviteModeGroup && !viewMembersGroup && (
                         <div>
                             <button 
                                 onClick={() => setIsCreatingGroup(!isCreatingGroup)}
@@ -328,22 +348,66 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
                                                 <h4 className="font-bold text-white text-sm">{g.name}</h4>
                                                 <p className="text-[10px] text-slate-400">{g.memberCount} membri</p>
                                             </div>
-                                            <div className="text-purple-400 text-xs font-bold uppercase">Apri &rarr;</div>
+                                            <div className="text-purple-400 text-xs font-bold uppercase">Apri Feed &rarr;</div>
                                         </div>
                                         
-                                        {/* Group Actions: Only show Add if owner */}
-                                        {g.ownerId === currentUserId && (
-                                            <div className="border-t border-slate-700/50 pt-2 flex justify-end">
+                                        <div className="border-t border-slate-700/50 pt-2 flex justify-end gap-2">
+                                            <button 
+                                                onClick={() => handleViewMembers(g)}
+                                                className="flex items-center gap-1 text-[10px] bg-slate-700 hover:bg-slate-600 text-slate-300 px-2 py-1 rounded font-bold uppercase transition-colors"
+                                            >
+                                                Vedi Membri
+                                            </button>
+                                            {g.ownerId === currentUserId && (
                                                 <button 
                                                     onClick={() => handleStartInvite(g)}
                                                     className="flex items-center gap-1 text-[10px] bg-slate-700 hover:bg-green-600 hover:text-white text-slate-300 px-2 py-1 rounded font-bold uppercase transition-colors"
                                                 >
-                                                    + Aggiungi Amico
+                                                    + Invita
                                                 </button>
-                                            </div>
-                                        )}
+                                            )}
+                                        </div>
                                     </div>
                                 ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* VIEW MEMBERS OVERLAY */}
+                    {viewMembersGroup && (
+                        <div className="space-y-4 animate-fade-in-right">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-sm font-black text-white uppercase">Membri: {viewMembersGroup.name}</h3>
+                                <button onClick={() => setViewMembersGroup(null)} className="text-xs text-slate-400 hover:text-white">Indietro</button>
+                            </div>
+                            <div className="space-y-2">
+                                {groupMembers.length === 0 ? (
+                                    <p className="text-center text-slate-500 text-xs py-8">Nessun membro visibile.</p>
+                                ) : (
+                                    groupMembers.map(m => (
+                                        <div key={m.id} className="flex items-center justify-between p-3 bg-slate-800 rounded-xl border border-slate-700">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-xs font-bold text-white">
+                                                    {m.name?.substring(0,1)}
+                                                </div>
+                                                <span className="text-sm font-bold text-white">
+                                                    {m.name} 
+                                                    {m.id === viewMembersGroup.ownerId && <span className="text-[9px] ml-2 text-amber-400 bg-amber-900/30 px-1.5 rounded uppercase">Admin</span>}
+                                                </span>
+                                            </div>
+                                            {/* Only owner can remove, and cannot remove self */}
+                                            {viewMembersGroup.ownerId === currentUserId && m.id !== currentUserId && (
+                                                <button 
+                                                    onClick={() => m.id && handleRemoveMember(m.id)}
+                                                    className="p-2 text-slate-500 hover:text-red-400 transition-colors"
+                                                    title="Rimuovi dal gruppo"
+                                                >
+                                                    <TrashIcon />
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))
+                                )}
                             </div>
                         </div>
                     )}
@@ -463,7 +527,7 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
                                     return (
                                         <div key={user.id} className="flex items-center justify-between p-3 bg-slate-800 rounded-xl border border-slate-700">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-white">
+                                                <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-white">
                                                     {user.name?.substring(0,1)}
                                                 </div>
                                                 <span className="text-sm font-bold text-white">{user.name}</span>
