@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { UserProfile, DirectMessage, Track } from '../types';
-import { sendDirectMessage, getDirectMessages, updateTrackSharing, getTrackById, markMessagesAsRead } from '../services/socialService';
+import { sendDirectMessage, getDirectMessages, updateTrackSharing, getTrackById, markMessagesAsRead, deleteDirectMessage, editDirectMessage } from '../services/socialService';
 import { supabase } from '../services/supabaseClient';
 import { loadTracksFromDB } from '../services/dbService'; // For local selection
 import TrackPreview from './TrackPreview';
@@ -19,6 +19,10 @@ interface MiniChatProps {
 const SendIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z" /></svg>);
 const CloseIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-6 h-6"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" /></svg>);
 const PaperClipIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path fillRule="evenodd" d="M18.97 3.659a2.25 2.25 0 0 0-3.182 0l-10.94 10.94a3.75 3.75 0 1 0 5.304 5.303l7.693-7.693a.75.75 0 0 1 1.06 1.06l-7.693 7.693a5.25 5.25 0 1 1-7.424-7.424l10.939-10.94a3.75 3.75 0 1 1 5.303 5.304L9.097 18.835l-.008.008-.007.007-.002.002-.003.002A2.25 2.25 0 0 1 5.91 15.66l7.81-7.81a.75.75 0 0 1 1.061 1.06l-7.81 7.81a.75.75 0 0 0 1.054 1.068L18.97 6.84a2.25 2.25 0 0 0 0-3.182Z" clipRule="evenodd" /></svg>);
+const PencilIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3"><path d="m2.695 14.762-1.262 3.155a.5.5 0 0 0 .65.65l3.155-1.262a4 4 0 0 0 1.343-.886L17.5 5.501a2.121 2.121 0 0 0-3-3L3.58 13.419a4 4 0 0 0-.885 1.343Z" /></svg>);
+const TrashIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3"><path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.1499.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149-.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clipRule="evenodd" /></svg>);
+const ChevronDownIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3"><path fillRule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06z" clipRule="evenodd" /></svg>);
+const CheckIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clipRule="evenodd" /></svg>);
 
 // New Ticks Component - Standard WhatsApp Style
 const WhatsAppTicks = ({ read, sent }: { read: boolean; sent: boolean }) => (
@@ -71,6 +75,11 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
     const [shareTracks, setShareTracks] = useState<Track[]>([]);
     const [fullAccessMode, setFullAccessMode] = useState(false);
     const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
+
+    // Editing & Menu State
+    const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+    const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
+    const [editContent, setEditContent] = useState('');
 
     const loadMessages = async () => {
         if (!currentUser.id || !friend.id) return;
@@ -146,12 +155,27 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
                 {
                     event: 'UPDATE',
                     schema: 'public',
-                    table: 'direct_messages',
-                    filter: `sender_id=eq.${currentUser.id}` // Listen for MY messages being read by friend
+                    table: 'direct_messages'
                 },
                 (payload) => {
                     const updatedMsg = payload.new;
-                    setMessages(prev => prev.map(m => m.id === updatedMsg.id ? { ...m, readAt: updatedMsg.read_at } : m));
+                    setMessages(prev => prev.map(m => m.id === updatedMsg.id ? { 
+                        ...m, 
+                        readAt: updatedMsg.read_at,
+                        content: updatedMsg.content // Update content in case of edit
+                    } : m));
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: 'DELETE',
+                    schema: 'public',
+                    table: 'direct_messages'
+                },
+                (payload) => {
+                    const deletedId = payload.old.id;
+                    setMessages(prev => prev.filter(m => m.id !== deletedId));
                 }
             )
             .subscribe();
@@ -169,6 +193,13 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
             shouldScrollRef.current = false; // Reset
         }
     }, [messages]);
+
+    // Close menu on click outside
+    useEffect(() => {
+        const handleClickOutside = () => setActiveMenuId(null);
+        document.addEventListener('click', handleClickOutside);
+        return () => document.removeEventListener('click', handleClickOutside);
+    }, []);
 
     const handleSend = async (e?: React.FormEvent, customContent?: string) => {
         if (e) e.preventDefault();
@@ -193,6 +224,33 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
             await sendDirectMessage(currentUser.id, friend.id, contentToSend);
         } catch (e) {
             console.error("Failed to send", e);
+        }
+    };
+
+    const handleDeleteMessage = async (msgId: string) => {
+        if (!confirm("Eliminare questo messaggio?")) return;
+        try {
+            await deleteDirectMessage(msgId);
+            setMessages(prev => prev.filter(m => m.id !== msgId));
+        } catch (e) {
+            alert("Errore eliminazione.");
+        }
+    };
+
+    const startEditing = (msg: DirectMessage) => {
+        setEditingMsgId(msg.id);
+        setEditContent(msg.content);
+        setActiveMenuId(null);
+    };
+
+    const saveEdit = async (msgId: string) => {
+        if (!editContent.trim()) return;
+        try {
+            await editDirectMessage(msgId, editContent);
+            setMessages(prev => prev.map(m => m.id === msgId ? { ...m, content: editContent } : m));
+            setEditingMsgId(null);
+        } catch (e) {
+            alert("Errore modifica.");
         }
     };
 
@@ -234,9 +292,6 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
         setFeedbackMsg("Caricamento corsa...");
         
         try {
-            // Tentiamo SEMPRE di caricare la traccia.
-            // Se i permessi DB lo consentono (es. è pubblica o condivisa), la otterremo.
-            // Se fallisce, mostriamo un messaggio di errore soft.
             const fullTrack = await getTrackById(trackData.id);
             
             if (fullTrack) {
@@ -329,9 +384,10 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
                                 const shareMatch = msg.content.match(/:::SHARE_TRACK:(.*?):::/);
                                 const isRead = !!msg.readAt;
                                 const isTemp = msg.id.startsWith('temp-');
+                                const isEditing = editingMsgId === msg.id;
                                 
                                 return (
-                                    <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} mb-1`}>
+                                    <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} mb-1 group/msg`}>
                                         <div 
                                             className={`max-w-[85%] sm:max-w-[70%] px-3 py-1.5 rounded-lg text-[14px] shadow-sm relative ${
                                                 isMe 
@@ -339,31 +395,68 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
                                                 : 'bg-[#202c33] text-[#e9edef] rounded-tl-none'
                                             }`}
                                         >
-                                            {shareMatch ? (
-                                                (() => {
-                                                    try {
-                                                        const data = JSON.parse(shareMatch[1]);
-                                                        const isFull = data.access === 'full';
-                                                        return (
-                                                            <div className="cursor-pointer group -mx-1 -mt-1" onClick={() => handleTrackClick(data)}>
-                                                                <div className="bg-black/20 rounded-t-lg p-2 mb-1 flex items-center gap-2">
-                                                                    <div className="w-8 h-8 rounded bg-slate-800 flex items-center justify-center text-xl">🗺️</div>
-                                                                    <div className="flex-grow">
-                                                                        <div className="font-bold text-sm text-[#e9edef]">{data.name}</div>
-                                                                        <div className="text-[10px] text-[#8696a0]">{data.dist} km • {isFull ? 'Accesso Completo' : 'Anteprima'}</div>
+                                            {/* Context Menu Button (Only for own messages) */}
+                                            {isMe && !isEditing && !isTemp && (
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); setActiveMenuId(activeMenuId === msg.id ? null : msg.id); }}
+                                                    className={`absolute top-0 right-0 p-1 text-[#aebac1] hover:text-white bg-gradient-to-l from-black/20 to-transparent rounded-bl-lg opacity-0 group-hover/msg:opacity-100 transition-opacity ${activeMenuId === msg.id ? 'opacity-100' : ''}`}
+                                                >
+                                                    <ChevronDownIcon />
+                                                </button>
+                                            )}
+
+                                            {/* Dropdown Menu */}
+                                            {activeMenuId === msg.id && (
+                                                <div className="absolute top-6 right-2 z-50 bg-[#233138] rounded-lg shadow-xl py-1 min-w-[120px] border border-[#37404a] animate-fade-in-down origin-top-right">
+                                                    <button onClick={() => startEditing(msg)} className="w-full text-left px-4 py-2 hover:bg-[#182229] text-[#e9edef] text-sm flex items-center gap-2">
+                                                        <PencilIcon /> Modifica
+                                                    </button>
+                                                    <button onClick={() => handleDeleteMessage(msg.id)} className="w-full text-left px-4 py-2 hover:bg-[#182229] text-red-400 text-sm flex items-center gap-2">
+                                                        <TrashIcon /> Elimina
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                            {isEditing ? (
+                                                <div className="flex gap-2 items-center min-w-[200px]">
+                                                    <input 
+                                                        type="text" 
+                                                        value={editContent} 
+                                                        onChange={(e) => setEditContent(e.target.value)}
+                                                        className="bg-[#2a3942] text-white rounded px-2 py-1 text-sm w-full outline-none border border-[#00a884]"
+                                                        autoFocus
+                                                        onKeyDown={(e) => e.key === 'Enter' && saveEdit(msg.id)}
+                                                    />
+                                                    <button onClick={() => saveEdit(msg.id)} className="text-[#00a884]"><CheckIcon /></button>
+                                                    <button onClick={() => setEditingMsgId(null)} className="text-red-400"><CloseIcon /></button>
+                                                </div>
+                                            ) : (
+                                                shareMatch ? (
+                                                    (() => {
+                                                        try {
+                                                            const data = JSON.parse(shareMatch[1]);
+                                                            const isFull = data.access === 'full';
+                                                            return (
+                                                                <div className="cursor-pointer group -mx-1 -mt-1" onClick={() => handleTrackClick(data)}>
+                                                                    <div className="bg-black/20 rounded-t-lg p-2 mb-1 flex items-center gap-2">
+                                                                        <div className="w-8 h-8 rounded bg-slate-800 flex items-center justify-center text-xl">🗺️</div>
+                                                                        <div className="flex-grow">
+                                                                            <div className="font-bold text-sm text-[#e9edef]">{data.name}</div>
+                                                                            <div className="text-[10px] text-[#8696a0]">{data.dist} km • {isFull ? 'Accesso Completo' : 'Anteprima'}</div>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="px-1 pb-1">
+                                                                        <button className="w-full bg-[#2a3942] hover:bg-[#374248] text-[#00a884] font-bold text-xs py-2 rounded uppercase tracking-wide transition-colors">
+                                                                            Vedi Attività
+                                                                        </button>
                                                                     </div>
                                                                 </div>
-                                                                <div className="px-1 pb-1">
-                                                                    <button className="w-full bg-[#2a3942] hover:bg-[#374248] text-[#00a884] font-bold text-xs py-2 rounded uppercase tracking-wide transition-colors">
-                                                                        Vedi Attività
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    } catch { return <span>{msg.content}</span> }
-                                                })()
-                                            ) : (
-                                                <p className="leading-snug break-words pr-2">{msg.content}</p>
+                                                            );
+                                                        } catch { return <span>{msg.content}</span> }
+                                                    })()
+                                                ) : (
+                                                    <p className="leading-snug break-words pr-4">{msg.content}</p>
+                                                )
                                             )}
                                             
                                             <div className="flex justify-end items-center gap-1 mt-0.5 -mb-1 ml-2 float-right h-4">
