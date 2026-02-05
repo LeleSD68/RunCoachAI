@@ -22,7 +22,7 @@ create index if not exists idx_friends_user2 on public.friends(user_id_2);
 
 alter table public.friends enable row level security;
 
--- Drop existing policies for friends
+-- Drop existing policies for friends to ensure clean slate
 drop policy if exists "Users can view own friendships" on public.friends;
 drop policy if exists "Users can send friend requests" on public.friends;
 drop policy if exists "Users can update own friendships" on public.friends;
@@ -105,7 +105,6 @@ end;
 $$ language plpgsql security definer;
 
 -- Aggiorna policy tracce per supporto condivisione granulare
--- Rimuoviamo le vecchie policy per evitare conflitti
 drop policy if exists "Users can view own tracks" on public.tracks;
 drop policy if exists "Users can view own and friends tracks" on public.tracks;
 drop policy if exists "View tracks shared with me" on public.tracks;
@@ -168,3 +167,35 @@ create policy "Delete own reactions" on public.activity_reactions for delete usi
 -- 7. PROFILES VISIBILITY
 drop policy if exists "Users can view all profiles" on public.profiles;
 create policy "Users can view all profiles" on public.profiles for select using (true);
+
+-- 8. ABILITAZIONE REALTIME
+-- Usiamo blocchi DO per aggiungere le tabelle alla pubblicazione 'supabase_realtime' solo se non sono già presenti.
+-- Questo evita errori 42601 e duplicazione.
+
+do $$
+begin
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'direct_messages') then
+    alter publication supabase_realtime add table public.direct_messages;
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'friends') then
+    alter publication supabase_realtime add table public.friends;
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'tracks') then
+    alter publication supabase_realtime add table public.tracks;
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'social_group_members') then
+    alter publication supabase_realtime add table public.social_group_members;
+  end if;
+end $$;
