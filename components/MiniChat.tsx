@@ -194,7 +194,7 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
         }
     }, [messages]);
 
-    // Close menu on click outside
+    // Close menu on click outside - Document listener acts as backup for non-captured clicks
     useEffect(() => {
         const handleClickOutside = () => setActiveMenuId(null);
         document.addEventListener('click', handleClickOutside);
@@ -324,7 +324,10 @@ const MiniChat: React.FC<MiniChatProps> = ({ currentUser, friend, onClose, onVie
         >
             <div 
                 className="w-full md:max-w-md bg-[#0b141a] md:border md:border-slate-700 md:rounded-2xl shadow-2xl flex flex-col h-[100dvh] md:h-[600px] overflow-hidden animate-pop-in relative"
-                onClick={(e) => e.stopPropagation()} 
+                onClick={(e) => { 
+                    e.stopPropagation(); 
+                    setActiveMenuId(null); // Close menu when clicking inside the chat body
+                }} 
             >
                 {/* Header WhatsApp Style */}
                 <div className="flex items-center justify-between px-4 py-3 bg-[#202c33] border-b border-[#202c33] shrink-0 z-20">
