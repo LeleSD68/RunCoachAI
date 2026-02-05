@@ -431,21 +431,31 @@ const App: React.FC = () => {
 
     // Handle logout logic centrally
     const handleLogout = async () => {
-        await supabase.auth.signOut();
-        setUserId(null);
-        setIsGuest(false);
-        setTracks([]);
-        setPlannedWorkouts([]);
-        setUserProfile({ autoAnalyzeEnabled: true });
-        
-        // Reset navigation state
-        setShowHome(true); // Keep home open
-        setShowProfile(false);
-        setShowSettings(false);
-        setShowDiary(false);
-        setShowSocial(false);
-        
-        // Don't show AuthSelectionModal, just refresh Home to guest/logged out state
+        setIsDataLoading(true);
+        try {
+            await supabase.auth.signOut();
+        } catch(e) {
+            console.error("Logout error", e);
+        } finally {
+            // ALWAYS reset state, even if supabase call fails (e.g. offline)
+            sessionStorage.removeItem(SESSION_ACTIVE_KEY);
+            setUserId(null);
+            setIsGuest(false);
+            setTracks([]);
+            setPlannedWorkouts([]);
+            setUserProfile({ autoAnalyzeEnabled: true });
+            
+            // Close all modals
+            setShowProfile(false);
+            setShowSettings(false);
+            setShowDiary(false);
+            setShowSocial(false);
+            setShowHome(false); // Close home to allow AuthSelection to appear
+            
+            // Navigate to AuthSelection
+            setShowAuthSelection(true);
+            setIsDataLoading(false);
+        }
     };
 
     useEffect(() => {
