@@ -376,12 +376,12 @@ const HomeModal: React.FC<HomeModalProps> = ({
                                     </div>
                                 </button>
 
-                                {/* Explicit LIST Button (Formerly hybrid) */}
-                                <button onClick={onOpenList} className="bg-slate-800/40 hover:bg-slate-800 border border-slate-700 hover:border-cyan-500 rounded-xl p-2 flex flex-col gap-1 transition-all group min-h-[80px] items-center justify-center md:items-start md:justify-start">
-                                    <div className="p-2 bg-cyan-500/20 rounded-lg text-cyan-400 w-fit mx-auto md:mx-0"><ListIcon /></div>
+                                {/* Mobile: List Button / Desktop: Changelog */}
+                                <button onClick={onOpenList || onOpenChangelog} className="bg-slate-800/40 hover:bg-slate-800 border border-slate-700 hover:border-cyan-500 rounded-xl p-2 flex flex-col gap-1 transition-all group min-h-[80px] items-center justify-center md:items-start md:justify-start">
+                                    <div className="p-2 bg-cyan-500/20 rounded-lg text-cyan-400 w-fit mx-auto md:mx-0">{onOpenList ? <ListIcon /> : <SparklesIcon />}</div>
                                     <div className="text-center md:text-left">
-                                        <h4 className="font-bold text-white text-[10px] md:text-sm">Lista</h4>
-                                        <p className="text-[9px] text-slate-400 hidden md:block">Gestisci</p>
+                                        <h4 className="font-bold text-white text-[10px] md:text-sm">{onOpenList ? 'Lista' : 'Novità'}</h4>
+                                        <p className="text-[9px] text-slate-400 hidden md:block">Vedi tutto</p>
                                     </div>
                                 </button>
                             </div>
