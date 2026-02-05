@@ -1,8 +1,10 @@
 
 import React, { useRef, useMemo, useState, useEffect } from 'react';
-import { PlannedWorkout, UserProfile } from '../types';
+import { PlannedWorkout, UserProfile, Track, CalendarWeather } from '../types';
 import { isSupabaseConfigured } from '../services/supabaseClient';
 import { isStravaConnected } from '../services/stravaService';
+import { fetchMonthWeather, analyzeRunningConditions, RunConditions } from '../services/weatherService';
+import { loadTracksFromDB } from '../services/dbService';
 
 interface HomeModalProps {
     onOpenDiary: () => void;
@@ -80,6 +82,130 @@ const LargeLogoIcon = () => (
     </div>
 );
 
+const WeatherWidget: React.FC = () => {
+    const [todaysWeather, setTodaysWeather] = useState<CalendarWeather | null>(null);
+    const [runConditions, setRunConditions] = useState<RunConditions | null>(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const loadWeather = async () => {
+            try {
+                let lat = 41.9028; // Default Rome
+                let lon = 12.4964;
+                
+                // Try to get location from browser
+                if ('geolocation' in navigator) {
+                    try {
+                        const position: any = await new Promise((resolve, reject) => {
+                            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 3000 });
+                        });
+                        lat = position.coords.latitude;
+                        lon = position.coords.longitude;
+                    } catch (e) {
+                        // Fallback to last track location if available would be better, but simpler here
+                        // We could import loadTracksFromDB but let's keep it simple for now or pass props
+                        const tracks = await loadTracksFromDB();
+                        if (tracks.length > 0) {
+                            lat = tracks[0].points[0].lat;
+                            lon = tracks[0].points[0].lon;
+                        }
+                    }
+                }
+
+                const today = new Date();
+                const data = await fetchMonthWeather(today.getFullYear(), today.getMonth(), lat, lon);
+                // Create key YYYY-MM-DD
+                const y = today.getFullYear();
+                const m = String(today.getMonth() + 1).padStart(2, '0');
+                const d = String(today.getDate()).padStart(2, '0');
+                const key = `${y}-${m}-${d}`;
+                
+                const weather = data[key];
+                if (weather) {
+                    setTodaysWeather(weather);
+                    setRunConditions(analyzeRunningConditions(weather));
+                }
+            } catch (e) {
+                console.warn("Weather widget error", e);
+            } finally {
+                setLoading(false);
+            }
+        };
+        loadWeather();
+    }, []);
+
+    if (loading) return (
+        <div className="col-span-2 md:col-span-4 bg-slate-800/50 rounded-2xl p-4 flex items-center justify-center min-h-[100px] border border-slate-700">
+            <div className="animate-pulse flex flex-col items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-slate-700"></div>
+                <div className="h-2 w-20 bg-slate-700 rounded"></div>
+            </div>
+        </div>
+    );
+
+    if (!todaysWeather || !runConditions) return null;
+
+    return (
+        <div className={`col-span-2 md:col-span-4 bg-gradient-to-r ${runConditions.bgGradient} border border-white/10 rounded-2xl md:rounded-3xl p-4 md:p-5 relative overflow-hidden group shadow-lg transition-all hover:shadow-xl`}>
+            {/* Background Icon */}
+            <div className="absolute -right-4 -bottom-4 text-9xl opacity-10 select-none pointer-events-none">
+                {todaysWeather.icon}
+            </div>
+
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center relative z-10 gap-4">
+                
+                {/* Left: Main Stats */}
+                <div className="flex items-center gap-4">
+                    <div className="text-4xl md:text-5xl">{todaysWeather.icon}</div>
+                    <div>
+                        <h3 className="text-xs font-black text-white/60 uppercase tracking-widest mb-0.5">Meteo Oggi</h3>
+                        <div className="flex items-baseline gap-2">
+                            <span className="text-2xl md:text-3xl font-black text-white">{todaysWeather.maxTemp}°</span>
+                            <span className="text-sm md:text-base text-white/60 font-medium">/ {todaysWeather.minTemp}°</span>
+                        </div>
+                        <div className={`text-xs font-bold ${runConditions.color} mt-1`}>
+                            {runConditions.verdict}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Middle: Phases (Hidden on very small screens) */}
+                {todaysWeather.details && (
+                    <div className="hidden sm:flex gap-2 md:gap-4 bg-black/20 p-2 rounded-xl backdrop-blur-sm border border-white/5">
+                        <div className="text-center px-2">
+                            <div className="text-[9px] text-white/50 uppercase font-bold">Mattina</div>
+                            <div className="text-sm">{todaysWeather.details.morning.icon} {todaysWeather.details.morning.temp}°</div>
+                        </div>
+                        <div className="w-px bg-white/10"></div>
+                        <div className="text-center px-2">
+                            <div className="text-[9px] text-white/50 uppercase font-bold">Pom.</div>
+                            <div className="text-sm">{todaysWeather.details.afternoon.icon} {todaysWeather.details.afternoon.temp}°</div>
+                        </div>
+                        <div className="w-px bg-white/10"></div>
+                        <div className="text-center px-2">
+                            <div className="text-[9px] text-white/50 uppercase font-bold">Sera</div>
+                            <div className="text-sm">{todaysWeather.details.evening.icon} {todaysWeather.details.evening.temp}°</div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Right: Advice */}
+                <div className="flex-grow md:text-right max-w-sm">
+                    <div className="bg-white/10 p-3 rounded-xl backdrop-blur-md border border-white/10">
+                        <div className="flex items-start gap-2">
+                            <span className="text-lg">👟</span>
+                            <p className="text-xs text-white leading-snug font-medium">
+                                "{runConditions.advice}"
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    );
+};
+
 const HomeModal: React.FC<HomeModalProps> = ({ 
     onOpenDiary, onOpenExplorer, onOpenHelp, onImportBackup, onExportBackup, 
     onUploadTracks, onClose, onOpenList, trackCount, plannedWorkouts = [], onOpenWorkout, 
@@ -132,7 +258,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
                                     onClick={onOpenChangelog}
                                     className="bg-slate-800 hover:bg-slate-700 text-[10px] font-black text-slate-400 hover:text-white px-2 py-0.5 rounded border border-slate-700 select-none cursor-pointer transition-colors"
                                 >
-                                    v1.44
+                                    v1.45
                                 </button>
                             </div>
                             <div className="flex items-center gap-2 mt-1">
@@ -160,6 +286,9 @@ const HomeModal: React.FC<HomeModalProps> = ({
                     {activeSection === 'main' ? (
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 auto-rows-min w-full max-w-4xl mx-auto">
                             
+                            {/* 0. WEATHER WIDGET (NEW) */}
+                            <WeatherWidget />
+
                             {/* 1. UPLOAD (Hero) */}
                             <button 
                                 onClick={handleUploadClick}
@@ -236,7 +365,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
                                 <div className="p-1.5 md:p-2 bg-amber-500/20 rounded-xl text-amber-400 w-fit mb-1 md:mb-2"><SparklesIcon /></div>
                                 <div>
                                     <h3 className="text-xs md:text-sm font-bold text-white">Novità</h3>
-                                    <p className="text-[9px] md:text-[10px] text-slate-400">Aggiornamento v1.44</p>
+                                    <p className="text-[9px] md:text-[10px] text-slate-400">Aggiornamento v1.45</p>
                                 </div>
                             </button>
 
