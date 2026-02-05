@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, FriendRequest, Track, DirectMessage, Reaction, SocialGroup } from '../types';
-import { searchUsers, sendFriendRequest, getFriendRequests, acceptFriendRequest, rejectFriendRequest, getFriends, getFriendsActivityFeed, sendDirectMessage, getDirectMessages, toggleReaction, createGroup, getGroups, addMemberToGroup, getGroupMembers } from '../services/socialService';
+import { searchUsers, sendFriendRequest, getFriendRequests, acceptFriendRequest, rejectFriendRequest, getFriends, getFriendsActivityFeed, sendDirectMessage, getDirectMessages, toggleReaction, createGroup, getGroups, addMemberToGroup, getGroupMembers, getUnreadSenders } from '../services/socialService';
 import { supabase } from '../services/supabaseClient';
 import TrackPreview from './TrackPreview';
 import RatingStars from './RatingStars';
@@ -12,6 +12,7 @@ interface SocialHubProps {
     currentUserId: string;
     onChallengeGhost?: (track: Track) => void;
     onReadMessages?: () => void;
+    initialChatUserId?: string | null;
 }
 
 const UserIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M10 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM3.465 14.493a1.23 1.23 0 0 0 .41 1.412A9.957 9.957 0 0 0 10 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 0 0-13.074.003Z" /></svg>);
@@ -22,7 +23,7 @@ const ChatBubbleIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0
 const GhostIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M10 1a4.5 4.5 0 0 0-4.5 4.5V9H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-.5V5.5A4.5 4.5 0 0 0 10 1Zm3 8V5.5a3 3 0 1 0-6 0V9h6Z" /></svg>);
 const GroupIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M7 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM14.5 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM1.615 16.428a1.224 1.224 0 0 1-.569-1.175 6.002 6.002 0 0 1 11.908 0c.058.467-.172.92-.57 1.174A9.953 9.953 0 0 1 7 18a9.953 9.953 0 0 1-5.385-1.572ZM14.5 16h-.106c.07-.38.106-.772.106-1.175 0-.537-.067-1.054-.191-1.543A7.001 7.001 0 0 1 17 18a9.952 9.952 0 0 1-2.5-2Z" /></svg>);
 
-const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallengeGhost, onReadMessages }) => {
+const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallengeGhost, onReadMessages, initialChatUserId }) => {
     const [activeTab, setActiveTab] = useState<'feed' | 'friends' | 'groups' | 'add'>('feed');
     const [friends, setFriends] = useState<UserProfile[]>([]);
     const [requests, setRequests] = useState<FriendRequest[]>([]);
@@ -32,6 +33,7 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
     const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
     const [loading, setLoading] = useState(false);
     const [sentRequests, setSentRequests] = useState<Set<string>>(new Set());
+    const [unreadSenders, setUnreadSenders] = useState<Set<string>>(new Set());
     
     const [newGroupName, setNewGroupName] = useState('');
     const [isCreatingGroup, setIsCreatingGroup] = useState(false);
@@ -47,11 +49,41 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
         loadData();
         // Background fetch for badges
         getFriendRequests(currentUserId).then(setRequests);
+        refreshUnreadStatus();
     }, [activeTab, activeGroupFilter]);
 
     useEffect(() => {
         if (onReadMessages) onReadMessages();
     }, []);
+
+    const refreshUnreadStatus = async () => {
+        try {
+            const senders = await getUnreadSenders(currentUserId);
+            setUnreadSenders(senders);
+        } catch (e) {
+            console.error("Failed to refresh unread senders", e);
+        }
+    };
+
+    // Auto-open chat if initialChatUserId is provided
+    useEffect(() => {
+        if (initialChatUserId) {
+            setActiveTab('friends');
+            // We need to wait for friends to load if they are not loaded yet
+            const openChat = async () => {
+                let currentFriends = friends;
+                if (currentFriends.length === 0) {
+                    currentFriends = await getFriends(currentUserId);
+                    setFriends(currentFriends);
+                }
+                const friend = currentFriends.find(f => f.id === initialChatUserId);
+                if (friend) {
+                    setActiveChatFriend(friend);
+                }
+            };
+            openChat();
+        }
+    }, [initialChatUserId, currentUserId]);
 
     useEffect(() => {
         if (activeTab !== 'add') return;
@@ -68,6 +100,7 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
             if (activeTab === 'friends') {
                 setFriends(await getFriends(currentUserId));
                 setRequests(await getFriendRequests(currentUserId));
+                refreshUnreadStatus();
             } else if (activeTab === 'feed') {
                 setFeed(await getFriendsActivityFeed(currentUserId, activeGroupFilter?.id));
             } else if (activeTab === 'groups') {
@@ -180,10 +213,10 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
                     <button onClick={() => setActiveTab('groups')} className={`flex-1 min-w-[80px] py-3 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors ${activeTab === 'groups' ? 'text-purple-400 border-b-2 border-purple-400 bg-slate-800' : 'text-slate-500 hover:text-slate-300'}`}><GroupIcon /> Gruppi</button>
                     <button onClick={() => setActiveTab('friends')} className={`flex-1 min-w-[80px] py-3 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors relative ${activeTab === 'friends' ? 'text-cyan-400 border-b-2 border-cyan-400 bg-slate-800' : 'text-slate-500 hover:text-slate-300'}`}>
                         <UserIcon /> Amici
-                        {requests.length > 0 && (
+                        {(requests.length > 0 || unreadSenders.size > 0) && (
                             <span className="absolute top-2 right-2 flex h-2.5 w-2.5">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+                                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${unreadSenders.size > 0 ? 'bg-green-400' : 'bg-red-400'}`}></span>
+                                <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${unreadSenders.size > 0 ? 'bg-green-500' : 'bg-red-500'}`}></span>
                             </span>
                         )}
                     </button>
@@ -373,25 +406,29 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
                                     </div>
                                 ) : (
                                     <div className="space-y-2">
-                                        {friends.map(friend => (
-                                            <div key={friend.id} className="flex items-center justify-between p-3 bg-slate-800 rounded-xl border border-slate-700 hover:border-slate-600 transition-colors group">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="relative">
-                                                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center text-xs font-bold text-white">
-                                                            {friend.name?.substring(0,1)}
-                                                        </div>
-                                                        {friend.isOnline && <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 border-2 border-slate-800 rounded-full"></div>}
-                                                    </div>
-                                                    <span className="text-sm font-bold text-white">{friend.name}</span>
-                                                </div>
-                                                <button 
+                                        {friends.map(friend => {
+                                            const hasUnread = friend.id && unreadSenders.has(friend.id);
+                                            return (
+                                                <div 
+                                                    key={friend.id} 
                                                     onClick={() => setActiveChatFriend(friend)}
-                                                    className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+                                                    className={`flex items-center justify-between p-3 rounded-xl border transition-colors group cursor-pointer ${hasUnread ? 'bg-slate-800 border-green-500/50 shadow-[0_0_10px_rgba(34,197,94,0.1)]' : 'bg-slate-800 border-slate-700 hover:border-slate-600'}`}
                                                 >
-                                                    <ChatBubbleIcon />
-                                                </button>
-                                            </div>
-                                        ))}
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="relative">
+                                                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center text-xs font-bold text-white">
+                                                                {friend.name?.substring(0,1)}
+                                                            </div>
+                                                            {friend.isOnline && <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 border-2 border-slate-800 rounded-full"></div>}
+                                                        </div>
+                                                        <span className={`text-sm font-bold ${hasUnread ? 'text-green-400' : 'text-white'}`}>{friend.name}</span>
+                                                    </div>
+                                                    <button className={`p-2 rounded-lg transition-colors ${hasUnread ? 'text-green-400 bg-green-900/20' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}>
+                                                        <ChatBubbleIcon />
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </div>
@@ -449,8 +486,8 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
                 <MiniChat 
                     currentUser={{ id: currentUserId }} 
                     friend={activeChatFriend} 
-                    onClose={() => setActiveChatFriend(null)} 
-                    onMessagesRead={onReadMessages}
+                    onClose={() => { setActiveChatFriend(null); refreshUnreadStatus(); }}
+                    onMessagesRead={() => { onReadMessages?.(); refreshUnreadStatus(); }}
                 />
             )}
         </div>
