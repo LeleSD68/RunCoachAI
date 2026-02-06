@@ -6,6 +6,7 @@ import { supabase } from '../services/supabaseClient';
 import TrackPreview from './TrackPreview';
 import RatingStars from './RatingStars';
 import MiniChat from './MiniChat';
+import GroupChat from './GroupChat';
 
 interface SocialHubProps {
     onClose: () => void;
@@ -41,11 +42,12 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
     const [inviteModeGroup, setInviteModeGroup] = useState<SocialGroup | null>(null);
     const [inviteableFriends, setInviteableFriends] = useState<UserProfile[]>([]);
     
-    // New State for Viewing Members
     const [viewMembersGroup, setViewMembersGroup] = useState<SocialGroup | null>(null);
     const [groupMembers, setGroupMembers] = useState<UserProfile[]>([]);
 
+    // Chat States
     const [activeChatFriend, setActiveChatFriend] = useState<UserProfile | null>(null);
+    const [activeGroupChat, setActiveGroupChat] = useState<SocialGroup | null>(null);
 
     // Initial load
     useEffect(() => {
@@ -352,6 +354,16 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
                                         </div>
                                         
                                         <div className="border-t border-slate-700/50 pt-2 flex justify-end gap-2">
+                                            {/* Pulsante Chat di Gruppo */}
+                                            {g.isMember && (
+                                                <button 
+                                                    onClick={() => setActiveGroupChat(g)}
+                                                    className="flex items-center gap-1 text-[10px] bg-slate-700 hover:bg-green-600 hover:text-white text-green-400 px-2 py-1 rounded font-bold uppercase transition-colors"
+                                                >
+                                                    <ChatBubbleIcon /> Chat
+                                                </button>
+                                            )}
+                                            
                                             <button 
                                                 onClick={() => handleViewMembers(g)}
                                                 className="flex items-center gap-1 text-[10px] bg-slate-700 hover:bg-slate-600 text-slate-300 px-2 py-1 rounded font-bold uppercase transition-colors"
@@ -361,7 +373,7 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
                                             {g.ownerId === currentUserId && (
                                                 <button 
                                                     onClick={() => handleStartInvite(g)}
-                                                    className="flex items-center gap-1 text-[10px] bg-slate-700 hover:bg-green-600 hover:text-white text-slate-300 px-2 py-1 rounded font-bold uppercase transition-colors"
+                                                    className="flex items-center gap-1 text-[10px] bg-slate-700 hover:bg-purple-600 hover:text-white text-slate-300 px-2 py-1 rounded font-bold uppercase transition-colors"
                                                 >
                                                     + Invita
                                                 </button>
@@ -554,6 +566,16 @@ const SocialHub: React.FC<SocialHubProps> = ({ onClose, currentUserId, onChallen
                     friend={activeChatFriend} 
                     onClose={() => { setActiveChatFriend(null); refreshUnreadStatus(); }}
                     onMessagesRead={() => { onReadMessages?.(); refreshUnreadStatus(); }}
+                />
+            )}
+
+            {/* GROUP CHAT OVERLAY */}
+            {activeGroupChat && (
+                <GroupChat 
+                    currentUser={{ id: currentUserId, name: 'Io' }} // Name fetched locally in GroupChat usually, but passed for senderId
+                    groupId={activeGroupChat.id}
+                    groupName={activeGroupChat.name}
+                    onClose={() => setActiveGroupChat(null)}
                 />
             )}
         </div>
