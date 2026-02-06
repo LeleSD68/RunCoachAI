@@ -1,9 +1,10 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { isStravaConnected } from '../services/stravaService';
 import { cleanUpRemoteDuplicates, deleteUserAccount, loadProfileFromDB } from '../services/dbService';
 import { supabase } from '../services/supabaseClient';
+import { getEffectiveApiKey, saveCustomApiKey, removeCustomApiKey, hasCustomApiKey } from '../services/aiHelper';
 
 interface SettingsModalProps {
     onClose: () => void;
@@ -16,6 +17,31 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, userProfile, onU
     const [isCleaning, setIsCleaning] = useState(false);
     const [cleanupResult, setCleanupResult] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    
+    // API Key State
+    const [customKey, setCustomKey] = useState('');
+    const [hasKey, setHasKey] = useState(false);
+    const [showKeyInput, setShowKeyInput] = useState(false);
+
+    useEffect(() => {
+        setHasKey(hasCustomApiKey());
+    }, []);
+
+    const handleSaveKey = () => {
+        if (customKey.trim().length > 10) {
+            saveCustomApiKey(customKey);
+            setHasKey(true);
+            setShowKeyInput(false);
+            setCustomKey('');
+            alert("Chiave salvata! Ora hai accesso illimitato all'AI.");
+        }
+    };
+
+    const handleRemoveKey = () => {
+        removeCustomApiKey();
+        setHasKey(false);
+        alert("Chiave rimossa. Sei tornato ai limiti standard.");
+    };
 
     const handleCleanup = async () => {
         setIsCleaning(true);
@@ -74,6 +100,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, userProfile, onU
         onUpdateProfile({ stravaAutoSync: newValue });
     };
 
+    const isPro = userProfile.subscriptionTier === 'pro' || userProfile.subscriptionTier === 'elite';
+
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[9000] p-4 animate-fade-in" onClick={onClose}>
             <div className="bg-slate-900 text-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col border border-slate-700 overflow-hidden max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
@@ -84,6 +112,106 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, userProfile, onU
 
                 <div className="p-6 space-y-6 bg-slate-900/50 overflow-y-auto custom-scrollbar">
                     
+                    {/* SUBSCRIPTION PLAN (NEW BUSINESS MODEL UI) */}
+                    <section className="space-y-3">
+                        <h3 className="text-xs font-black text-amber-400 uppercase tracking-widest border-b border-amber-900/30 pb-2">Il Tuo Piano</h3>
+                        
+                        <div className={`p-4 rounded-xl border relative overflow-hidden ${isPro ? 'bg-amber-900/10 border-amber-500/50' : 'bg-slate-800 border-slate-700'}`}>
+                            {isPro && (
+                                <div className="absolute top-0 right-0 bg-amber-500 text-white text-[9px] font-bold px-2 py-1 rounded-bl-lg uppercase">
+                                    PRO ATTIVO
+                                </div>
+                            )}
+                            
+                            <div className="flex justify-between items-end mb-3">
+                                <div>
+                                    <div className="text-lg font-black text-white">{isPro ? 'RunCoach PRO' : 'Piano Free (BYOK)'}</div>
+                                    <p className="text-[10px] text-slate-400 mt-1 max-w-[200px]">
+                                        {isPro 
+                                            ? "Hai accesso illimitato all'AI e Cloud Sync prioritario." 
+                                            : "Usa la tua chiave API personale per accedere alle funzioni AI gratuitamente."}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {!isPro && (
+                                <div className="space-y-2">
+                                    <div className="flex gap-2">
+                                        <div className="flex-1 bg-slate-900 p-2 rounded border border-slate-600 text-center opacity-50">
+                                            <div className="text-[9px] text-slate-500 uppercase font-bold">Free</div>
+                                            <div className="text-sm font-bold text-white">€0</div>
+                                            <div className="text-[8px] text-slate-500">Configurazione Manuale (BYOK)</div>
+                                        </div>
+                                        <div className="flex-1 bg-gradient-to-br from-amber-600 to-orange-600 p-2 rounded border border-amber-400 text-center shadow-lg relative overflow-hidden group cursor-pointer">
+                                            <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-20 transition-opacity"></div>
+                                            <div className="text-[9px] text-amber-100 uppercase font-bold">PRO</div>
+                                            <div className="text-sm font-bold text-white">€4.99<span className="text-[9px] font-normal">/mese</span></div>
+                                            <div className="text-[8px] text-amber-100">Zero Configurazione + AI Illimitata</div>
+                                        </div>
+                                    </div>
+                                    <p className="text-[9px] text-slate-500 text-center italic mt-2">
+                                        Supporta lo sviluppo e dimentica le chiavi API.
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    </section>
+
+                    {/* API KEY SECTION - PRIORITY */}
+                    <section className="space-y-3">
+                        <h3 className="text-xs font-black text-purple-400 uppercase tracking-widest border-b border-purple-900/30 pb-2">Configurazione Avanzata (Smanettoni)</h3>
+                        <div className={`p-4 rounded-xl border transition-all ${hasKey ? 'bg-purple-900/10 border-purple-500/50' : 'bg-slate-800 border-slate-700'}`}>
+                            <div className="flex justify-between items-start mb-2">
+                                <div>
+                                    <div className="font-bold text-sm text-white flex items-center gap-2">
+                                        Chiave Gemini Personale
+                                        {hasKey && <span className="text-[9px] bg-green-500 text-white px-1.5 py-0.5 rounded uppercase">Attiva</span>}
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 mt-1">
+                                        Inserisci la tua API Key gratuita di Google per usare l'AI senza abbonamento (Modello BYOK).
+                                    </p>
+                                </div>
+                            </div>
+
+                            {hasKey ? (
+                                <button 
+                                    onClick={handleRemoveKey}
+                                    className="w-full py-2 bg-slate-700 hover:bg-red-900/50 hover:text-red-400 text-slate-300 border border-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all mt-2"
+                                >
+                                    Rimuovi Chiave
+                                </button>
+                            ) : (
+                                <>
+                                    {!showKeyInput ? (
+                                        <button 
+                                            onClick={() => setShowKeyInput(true)}
+                                            className="w-full py-2 bg-purple-600 hover:bg-purple-500 text-white border border-purple-500 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all mt-2"
+                                        >
+                                            Inserisci Chiave
+                                        </button>
+                                    ) : (
+                                        <div className="mt-2 space-y-2 animate-fade-in">
+                                            <input 
+                                                type="text" 
+                                                value={customKey}
+                                                onChange={(e) => setCustomKey(e.target.value)}
+                                                placeholder="Incolla qui la tua API Key..."
+                                                className="w-full bg-slate-950 border border-purple-500/50 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-purple-400"
+                                            />
+                                            <div className="flex gap-2">
+                                                <button onClick={handleSaveKey} className="flex-1 bg-purple-600 text-white py-2 rounded-lg text-xs font-bold hover:bg-purple-500">Salva</button>
+                                                <button onClick={() => setShowKeyInput(false)} className="flex-1 bg-slate-700 text-slate-300 py-2 rounded-lg text-xs font-bold hover:bg-slate-600">Annulla</button>
+                                            </div>
+                                            <p className="text-[9px] text-slate-500 text-center">
+                                                Ottienila su <a href="https://aistudio.google.com/app/apikey" target="_blank" className="underline text-purple-400">Google AI Studio</a>.
+                                            </p>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    </section>
+
                     {/* ACCOUNT STATUS */}
                     <section className="space-y-3">
                         <h3 className="text-xs font-black text-emerald-400 uppercase tracking-widest border-b border-emerald-900/30 pb-2">Stato Account</h3>
