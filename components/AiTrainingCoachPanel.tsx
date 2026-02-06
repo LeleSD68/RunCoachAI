@@ -18,6 +18,7 @@ interface AiTrainingCoachPanelProps {
     layoutMode?: 'vertical' | 'horizontal';
     targetDate?: Date; 
     onCheckAiAccess?: (feature: 'workout' | 'analysis' | 'chat') => boolean; 
+    onStartWorkout?: (workout: PlannedWorkout | null) => void; // New prop
 }
 
 type GenerationMode = 'today' | 'next2' | 'weekly' | 'specific';
@@ -34,6 +35,12 @@ const formatPace = (pace: number) => {
 const SparklesIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 mr-2 text-cyan-400">
         <path d="M10.89 2.11a.75.75 0 0 0-1.78 0l-1.5 3.22-3.53.51a.75.75 0 0 0-.42 1.28l2.55 2.49-.6 3.52a.75.75 0 0 0 1.09.79l3.16-1.66 3.16 1.66a.75.75 0 0 0 1.09-.79l-.6-3.52 2.55-2.49a.75.75 0 0 0-.42-1.28l-3.53-.51-1.5-3.22Z" />
+    </svg>
+);
+
+const HeadsetIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 mr-2">
+        <path fillRule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75v5.25c0 .621.504 1.125 1.125 1.125h2.25c1.243 0 2.25-1.007 2.25-2.25v-4.5c0-1.243-1.007-2.25-2.25-2.25h-1.5v-2.625a7.5 7.5 0 0 1 15 0v2.625h-1.5c-1.243 0-2.25 1.007-2.25 2.25v4.5c0 1.243 1.007 2.25 2.25 2.25h2.25c.621 0 1.125-.504 1.125-1.125v-5.25c0-5.385-4.365-9.75-9.75-9.75Z" clipRule="evenodd" />
     </svg>
 );
 
@@ -57,7 +64,7 @@ const HumanCoachCTA = () => (
 );
 
 const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({ 
-    track, stats, userProfile, allHistory, onAddPlannedWorkout, onDeletePlannedWorkout, plannedWorkouts = [], isCompact, layoutMode = 'vertical', targetDate, onCheckAiAccess
+    track, stats, userProfile, allHistory, onAddPlannedWorkout, onDeletePlannedWorkout, plannedWorkouts = [], isCompact, layoutMode = 'vertical', targetDate, onCheckAiAccess, onStartWorkout
 }) => {
     const [isGenerating, setIsGenerating] = useState(false);
     const [suggestions, setSuggestions] = useState<any[]>([]);
@@ -212,10 +219,6 @@ const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({
     const handleImport = (suggestion: any, index: number) => {
         if (!onAddPlannedWorkout) return;
         
-        // Embed the structured phases into the object (will be serialized if saved to DB/LocalStorage)
-        // For compatibility with simple string description, we append a magic string if needed, 
-        // but now PlannedWorkout supports `structure` field directly in our types.
-        
         const entry: PlannedWorkout = {
             id: `ai-gen-${Date.now()}`,
             title: suggestion.title,
@@ -235,9 +238,27 @@ const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({
         <div className="flex flex-col h-full">
             <div className={`p-2 flex-grow ${layoutMode === 'horizontal' ? 'flex flex-row overflow-x-auto gap-4' : 'space-y-4'}`}>
                 {!suggestions.length && !isGenerating && (
-                    <div className="text-center p-4 bg-slate-800/40 rounded-2xl border border-slate-700 min-w-[200px]">
+                    <div className="text-center p-4 bg-slate-800/40 rounded-2xl border border-slate-700 min-w-[200px] flex flex-col justify-center">
                         <p className="text-sm text-slate-300 mb-4">Ottieni una scheda basata sui tuoi impegni e note.</p>
-                        <button onClick={handleGenerateProgram} className="bg-cyan-600 hover:bg-cyan-500 text-white font-black text-xs uppercase px-6 py-3 rounded-xl transition-all shadow-lg active:scale-95">Genera Scheda Intelligente</button>
+                        
+                        <div className="space-y-3">
+                            <button onClick={handleGenerateProgram} className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-black text-xs uppercase px-6 py-3 rounded-xl transition-all shadow-lg active:scale-95">
+                                Genera Scheda Intelligente
+                            </button>
+                            
+                            {onStartWorkout && (
+                                <button 
+                                    onClick={() => {
+                                        if (onCheckAiAccess && !onCheckAiAccess('chat')) return;
+                                        onStartWorkout(null); // Null triggers Free Run
+                                    }}
+                                    className="w-full bg-purple-600 hover:bg-purple-500 text-white font-black text-xs uppercase px-6 py-3 rounded-xl transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"
+                                >
+                                    <HeadsetIcon />
+                                    Avvia Corsa Libera (Coach Live)
+                                </button>
+                            )}
+                        </div>
                     </div>
                 )}
 
