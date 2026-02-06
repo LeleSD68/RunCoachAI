@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Track, UserProfile, PlannedWorkout, Toast, ActivityType, RaceRunner, RaceResult, TrackStats, Commentary, TrackPoint, ApiUsage, RaceGapSnapshot, LeaderStats } from './types';
 import Sidebar from './components/Sidebar';
@@ -127,6 +126,17 @@ const App: React.FC = () => {
 
     const [layoutPrefs, setLayoutPrefs] = useState<{ desktopSidebar: number, mobileListRatio: number }>({ desktopSidebar: 320, mobileListRatio: 0.7 });
 
+    const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
+    useEffect(() => {
+        const handleResize = () => {
+            const desk = window.innerWidth >= 1024;
+            setIsDesktop(desk);
+            setFitBoundsCounter(c => c + 1);
+        };
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
     // --- PWA INSTALL LOGIC ---
     useEffect(() => {
         const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
@@ -157,6 +167,7 @@ const App: React.FC = () => {
             if (outcome === 'accepted') {
                 setDeferredPrompt(null);
                 setShowInstallPrompt(false);
+                setShowHome(true); // Force Home on install
                 logEvent('pwa_install_accepted');
             }
         }
@@ -164,6 +175,7 @@ const App: React.FC = () => {
 
     const handlePwaIgnore = () => {
         setShowInstallPrompt(false);
+        setShowHome(true); // Force Home on ignore
         sessionStorage.setItem(INSTALL_PROMPT_DISMISSED_KEY, 'true');
     };
 
@@ -191,20 +203,40 @@ const App: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        window.history.replaceState({ view: 'map' }, '');
+        // Set 'hub' as the default/root state
+        window.history.replaceState({ view: 'hub' }, '');
+        
         const handlePopState = (event: PopStateEvent) => {
             const state = event.state;
-            const view = state?.view || 'map';
-            if (view === 'map') {
-                resetNavigation();
-                if (!isDesktop) setIsSidebarOpen(false); 
+            const view = state?.view || 'hub'; // Default to hub if undefined
+            
+            resetNavigation();
+            
+            if (view === 'hub') {
+                setShowHome(true);
+                if (!isDesktop) setIsSidebarOpen(false);
+            } else if (view === 'map') {
+                setShowHome(false); // Explicit map mode
             } else {
-                resetNavigation();
+                // For other specific views, we rely on the state restoration 
+                // or just fall back to Hub if something is wrong.
+                switch(view) {
+                    case 'diary': setShowDiary(true); break;
+                    case 'explorer': setShowExplorer(true); break;
+                    case 'performance': setShowPerformance(true); break;
+                    case 'social': setShowSocial(true); break;
+                    case 'profile': setShowProfile(true); break;
+                    case 'settings': setShowSettings(true); break;
+                    case 'guide': setShowGuide(true); break;
+                    case 'admin': setShowAdmin(true); break;
+                    case 'trackDetail': if(viewingTrack) setViewingTrack(viewingTrack); else setShowHome(true); break;
+                    default: setShowHome(true);
+                }
             }
         };
         window.addEventListener('popstate', handlePopState);
         return () => window.removeEventListener('popstate', handlePopState);
-    }, [resetNavigation]);
+    }, [resetNavigation, viewingTrack, isDesktop]);
 
     const pushViewState = (viewName: string) => {
         window.history.pushState({ view: viewName }, '');
@@ -217,11 +249,11 @@ const App: React.FC = () => {
             settings: showSettings, guide: showGuide, admin: showAdmin
         };
         const isOpen = currentStates[view];
+        
         if (!isOpen) {
             pushViewState(view);
             logPageView(view); // Track view
             
-            // NOTE: When toggling views normally, we reset navigation to clear previous states
             resetNavigation(); 
 
             switch(view) {
@@ -238,9 +270,16 @@ const App: React.FC = () => {
         } else {
             window.history.back();
         }
+        
+        // Specific case for opening Hub from dock: ensure sidebar is reset on desktop if needed
         if (view === 'hub' && !isOpen && isDesktop) {
             setIsSidebarOpen(true);
         }
+    };
+
+    const handleEnterMapMode = () => {
+        setShowHome(false);
+        pushViewState('map');
     };
 
     // Logic for smart social opening
@@ -259,11 +298,9 @@ const App: React.FC = () => {
     }, [userId, unreadMessages]);
 
     const handleOpenListFromHome = useCallback(() => {
-        setShowHome(false);
+        handleEnterMapMode();
         setIsSidebarOpen(true);
-        resetNavigation();
-        pushViewState('sidebar');
-    }, [resetNavigation]);
+    }, []);
 
     useEffect(() => {
         const stored = localStorage.getItem(LAYOUT_PREFS_KEY);
@@ -400,17 +437,6 @@ const App: React.FC = () => {
         };
     }, []);
 
-    const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
-    useEffect(() => {
-        const handleResize = () => {
-            const desk = window.innerWidth >= 1024;
-            setIsDesktop(desk);
-            setFitBoundsCounter(c => c + 1);
-        };
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, []);
-
     const onCheckAiAccess = useCallback((feature: 'workout' | 'analysis' | 'chat' = 'chat') => {
         if (!isGuest) return true;
 
@@ -458,9 +484,9 @@ const App: React.FC = () => {
             setShowSettings(false);
             setShowDiary(false);
             setShowSocial(false);
-            setShowHome(false); // Close home to allow AuthSelection to appear
+            // setShowHome(false); // Do not close Home, reset to Auth
             
-            // Navigate to AuthSelection
+            // Navigate to AuthSelection (Home will render AuthSelection if needed, or we show it explicitly)
             setShowAuthSelection(true);
             setIsDataLoading(false);
             logEvent('logout');
@@ -516,6 +542,7 @@ const App: React.FC = () => {
         addToast(`Allenamento completato! Durata: ${(durationMs/60000).toFixed(0)} min.`, "success");
         setShowLiveCoach(false);
         setActiveWorkout(null);
+        setShowHome(true); // Return to home
         logEvent('live_coach_finish', { duration: durationMs });
     };
 
@@ -1021,7 +1048,7 @@ const App: React.FC = () => {
                 <LiveCoachScreen 
                     workout={activeWorkout}
                     onFinish={handleLiveCoachFinish}
-                    onExit={() => { setShowLiveCoach(false); setActiveWorkout(null); }}
+                    onExit={() => { setShowLiveCoach(false); setActiveWorkout(null); setShowHome(true); }}
                 />
             )}
 
@@ -1054,7 +1081,7 @@ const App: React.FC = () => {
             
             {showHome && (
                 <HomeModal 
-                    onClose={() => toggleView('hub')}
+                    onClose={() => handleEnterMapMode()}
                     onOpenDiary={() => toggleView('diary')}
                     onOpenExplorer={() => toggleView('explorer')}
                     onOpenHelp={() => toggleView('guide')}
@@ -1170,13 +1197,13 @@ const App: React.FC = () => {
                                     <RaceControls 
                                         simulationState={raceState} simulationTime={raceTime} simulationSpeed={raceSpeed}
                                         onPause={() => setRaceState('paused')} onResume={() => setRaceState('running')}
-                                        onStop={() => { setRaceState('idle'); setRaceRunners(null); }}
+                                        onStop={() => { setRaceState('idle'); setRaceRunners(null); setShowHome(true); }}
                                         onSpeedChange={setRaceSpeed}
                                     />
                                 </div>
                                 <div className="absolute top-0 right-0 z-[2000] p-2">
                                     <button 
-                                        onClick={() => { setRaceState('idle'); setRaceRunners(null); }} 
+                                        onClick={() => { setRaceState('idle'); setRaceRunners(null); setShowHome(true); }} 
                                         className="bg-red-600/90 text-white px-3 py-1 rounded text-xs font-bold uppercase"
                                     >
                                         Esci
