@@ -55,21 +55,32 @@ const DiaryActionModal: React.FC<DiaryActionModalProps> = ({ date, onClose, onAd
     };
 
     return (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[15000] flex items-end sm:items-center justify-center sm:p-4 animate-fade-in" onClick={onClose}>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[15000] flex items-center justify-center sm:p-4 animate-fade-in" onClick={onClose}>
             <div 
-                className="bg-slate-900 border-t sm:border border-slate-700 rounded-t-3xl sm:rounded-3xl shadow-2xl w-full sm:max-w-sm overflow-hidden mb-0 sm:mb-auto pb-[env(safe-area-inset-bottom)] transition-all" 
+                className="bg-slate-900 w-full h-full sm:h-auto sm:w-full sm:max-w-sm border-none sm:border border-slate-700 rounded-none sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col transition-all" 
                 onClick={e => e.stopPropagation()}
             >
-                <header className="p-6 bg-slate-800 border-b border-slate-700">
-                    <h3 className="text-xl font-black text-white uppercase tracking-tighter">
-                        {date.toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })}
-                    </h3>
-                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">
-                        {step === 'ai-mode' ? 'Configurazione Coach AI' : step === 'ai-days' ? 'Seleziona giorni di corsa' : 'Cosa vuoi pianificare?'}
-                    </p>
+                <header className="p-6 bg-slate-800 border-b border-slate-700 flex justify-between items-center shrink-0">
+                    <div>
+                        <h3 className="text-xl font-black text-white uppercase tracking-tighter">
+                            {date.toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })}
+                        </h3>
+                        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">
+                            {step === 'ai-mode' ? 'Configurazione Coach AI' : step === 'ai-days' ? 'Seleziona giorni di corsa' : 'Cosa vuoi pianificare?'}
+                        </p>
+                    </div>
+                    {/* Close button always visible on mobile since it's full screen */}
+                    <button 
+                        onClick={onClose} 
+                        className="sm:hidden p-2 bg-slate-700/50 hover:bg-slate-700 rounded-full text-slate-300 transition-colors"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+                            <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72-3.72a.75.75 0 1 0 1.06-1.06L10 8.94 6.28 5.22Z" />
+                        </svg>
+                    </button>
                 </header>
 
-                <div className="p-6">
+                <div className="p-6 flex-grow overflow-y-auto custom-scrollbar">
                     {step === 'choice' && (
                         <div className="grid gap-3">
                             <button onClick={() => setStep('ai-mode')} className="flex items-center gap-4 p-4 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/40 rounded-2xl text-left transition-all group">
@@ -143,7 +154,7 @@ const DiaryActionModal: React.FC<DiaryActionModalProps> = ({ date, onClose, onAd
                                 value={text}
                                 onChange={e => setText(e.target.value)}
                                 placeholder={step === 'note' ? "Come ti senti? Hai dolori?..." : "Descrivi l'impegno (es. Lavoro, Viaggio)..."}
-                                className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-white focus:border-cyan-500 outline-none h-32 sm:h-32 resize-none"
+                                className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-white focus:border-cyan-500 outline-none h-48 sm:h-32 resize-none"
                             />
                             
                             {step === 'commitment' && (
