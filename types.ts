@@ -109,7 +109,6 @@ export interface UserProfile {
   weightHistory?: {date: string, weight: number}[];
   powerSaveMode?: boolean;
   isOnline?: boolean;
-  gaMeasurementId?: string; // NEW: Google Analytics ID
   isAdmin?: boolean; // NEW: Admin flag
 }
 
