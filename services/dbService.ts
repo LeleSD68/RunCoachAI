@@ -127,6 +127,8 @@ export const saveProfileToDB = async (profile: UserProfile, options: { skipCloud
   if (!options.skipCloud && isSupabaseConfigured()) {
     const { data: { session } } = await supabase.auth.getSession();
     if (session) {
+      // FIX CRITICO: Non inviamo is_admin al server. Questo campo è gestito solo lato DB/SQL.
+      // Se lo inviassimo qui, sovrascriveremmo il valore 'true' del DB con il 'false/undefined' locale.
       await supabase.from('profiles').upsert({
         id: session.user.id,
         name: profile.name,
@@ -143,8 +145,8 @@ export const saveProfileToDB = async (profile: UserProfile, options: { skipCloud
         retired_shoes: profile.retiredShoes || [], 
         weight_history: profile.weightHistory || [],
         strava_auto_sync: profile.stravaAutoSync,
-        ga_measurement_id: profile.gaMeasurementId, 
-        is_admin: profile.isAdmin, // NEW
+        ga_measurement_id: profile.gaMeasurementId,
+        // is_admin: profile.isAdmin, <--- RIMOSSO INTENZIONALMENTE
         updated_at: new Date().toISOString()
       });
     }
@@ -153,6 +155,13 @@ export const saveProfileToDB = async (profile: UserProfile, options: { skipCloud
 
 export const loadProfileFromDB = async (forceLocal: boolean = false): Promise<UserProfile | null> => {
   const { data: { session } } = await supabase.auth.getSession();
+  // Se forceLocal è true, forziamo il recupero dal cloud (logica invertita per coerenza con la UI "Forza Cloud")
+  // In realtà il parametro si chiama forceLocal ma spesso lo usiamo per bypassare la cache se siamo online.
+  // Miglioriamo la logica: se forceLocal è FALSE e siamo online, SCARICHIAMO.
+  // Se forceLocal è TRUE, leggiamo SOLO da IndexedDB.
+  // Tuttavia per il pulsante "Aggiorna Permessi" vogliamo forzare il download.
+  // Chiameremo questa funzione con forceLocal=false (default) ma dobbiamo assicurarci che scarichi.
+  
   if (!forceLocal && session && isSupabaseConfigured()) {
     const { data, error } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
     if (data && !error) {
@@ -174,12 +183,14 @@ export const loadProfileFromDB = async (forceLocal: boolean = false): Promise<Us
         weightHistory: data.weight_history,
         stravaAutoSync: data.strava_auto_sync,
         gaMeasurementId: data.ga_measurement_id,
-        isAdmin: data.is_admin // NEW
+        isAdmin: data.is_admin // Questo legge il valore VERO dal DB
       };
+      // Salviamo in locale per la prossima volta
       await saveProfileToDB(cloudProfile, { skipCloud: true });
       return cloudProfile;
     }
   }
+  
   const db = await initDB();
   return new Promise((resolve) => {
     const req = db.transaction([PROFILE_STORE], 'readonly').objectStore(PROFILE_STORE).get('current');
