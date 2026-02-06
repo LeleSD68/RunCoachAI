@@ -33,6 +33,7 @@ interface HomeModalProps {
     onOpenSocial?: () => void;
     unreadCount?: number;
     onlineCount?: number;
+    onOpenAdmin?: () => void; // NEW
 }
 
 // --- ICONS ---
@@ -221,7 +222,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
     onOpenDiary, onOpenExplorer, onOpenHelp, onImportBackup, onExportBackup, 
     onUploadTracks, onClose, onOpenList, trackCount, plannedWorkouts = [], onOpenWorkout, 
     onOpenProfile, onOpenSettings, onOpenChangelog, onUploadOpponent, onEnterRaceMode, onManualCloudSave, onCheckAiAccess,
-    onLogout, onLogin, isGuest, onOpenStravaConfig, userProfile, onOpenSocial, unreadCount = 0, onlineCount = 0
+    onLogout, onLogin, isGuest, onOpenStravaConfig, userProfile, onOpenSocial, unreadCount = 0, onlineCount = 0, onOpenAdmin
 }) => {
     const backupInputRef = useRef<HTMLInputElement>(null);
     const trackInputRef = useRef<HTMLInputElement>(null);
@@ -272,6 +273,14 @@ const HomeModal: React.FC<HomeModalProps> = ({
                                 <span className={`text-[8px] px-1.5 py-0.5 rounded border uppercase font-bold tracking-wider ${isGuest ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' : 'bg-green-500/20 text-green-300 border-green-500/30'}`}>
                                     {isGuest ? 'Ospite' : 'Cloud Sync'}
                                 </span>
+                                {userProfile?.isAdmin && (
+                                    <button 
+                                        onClick={onOpenAdmin}
+                                        className="bg-red-500/20 border border-red-500/50 text-red-400 text-[8px] px-2 py-0.5 rounded font-black uppercase tracking-widest hover:bg-red-500/40 transition-colors"
+                                    >
+                                        Admin
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>
