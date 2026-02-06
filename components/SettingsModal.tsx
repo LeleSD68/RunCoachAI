@@ -46,6 +46,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, userProfile, onU
     };
 
     const handleReloadApp = () => {
+        // Force clear cache for critical items if needed, but simple reload usually triggers logic
         window.location.reload();
     };
 
@@ -69,13 +70,32 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, userProfile, onU
 
                 <div className="p-6 space-y-6 bg-slate-900/50 overflow-y-auto custom-scrollbar">
                     
+                    {/* ACCOUNT STATUS */}
+                    <section className="space-y-3">
+                        <h3 className="text-xs font-black text-emerald-400 uppercase tracking-widest border-b border-emerald-900/30 pb-2">Stato Account</h3>
+                        <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col gap-2">
+                            <div className="flex justify-between items-center">
+                                <span className="text-xs text-slate-400 font-bold uppercase">Ruolo Rilevato</span>
+                                <span className={`text-xs font-black uppercase px-2 py-1 rounded ${userProfile.isAdmin ? 'bg-red-500 text-white' : 'bg-slate-700 text-slate-300'}`}>
+                                    {userProfile.isAdmin ? 'ADMIN' : 'UTENTE STANDARD'}
+                                </span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-xs text-slate-400 font-bold uppercase">ID Utente</span>
+                                <span className="text-[10px] font-mono text-slate-500 select-all" title={userProfile.id}>
+                                    {userProfile.id ? userProfile.id.substring(0, 8) + '...' : 'Guest'}
+                                </span>
+                            </div>
+                        </div>
+                    </section>
+
                     {/* APP SYSTEM */}
                     <section className="space-y-3">
                         <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-700/50 pb-2">Sistema</h3>
                         <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex items-center justify-between">
                             <div>
                                 <div className="font-bold text-white text-sm">Ricarica App</div>
-                                <p className="text-[10px] text-slate-400 leading-tight">Forza l'aggiornamento all'ultima versione.</p>
+                                <p className="text-[10px] text-slate-400 leading-tight">Forza l'aggiornamento e riscarica il profilo.</p>
                             </div>
                             <button 
                                 onClick={handleReloadApp}
