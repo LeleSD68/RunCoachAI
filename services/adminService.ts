@@ -9,6 +9,14 @@ export interface AdminStats {
     recentUsers: { name: string; email: string; last_seen_at: string }[];
 }
 
+export interface AdminUserProfile {
+    id: string;
+    name: string;
+    subscription_tier: 'free' | 'pro' | 'elite';
+    is_admin: boolean;
+    last_seen_at: string;
+}
+
 export const getAdminStats = async (): Promise<AdminStats> => {
     // 1. Total Users
     const { count: totalUsers } = await supabase
@@ -46,4 +54,30 @@ export const getAdminStats = async (): Promise<AdminStats> => {
         totalWorkouts: totalWorkouts || 0,
         recentUsers: (recentUsers || []) as any
     };
+};
+
+export const searchAllUsers = async (query: string): Promise<AdminUserProfile[]> => {
+    // Requires Admin Policy
+    const { data, error } = await supabase
+        .from('profiles')
+        .select('id, name, subscription_tier, is_admin, last_seen_at')
+        .ilike('name', `%${query}%`)
+        .order('last_seen_at', { ascending: false })
+        .limit(20);
+
+    if (error) {
+        console.error("Admin search error:", error);
+        throw error;
+    }
+    return (data || []) as AdminUserProfile[];
+};
+
+export const updateUserStatus = async (userId: string, updates: { subscription_tier?: string, is_admin?: boolean }) => {
+    // Requires Admin Policy Update
+    const { error } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('id', userId);
+
+    if (error) throw error;
 };
