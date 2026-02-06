@@ -16,6 +16,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, userProfile, onU
     const [isCleaning, setIsCleaning] = useState(false);
     const [cleanupResult, setCleanupResult] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [gaId, setGaId] = useState(userProfile.gaMeasurementId || '');
 
     const handleCleanup = async () => {
         setIsCleaning(true);
@@ -50,9 +51,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, userProfile, onU
 
     const toggleStravaSync = () => {
         if (!stravaConnected) return;
-        // Explicitly set boolean to avoid undefined issues during toggle
         const newValue = !(userProfile.stravaAutoSync === true);
         onUpdateProfile({ stravaAutoSync: newValue });
+    };
+
+    const handleSaveGaId = () => {
+        onUpdateProfile({ gaMeasurementId: gaId });
     };
 
     return (
@@ -79,6 +83,32 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, userProfile, onU
                             >
                                 ↻ Ricarica
                             </button>
+                        </div>
+                    </section>
+
+                    {/* ANALYTICS CONFIG */}
+                    <section className="space-y-3">
+                        <h3 className="text-xs font-black text-orange-400 uppercase tracking-widest border-b border-orange-900/30 pb-2">Analytics & Tracking</h3>
+                        <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2">Google Analytics Measurement ID</label>
+                            <div className="flex gap-2">
+                                <input 
+                                    type="text" 
+                                    value={gaId}
+                                    onChange={(e) => setGaId(e.target.value)}
+                                    placeholder="G-XXXXXXXXXX"
+                                    className="flex-grow bg-slate-900 border border-slate-600 rounded-lg p-2 text-white text-sm font-mono focus:border-orange-500 outline-none"
+                                />
+                                <button 
+                                    onClick={handleSaveGaId}
+                                    className="bg-orange-600 hover:bg-orange-500 text-white font-bold px-3 rounded-lg text-xs transition-colors"
+                                >
+                                    Salva
+                                </button>
+                            </div>
+                            <p className="text-[10px] text-slate-500 mt-2">
+                                Inserisci il tuo ID per attivare Google Analytics 4. Lascia vuoto per disattivare.
+                            </p>
                         </div>
                     </section>
 

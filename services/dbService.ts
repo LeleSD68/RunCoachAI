@@ -140,9 +140,10 @@ export const saveProfileToDB = async (profile: UserProfile, options: { skipCloud
         ai_personality: profile.aiPersonality,
         personal_notes: profile.personalNotes,
         shoes: profile.shoes || [],
-        retired_shoes: profile.retiredShoes || [], // NEW
+        retired_shoes: profile.retiredShoes || [], 
         weight_history: profile.weightHistory || [],
         strava_auto_sync: profile.stravaAutoSync,
+        ga_measurement_id: profile.gaMeasurementId, // NEW
         updated_at: new Date().toISOString()
       });
     }
@@ -168,9 +169,10 @@ export const loadProfileFromDB = async (forceLocal: boolean = false): Promise<Us
         aiPersonality: data.ai_personality,
         personalNotes: data.personal_notes,
         shoes: data.shoes,
-        retiredShoes: data.retired_shoes, // NEW
+        retiredShoes: data.retired_shoes,
         weightHistory: data.weight_history,
-        stravaAutoSync: data.strava_auto_sync
+        stravaAutoSync: data.strava_auto_sync,
+        gaMeasurementId: data.ga_measurement_id // NEW
       };
       await saveProfileToDB(cloudProfile, { skipCloud: true });
       return cloudProfile;
