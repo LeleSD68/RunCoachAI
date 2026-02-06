@@ -1,15 +1,15 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Track } from '../types';
 
 interface GearManagerProps {
     shoes: string[];
     retiredShoes?: string[];
     onAddShoe: (name: string) => void;
-    onRemoveShoe: (index: number) => void; // Removes from ACTIVE
-    onRetireShoe?: (index: number) => void; // Moves ACTIVE -> RETIRED
-    onRestoreShoe?: (index: number) => void; // Moves RETIRED -> ACTIVE
-    onDeleteRetiredShoe?: (index: number) => void; // Deletes permanently from RETIRED
+    onRemoveShoe: (index: number) => void;
+    onRetireShoe?: (index: number) => void;
+    onRestoreShoe?: (index: number) => void;
+    onDeleteRetiredShoe?: (index: number) => void;
     tracks: Track[];
 }
 
@@ -48,7 +48,7 @@ const GearManager: React.FC<GearManagerProps> = ({ shoes, retiredShoes = [], onA
     const [newShoe, setNewShoe] = useState('');
     const [activeTab, setActiveTab] = useState<'active' | 'retired'>('active');
 
-    const shoeStats = React.useMemo(() => {
+    const shoeStats = useMemo(() => {
         const stats: Record<string, { distance: number, usage: number }> = {};
         [...shoes, ...retiredShoes].forEach(s => stats[s] = { distance: 0, usage: 0 });
         tracks.forEach(t => {
@@ -72,9 +72,8 @@ const GearManager: React.FC<GearManagerProps> = ({ shoes, retiredShoes = [], onA
 
     const handleBuyShoe = (shoeName: string) => {
         const query = encodeURIComponent(`${shoeName} running shoes`);
-        // Qui inserisci il tuo link affiliato (es. Amazon Associate tag)
-        // Esempio: tag=runcoachai-21
-        const affiliateUrl = `https://www.amazon.it/s?k=${query}&tag=YOUR_TAG_HERE`;
+        // Affiliate Link Logic (Placeholder)
+        const affiliateUrl = `https://www.amazon.it/s?k=${query}&tag=runcoachai-21`;
         window.open(affiliateUrl, '_blank');
     };
 
@@ -165,7 +164,7 @@ const GearManager: React.FC<GearManagerProps> = ({ shoes, retiredShoes = [], onA
                     )}
                 </div>
                 <div className="mt-3 text-[9px] text-slate-600 text-center italic">
-                    Acquista tramite i nostri link per supportare RunCoachAI.
+                    Supporta lo sviluppo acquistando l'attrezzatura dai nostri partner.
                 </div>
             </div>
         </div>

@@ -18,6 +18,7 @@ interface AiTrainingCoachPanelProps {
     layoutMode?: 'vertical' | 'horizontal';
     targetDate?: Date; 
     onCheckAiAccess?: (feature: 'workout' | 'analysis' | 'chat') => boolean; 
+    onOpenUpgrade?: () => void; // New Prop
 }
 
 type GenerationMode = 'today' | 'next2' | 'weekly' | 'specific';
@@ -37,7 +38,7 @@ const SparklesIcon = () => (
     </svg>
 );
 
-const HumanCoachCTA = () => (
+const HumanCoachCTA: React.FC<{ onClick?: () => void }> = ({ onClick }) => (
     <div className="mt-4 bg-gradient-to-r from-slate-900 to-slate-800 border border-slate-700 rounded-xl p-4 flex items-center justify-between shadow-lg relative overflow-hidden group cursor-pointer hover:border-amber-500/50 transition-all">
         <div className="absolute inset-0 bg-amber-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
         <div className="relative z-10 flex items-center gap-3">
@@ -48,7 +49,7 @@ const HumanCoachCTA = () => (
             </div>
         </div>
         <button 
-            onClick={() => alert("Funzionalità Premium: verrai reindirizzato al modulo di contatto dei nostri Coach Partner.")}
+            onClick={onClick}
             className="relative z-10 bg-white text-slate-900 font-bold text-[10px] uppercase px-4 py-2 rounded-lg hover:bg-slate-200 transition-colors shadow-md"
         >
             Richiedi Info
@@ -57,7 +58,7 @@ const HumanCoachCTA = () => (
 );
 
 const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({ 
-    track, stats, userProfile, allHistory, onAddPlannedWorkout, onDeletePlannedWorkout, plannedWorkouts = [], isCompact, layoutMode = 'vertical', targetDate, onCheckAiAccess
+    track, stats, userProfile, allHistory, onAddPlannedWorkout, onDeletePlannedWorkout, plannedWorkouts = [], isCompact, layoutMode = 'vertical', targetDate, onCheckAiAccess, onOpenUpgrade
 }) => {
     const [isGenerating, setIsGenerating] = useState(false);
     const [suggestions, setSuggestions] = useState<any[]>([]);
@@ -260,7 +261,7 @@ const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({
             
             {/* HUMAN COACH UPSOLD */}
             <div className="px-4 pb-4">
-                <HumanCoachCTA />
+                <HumanCoachCTA onClick={onOpenUpgrade} />
             </div>
         </div>
     );

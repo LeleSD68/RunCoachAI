@@ -1,13 +1,14 @@
 
 import { ApiUsage, DailyCounts } from '../types';
+import { hasCustomApiKey } from './aiHelper';
 
 const USAGE_KEY = 'runcoach_api_usage';
 
-// LIMITS FOR GUEST USERS
+// LIMITS FOR GUEST USERS (Using Default Key)
 export const LIMITS = {
     workout: 1,
     analysis: 1,
-    chat: 10 // Approx 2 dialogues (5 messages each)
+    chat: 10 
 };
 
 export const getApiUsage = (): ApiUsage => {
@@ -68,6 +69,11 @@ export const addTokensToUsage = (tokens: number) => {
 };
 
 export const getRemainingCredits = (): DailyCounts => {
+    // If user provides their own key, they have infinite credits
+    if (hasCustomApiKey()) {
+        return { workout: 9999, analysis: 9999, chat: 9999 };
+    }
+
     const usage = getApiUsage();
     return {
         workout: Math.max(0, LIMITS.workout - usage.dailyCounts.workout),
@@ -77,6 +83,9 @@ export const getRemainingCredits = (): DailyCounts => {
 };
 
 export const checkDailyLimit = (type: keyof DailyCounts): boolean => {
+    // If user provides their own key, limit is always met
+    if (hasCustomApiKey()) return true;
+
     const usage = getApiUsage();
     return usage.dailyCounts[type] < LIMITS[type];
 };

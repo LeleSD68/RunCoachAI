@@ -3,9 +3,33 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { Track, UserProfile, PlannedWorkout, TrackPoint } from '../types';
 import { calculateTrackStats } from './trackStatsService';
 
+const CUSTOM_KEY_STORAGE = 'runcoach_custom_api_key';
+
+export const getEffectiveApiKey = (): string | undefined => {
+    const customKey = localStorage.getItem(CUSTOM_KEY_STORAGE);
+    if (customKey && customKey.trim().length > 10) {
+        return customKey.trim();
+    }
+    return process.env.API_KEY;
+};
+
+export const hasCustomApiKey = (): boolean => {
+    const customKey = localStorage.getItem(CUSTOM_KEY_STORAGE);
+    return !!(customKey && customKey.trim().length > 10);
+};
+
+export const saveCustomApiKey = (key: string) => {
+    localStorage.setItem(CUSTOM_KEY_STORAGE, key.trim());
+};
+
+export const removeCustomApiKey = () => {
+    localStorage.removeItem(CUSTOM_KEY_STORAGE);
+};
+
 export const getGenAI = () => {
-    if (!process.env.API_KEY) throw new Error("API_KEY_MISSING");
-    return new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const key = getEffectiveApiKey();
+    if (!key) throw new Error("API_KEY_MISSING");
+    return new GoogleGenAI({ apiKey: key });
 };
 
 /**
@@ -60,6 +84,9 @@ export const isAuthError = (e: any): boolean => {
 };
 
 export async function ensureApiKey() {
+    // If user has custom key, we don't need the specialized UI picker for Veo usually, 
+    // unless they specifically want to pick a paid project key.
+    // However, if we are here, it means the current key failed.
     if (window.aistudio) await window.aistudio.openSelectKey();
 }
 
@@ -68,6 +95,8 @@ export async function retryWithPolicy<T>(operation: () => Promise<T>): Promise<T
         return await operation();
     } catch (e: any) {
         if (isAuthError(e)) {
+            // If custom key failed, maybe prompt to check it?
+            // For now fallback to standard flow
             await ensureApiKey();
             return await operation();
         }
