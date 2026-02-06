@@ -122,6 +122,7 @@ export const saveProfileToDB = async (profile: UserProfile, options: { skipCloud
   const db = await initDB();
   const tx = db.transaction([PROFILE_STORE], 'readwrite');
   // FIX: Salviamo sempre con id 'current' in locale per poterlo recuperare facilmente
+  // Spreading di profile PRIMA di id='current' assicura che id sia sovrascritto
   tx.objectStore(PROFILE_STORE).put({ ...profile, id: 'current' });
 
   if (!options.skipCloud && isSupabaseConfigured()) {
@@ -159,9 +160,17 @@ export const loadProfileFromDB = async (forceLocal: boolean = false): Promise<Us
   if (!forceLocal && session && isSupabaseConfigured()) {
     const { data, error } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
     
-    if (error) console.warn("Supabase profile load error:", error);
+    if (error) {
+        console.warn("Supabase profile load error:", error);
+        // Se è un errore 500, lo propaghiamo per gestirlo nella UI
+        if (error.code === '500' || (error as any).status === 500) {
+            throw new Error("SUPABASE_500_RECURSION");
+        }
+    }
 
     if (data && !error) {
+      console.log("Supabase Raw Profile Data:", data);
+      
       const cloudProfile: UserProfile = {
         id: session.user.id,
         name: data.name,
@@ -180,7 +189,7 @@ export const loadProfileFromDB = async (forceLocal: boolean = false): Promise<Us
         weightHistory: data.weight_history,
         stravaAutoSync: data.strava_auto_sync,
         gaMeasurementId: data.ga_measurement_id,
-        isAdmin: data.is_admin // Legge il valore reale dal DB
+        isAdmin: data.is_admin === true || data.is_admin === 'true' || data.is_admin === 1 // Parsing permissivo
       };
       // Salviamo in locale per cache (skipCloud=true evita loop)
       await saveProfileToDB(cloudProfile, { skipCloud: true });
