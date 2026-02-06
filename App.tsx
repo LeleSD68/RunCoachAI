@@ -34,6 +34,7 @@ import RaceGapChart from './components/RaceGapChart';
 import WorkoutConfirmationModal from './components/WorkoutConfirmationModal'; 
 import InstallPromptModal from './components/InstallPromptModal'; 
 import LiveCoachScreen from './components/LiveCoachScreen'; 
+import AdminDashboard from './components/AdminDashboard'; // NEW
 
 import { 
     saveTracksToDB, loadTracksFromDB, 
@@ -94,6 +95,7 @@ const App: React.FC = () => {
     const [showStravaSyncOptions, setShowStravaSyncOptions] = useState(false);
     const [stravaAutoModal, setStravaAutoModal] = useState(false);
     const [showStravaConfig, setShowStravaConfig] = useState(false);
+    const [showAdmin, setShowAdmin] = useState(false); // NEW
     
     // Live Coach State
     const [showLiveCoach, setShowLiveCoach] = useState(false);
@@ -189,6 +191,7 @@ const App: React.FC = () => {
         setShowChangelog(false);
         setShowGlobalChat(false);
         setShowLiveCoach(false); 
+        setShowAdmin(false); // NEW
         setViewingTrack(null);
         setEditingTrack(null);
         setTargetWorkoutId(null);
@@ -214,11 +217,11 @@ const App: React.FC = () => {
         window.history.pushState({ view: viewName }, '');
     };
 
-    const toggleView = (view: 'diary' | 'explorer' | 'performance' | 'social' | 'hub' | 'profile' | 'settings' | 'guide') => {
+    const toggleView = (view: 'diary' | 'explorer' | 'performance' | 'social' | 'hub' | 'profile' | 'settings' | 'guide' | 'admin') => {
         const currentStates = {
             diary: showDiary, explorer: showExplorer, performance: showPerformance,
             social: showSocial, hub: showHome, profile: showProfile,
-            settings: showSettings, guide: showGuide
+            settings: showSettings, guide: showGuide, admin: showAdmin
         };
         const isOpen = currentStates[view];
         if (!isOpen) {
@@ -237,6 +240,7 @@ const App: React.FC = () => {
                 case 'profile': setShowProfile(true); break;
                 case 'settings': setShowSettings(true); break;
                 case 'guide': setShowGuide(true); break;
+                case 'admin': setShowAdmin(true); break; // NEW
             }
         } else {
             window.history.back();
@@ -1028,6 +1032,11 @@ const App: React.FC = () => {
                 />
             )}
 
+            {/* ADMIN DASHBOARD - NEW */}
+            {showAdmin && (
+                <AdminDashboard onClose={() => toggleView('hub')} />
+            )}
+
             {showAuthSelection && <AuthSelectionModal onGuest={() => { setIsGuest(true); setUserId('guest'); setShowAuthSelection(false); setShowHome(true); logEvent('guest_login'); }} onLogin={() => setShowLoginModal(true)} />}
             {showLoginModal && (
                 <LoginModal 
@@ -1112,6 +1121,7 @@ const App: React.FC = () => {
                     isGuest={isGuest}
                     onLogout={handleLogout}
                     onLogin={() => setShowLoginModal(true)}
+                    onOpenAdmin={() => toggleView('admin')} // NEW
                 />
             )}
 
@@ -1153,7 +1163,7 @@ const App: React.FC = () => {
                 />
             )}
 
-            {!showHome && !showAuthSelection && !showInfographic && (
+            {!showHome && !showAuthSelection && !showInfographic && !showAdmin && (
                 <div className="flex-grow flex flex-col lg:flex-row overflow-hidden relative">
                     {isRacing ? (
                         <div className="w-full h-full flex flex-col bg-slate-900">
@@ -1304,7 +1314,7 @@ const App: React.FC = () => {
                 </div>
             )}
 
-            {!isDesktop && !showSplash && !showInfographic && !showHome && !showInstallPrompt && !showAuthSelection && !showLoginModal && !showLiveCoach && (
+            {!isDesktop && !showSplash && !showInfographic && !showHome && !showAdmin && !showInstallPrompt && !showAuthSelection && !showLoginModal && !showLiveCoach && (
                 <div className="fixed bottom-0 left-0 right-0 z-[12000] bg-slate-950 border-t border-slate-800 pb-safe">
                     <NavigationDock 
                         onOpenSidebar={() => { setIsSidebarOpen(true); pushViewState('sidebar'); }} 
