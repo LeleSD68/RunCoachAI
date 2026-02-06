@@ -1,4 +1,6 @@
 
+
+
 export type ActivityType = 'Lento' | 'Fartlek' | 'Ripetute' | 'Gara' | 'Lungo' | 'Altro' | 'Nota' | 'Impegno' | 'Recupero';
 
 export type DiaryEntryType = 'workout' | 'note' | 'commitment';
@@ -296,6 +298,15 @@ export interface DirectMessage {
   content: string;
   createdAt: string;
   readAt?: string | null;
+}
+
+export interface GroupMessage {
+  id: string;
+  groupId: string;
+  senderId: string;
+  senderName?: string; // Optional for UI convenience
+  content: string;
+  createdAt: string;
 }
 
 export interface FriendRequest {
