@@ -18,7 +18,7 @@ interface AiTrainingCoachPanelProps {
     layoutMode?: 'vertical' | 'horizontal';
     targetDate?: Date; 
     onCheckAiAccess?: (feature: 'workout' | 'analysis' | 'chat') => boolean; 
-    onStartWorkout?: (workout: PlannedWorkout | null) => void; // New prop
+    onStartWorkout?: (workout: PlannedWorkout | null) => void; 
 }
 
 type GenerationMode = 'today' | 'next2' | 'weekly' | 'specific';
@@ -32,11 +32,27 @@ const formatPace = (pace: number) => {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 };
 
-const SparklesIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 mr-2 text-cyan-400">
-        <path d="M10.89 2.11a.75.75 0 0 0-1.78 0l-1.5 3.22-3.53.51a.75.75 0 0 0-.42 1.28l2.55 2.49-.6 3.52a.75.75 0 0 0 1.09.79l3.16-1.66 3.16 1.66a.75.75 0 0 0 1.09-.79l-.6-3.52 2.55-2.49a.75.75 0 0 0-.42-1.28l-3.53-.51-1.5-3.22Z" />
-    </svg>
-);
+const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = Math.round(seconds % 60);
+    return `${m}'${s > 0 ? s + '"' : ''}`;
+};
+
+const getPhaseIcon = (type: string) => {
+    switch (type) {
+        case 'warmup': return '🔥';
+        case 'work': return '⚡';
+        case 'rest': return '💤';
+        case 'cooldown': return '❄️';
+        default: return '🏃';
+    }
+};
+
+const formatPhaseText = (p: any) => {
+    const target = p.targetType === 'time' ? formatTime(p.targetValue) : `${(p.targetValue < 1000 ? p.targetValue + 'm' : (p.targetValue/1000).toFixed(2) + 'km')}`;
+    const pace = p.paceTarget ? `@ ${formatPace(p.paceTarget/60)}/km` : '';
+    return `${getPhaseIcon(p.type)} ${p.description || p.type} (${target}) ${pace}`;
+};
 
 const HeadsetIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 mr-2">
@@ -71,7 +87,6 @@ const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({
     const [error, setError] = useState('');
     const [savedIndex, setSavedIndex] = useState<number | null>(null);
     
-    // Configuration State
     const [genMode, setGenMode] = useState<GenerationMode>('today');
     const [selectedDays, setSelectedDays] = useState<Set<number>>(new Set([1, 3, 5]));
 
@@ -98,7 +113,6 @@ const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({
                 const referenceDate = targetDate || new Date();
                 const referenceDateStr = referenceDate.toLocaleDateString('it-IT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
                 
-                // CONTESTO IMPEGNI E NOTE
                 const contextEntries = plannedWorkouts
                     .filter(w => new Date(w.date) >= new Date(new Date().setHours(0,0,0,0)))
                     .map(w => {
@@ -152,14 +166,14 @@ const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({
                     "title": string,
                     "activityType": "Lento"|"Fartlek"|"Ripetute"|"Lungo"|"Gara"|"Recupero",
                     "date": "YYYY-MM-DD",
-                    "structure": "Sintesi testuale",
-                    "description": "Descrizione motivazionale/tecnica",
+                    "structure": "Sintesi testuale molto breve (es. '10k Progressivo')",
+                    "description": "Descrizione motivazionale/tecnica discorsiva.",
                     "estimatedDuration": string,
                     "estimatedDistance": string,
                     "targetHeartRate": string,
                     "conflictReasoning": "Motivazione scelta",
                     "workoutPhases": [ 
-                       { "type": "warmup"|"work"|"rest"|"cooldown", "targetType": "time"|"distance", "targetValue": number (sec o metri), "paceTarget": number (sec/km, opzionale), "description": string }
+                       { "type": "warmup"|"work"|"rest"|"cooldown", "targetType": "time"|"distance", "targetValue": number (sec o metri), "paceTarget": number (sec/km, opzionale), "description": string (es. '1km a 5:00') }
                     ]
                 }]`;
 
@@ -219,10 +233,19 @@ const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({
     const handleImport = (suggestion: any, index: number) => {
         if (!onAddPlannedWorkout) return;
         
+        // Convert structured phases back to readable text for the Description field
+        // This ensures Calendar Exports and the Diary View show useful info even without the structured player
+        let textualProgram = "";
+        if (suggestion.workoutPhases && suggestion.workoutPhases.length > 0) {
+            textualProgram = "\n\n**PROGRAMMA DETTAGLIATO:**\n" + suggestion.workoutPhases.map((p: any) => `- ${formatPhaseText(p)}`).join('\n');
+        }
+
+        const fullDescription = `${suggestion.description}\n\n**INFO:** ${suggestion.structure}\n**OBIETTIVO:** ${suggestion.targetHeartRate}${textualProgram}`;
+
         const entry: PlannedWorkout = {
             id: `ai-gen-${Date.now()}`,
             title: suggestion.title,
-            description: `**COACH AI:** ${suggestion.description}\n\n**INFO:** ${suggestion.structure}\n**OBIETTIVO:** ${suggestion.targetHeartRate}`,
+            description: fullDescription,
             date: new Date(suggestion.date),
             activityType: suggestion.activityType as ActivityType,
             isAiSuggested: true,
@@ -284,18 +307,19 @@ const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({
                                     "{s.conflictReasoning}"
                                 </div>
                             )}
-                            <p className="text-xs text-slate-300 line-clamp-4 italic">"{s.description}"</p>
+                            <p className="text-xs text-slate-300 line-clamp-3 italic">"{s.description}"</p>
                             
-                            {/* Visual Phase Preview */}
+                            {/* Visual Phase List - Explicitly showing what to do */}
                             {s.workoutPhases && s.workoutPhases.length > 0 && (
-                                <div className="flex gap-1 h-2 w-full mt-2 rounded-full overflow-hidden bg-slate-700">
-                                    {s.workoutPhases.map((p: any, idx: number) => {
-                                        let color = 'bg-slate-500';
-                                        if (p.type === 'warmup') color = 'bg-amber-500';
-                                        if (p.type === 'work') color = 'bg-green-500';
-                                        if (p.type === 'rest') color = 'bg-blue-500';
-                                        return <div key={idx} className={`h-full ${color}`} style={{ flex: p.targetValue || 1 }}></div>
-                                    })}
+                                <div className="bg-slate-900/50 rounded-lg p-2 border border-slate-700/50">
+                                    <p className="text-[9px] font-black text-slate-500 uppercase mb-1">Dettaglio:</p>
+                                    <div className="space-y-1 max-h-24 overflow-y-auto custom-scrollbar">
+                                        {s.workoutPhases.map((p: any, idx: number) => (
+                                            <div key={idx} className="text-[10px] text-slate-300 flex items-center gap-1.5">
+                                                <span className="font-mono">{formatPhaseText(p)}</span>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
 
