@@ -50,12 +50,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, userProfile, onU
     };
 
     const handleForceSyncPermissions = async () => {
-        const freshProfile = await loadProfileFromDB(false); // false qui significa "non solo locale", quindi prova Cloud
-        if (freshProfile) {
+        // Forza caricamento dal Cloud
+        const freshProfile = await loadProfileFromDB(false); 
+        
+        if (freshProfile && freshProfile.id !== 'current') {
             onUpdateProfile(freshProfile);
-            alert(`Permessi aggiornati dal Cloud.\nRuolo attuale: ${freshProfile.isAdmin ? 'ADMIN' : 'Utente Standard'}`);
+            alert(`Permessi aggiornati dal Cloud.\nID: ${freshProfile.id}\nRuolo: ${freshProfile.isAdmin ? 'ADMIN' : 'Utente Standard'}`);
         } else {
-            alert("Impossibile contattare il server.");
+            alert("Errore connessione server o ID utente non valido (ancora 'current'). Assicurati di essere loggato.");
         }
     };
 
