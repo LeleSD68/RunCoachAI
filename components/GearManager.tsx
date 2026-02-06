@@ -38,18 +38,21 @@ const TrashIcon = () => (
     </svg>
 );
 
+const ShoppingBagIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+        <path fillRule="evenodd" d="M6 5v1H4.667a1.75 1.75 0 0 0-1.743 1.598l-.826 9.5A1.75 1.75 0 0 0 3.84 19H16.16a1.75 1.75 0 0 0 1.743-1.902l-.826-9.5A1.75 1.75 0 0 0 15.333 6H14V5a4 4 0 0 0-8 0Zm4-2.5A2.5 2.5 0 0 0 7.5 5v1h5V5A2.5 2.5 0 0 0 10 2.5ZM7.5 10a2.5 2.5 0 0 0 5 0V8.75a.75.75 0 0 1 1.5 0V10a4 4 0 0 1-8 0V8.75a.75.75 0 0 1 1.5 0V10Z" clipRule="evenodd" />
+    </svg>
+);
+
 const GearManager: React.FC<GearManagerProps> = ({ shoes, retiredShoes = [], onAddShoe, onRemoveShoe, onRetireShoe, onRestoreShoe, onDeleteRetiredShoe, tracks }) => {
     const [newShoe, setNewShoe] = useState('');
     const [activeTab, setActiveTab] = useState<'active' | 'retired'>('active');
 
-    // Calcola i km totali per ogni scarpa basandosi sul nome (case insensitive matching)
     const shoeStats = React.useMemo(() => {
         const stats: Record<string, { distance: number, usage: number }> = {};
         [...shoes, ...retiredShoes].forEach(s => stats[s] = { distance: 0, usage: 0 });
-        
         tracks.forEach(t => {
             if (t.shoe) {
-                // Find matching shoe in list (handling potential casing diffs or legacy)
                 const match = [...shoes, ...retiredShoes].find(s => s.toLowerCase() === t.shoe?.toLowerCase());
                 if (match) {
                     stats[match].distance += t.distance;
@@ -67,7 +70,15 @@ const GearManager: React.FC<GearManagerProps> = ({ shoes, retiredShoes = [], onA
         }
     };
 
-    const MAX_KM = 800; // Limite standard scarpa
+    const handleBuyShoe = (shoeName: string) => {
+        const query = encodeURIComponent(`${shoeName} running shoes`);
+        // Qui inserisci il tuo link affiliato (es. Amazon Associate tag)
+        // Esempio: tag=runcoachai-21
+        const affiliateUrl = `https://www.amazon.it/s?k=${query}&tag=YOUR_TAG_HERE`;
+        window.open(affiliateUrl, '_blank');
+    };
+
+    const MAX_KM = 800; 
 
     return (
         <div className="bg-slate-900/50 rounded-xl border border-slate-700 overflow-hidden">
@@ -76,18 +87,8 @@ const GearManager: React.FC<GearManagerProps> = ({ shoes, retiredShoes = [], onA
                     <ShoeIcon /> Garage Attrezzatura
                 </h4>
                 <div className="flex bg-slate-800 rounded-lg p-0.5 border border-slate-700">
-                    <button 
-                        onClick={() => setActiveTab('active')} 
-                        className={`px-3 py-1 text-[9px] font-bold uppercase rounded-md transition-colors ${activeTab === 'active' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}
-                    >
-                        Attive
-                    </button>
-                    <button 
-                        onClick={() => setActiveTab('retired')} 
-                        className={`px-3 py-1 text-[9px] font-bold uppercase rounded-md transition-colors ${activeTab === 'retired' ? 'bg-slate-700 text-purple-300' : 'text-slate-500 hover:text-slate-300'}`}
-                    >
-                        Ritirate
-                    </button>
+                    <button onClick={() => setActiveTab('active')} className={`px-3 py-1 text-[9px] font-bold uppercase rounded-md transition-colors ${activeTab === 'active' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}>Attive</button>
+                    <button onClick={() => setActiveTab('retired')} className={`px-3 py-1 text-[9px] font-bold uppercase rounded-md transition-colors ${activeTab === 'retired' ? 'bg-slate-700 text-purple-300' : 'text-slate-500 hover:text-slate-300'}`}>Ritirate</button>
                 </div>
             </div>
             
@@ -102,104 +103,69 @@ const GearManager: React.FC<GearManagerProps> = ({ shoes, retiredShoes = [], onA
                             placeholder="Nuova scarpa (es. Nike Pegasus 40)"
                             className="flex-grow bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:border-cyan-500 outline-none"
                         />
-                        <button 
-                            onClick={handleAdd}
-                            disabled={!newShoe.trim()}
-                            className="bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white font-bold px-4 rounded-lg transition-colors text-lg"
-                        >
-                            +
-                        </button>
+                        <button onClick={handleAdd} disabled={!newShoe.trim()} className="bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white font-bold px-4 rounded-lg transition-colors text-lg">+</button>
                     </div>
                 )}
 
                 <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-1">
                     {activeTab === 'active' ? (
-                        shoes.length === 0 ? (
-                            <p className="text-center text-xs text-slate-500 py-4 italic">Nessuna scarpa attiva.</p>
-                        ) : (
-                            shoes.map((shoe, index) => {
-                                const stat = shoeStats[shoe] || { distance: 0, usage: 0 };
-                                const percent = Math.min(100, (stat.distance / MAX_KM) * 100);
-                                let barColor = 'bg-green-500';
-                                if (percent > 50) barColor = 'bg-yellow-500';
-                                if (percent > 80) barColor = 'bg-orange-500';
-                                if (percent >= 100) barColor = 'bg-red-500';
+                        shoes.length === 0 ? <p className="text-center text-xs text-slate-500 py-4 italic">Nessuna scarpa attiva.</p> :
+                        shoes.map((shoe, index) => {
+                            const stat = shoeStats[shoe] || { distance: 0, usage: 0 };
+                            const percent = Math.min(100, (stat.distance / MAX_KM) * 100);
+                            let barColor = 'bg-green-500';
+                            if (percent > 50) barColor = 'bg-yellow-500';
+                            if (percent > 80) barColor = 'bg-orange-500';
+                            if (percent >= 100) barColor = 'bg-red-500';
 
-                                return (
-                                    <div key={index} className="bg-slate-800 rounded-lg p-3 border border-slate-700/50 group relative">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <div>
-                                                <div className="font-bold text-sm text-white">{shoe}</div>
-                                                <div className="text-[10px] text-slate-400">{stat.usage} attività</div>
+                            return (
+                                <div key={index} className="bg-slate-800 rounded-lg p-3 border border-slate-700/50 group relative">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div>
+                                            <div className="font-bold text-sm text-white flex items-center gap-2">
+                                                {shoe}
                                             </div>
-                                            <div className="text-right">
-                                                <div className="font-mono font-bold text-sm text-white">{stat.distance.toFixed(1)} <span className="text-[10px] text-slate-500">km</span></div>
-                                                <div className="flex gap-2 justify-end absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-800 pl-2">
-                                                    {onRetireShoe && (
-                                                        <button 
-                                                            onClick={() => onRetireShoe(index)}
-                                                            className="text-slate-400 hover:text-purple-400 transition-colors"
-                                                            title="Ritira in archivio"
-                                                        >
-                                                            <ArchiveBoxIcon />
-                                                        </button>
-                                                    )}
-                                                    <button 
-                                                        onClick={() => onRemoveShoe(index)}
-                                                        className="text-slate-400 hover:text-red-400 transition-colors"
-                                                        title="Elimina definitivamente"
-                                                    >
-                                                        <TrashIcon />
-                                                    </button>
-                                                </div>
-                                            </div>
+                                            <div className="text-[10px] text-slate-400">{stat.usage} attività</div>
                                         </div>
-                                        <div className="w-full h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                                            <div className={`h-full ${barColor} transition-all duration-500`} style={{ width: `${percent}%` }}></div>
+                                        <div className="text-right">
+                                            <div className="font-mono font-bold text-sm text-white">{stat.distance.toFixed(1)} <span className="text-[10px] text-slate-500">km</span></div>
+                                            <div className="flex gap-2 justify-end absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-800 pl-2 shadow-xl rounded-bl-lg border-l border-b border-slate-700">
+                                                <button onClick={() => handleBuyShoe(shoe)} className="text-slate-400 hover:text-amber-400 transition-colors p-1" title="Cerca offerte online (Affiliato)">
+                                                    <ShoppingBagIcon />
+                                                </button>
+                                                {onRetireShoe && <button onClick={() => onRetireShoe(index)} className="text-slate-400 hover:text-purple-400 transition-colors p-1" title="Ritira"><ArchiveBoxIcon /></button>}
+                                                <button onClick={() => onRemoveShoe(index)} className="text-slate-400 hover:text-red-400 transition-colors p-1" title="Elimina"><TrashIcon /></button>
+                                            </div>
                                         </div>
                                     </div>
-                                );
-                            })
-                        )
+                                    <div className="w-full h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                                        <div className={`h-full ${barColor} transition-all duration-500`} style={{ width: `${percent}%` }}></div>
+                                    </div>
+                                    {percent > 80 && (
+                                        <div onClick={() => handleBuyShoe(shoe)} className="mt-2 text-[9px] text-amber-400 font-bold uppercase tracking-wide cursor-pointer hover:underline text-center">
+                                            ⚠️ Scarpa scarica? Cerca offerta &rarr;
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })
                     ) : (
-                        retiredShoes.length === 0 ? (
-                            <p className="text-center text-xs text-slate-500 py-4 italic">Archivio vuoto.</p>
-                        ) : (
-                            retiredShoes.map((shoe, index) => {
-                                const stat = shoeStats[shoe] || { distance: 0, usage: 0 };
-                                return (
-                                    <div key={index} className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/30 group relative opacity-70 hover:opacity-100 transition-opacity">
-                                        <div className="flex justify-between items-center">
-                                            <div>
-                                                <div className="font-bold text-sm text-slate-300 line-through decoration-slate-500">{shoe}</div>
-                                                <div className="text-[10px] text-slate-500">Ritirata con {stat.distance.toFixed(0)} km</div>
-                                            </div>
-                                            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                {onRestoreShoe && (
-                                                    <button 
-                                                        onClick={() => onRestoreShoe(index)}
-                                                        className="text-slate-500 hover:text-green-400 transition-colors"
-                                                        title="Ripristina in attive"
-                                                    >
-                                                        <RestoreIcon />
-                                                    </button>
-                                                )}
-                                                {onDeleteRetiredShoe && (
-                                                    <button 
-                                                        onClick={() => onDeleteRetiredShoe(index)}
-                                                        className="text-slate-500 hover:text-red-400 transition-colors"
-                                                        title="Elimina per sempre"
-                                                    >
-                                                        <TrashIcon />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
+                        retiredShoes.map((shoe, index) => (
+                            <div key={index} className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/30 group relative opacity-70 hover:opacity-100 transition-opacity">
+                                <div className="flex justify-between items-center">
+                                    <div className="font-bold text-sm text-slate-300 line-through decoration-slate-500">{shoe}</div>
+                                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button onClick={() => handleBuyShoe(shoe)} className="text-slate-500 hover:text-amber-400 transition-colors"><ShoppingBagIcon /></button>
+                                        {onRestoreShoe && <button onClick={() => onRestoreShoe(index)} className="text-slate-500 hover:text-green-400 transition-colors"><RestoreIcon /></button>}
+                                        {onDeleteRetiredShoe && <button onClick={() => onDeleteRetiredShoe(index)} className="text-slate-500 hover:text-red-400 transition-colors"><TrashIcon /></button>}
                                     </div>
-                                );
-                            })
-                        )
+                                </div>
+                            </div>
+                        ))
                     )}
+                </div>
+                <div className="mt-3 text-[9px] text-slate-600 text-center italic">
+                    Acquista tramite i nostri link per supportare RunCoachAI.
                 </div>
             </div>
         </div>
