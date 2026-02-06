@@ -393,7 +393,7 @@ const DiaryView: React.FC<DiaryViewProps> = ({
                 </div>
 
                 {showAiCoach && (
-                    <div className="w-full h-auto max-h-[45%] shrink-0 border-t border-slate-700 bg-slate-800 flex flex-col animate-slide-up shadow-2xl z-20">
+                    <div className="w-full h-auto max-h-[45%] shrink-0 border-t border-slate-700 bg-slate-800 flex flex-col animate-slide-up shadow-2xl z-20 pb-[env(safe-area-inset-bottom)]">
                         <header className="p-3 border-b border-slate-700 bg-slate-900 flex justify-between items-center flex-shrink-0">
                             <h3 className="font-bold text-cyan-400 uppercase tracking-widest text-sm flex items-center gap-2">
                                 <SparklesIcon /> Prossime Sessioni Consigliate
