@@ -143,7 +143,7 @@ create policy "Insert own tracks" on public.tracks for insert with check (auth.u
 create policy "Update own tracks" on public.tracks for update using (auth.uid() = user_id);
 create policy "Delete own tracks" on public.tracks for delete using (auth.uid() = user_id);
 
--- 5. MESSAGGI
+-- 5. MESSAGGI DIRETTI (1-to-1)
 create table if not exists public.direct_messages (
   id uuid default uuid_generate_v4() primary key,
   sender_id uuid references auth.users not null,
@@ -155,14 +155,43 @@ create table if not exists public.direct_messages (
 
 alter table public.direct_messages enable row level security;
 
--- Drop messaggi policies
 drop policy if exists "Users can view own messages" on public.direct_messages;
 drop policy if exists "Users can send messages" on public.direct_messages;
 
 create policy "Users can view own messages" on public.direct_messages for select using (auth.uid() = sender_id or auth.uid() = receiver_id);
 create policy "Users can send messages" on public.direct_messages for insert with check (auth.uid() = sender_id);
 
--- 6. REAZIONI
+-- 6. MESSAGGI DI GRUPPO (NEW)
+create table if not exists public.group_messages (
+  id uuid default uuid_generate_v4() primary key,
+  group_id uuid references public.social_groups(id) on delete cascade not null,
+  sender_id uuid references auth.users not null,
+  content text not null,
+  created_at timestamp with time zone default timezone('utc'::text, now())
+);
+
+alter table public.group_messages enable row level security;
+
+-- Policy per Group Messages: Solo i membri del gruppo possono leggere e scrivere
+drop policy if exists "Group members can view messages" on public.group_messages;
+drop policy if exists "Group members can send messages" on public.group_messages;
+
+create policy "Group members can view messages" on public.group_messages for select using (
+  exists (
+    select 1 from public.social_group_members 
+    where group_id = group_messages.group_id and user_id = auth.uid()
+  )
+);
+
+create policy "Group members can send messages" on public.group_messages for insert with check (
+  auth.uid() = sender_id AND
+  exists (
+    select 1 from public.social_group_members 
+    where group_id = group_messages.group_id and user_id = auth.uid()
+  )
+);
+
+-- 7. REAZIONI
 create table if not exists public.activity_reactions (
   id uuid default uuid_generate_v4() primary key,
   track_id text references public.tracks(id) on delete cascade,
@@ -174,7 +203,6 @@ create table if not exists public.activity_reactions (
 
 alter table public.activity_reactions enable row level security;
 
--- Drop reazioni policies
 drop policy if exists "View reactions if access to track" on public.activity_reactions;
 drop policy if exists "Insert own reactions" on public.activity_reactions;
 drop policy if exists "Delete own reactions" on public.activity_reactions;
@@ -183,18 +211,22 @@ create policy "View reactions if access to track" on public.activity_reactions f
 create policy "Insert own reactions" on public.activity_reactions for insert with check (auth.uid() = user_id);
 create policy "Delete own reactions" on public.activity_reactions for delete using (auth.uid() = user_id);
 
--- 7. PROFILES VISIBILITY
+-- 8. PROFILES VISIBILITY
 drop policy if exists "Users can view all profiles" on public.profiles;
 create policy "Users can view all profiles" on public.profiles for select using (true);
 
--- 8. ABILITAZIONE REALTIME
--- Usiamo blocchi DO per aggiungere le tabelle alla pubblicazione 'supabase_realtime' solo se non sono già presenti.
--- Questo evita errori 42601 e duplicazione.
-
+-- 9. ABILITAZIONE REALTIME
 do $$
 begin
   if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'direct_messages') then
     alter publication supabase_realtime add table public.direct_messages;
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'group_messages') then
+    alter publication supabase_realtime add table public.group_messages;
   end if;
 end $$;
 

@@ -2,7 +2,19 @@
 -- 1. ABILITA I TIPI NECESSARI
 create extension if not exists "uuid-ossp";
 
--- 2. TABELLA PROFILI UTENTE (Create if not exists + Alter columns)
+-- 2. FUNZIONE DI SICUREZZA PER GLI ADMIN (PREVIENE LOOP INFINITI)
+-- Questa funzione legge lo stato admin bypassando le policy RLS
+create or replace function public.check_is_admin()
+returns boolean as $$
+begin
+  return exists (
+    select 1 from public.profiles
+    where id = auth.uid() and is_admin = true
+  );
+end;
+$$ language plpgsql security definer;
+
+-- 3. TABELLA PROFILI UTENTE (Create if not exists + Alter columns)
 create table if not exists public.profiles (
   id uuid references auth.users not null primary key,
   name text,
@@ -43,7 +55,7 @@ begin
         alter table public.profiles add column shoes text[];
     end if;
     if not exists (select 1 from information_schema.columns where table_name = 'profiles' and column_name = 'retired_shoes') then
-        alter table public.profiles add column retired_shoes text[]; -- NUOVA COLONNA
+        alter table public.profiles add column retired_shoes text[]; 
     end if;
     if not exists (select 1 from information_schema.columns where table_name = 'profiles' and column_name = 'weight_history') then
         alter table public.profiles add column weight_history jsonb;
@@ -54,8 +66,8 @@ begin
     if not exists (select 1 from information_schema.columns where table_name = 'profiles' and column_name = 'last_seen_at') then
         alter table public.profiles add column last_seen_at timestamp with time zone;
     end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'profiles' and column_name = 'ga_measurement_id') then
-        alter table public.profiles add column ga_measurement_id text;
+    if not exists (select 1 from information_schema.columns where table_name = 'profiles' and column_name = 'is_admin') then
+        alter table public.profiles add column is_admin boolean default false;
     end if;
 end $$;
 
@@ -68,9 +80,15 @@ create policy "Users can update own profile" on public.profiles for update using
 drop policy if exists "Users can insert own profile" on public.profiles;
 create policy "Users can insert own profile" on public.profiles for insert with check (auth.uid() = id);
 drop policy if exists "Users can view all profiles" on public.profiles;
-create policy "Users can view all profiles" on public.profiles for select using (true); -- Per social features
+create policy "Users can view all profiles" on public.profiles for select using (true); 
 
--- 3. TABELLA TRACCE (TRACKS)
+-- ADMIN POLICY FIX: Usiamo la funzione sicura check_is_admin()
+drop policy if exists "Admins can view all profiles" on public.profiles;
+create policy "Admins can view all profiles" on public.profiles for select using (
+  public.check_is_admin()
+);
+
+-- 4. TABELLA TRACCE (TRACKS)
 create table if not exists public.tracks (
   id text not null primary key,
   user_id uuid references auth.users not null,
@@ -110,7 +128,6 @@ begin
 end $$;
 
 alter table public.tracks enable row level security;
--- Le policy vengono gestite dallo script social setup più avanzato, qui mettiamo la base
 drop policy if exists "Users can insert own tracks" on public.tracks;
 create policy "Users can insert own tracks" on public.tracks for insert with check (auth.uid() = user_id);
 drop policy if exists "Users can update own tracks" on public.tracks;
@@ -118,7 +135,13 @@ create policy "Users can update own tracks" on public.tracks for update using (a
 drop policy if exists "Users can delete own tracks" on public.tracks;
 create policy "Users can delete own tracks" on public.tracks for delete using (auth.uid() = user_id);
 
--- 4. TABELLA ALLENAMENTI PIANIFICATI (DIARIO)
+-- ADMIN POLICY TRACKS FIX: Usiamo check_is_admin()
+drop policy if exists "Admins can view all tracks" on public.tracks;
+create policy "Admins can view all tracks" on public.tracks for select using (
+  public.check_is_admin()
+);
+
+-- 5. TABELLA ALLENAMENTI PIANIFICATI (DIARIO)
 create table if not exists public.planned_workouts (
   id text not null primary key,
   user_id uuid references auth.users not null,
@@ -141,7 +164,7 @@ create policy "Users can update own workouts" on public.planned_workouts for upd
 drop policy if exists "Users can delete own workouts" on public.planned_workouts;
 create policy "Users can delete own workouts" on public.planned_workouts for delete using (auth.uid() = user_id);
 
--- 5. TABELLA CHAT AI
+-- 6. TABELLA CHAT AI
 create table if not exists public.chats (
   id text not null primary key,
   user_id uuid references auth.users not null,
@@ -159,18 +182,17 @@ create policy "Users can update own chats" on public.chats for update using (aut
 drop policy if exists "Users can delete own chats" on public.chats;
 create policy "Users can delete own chats" on public.chats for delete using (auth.uid() = user_id);
 
--- 6. TRIGGER
+-- 7. TRIGGER
 create or replace function public.handle_new_user() 
 returns trigger as $$
 begin
   insert into public.profiles (id, name)
   values (new.id, new.raw_user_meta_data->>'full_name')
-  on conflict (id) do nothing; -- Previene errori se il profilo esiste
+  on conflict (id) do nothing;
   return new;
 end;
 $$ language plpgsql security definer;
 
--- Ricrea trigger se necessario
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
