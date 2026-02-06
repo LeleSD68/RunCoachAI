@@ -55,8 +55,11 @@ const DiaryActionModal: React.FC<DiaryActionModalProps> = ({ date, onClose, onAd
     };
 
     return (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[15000] flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
-            <div className="bg-slate-900 border border-slate-700 rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[15000] flex items-end sm:items-center justify-center sm:p-4 animate-fade-in" onClick={onClose}>
+            <div 
+                className="bg-slate-900 border-t sm:border border-slate-700 rounded-t-3xl sm:rounded-3xl shadow-2xl w-full sm:max-w-sm overflow-hidden mb-0 sm:mb-auto pb-[env(safe-area-inset-bottom)] transition-all" 
+                onClick={e => e.stopPropagation()}
+            >
                 <header className="p-6 bg-slate-800 border-b border-slate-700">
                     <h3 className="text-xl font-black text-white uppercase tracking-tighter">
                         {date.toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })}
@@ -140,7 +143,7 @@ const DiaryActionModal: React.FC<DiaryActionModalProps> = ({ date, onClose, onAd
                                 value={text}
                                 onChange={e => setText(e.target.value)}
                                 placeholder={step === 'note' ? "Come ti senti? Hai dolori?..." : "Descrivi l'impegno (es. Lavoro, Viaggio)..."}
-                                className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-white focus:border-cyan-500 outline-none h-32 resize-none"
+                                className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-white focus:border-cyan-500 outline-none h-32 sm:h-32 resize-none"
                             />
                             
                             {step === 'commitment' && (
