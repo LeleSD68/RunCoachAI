@@ -1,6 +1,4 @@
 
-
-
 export type ActivityType = 'Lento' | 'Fartlek' | 'Ripetute' | 'Gara' | 'Lungo' | 'Altro' | 'Nota' | 'Impegno' | 'Recupero';
 
 export type DiaryEntryType = 'workout' | 'note' | 'commitment';
@@ -8,6 +6,8 @@ export type DiaryEntryType = 'workout' | 'note' | 'commitment';
 export type AiPersonality = 'pro_balanced' | 'analytic' | 'strict' | 'friend_coach';
 
 export type CalendarPreference = 'google' | 'apple';
+
+export type SubscriptionTier = 'free' | 'pro' | 'elite';
 
 export interface TrackPoint {
   lat: number;
@@ -111,7 +111,9 @@ export interface UserProfile {
   weightHistory?: {date: string, weight: number}[];
   powerSaveMode?: boolean;
   isOnline?: boolean;
-  isAdmin?: boolean; // NEW: Admin flag
+  isAdmin?: boolean; 
+  subscriptionTier?: SubscriptionTier; // NEW
+  subscriptionExpiresAt?: string; // NEW
 }
 
 export type RunningGoal = 'none' | '5k' | '10k' | 'half_marathon' | 'marathon' | 'speed' | 'endurance' | 'weight_loss';
