@@ -34,7 +34,7 @@ import RaceGapChart from './components/RaceGapChart';
 import WorkoutConfirmationModal from './components/WorkoutConfirmationModal'; 
 import InstallPromptModal from './components/InstallPromptModal'; 
 import LiveCoachScreen from './components/LiveCoachScreen'; 
-import AdminDashboard from './components/AdminDashboard'; // NEW
+import AdminDashboard from './components/AdminDashboard'; 
 
 import { 
     saveTracksToDB, loadTracksFromDB, 
@@ -52,7 +52,7 @@ import { parseTcx } from './services/tcxService';
 import { generateSmartTitle } from './services/titleGenerator';
 import { isDuplicateTrack, markStravaTrackAsDeleted, isPreviouslyDeletedStravaTrack, getTrackFingerprint } from './services/trackUtils';
 import { getFriendsActivityFeed, updatePresence, getFriends, getUnreadNotificationsCount, markMessagesAsRead, getMostRecentUnreadSender } from './services/socialService';
-import { initGA, logPageView, logEvent } from './services/analyticsService';
+import { logPageView, logEvent } from './services/analyticsService';
 
 const LAYOUT_PREFS_KEY = 'runcoach_layout_prefs_v6';
 const SESSION_ACTIVE_KEY = 'runcoach_session_active';
@@ -95,7 +95,7 @@ const App: React.FC = () => {
     const [showStravaSyncOptions, setShowStravaSyncOptions] = useState(false);
     const [stravaAutoModal, setStravaAutoModal] = useState(false);
     const [showStravaConfig, setShowStravaConfig] = useState(false);
-    const [showAdmin, setShowAdmin] = useState(false); // NEW
+    const [showAdmin, setShowAdmin] = useState(false); 
     
     // Live Coach State
     const [showLiveCoach, setShowLiveCoach] = useState(false);
@@ -126,13 +126,6 @@ const App: React.FC = () => {
     const [pendingChatId, setPendingChatId] = useState<string | null>(null);
 
     const [layoutPrefs, setLayoutPrefs] = useState<{ desktopSidebar: number, mobileListRatio: number }>({ desktopSidebar: 320, mobileListRatio: 0.7 });
-
-    // --- ANALYTICS INIT ---
-    useEffect(() => {
-        if (userProfile?.gaMeasurementId) {
-            initGA(userProfile.gaMeasurementId);
-        }
-    }, [userProfile?.gaMeasurementId]);
 
     // --- PWA INSTALL LOGIC ---
     useEffect(() => {
@@ -191,7 +184,7 @@ const App: React.FC = () => {
         setShowChangelog(false);
         setShowGlobalChat(false);
         setShowLiveCoach(false); 
-        setShowAdmin(false); // NEW
+        setShowAdmin(false); 
         setViewingTrack(null);
         setEditingTrack(null);
         setTargetWorkoutId(null);
@@ -240,7 +233,7 @@ const App: React.FC = () => {
                 case 'profile': setShowProfile(true); break;
                 case 'settings': setShowSettings(true); break;
                 case 'guide': setShowGuide(true); break;
-                case 'admin': setShowAdmin(true); break; // NEW
+                case 'admin': setShowAdmin(true); break; 
             }
         } else {
             window.history.back();
