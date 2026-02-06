@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { UserProfile } from '../types';
 import { isStravaConnected } from '../services/stravaService';
-import { cleanUpRemoteDuplicates, deleteUserAccount } from '../services/dbService';
+import { cleanUpRemoteDuplicates, deleteUserAccount, loadProfileFromDB } from '../services/dbService';
 import { supabase } from '../services/supabaseClient';
 
 interface SettingsModalProps {
@@ -46,8 +46,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, userProfile, onU
     };
 
     const handleReloadApp = () => {
-        // Force clear cache for critical items if needed, but simple reload usually triggers logic
         window.location.reload();
+    };
+
+    const handleForceSyncPermissions = async () => {
+        const freshProfile = await loadProfileFromDB(false); // false qui significa "non solo locale", quindi prova Cloud
+        if (freshProfile) {
+            onUpdateProfile(freshProfile);
+            alert(`Permessi aggiornati dal Cloud.\nRuolo attuale: ${freshProfile.isAdmin ? 'ADMIN' : 'Utente Standard'}`);
+        } else {
+            alert("Impossibile contattare il server.");
+        }
     };
 
     const toggleStravaSync = () => {
@@ -86,6 +95,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, userProfile, onU
                                     {userProfile.id ? userProfile.id.substring(0, 8) + '...' : 'Guest'}
                                 </span>
                             </div>
+                            <button 
+                                onClick={handleForceSyncPermissions}
+                                className="mt-2 w-full py-2 bg-slate-700 hover:bg-slate-600 text-cyan-400 border border-slate-600 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all"
+                            >
+                                ☁️ Aggiorna Permessi Cloud
+                            </button>
                         </div>
                     </section>
 
