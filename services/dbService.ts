@@ -90,7 +90,6 @@ export const saveTracksToDB = async (tracks: Track[], options: { skipCloud?: boo
     if (session) {
       for (const t of tracks.filter(t => !t.isExternal)) {
         const payload = mapTrackToSupabase(t, session.user.id);
-        // FIX: Allow both standard UUIDs AND Strava IDs (format: strava-12345) to be saved
         const isPersistentId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t.id) || t.id.startsWith('strava-');
         
         if (isPersistentId) {
@@ -122,13 +121,14 @@ export const loadTracksFromDB = async (forceLocal: boolean = false): Promise<Tra
 export const saveProfileToDB = async (profile: UserProfile, options: { skipCloud?: boolean } = {}): Promise<void> => {
   const db = await initDB();
   const tx = db.transaction([PROFILE_STORE], 'readwrite');
-  tx.objectStore(PROFILE_STORE).put({ id: 'current', ...profile });
+  // FIX: Salviamo sempre con id 'current' in locale per poterlo recuperare facilmente
+  tx.objectStore(PROFILE_STORE).put({ ...profile, id: 'current' });
 
   if (!options.skipCloud && isSupabaseConfigured()) {
     const { data: { session } } = await supabase.auth.getSession();
     if (session) {
-      // FIX CRITICO: Non inviamo is_admin al server. Questo campo è gestito solo lato DB/SQL.
-      // Se lo inviassimo qui, sovrascriveremmo il valore 'true' del DB con il 'false/undefined' locale.
+      // FIX CRITICO: Non inviamo is_admin al server durante il salvataggio.
+      // Questo impedisce che l'app sovrascriva il valore 'true' del DB con 'false/undefined'.
       await supabase.from('profiles').upsert({
         id: session.user.id,
         name: profile.name,
@@ -155,15 +155,12 @@ export const saveProfileToDB = async (profile: UserProfile, options: { skipCloud
 
 export const loadProfileFromDB = async (forceLocal: boolean = false): Promise<UserProfile | null> => {
   const { data: { session } } = await supabase.auth.getSession();
-  // Se forceLocal è true, forziamo il recupero dal cloud (logica invertita per coerenza con la UI "Forza Cloud")
-  // In realtà il parametro si chiama forceLocal ma spesso lo usiamo per bypassare la cache se siamo online.
-  // Miglioriamo la logica: se forceLocal è FALSE e siamo online, SCARICHIAMO.
-  // Se forceLocal è TRUE, leggiamo SOLO da IndexedDB.
-  // Tuttavia per il pulsante "Aggiorna Permessi" vogliamo forzare il download.
-  // Chiameremo questa funzione con forceLocal=false (default) ma dobbiamo assicurarci che scarichi.
   
   if (!forceLocal && session && isSupabaseConfigured()) {
     const { data, error } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
+    
+    if (error) console.warn("Supabase profile load error:", error);
+
     if (data && !error) {
       const cloudProfile: UserProfile = {
         id: session.user.id,
@@ -183,9 +180,9 @@ export const loadProfileFromDB = async (forceLocal: boolean = false): Promise<Us
         weightHistory: data.weight_history,
         stravaAutoSync: data.strava_auto_sync,
         gaMeasurementId: data.ga_measurement_id,
-        isAdmin: data.is_admin // Questo legge il valore VERO dal DB
+        isAdmin: data.is_admin // Legge il valore reale dal DB
       };
-      // Salviamo in locale per la prossima volta
+      // Salviamo in locale per cache (skipCloud=true evita loop)
       await saveProfileToDB(cloudProfile, { skipCloud: true });
       return cloudProfile;
     }
@@ -196,7 +193,11 @@ export const loadProfileFromDB = async (forceLocal: boolean = false): Promise<Us
     const req = db.transaction([PROFILE_STORE], 'readonly').objectStore(PROFILE_STORE).get('current');
     req.onsuccess = () => {
         const res = req.result;
-        if (res && session?.user?.email) res.email = session.user.email;
+        // FIX: Se abbiamo una sessione attiva, iniettiamo l'ID reale anche se leggiamo dalla cache locale
+        if (res && session?.user?.id) {
+            res.id = session.user.id;
+            res.email = session.user.email;
+        }
         resolve(res || null);
     };
   });
@@ -286,8 +287,6 @@ export const syncTrackToCloud = async (track: Track) => {
     if (!session || track.isExternal) return;
     
     const payload = mapTrackToSupabase(track, session.user.id);
-    
-    // FIX: Allow both standard UUIDs AND Strava IDs (format: strava-12345) to be saved directly
     const isPersistentId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(track.id) || track.id.startsWith('strava-');
 
     if (isPersistentId) {
@@ -320,8 +319,6 @@ export const importAllData = async (data: any): Promise<void> => {
             const db = await initDB();
             const tx = db.transaction([TRACKS_STORE, CHATS_STORE, PROFILE_STORE, PLANNED_STORE], 'readwrite');
             
-            // Non puliamo più tutto ciecamente se stiamo facendo un merge dal chiamante
-            // Ma per un restore totale il chiamante deve decidere se passare il set completo.
             tx.objectStore(TRACKS_STORE).clear();
             tx.objectStore(CHATS_STORE).clear();
             tx.objectStore(PROFILE_STORE).clear();
@@ -390,7 +387,6 @@ export const syncAllChatsToCloud = async () => {};
 export const cleanUpRemoteDuplicates = async (userId: string): Promise<number> => {
     if (!isSupabaseConfigured() || !userId) return 0;
 
-    // Fetch light metadata ONLY (not full points)
     const { data, error } = await supabase
         .from('tracks')
         .select('id, start_time, distance_km, duration_ms')
@@ -402,10 +398,9 @@ export const cleanUpRemoteDuplicates = async (userId: string): Promise<number> =
     const idsToDelete: string[] = [];
 
     data.forEach((t: any) => {
-        // Fingerprint: Time + Distance (rounded) + Duration (rounded)
         const time = new Date(t.start_time).getTime();
-        const dist = Math.round(Number(t.distance_km) * 1000); // meters
-        const dur = Math.round(Number(t.duration_ms) / 1000); // seconds
+        const dist = Math.round(Number(t.distance_km) * 1000);
+        const dur = Math.round(Number(t.duration_ms) / 1000);
         
         const fp = `${time}_${dist}_${dur}`;
         
@@ -426,7 +421,6 @@ export const cleanUpRemoteDuplicates = async (userId: string): Promise<number> =
 
 export const deleteUserAccount = async (): Promise<void> => {
     if (!isSupabaseConfigured()) {
-        // Local mock mode
         localStorage.removeItem('mock-session');
         window.location.reload();
         return;
@@ -436,19 +430,13 @@ export const deleteUserAccount = async (): Promise<void> => {
     if (!session) return;
     const uid = session.user.id;
 
-    // Delete dependent data first
     await supabase.from('activity_reactions').delete().eq('user_id', uid);
     await supabase.from('direct_messages').delete().or(`sender_id.eq.${uid},receiver_id.eq.${uid}`);
     await supabase.from('social_group_members').delete().eq('user_id', uid);
     await supabase.from('friends').delete().or(`user_id_1.eq.${uid},user_id_2.eq.${uid}`);
-    
     await supabase.from('planned_workouts').delete().eq('user_id', uid);
     await supabase.from('chats').delete().eq('user_id', uid);
-    
-    // Tracks usually have many points data, might be heavy.
     await supabase.from('tracks').delete().eq('user_id', uid);
-
-    // Finally profile if policy allows
     await supabase.from('profiles').delete().eq('id', uid);
 
     await supabase.auth.signOut();
