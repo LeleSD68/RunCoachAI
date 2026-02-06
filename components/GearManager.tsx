@@ -72,7 +72,7 @@ const GearManager: React.FC<GearManagerProps> = ({ shoes, retiredShoes = [], onA
 
     const handleBuyShoe = (shoeName: string) => {
         const query = encodeURIComponent(`${shoeName} running shoes`);
-        // Affiliate Link Logic (Placeholder - Replace tag with real one)
+        // Affiliate Link Logic (Placeholder)
         const affiliateUrl = `https://www.amazon.it/s?k=${query}&tag=runcoachai-21`;
         window.open(affiliateUrl, '_blank');
     };
