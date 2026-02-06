@@ -110,6 +110,7 @@ export interface UserProfile {
   powerSaveMode?: boolean;
   isOnline?: boolean;
   gaMeasurementId?: string; // NEW: Google Analytics ID
+  isAdmin?: boolean; // NEW: Admin flag
 }
 
 export type RunningGoal = 'none' | '5k' | '10k' | 'half_marathon' | 'marathon' | 'speed' | 'endurance' | 'weight_loss';
