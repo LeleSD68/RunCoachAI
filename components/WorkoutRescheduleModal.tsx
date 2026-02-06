@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { PlannedWorkout, UserProfile, Track } from '../types';
 import { getGenAI, retryWithPolicy } from '../services/aiHelper';
@@ -162,8 +163,11 @@ const WorkoutRescheduleModal: React.FC<WorkoutRescheduleModalProps> = ({ workout
     };
 
     return (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-fade-in" onClick={onCancel}>
-            <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9999] flex items-end sm:items-center justify-center sm:p-4 animate-fade-in" onClick={onCancel}>
+            <div 
+                className="bg-slate-900 border-t sm:border border-slate-700 rounded-t-3xl sm:rounded-3xl shadow-2xl w-full sm:max-w-md overflow-hidden flex flex-col mb-0 sm:mb-auto pb-[env(safe-area-inset-bottom)]" 
+                onClick={e => e.stopPropagation()}
+            >
                 <header className="p-4 border-b border-slate-700 bg-slate-800/50 flex justify-between items-center">
                     <h3 className="font-bold text-white flex items-center gap-2">
                         <CalendarIcon /> Gestione Calendario
