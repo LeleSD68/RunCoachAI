@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Track, UserProfile, PlannedWorkout, Toast, ActivityType, RaceRunner, RaceResult, TrackStats, Commentary, TrackPoint, ApiUsage, RaceGapSnapshot, LeaderStats } from './types';
 import Sidebar from './components/Sidebar';
@@ -438,6 +439,9 @@ const App: React.FC = () => {
     }, []);
 
     const onCheckAiAccess = useCallback((feature: 'workout' | 'analysis' | 'chat' = 'chat') => {
+        // ADMIN & PRO OVERRIDE
+        if (userProfile.isAdmin || userProfile.subscriptionTier === 'elite' || userProfile.subscriptionTier === 'pro') return true;
+
         if (!isGuest) return true;
 
         if (!checkDailyLimit(feature)) {
@@ -461,7 +465,7 @@ const App: React.FC = () => {
         }
         
         return false;
-    }, [isGuest]);
+    }, [isGuest, userProfile]);
 
     // Handle logout logic centrally
     const handleLogout = async () => {
