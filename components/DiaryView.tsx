@@ -393,14 +393,22 @@ const DiaryView: React.FC<DiaryViewProps> = ({
                 </div>
 
                 {showAiCoach && (
-                    <div className="w-full h-auto max-h-[45%] shrink-0 border-t border-slate-700 bg-slate-800 flex flex-col animate-slide-up shadow-2xl z-20 pb-[env(safe-area-inset-bottom)]">
-                        <header className="p-3 border-b border-slate-700 bg-slate-900 flex justify-between items-center flex-shrink-0">
+                    <div className="fixed inset-0 z-[5000] sm:z-20 sm:static sm:inset-auto w-full h-full sm:h-auto sm:max-h-[45%] sm:shrink-0 border-t border-slate-700 bg-slate-900 sm:bg-slate-800 flex flex-col animate-slide-up shadow-2xl pb-[env(safe-area-inset-bottom)]">
+                        <header className="p-4 sm:p-3 border-b border-slate-700 bg-slate-900 flex justify-between items-center flex-shrink-0">
                             <h3 className="font-bold text-cyan-400 uppercase tracking-widest text-sm flex items-center gap-2">
-                                <SparklesIcon /> Prossime Sessioni Consigliate
+                                <SparklesIcon /> 
+                                <span className="sm:hidden">Coach AI - Generazione</span>
+                                <span className="hidden sm:inline">Prossime Sessioni Consigliate</span>
                             </h3>
-                            <button onClick={() => setShowAiCoach(false)} className="text-slate-500 hover:text-white transition-colors">&times;</button>
+                            <button 
+                                onClick={() => setShowAiCoach(false)} 
+                                className="bg-slate-800 hover:bg-slate-700 text-white p-2 rounded-full sm:bg-transparent sm:p-0 sm:text-slate-500 sm:hover:text-white transition-colors"
+                            >
+                                <span className="sm:hidden"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72-3.72a.75.75 0 1 0 1.06-1.06L10 8.94 6.28 5.22Z" /></svg></span>
+                                <span className="hidden sm:inline">&times;</span>
+                            </button>
                         </header>
-                        <div className="flex-grow overflow-hidden relative">
+                        <div className="flex-grow overflow-hidden relative bg-slate-900 sm:bg-transparent">
                             <AiTrainingCoachPanel 
                                 userProfile={userProfile} 
                                 allHistory={tracks} 
