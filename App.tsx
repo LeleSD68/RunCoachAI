@@ -51,6 +51,7 @@ import { parseTcx } from './services/tcxService';
 import { generateSmartTitle } from './services/titleGenerator';
 import { isDuplicateTrack, markStravaTrackAsDeleted, isPreviouslyDeletedStravaTrack, getTrackFingerprint } from './services/trackUtils';
 import { getFriendsActivityFeed, updatePresence, getFriends, getUnreadNotificationsCount, markMessagesAsRead, getMostRecentUnreadSender } from './services/socialService';
+import { initGA, logPageView, logEvent } from './services/analyticsService';
 
 const LAYOUT_PREFS_KEY = 'runcoach_layout_prefs_v6';
 const SESSION_ACTIVE_KEY = 'runcoach_session_active';
@@ -124,6 +125,13 @@ const App: React.FC = () => {
 
     const [layoutPrefs, setLayoutPrefs] = useState<{ desktopSidebar: number, mobileListRatio: number }>({ desktopSidebar: 320, mobileListRatio: 0.7 });
 
+    // --- ANALYTICS INIT ---
+    useEffect(() => {
+        if (userProfile?.gaMeasurementId) {
+            initGA(userProfile.gaMeasurementId);
+        }
+    }, [userProfile?.gaMeasurementId]);
+
     // --- PWA INSTALL LOGIC ---
     useEffect(() => {
         const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
@@ -154,6 +162,7 @@ const App: React.FC = () => {
             if (outcome === 'accepted') {
                 setDeferredPrompt(null);
                 setShowInstallPrompt(false);
+                logEvent('pwa_install_accepted');
             }
         }
     };
@@ -214,6 +223,7 @@ const App: React.FC = () => {
         const isOpen = currentStates[view];
         if (!isOpen) {
             pushViewState(view);
+            logPageView(view); // Track view
             
             // NOTE: When toggling views normally, we reset navigation to clear previous states
             resetNavigation(); 
@@ -423,6 +433,7 @@ const App: React.FC = () => {
         if (confirm(`MODALITÀ OSPITE\n\n${message}\n\nConfermi l'uso del credito?`)) {
             incrementDailyLimit(feature);
             setUsage(getApiUsage()); // Aggiorna stato
+            logEvent('guest_ai_usage', { feature });
             return true;
         }
         
@@ -455,6 +466,7 @@ const App: React.FC = () => {
             // Navigate to AuthSelection
             setShowAuthSelection(true);
             setIsDataLoading(false);
+            logEvent('logout');
         }
     };
 
@@ -468,6 +480,7 @@ const App: React.FC = () => {
                     await handleStravaCallback(code);
                     addToast("Strava collegato!", "success");
                     window.history.replaceState({}, document.title, window.location.pathname);
+                    logEvent('strava_connected');
                 } catch (e: any) {
                     addToast("Errore Strava: " + e.message, "error");
                 } finally {
@@ -499,12 +512,14 @@ const App: React.FC = () => {
         setShowHome(false); // Chiudi home se aperta
         setShowDiary(false); // Chiudi diario se aperto
         setShowLiveCoach(true);
+        logEvent('live_coach_start', { type: workout ? 'planned' : 'free' });
     };
 
     const handleLiveCoachFinish = (durationMs: number) => {
         addToast(`Allenamento completato! Durata: ${(durationMs/60000).toFixed(0)} min.`, "success");
         setShowLiveCoach(false);
         setActiveWorkout(null);
+        logEvent('live_coach_finish', { duration: durationMs });
     };
 
     const checkAndPromptWorkoutMatch = (newTracks: Track[]) => {
@@ -552,6 +567,7 @@ const App: React.FC = () => {
 
         setPendingWorkoutMatch(null);
         addToast(`Corsa rinominata: "${workout.title}"`, "success");
+        logEvent('workout_matched');
     };
 
     const cancelWorkoutMatch = () => {
@@ -708,6 +724,7 @@ const App: React.FC = () => {
         setLeadStats({}); 
         setRaceRunners(selected.map(t => ({ trackId: t.id, name: t.name, position: t.points[0], color: t.color, pace: 0, finished: false })));
         setShowRaceSetup(false);
+        logEvent('race_started', { runners: selected.length });
     };
 
     useEffect(() => {
@@ -822,6 +839,7 @@ const App: React.FC = () => {
             return next;
         });
         addToast(`Aggiunto ${ghostTrack.name} alla griglia di partenza!`, "success");
+        logEvent('ghost_added');
     };
 
     const handleChallengeGhost = (friendTrack: Track) => {
@@ -884,6 +902,7 @@ const App: React.FC = () => {
         setRaceSelectionIds(new Set([merged.id]));
         await saveTracksToDB(nextTracks);
         addToast("Tracce unite con successo!", "success");
+        logEvent('tracks_merged', { count: selected.length });
     };
 
     const handleAddPlannedWorkout = async (w: PlannedWorkout) => {
@@ -891,6 +910,7 @@ const App: React.FC = () => {
         setPlannedWorkouts(next);
         await savePlannedWorkoutsToDB(next);
         addToast("Salvato nel diario!", "success");
+        logEvent('workout_planned');
     };
 
     const handleUpdatePlannedWorkout = async (w: PlannedWorkout) => {
@@ -932,6 +952,7 @@ const App: React.FC = () => {
             await saveTracksToDB(updated); 
             addToast(`Caricate ${newCount} nuove corse.`, "success"); 
             checkAndPromptWorkoutMatch(newTracks); 
+            logEvent('file_upload', { count: newCount });
         }
         if (skipCount > 0) addToast(`${skipCount} attività già presenti ignorate.`, "info");
         setIsDataLoading(false);
@@ -954,6 +975,7 @@ const App: React.FC = () => {
             await saveTracksToDB(updated); 
             addToast(`Importate con successo ${importedCount} corse da Strava.`, "success");
             checkAndPromptWorkoutMatch(toAdd); 
+            logEvent('strava_import', { count: importedCount });
         }
         if (skippedCount > 0) addToast(`${skippedCount} attività Strava ignorate perché già presenti.`, "info");
         if (previouslyDeletedCount > 0) addToast(`${previouslyDeletedCount} attività Strava ignorate perché eliminate in passato.`, "info");
@@ -1006,7 +1028,7 @@ const App: React.FC = () => {
                 />
             )}
 
-            {showAuthSelection && <AuthSelectionModal onGuest={() => { setIsGuest(true); setUserId('guest'); setShowAuthSelection(false); setShowHome(true); }} onLogin={() => setShowLoginModal(true)} />}
+            {showAuthSelection && <AuthSelectionModal onGuest={() => { setIsGuest(true); setUserId('guest'); setShowAuthSelection(false); setShowHome(true); logEvent('guest_login'); }} onLogin={() => setShowLoginModal(true)} />}
             {showLoginModal && (
                 <LoginModal 
                     onClose={() => { setShowLoginModal(false); setAuthLimitReached(false); }} 
@@ -1016,6 +1038,7 @@ const App: React.FC = () => {
                         
                         // Refresh session data
                         checkSession(); 
+                        logEvent('user_login');
                         
                         // If we are logging in from the landing page, navigate to Home
                         if (showAuthSelection) {
@@ -1054,6 +1077,7 @@ const App: React.FC = () => {
                                 await loadData(true); 
                                 addToast(`Importate ${filteredTracks.length} nuove attività.`, "success"); 
                                 setFitBoundsCounter(c => c + 1);
+                                logEvent('backup_imported');
                             }
                         } catch (e: any) { addToast("Errore backup.", "error"); } finally { setIsDataLoading(false); }
                     }}
@@ -1064,6 +1088,7 @@ const App: React.FC = () => {
                             const u = URL.createObjectURL(b); 
                             const a = document.createElement('a'); a.href=u; a.download=`RunCoachAI_Backup_${new Date().toISOString().split('T')[0]}.json`; a.click(); URL.revokeObjectURL(u);
                             addToast("Backup salvato!", "success");
+                            logEvent('backup_exported');
                         } catch (e: any) { addToast("Errore backup.", "error"); }
                     }}
                     onUploadTracks={handleFileUpload}
@@ -1205,8 +1230,8 @@ const App: React.FC = () => {
                                                         onDeselectAll={() => setRaceSelectionIds(new Set())}
                                                         onSelectAll={() => setRaceSelectionIds(new Set(tracks.filter(t => !t.isArchived).map(t => t.id)))}
                                                         onStartRace={openRaceSetup}
-                                                        onViewDetails={(id) => { setViewingTrack(tracks.find(t => t.id === id) || null); pushViewState('trackDetail'); }}
-                                                        onEditTrack={(id) => setEditingTrack(tracks.find(t => t.id === id) || null)}
+                                                        onViewDetails={(id) => { setViewingTrack(tracks.find(t => t.id === id) || null); pushViewState('trackDetail'); logEvent('view_track_details'); }}
+                                                        onEditTrack={(id) => { setEditingTrack(tracks.find(t => t.id === id) || null); logEvent('edit_track'); }}
                                                         onDeleteTrack={async (id: string) => { 
                                                             const track = tracks.find(t => t.id === id); if (track) markStravaTrackAsDeleted(track);
                                                             const u = tracks.filter(t => t.id !== id); setTracks(u); await saveTracksToDB(u); await deleteTrackFromCloud(id); 
@@ -1241,8 +1266,8 @@ const App: React.FC = () => {
                                             onFocusTrack={setFocusedTrackId} onDeselectAll={() => setRaceSelectionIds(new Set())}
                                             onToggleRaceSelection={(id) => setRaceSelectionIds(prev => { const n = new Set(prev); if(n.has(id)) n.delete(id); else n.add(id); return n; })}
                                             onStartRace={openRaceSetup}
-                                            onViewDetails={(id) => { setViewingTrack(tracks.find(t => t.id === id) || null); pushViewState('trackDetail'); }}
-                                            onEditTrack={(id) => setEditingTrack(tracks.find(t => t.id === id) || null)}
+                                            onViewDetails={(id) => { setViewingTrack(tracks.find(t => t.id === id) || null); pushViewState('trackDetail'); logEvent('view_track_details'); }}
+                                            onEditTrack={(id) => { setEditingTrack(tracks.find(t => t.id === id) || null); logEvent('edit_track'); }}
                                             onBulkArchive={handleBulkArchive} onDeleteSelected={handleBulkDelete} onMergeSelected={handleMergeSelectedTracks} onToggleFavorite={handleToggleFavorite} onBulkGroup={handleBulkGroup} onFileUpload={handleFileUpload} onToggleArchived={async (id) => { const u = tracks.map(t => t.id === id ? {...t, isArchived: !t.isArchived} : t); setTracks(u); await saveTracksToDB(u); }} onDeleteTrack={() => {}} onSelectAll={() => {}}
                                          />
                                     </div>

@@ -54,6 +54,9 @@ begin
     if not exists (select 1 from information_schema.columns where table_name = 'profiles' and column_name = 'last_seen_at') then
         alter table public.profiles add column last_seen_at timestamp with time zone;
     end if;
+    if not exists (select 1 from information_schema.columns where table_name = 'profiles' and column_name = 'ga_measurement_id') then
+        alter table public.profiles add column ga_measurement_id text;
+    end if;
 end $$;
 
 -- Policy profili

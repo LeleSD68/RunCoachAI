@@ -109,6 +109,7 @@ export interface UserProfile {
   weightHistory?: {date: string, weight: number}[];
   powerSaveMode?: boolean;
   isOnline?: boolean;
+  gaMeasurementId?: string; // NEW: Google Analytics ID
 }
 
 export type RunningGoal = 'none' | '5k' | '10k' | 'half_marathon' | 'marathon' | 'speed' | 'endurance' | 'weight_loss';
