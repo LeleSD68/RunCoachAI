@@ -29,7 +29,7 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ onClose, onUpgrade }) => {
                             Sblocca il tuo <br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500">Vero Potenziale</span>
                         </h2>
                         <p className="text-slate-300 text-sm leading-relaxed mb-6">
-                            RunCoachAI Pro ti offre analisi illimitate, coach vocale avanzato e sincronizzazione cloud senza restrizioni.
+                            RunCoachAI Pro ti offre analisi illimitate, coach vocale avanzato e sincronizzazione cloud sicura.
                         </p>
                         <div className="flex items-center gap-2 text-xs text-slate-400 font-mono">
                             <span>🔒 Pagamento Sicuro</span>
@@ -50,7 +50,7 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ onClose, onUpgrade }) => {
                             </div>
                             <ul className="space-y-2 text-sm text-slate-300 mb-4">
                                 <li className="flex gap-2"><CheckIcon /> Analisi base GPX</li>
-                                <li className="flex gap-2"><CheckIcon /> 3 Chat AI al giorno</li>
+                                <li className="flex gap-2"><CheckIcon /> 1 Chat AI al giorno</li>
                                 <li className="flex gap-2 text-slate-500">❌ Sync Cloud Multi-device</li>
                             </ul>
                             <button onClick={onClose} className="w-full py-2 rounded-xl border border-slate-600 text-slate-300 text-xs font-bold uppercase hover:bg-slate-700">Resta Free</button>
