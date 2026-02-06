@@ -1,6 +1,6 @@
 
 import { supabase } from './supabaseClient';
-import { UserProfile, FriendRequest, Track, DirectMessage, Reaction, SocialGroup } from '../types';
+import { UserProfile, FriendRequest, Track, DirectMessage, Reaction, SocialGroup, GroupMessage } from '../types';
 
 export const updatePresence = async (userId: string) => {
     if (!userId) return;
@@ -310,6 +310,44 @@ export const getDirectMessages = async (currentUserId: string, friendId: string)
         readAt: msg.read_at
     }));
 };
+
+// --- GROUP MESSAGING (NEW) ---
+
+export const sendGroupMessage = async (senderId: string, groupId: string, content: string) => {
+    const { error } = await supabase.from('group_messages').insert({ 
+        sender_id: senderId, 
+        group_id: groupId, 
+        content: content 
+    });
+    if (error) throw error;
+};
+
+export const getGroupMessages = async (groupId: string): Promise<GroupMessage[]> => {
+    const { data, error } = await supabase
+        .from('group_messages')
+        .select('id, sender_id, group_id, content, created_at')
+        .eq('group_id', groupId)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+    if (error) return [];
+    
+    // Fetch sender names
+    const senderIds = [...new Set(data.map((m: any) => m.sender_id))];
+    const { data: profiles } = await supabase.from('profiles').select('id, name').in('id', senderIds);
+    const profilesMap = new Map(profiles?.map((p: any) => [p.id, p.name]));
+
+    return data.reverse().map((msg: any) => ({
+        id: msg.id,
+        senderId: msg.sender_id,
+        senderName: profilesMap.get(msg.sender_id) || 'Unknown',
+        groupId: msg.group_id,
+        content: msg.content,
+        createdAt: msg.created_at
+    }));
+};
+
+// --- UNREAD ---
 
 export const getUnreadSenders = async (currentUserId: string): Promise<Set<string>> => {
     const { data, error } = await supabase
