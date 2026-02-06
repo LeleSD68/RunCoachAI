@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { AdminStats, getAdminStats } from '../services/adminService';
+import { AdminStats, getAdminStats, searchAllUsers, updateUserStatus, AdminUserProfile } from '../services/adminService';
 import { getApiUsage } from '../services/usageService';
 
 interface AdminDashboardProps {
@@ -21,6 +21,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     const [stats, setStats] = useState<AdminStats | null>(null);
     const [loading, setLoading] = useState(true);
     const [apiUsage, setApiUsage] = useState<any>(null);
+    
+    // User Management State
+    const [searchQuery, setSearchQuery] = useState('');
+    const [userResults, setUserResults] = useState<AdminUserProfile[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
 
     useEffect(() => {
         const load = async () => {
@@ -36,6 +41,30 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
         };
         load();
     }, []);
+
+    const handleSearch = async () => {
+        if (searchQuery.length < 2) return;
+        setIsSearching(true);
+        try {
+            const results = await searchAllUsers(searchQuery);
+            setUserResults(results);
+        } catch (e) {
+            alert("Errore ricerca utenti (Verifica permessi Admin)");
+        } finally {
+            setIsSearching(false);
+        }
+    };
+
+    const handleUpdateUser = async (userId: string, type: 'tier' | 'role', value: any) => {
+        try {
+            const updates = type === 'tier' ? { subscription_tier: value } : { is_admin: value };
+            await updateUserStatus(userId, updates);
+            // Optimistic update
+            setUserResults(prev => prev.map(u => u.id === userId ? { ...u, ...updates } : u));
+        } catch (e) {
+            alert("Errore aggiornamento utente");
+        }
+    };
 
     return (
         <div className="fixed inset-0 bg-slate-950 z-[12000] overflow-hidden flex flex-col animate-fade-in font-sans text-white">
@@ -66,8 +95,76 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                             <StatCard title="Allenamenti" value={stats.totalWorkouts} icon="📅" color="text-amber-500" />
                         </div>
 
+                        {/* USER MANAGEMENT SECTION */}
+                        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl">
+                            <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+                                <span className="text-amber-400">🔑</span> Gestione Permessi
+                            </h3>
+                            <div className="flex gap-4 mb-6">
+                                <input 
+                                    type="text" 
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                                    placeholder="Cerca utente per nome..."
+                                    className="flex-grow bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white outline-none focus:border-red-500"
+                                />
+                                <button 
+                                    onClick={handleSearch}
+                                    disabled={isSearching}
+                                    className="bg-red-600 hover:bg-red-500 text-white px-6 py-3 rounded-xl font-bold uppercase tracking-wide text-sm transition-colors"
+                                >
+                                    {isSearching ? '...' : 'Cerca'}
+                                </button>
+                            </div>
+
+                            <div className="space-y-2">
+                                {userResults.length === 0 && searchQuery && !isSearching && (
+                                    <p className="text-center text-slate-500 text-sm italic">Nessun utente trovato.</p>
+                                )}
+                                {userResults.map(user => (
+                                    <div key={user.id} className="flex flex-col md:flex-row items-center justify-between p-4 bg-slate-800/50 rounded-xl border border-slate-700">
+                                        <div className="flex items-center gap-4 mb-3 md:mb-0">
+                                            <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center font-bold text-lg text-slate-400">
+                                                {user.name ? user.name[0].toUpperCase() : '?'}
+                                            </div>
+                                            <div>
+                                                <div className="font-bold text-white">{user.name}</div>
+                                                <div className="text-xs text-slate-500 font-mono">{user.id}</div>
+                                                <div className="text-[10px] text-slate-500">Ultima visita: {new Date(user.last_seen_at).toLocaleDateString()}</div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="flex gap-4 items-center">
+                                            <div className="flex flex-col items-end">
+                                                <label className="text-[9px] text-slate-500 uppercase font-bold mb-1">Livello</label>
+                                                <select 
+                                                    value={user.subscription_tier || 'free'}
+                                                    onChange={(e) => handleUpdateUser(user.id, 'tier', e.target.value)}
+                                                    className="bg-slate-900 border border-slate-600 text-white text-xs rounded px-2 py-1 outline-none focus:border-red-500"
+                                                >
+                                                    <option value="free">Free</option>
+                                                    <option value="pro">Pro</option>
+                                                    <option value="elite">Elite (Full)</option>
+                                                </select>
+                                            </div>
+                                            <div className="flex flex-col items-end">
+                                                <label className="text-[9px] text-slate-500 uppercase font-bold mb-1">Ruolo</label>
+                                                <button 
+                                                    onClick={() => handleUpdateUser(user.id, 'role', !user.is_admin)}
+                                                    className={`px-3 py-1 rounded text-xs font-bold uppercase ${user.is_admin ? 'bg-red-500 text-white' : 'bg-slate-700 text-slate-400'}`}
+                                                >
+                                                    {user.is_admin ? 'Admin' : 'User'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                            {/* USER LIST */}
+                            {/* USER LIST (RECENT) */}
                             <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl">
                                 <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
                                     <span className="text-cyan-400">⚡</span> Utenti Recenti
@@ -105,7 +202,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                                         <span className="text-purple-400 font-mono font-black text-xl">{apiUsage?.tokens || 0}</span>
                                     </div>
                                     <div className="p-4 bg-slate-800/50 rounded-xl border border-slate-700">
-                                        <h4 className="text-[10px] text-slate-500 uppercase font-black mb-2">Quote Giornaliere (Utente Attuale)</h4>
+                                        <h4 className="text-[10px] text-slate-500 uppercase font-black mb-2">Quote Giornaliere (Tuo Utente)</h4>
                                         <div className="grid grid-cols-3 gap-2 text-center">
                                             <div>
                                                 <div className="text-xs text-slate-400">Workout</div>
