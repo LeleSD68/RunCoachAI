@@ -7,7 +7,9 @@ interface StravaSyncModalProps {
     onClose: () => void;
     onImportFinished: (tracks: Track[]) => void;
     lastSyncDate: Date | null;
-    autoStart?: boolean; // Nuova prop per avvio automatico
+    autoStart?: boolean; 
+    isAutoSyncEnabled?: boolean; // New Prop
+    onToggleAutoSync?: (enabled: boolean) => void; // New Prop
 }
 
 const StravaLogo = () => (
@@ -16,7 +18,7 @@ const StravaLogo = () => (
     </svg>
 );
 
-const StravaSyncModal: React.FC<StravaSyncModalProps> = ({ onClose, onImportFinished, lastSyncDate, autoStart = false }) => {
+const StravaSyncModal: React.FC<StravaSyncModalProps> = ({ onClose, onImportFinished, lastSyncDate, autoStart = false, isAutoSyncEnabled, onToggleAutoSync }) => {
     const [view, setView] = useState<'options' | 'range' | 'select'>('options');
     const [loading, setLoading] = useState(false);
     const [activities, setActivities] = useState<any[]>([]);
@@ -134,6 +136,27 @@ const StravaSyncModal: React.FC<StravaSyncModalProps> = ({ onClose, onImportFini
                                 <div className="font-black text-white text-sm uppercase">Lista Completa</div>
                                 <p className="text-xs text-slate-400">Vedi le ultime 50 attività e scegli cosa salvare.</p>
                             </button>
+
+                            {/* AUTO SYNC TOGGLE */}
+                            {onToggleAutoSync && (
+                                <div className="mt-4 pt-4 border-t border-slate-800">
+                                    <label className="flex items-center justify-between p-3 rounded-xl border border-slate-800 bg-slate-950/30 cursor-pointer group hover:border-[#fc4c02]/30 transition-colors">
+                                        <div>
+                                            <div className={`font-bold text-sm ${isAutoSyncEnabled ? 'text-[#fc4c02]' : 'text-slate-300'}`}>Auto-Sync</div>
+                                            <div className="text-[10px] text-slate-500">Controlla nuove corse all'avvio dell'app</div>
+                                        </div>
+                                        <div className={`w-10 h-5 rounded-full relative transition-colors ${isAutoSyncEnabled ? 'bg-[#fc4c02]' : 'bg-slate-700'}`}>
+                                            <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform shadow-sm ${isAutoSyncEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                                        </div>
+                                        <input 
+                                            type="checkbox" 
+                                            className="hidden" 
+                                            checked={isAutoSyncEnabled} 
+                                            onChange={(e) => onToggleAutoSync(e.target.checked)} 
+                                        />
+                                    </label>
+                                </div>
+                            )}
                         </div>
                     ) : view === 'range' ? (
                         <div className="space-y-4 animate-fade-in-right">
