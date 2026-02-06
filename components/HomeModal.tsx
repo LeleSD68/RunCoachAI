@@ -33,7 +33,7 @@ interface HomeModalProps {
     onOpenSocial?: () => void;
     unreadCount?: number;
     onlineCount?: number;
-    onOpenAdmin?: () => void; // NEW
+    onOpenAdmin?: () => void; 
 }
 
 // --- ICONS ---
@@ -276,9 +276,9 @@ const HomeModal: React.FC<HomeModalProps> = ({
                                 {userProfile?.isAdmin && (
                                     <button 
                                         onClick={onOpenAdmin}
-                                        className="bg-red-500/20 border border-red-500/50 text-red-400 text-[8px] px-2 py-0.5 rounded font-black uppercase tracking-widest hover:bg-red-500/40 transition-colors"
+                                        className="bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-900/40 text-[9px] px-3 py-1 rounded-md font-black uppercase tracking-widest transition-all border border-red-400 animate-pulse-slow"
                                     >
-                                        Admin
+                                        🛡️ ADMIN PANEL
                                     </button>
                                 )}
                             </div>
@@ -478,6 +478,7 @@ const HomeModal: React.FC<HomeModalProps> = ({
                 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.8); }
                 .no-scrollbar::-webkit-scrollbar { display: none; }
                 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+                .animate-pulse-slow { animation: pulse 3s infinite; }
             `}</style>
         </div>
     );
