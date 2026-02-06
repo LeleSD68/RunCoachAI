@@ -50,14 +50,22 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, userProfile, onU
     };
 
     const handleForceSyncPermissions = async () => {
-        // Forza caricamento dal Cloud
-        const freshProfile = await loadProfileFromDB(false); 
-        
-        if (freshProfile && freshProfile.id !== 'current') {
-            onUpdateProfile(freshProfile);
-            alert(`Permessi aggiornati dal Cloud.\nID: ${freshProfile.id}\nRuolo: ${freshProfile.isAdmin ? 'ADMIN' : 'Utente Standard'}`);
-        } else {
-            alert("Errore connessione server o ID utente non valido (ancora 'current'). Assicurati di essere loggato.");
+        try {
+            // Forza caricamento dal Cloud
+            const freshProfile = await loadProfileFromDB(false); 
+            
+            if (freshProfile && freshProfile.id !== 'current') {
+                onUpdateProfile(freshProfile);
+                alert(`Permessi aggiornati dal Cloud.\nID: ${freshProfile.id}\nRuolo: ${freshProfile.isAdmin ? 'ADMIN' : 'Utente Standard'}`);
+            } else {
+                alert("Errore connessione server o ID utente non valido (ancora 'current'). Assicurati di essere loggato.");
+            }
+        } catch (e: any) {
+            if (e.message === 'SUPABASE_500_RECURSION') {
+                alert("ERRORE SERVER (500): Rilevato Loop Infinito nelle policy Supabase!\n\nDevi eseguire lo script di fix 'SUPABASE_SETUP.sql' nell'SQL Editor per correggere le regole di sicurezza.");
+            } else {
+                alert(`Errore Sync: ${e.message}`);
+            }
         }
     };
 
