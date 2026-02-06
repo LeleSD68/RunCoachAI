@@ -146,7 +146,6 @@ export const saveProfileToDB = async (profile: UserProfile, options: { skipCloud
         retired_shoes: profile.retiredShoes || [], 
         weight_history: profile.weightHistory || [],
         strava_auto_sync: profile.stravaAutoSync,
-        ga_measurement_id: profile.gaMeasurementId,
         // is_admin: profile.isAdmin, <--- RIMOSSO INTENZIONALMENTE
         updated_at: new Date().toISOString()
       });
@@ -188,7 +187,6 @@ export const loadProfileFromDB = async (forceLocal: boolean = false): Promise<Us
         retiredShoes: data.retired_shoes,
         weightHistory: data.weight_history,
         stravaAutoSync: data.strava_auto_sync,
-        gaMeasurementId: data.ga_measurement_id,
         isAdmin: data.is_admin === true || data.is_admin === 'true' || data.is_admin === 1 // Parsing permissivo
       };
       // Salviamo in locale per cache (skipCloud=true evita loop)
