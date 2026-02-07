@@ -75,6 +75,9 @@ const App: React.FC = () => {
     const [editingTrack, setEditingTrack] = useState<Track | null>(null);
     const [hoveredTrackId, setHoveredTrackId] = useState<string | null>(null);
     const [mobileTrackSummary, setMobileTrackSummary] = useState<Track | null>(null);
+    
+    // Diary Specific State
+    const [diarySelectedWorkoutId, setDiarySelectedWorkoutId] = useState<string | null>(null);
 
     // Race Mode State
     const [raceRunners, setRaceRunners] = useState<RaceRunner[]>([]);
@@ -355,7 +358,7 @@ const App: React.FC = () => {
                     onLogout={async () => { await deleteUserAccount(); window.location.reload(); }}
                     onLogin={() => setShowLogin(true)}
                     plannedWorkouts={plannedWorkouts}
-                    onOpenWorkout={(id) => { setView('diary'); /* Logic to focus workout */ }}
+                    onOpenWorkout={(id) => { setDiarySelectedWorkoutId(id); setView('diary'); }}
                     onEnterRaceMode={() => { setView('map'); /* Logic to prep race */ }}
                     onOpenAdmin={() => setShowAdmin(true)}
                 />
@@ -559,7 +562,7 @@ const App: React.FC = () => {
                     tracks={tracks}
                     plannedWorkouts={plannedWorkouts}
                     userProfile={userProfile}
-                    onClose={() => setView('map')}
+                    onClose={() => { setView('map'); setDiarySelectedWorkoutId(null); }}
                     onSelectTrack={handleTrackSelect}
                     onDeletePlannedWorkout={async (id) => {
                         const next = plannedWorkouts.filter(w => w.id !== id);
@@ -587,6 +590,7 @@ const App: React.FC = () => {
                     }}
                     onCheckAiAccess={(feat) => checkDailyLimit(feat)}
                     onStartWorkout={handleStartLiveCoach}
+                    initialSelectedWorkoutId={diarySelectedWorkoutId}
                 />
             )}
 
@@ -613,7 +617,15 @@ const App: React.FC = () => {
                         addToast(`Allenamento completato! Durata: ${(duration/60000).toFixed(0)} min`, "success");
                         setView('map');
                     }}
-                    onExit={() => setView('map')}
+                    onExit={() => {
+                        // Return to Diary with the workout open if it was a planned session
+                        if (activeLiveWorkout) {
+                            setDiarySelectedWorkoutId(activeLiveWorkout.id);
+                            setView('diary');
+                        } else {
+                            setView('map');
+                        }
+                    }}
                 />
             )}
 

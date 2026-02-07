@@ -69,9 +69,6 @@ begin
     if not exists (select 1 from information_schema.columns where table_name = 'profiles' and column_name = 'is_admin') then
         alter table public.profiles add column is_admin boolean default false;
     end if;
-    if not exists (select 1 from information_schema.columns where table_name = 'profiles' and column_name = 'subscription_tier') then
-        alter table public.profiles add column subscription_tier text default 'free';
-    end if;
 end $$;
 
 -- Policy profili
@@ -85,14 +82,9 @@ create policy "Users can insert own profile" on public.profiles for insert with 
 drop policy if exists "Users can view all profiles" on public.profiles;
 create policy "Users can view all profiles" on public.profiles for select using (true); 
 
--- ADMIN POLICIES FIX
+-- ADMIN POLICY FIX: Usiamo la funzione sicura check_is_admin()
 drop policy if exists "Admins can view all profiles" on public.profiles;
 create policy "Admins can view all profiles" on public.profiles for select using (
-  public.check_is_admin()
-);
-
-drop policy if exists "Admins can update all profiles" on public.profiles;
-create policy "Admins can update all profiles" on public.profiles for update using (
   public.check_is_admin()
 );
 
