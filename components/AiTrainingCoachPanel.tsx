@@ -60,25 +60,6 @@ const HeadsetIcon = () => (
     </svg>
 );
 
-const HumanCoachCTA = () => (
-    <div className="mt-4 bg-gradient-to-r from-slate-900 to-slate-800 border border-slate-700 rounded-xl p-4 flex items-center justify-between shadow-lg relative overflow-hidden group cursor-pointer hover:border-amber-500/50 transition-all">
-        <div className="absolute inset-0 bg-amber-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-        <div className="relative z-10 flex items-center gap-3">
-            <div className="bg-amber-500/20 p-2 rounded-full text-amber-400 text-xl">🎓</div>
-            <div>
-                <h4 className="text-sm font-bold text-white leading-none mb-1">Vuoi di più?</h4>
-                <p className="text-[10px] text-slate-400 leading-tight">Ottieni una scheda su misura da un<br/><strong>Coach Umano Certificato</strong>.</p>
-            </div>
-        </div>
-        <button 
-            onClick={() => alert("Funzionalità Premium: verrai reindirizzato al modulo di contatto dei nostri Coach Partner.")}
-            className="relative z-10 bg-white text-slate-900 font-bold text-[10px] uppercase px-4 py-2 rounded-lg hover:bg-slate-200 transition-colors shadow-md"
-        >
-            Richiedi Info
-        </button>
-    </div>
-);
-
 const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({ 
     track, stats, userProfile, allHistory, onAddPlannedWorkout, onDeletePlannedWorkout, plannedWorkouts = [], isCompact, layoutMode = 'vertical', targetDate, onCheckAiAccess, onStartWorkout
 }) => {
@@ -336,11 +317,6 @@ const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({
                         </div>
                     </div>
                 ))}
-            </div>
-            
-            {/* HUMAN COACH UPSOLD */}
-            <div className="px-4 pb-4">
-                <HumanCoachCTA />
             </div>
         </div>
     );
