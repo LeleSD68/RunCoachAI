@@ -1,16 +1,15 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Track, PlannedWorkout, UserProfile, ActivityType, CalendarWeather } from '../types';
+import { Track, PlannedWorkout, UserProfile, CalendarWeather } from '../types';
 import TrackPreview from './TrackPreview';
 import AiTrainingCoachPanel from './AiTrainingCoachPanel';
 import FormattedAnalysis from './FormattedAnalysis';
-import DiaryActionModal from './DiaryActionModal';
-import { exportToGoogleCalendar, exportToAppleCalendar, exportRangeToIcal } from '../services/calendarExportService';
+import RatingStars from './RatingStars';
 import { loadChatFromDB } from '../services/dbService';
 import WorkoutRescheduleModal from './WorkoutRescheduleModal';
-import { fetchMonthWeather } from '../services/weatherService';
-import RatingStars from './RatingStars';
+import DiaryActionModal from './DiaryActionModal';
 import WeatherDayPopup from './WeatherDayPopup';
+import { fetchMonthWeather } from '../services/weatherService';
 
 interface DiaryViewProps {
     tracks: Track[];
@@ -25,7 +24,7 @@ interface DiaryViewProps {
     onOpenTrackChat?: (trackId: string) => void;
     initialSelectedWorkoutId?: string | null;
     onCheckAiAccess?: (feature: 'workout' | 'analysis' | 'chat') => boolean;
-    onStartWorkout?: (workout: PlannedWorkout) => void;
+    onStartWorkout?: (workout: PlannedWorkout | null) => void;
 }
 
 const DAYS_OF_WEEK = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
@@ -55,48 +54,29 @@ const GlobeIcon = () => (
     </svg>
 );
 
-const HeadsetIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 mr-2">
-        <path fillRule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75v5.25c0 .621.504 1.125 1.125 1.125h2.25c1.243 0 2.25-1.007 2.25-2.25v-4.5c0-1.243-1.007-2.25-2.25-2.25h-1.5v-2.625a7.5 7.5 0 0 1 15 0v2.625h-1.5c-1.243 0-2.25 1.007-2.25 2.25v4.5c0 1.243 1.007 2.25 2.25 2.25h2.25c.621 0 1.125-.504 1.125-1.125v-5.25c0-5.385-4.365-9.75-9.75-9.75Z" clipRule="evenodd" />
+const WeatherIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 text-yellow-400">
+        <path fillRule="evenodd" d="M10 2a1 1 0 0 1 1 1v1a1 1 0 1 1-2 0V3a1 1 0 0 1 1-1Zm4 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0Zm-.464 4.95l.707.707a1 1 0 0 0 1.414-1.414l-.707-.707a1 1 0 0 0-1.414 1.414Zm2.12-10.607a1 1 0 0 1 0 1.414l-.706.707a1 1 0 1 1-1.414-1.414l.707-.707a1 1 0 0 1 1.414 0ZM17 11a1 1 0 1 0 0-2h-1a1 1 0 1 0 0 2h1Zm-7 4a1 1 0 0 1 1 1v1a1 1 0 1 1-2 0v-1a1 1 0 0 1 1-1ZM5.05 6.464A1 1 0 1 0 6.465 5.05l-.708-.707a1 1 0 0 0-1.414 1.414l.707.707Zm1.414 8.486l-.707.707a1 1 0 0 1-1.414-1.414l.707-.707a1 1 0 0 1 1.414 1.414ZM4 11a1 1 0 1 0 0-2H3a1 1 0 0 0 0 2h1Z" clipRule="evenodd" />
     </svg>
 );
 
-// Helper per formattare la data locale YYYY-MM-DD
-const formatDateKey = (date: Date) => {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-};
-
 const DiaryView: React.FC<DiaryViewProps> = ({ 
-    tracks, 
-    plannedWorkouts = [], 
-    userProfile, 
-    onClose, 
-    onSelectTrack, 
-    onDeletePlannedWorkout, 
-    onAddPlannedWorkout, 
-    onUpdatePlannedWorkout, 
-    onMassUpdatePlannedWorkouts, 
-    onOpenTrackChat, 
-    initialSelectedWorkoutId,
-    onCheckAiAccess,
-    onStartWorkout
+    tracks, plannedWorkouts = [], userProfile, onClose, onSelectTrack, 
+    onDeletePlannedWorkout, onAddPlannedWorkout, onUpdatePlannedWorkout, 
+    onMassUpdatePlannedWorkouts, onOpenTrackChat, initialSelectedWorkoutId, 
+    onCheckAiAccess, onStartWorkout 
 }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedWorkoutId, setSelectedWorkoutId] = useState<string | null>(initialSelectedWorkoutId || null);
     const [showAiCoach, setShowAiCoach] = useState(false);
     const [globalChatDates, setGlobalChatDates] = useState<Set<string>>(new Set());
     const [showRescheduleModal, setShowRescheduleModal] = useState(false);
-    const [weatherData, setWeatherData] = useState<Record<string, CalendarWeather>>({});
-    
-    // Action States
-    const [actionDate, setActionDate] = useState<Date | null>(null);
+    const [selectedDateForAction, setSelectedDateForAction] = useState<Date | null>(null);
     const [aiTargetDate, setAiTargetDate] = useState<Date | undefined>(undefined);
-    const [selectedWeather, setSelectedWeather] = useState<{ weather: CalendarWeather, date: Date } | null>(null);
+    const [selectedWeather, setSelectedWeather] = useState<CalendarWeather | null>(null);
+    const [weatherData, setWeatherData] = useState<Record<string, CalendarWeather>>({});
 
-    // Load global chat history to identify dates with messages
+    // Load global chat history
     useEffect(() => {
         const fetchGlobalChatDates = async () => {
             const messages = await loadChatFromDB('global-coach');
@@ -113,42 +93,32 @@ const DiaryView: React.FC<DiaryViewProps> = ({
         fetchGlobalChatDates();
     }, []);
 
-    // Weather Fetching Logic
+    // Load Weather Data
     useEffect(() => {
-        const fetchWeather = async () => {
-            let lat = 41.9028; // Default: Roma
+        const loadWeather = async () => {
+            let lat = 41.9028; // Default Rome
             let lon = 12.4964;
-            let foundLocation = false;
-
-            // 1. Try to get location from the last uploaded track (Preferred)
-            const sortedTracks = [...tracks].sort((a, b) => b.points[0].time.getTime() - a.points[0].time.getTime());
-            const lastTrack = sortedTracks[0];
             
-            if (lastTrack && lastTrack.points.length > 0) {
-                lat = lastTrack.points[0].lat;
-                lon = lastTrack.points[0].lon;
-                foundLocation = true;
-            }
-
-            // 2. If no tracks, try Browser Geolocation
-            if (!foundLocation && 'geolocation' in navigator) {
+            if (tracks.length > 0) {
+                lat = tracks[0].points[0].lat;
+                lon = tracks[0].points[0].lon;
+            } else if ('geolocation' in navigator) {
                 try {
-                    const position: any = await new Promise((resolve, reject) => {
-                        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 3000 });
-                    });
-                    lat = position.coords.latitude;
-                    lon = position.coords.longitude;
-                } catch (e) {
-                    console.log("Geolocation fallback to Rome");
-                }
+                    const pos: any = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, {timeout: 3000}));
+                    lat = pos.coords.latitude;
+                    lon = pos.coords.longitude;
+                } catch(e) {}
             }
 
-            const data = await fetchMonthWeather(currentDate.getFullYear(), currentDate.getMonth(), lat, lon);
-            setWeatherData(data);
+            try {
+                const data = await fetchMonthWeather(currentDate.getFullYear(), currentDate.getMonth(), lat, lon);
+                setWeatherData(data);
+            } catch (e) {
+                console.warn("Weather fetch failed in Diary", e);
+            }
         };
-
-        fetchWeather();
-    }, [currentDate, tracks.length]); 
+        loadWeather();
+    }, [currentDate, tracks]);
 
     // Effect to update selected workout if prop changes
     useEffect(() => {
@@ -190,8 +160,7 @@ const DiaryView: React.FC<DiaryViewProps> = ({
 
         for (let i = 1; i <= daysInMonth; i++) {
             const date = new Date(year, month, i);
-            const dateStr = formatDateKey(date);
-            
+            const dateKey = `${year}-${String(month+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
             const dayTracks = tracks.filter(t => {
                 const d = t.points[0].time;
                 return d.getDate() === i && d.getMonth() === month && d.getFullYear() === year;
@@ -201,7 +170,7 @@ const DiaryView: React.FC<DiaryViewProps> = ({
                 return d.getDate() === i && d.getMonth() === month && d.getFullYear() === year;
             });
             const hasGlobalChat = globalChatDates.has(date.toDateString());
-            const weather = weatherData[dateStr];
+            const weather = weatherData[dateKey];
             
             days.push({ day: i, tracks: dayTracks, planned: dayPlanned, date, hasGlobalChat, weather });
         }
@@ -239,20 +208,12 @@ const DiaryView: React.FC<DiaryViewProps> = ({
         setShowRescheduleModal(false);
     };
 
-    const handleAiRequest = (date: Date, mode: 'today' | 'weekly', days?: number[]) => {
-        if (onCheckAiAccess && !onCheckAiAccess('workout')) return;
-        setActionDate(null);
-        setShowAiCoach(true);
-        if (mode === 'today') {
-            setAiTargetDate(date);
-        } else {
-            setAiTargetDate(undefined);
-        }
+    const handleDayClick = (date: Date) => {
+        setSelectedDateForAction(date);
     };
 
     return (
         <div className="absolute inset-0 z-[2000] bg-slate-900 flex flex-col font-sans text-white animate-fade-in overflow-hidden">
-            {/* Header */}
             <header className="flex items-center justify-between p-2 sm:p-4 bg-slate-800 border-b border-slate-700 shadow-md flex-shrink-0 z-10">
                 <div className="flex items-center space-x-2 sm:space-x-6">
                     <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors flex items-center gap-1 font-bold text-sm sm:text-base">
@@ -270,10 +231,7 @@ const DiaryView: React.FC<DiaryViewProps> = ({
 
                 <div className="flex items-center space-x-2 sm:space-x-6">
                     <button 
-                        onClick={() => {
-                            if (onCheckAiAccess && !onCheckAiAccess('workout')) return;
-                            setShowAiCoach(!showAiCoach);
-                        }}
+                        onClick={() => setShowAiCoach(!showAiCoach)}
                         className={`flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-bold text-[10px] sm:text-xs uppercase transition-all shadow-md active:scale-95 ${showAiCoach ? 'bg-cyan-700 border border-cyan-400 text-white' : 'bg-slate-700 hover:bg-slate-600 border border-slate-600 text-cyan-400'}`}
                     >
                         <SparklesIcon />
@@ -294,7 +252,6 @@ const DiaryView: React.FC<DiaryViewProps> = ({
                 </div>
             </header>
 
-            {/* Grid & Content */}
             <div className="flex-grow flex flex-col overflow-hidden relative">
                 <div className="flex-grow flex flex-col overflow-hidden">
                     <div className="grid grid-cols-7 bg-slate-800 border-b border-slate-700 flex-shrink-0">
@@ -311,35 +268,28 @@ const DiaryView: React.FC<DiaryViewProps> = ({
                                 return (
                                     <div 
                                         key={cell.day} 
-                                        onClick={() => setActionDate(cell.date)}
+                                        onClick={() => handleDayClick(cell.date)}
                                         className={`rounded-lg p-1 sm:p-2 flex flex-col border relative transition-colors overflow-hidden cursor-pointer ${isCurrentDay ? 'bg-slate-800/90 border-cyan-500/50 shadow-[inset_0_0_10px_rgba(6,182,212,0.1)]' : 'bg-slate-800 border-slate-700/50 hover:bg-slate-700/50'}`}
                                     >
                                         <div className="flex justify-between items-start mb-1 flex-shrink-0">
-                                            <div className="flex flex-col sm:flex-row sm:items-center gap-1 w-full">
-                                                <span className={`text-[10px] sm:text-sm font-bold ${isCurrentDay ? 'text-cyan-400' : 'text-slate-400'}`}>
-                                                    {cell.day}
-                                                </span>
+                                            <span className={`text-[10px] sm:text-sm font-bold ${isCurrentDay ? 'text-cyan-400' : 'text-slate-400'}`}>
+                                                {cell.day}
+                                            </span>
+                                            <div className="flex gap-1">
                                                 {cell.weather && (
-                                                    <button 
-                                                        onClick={(e) => { e.stopPropagation(); setSelectedWeather({ weather: cell.weather!, date: cell.date }); }}
-                                                        className="flex items-center gap-1 bg-slate-700/50 hover:bg-slate-700 px-1 py-0.5 rounded cursor-pointer transition-colors w-fit"
-                                                    >
-                                                        <span className="text-xl sm:text-2xl leading-none" title="Vedi Previsioni Dettagliate">{cell.weather.icon}</span>
-                                                        <span className="text-[8px] sm:text-[9px] font-mono text-slate-300 leading-none flex flex-col">
-                                                            <span>{cell.weather.maxTemp}°</span>
-                                                            <span className="text-slate-500">{cell.weather.minTemp}°</span>
-                                                        </span>
+                                                    <button onClick={(e) => { e.stopPropagation(); setSelectedWeather(cell.weather || null); }} className="text-sm">
+                                                        {cell.weather.icon}
                                                     </button>
                                                 )}
+                                                {cell.hasGlobalChat && (
+                                                    <div className="bg-purple-900/50 p-0.5 rounded-full" title="Conversazione con Coach Generale">
+                                                        <GlobeIcon />
+                                                    </div>
+                                                )}
                                             </div>
-                                            {cell.hasGlobalChat && (
-                                                <div className="bg-purple-900/50 p-0.5 rounded-full absolute top-1 right-1" title="Conversazione con Coach Generale">
-                                                    <GlobeIcon />
-                                                </div>
-                                            )}
                                         </div>
                                         
-                                        <div className="space-y-1 flex-grow overflow-y-auto no-scrollbar mt-1">
+                                        <div className="space-y-1 flex-grow overflow-y-auto no-scrollbar">
                                             {cell.planned.map(workout => (
                                                 <div 
                                                     key={workout.id}
@@ -393,20 +343,12 @@ const DiaryView: React.FC<DiaryViewProps> = ({
                 </div>
 
                 {showAiCoach && (
-                    <div className="fixed inset-0 z-[5000] sm:z-20 sm:static sm:inset-auto w-full h-full sm:h-auto sm:max-h-[45%] sm:shrink-0 border-t border-slate-700 bg-slate-900 sm:bg-slate-800 flex flex-col animate-slide-up shadow-2xl pb-[env(safe-area-inset-bottom)]">
-                        <header className="p-4 sm:p-3 border-b border-slate-700 bg-slate-900 flex justify-between items-center flex-shrink-0">
+                    <div className="w-full h-auto max-h-[60%] shrink-0 border-t border-slate-700 bg-slate-800 flex flex-col animate-slide-up shadow-2xl z-20">
+                        <header className="p-3 border-b border-slate-700 bg-slate-900 flex justify-between items-center flex-shrink-0">
                             <h3 className="font-bold text-cyan-400 uppercase tracking-widest text-sm flex items-center gap-2">
-                                <SparklesIcon /> 
-                                <span className="sm:hidden">Coach AI - Generazione</span>
-                                <span className="hidden sm:inline">Prossime Sessioni Consigliate</span>
+                                <SparklesIcon /> Prossime Sessioni Consigliate
                             </h3>
-                            <button 
-                                onClick={() => setShowAiCoach(false)} 
-                                className="bg-slate-800 hover:bg-slate-700 text-white p-2 rounded-full sm:bg-transparent sm:p-0 sm:text-slate-500 sm:hover:text-white transition-colors"
-                            >
-                                <span className="sm:hidden"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72-3.72a.75.75 0 1 0 1.06-1.06L10 8.94 6.28 5.22Z" /></svg></span>
-                                <span className="hidden sm:inline">&times;</span>
-                            </button>
+                            <button onClick={() => setShowAiCoach(false)} className="text-slate-500 hover:text-white transition-colors">&times;</button>
                         </header>
                         <div className="flex-grow overflow-hidden relative bg-slate-900 sm:bg-transparent">
                             <AiTrainingCoachPanel 
@@ -417,6 +359,7 @@ const DiaryView: React.FC<DiaryViewProps> = ({
                                 layoutMode="horizontal"
                                 targetDate={aiTargetDate}
                                 onCheckAiAccess={(type) => onCheckAiAccess ? onCheckAiAccess(type) : true}
+                                onStartWorkout={onStartWorkout}
                             />
                         </div>
                     </div>
@@ -425,18 +368,22 @@ const DiaryView: React.FC<DiaryViewProps> = ({
 
             {selectedWeather && (
                 <WeatherDayPopup 
-                    weather={selectedWeather.weather} 
-                    date={selectedWeather.date} 
+                    weather={selectedWeather} 
+                    date={new Date(selectedWeather.dateStr)} 
                     onClose={() => setSelectedWeather(null)} 
                 />
             )}
 
-            {actionDate && (
+            {selectedDateForAction && onAddPlannedWorkout && (
                 <DiaryActionModal 
-                    date={actionDate}
-                    onClose={() => setActionDate(null)}
-                    onAddEntry={(entry) => { onAddPlannedWorkout?.(entry); setActionDate(null); }}
-                    onGenerateAi={handleAiRequest}
+                    date={selectedDateForAction} 
+                    onClose={() => setSelectedDateForAction(null)}
+                    onAddEntry={onAddPlannedWorkout}
+                    onGenerateAi={(date, mode, days) => {
+                        setAiTargetDate(date);
+                        setShowAiCoach(true);
+                        setSelectedDateForAction(null);
+                    }}
                 />
             )}
 
@@ -487,38 +434,23 @@ const DiaryView: React.FC<DiaryViewProps> = ({
                                     </button>
                                 </div>
                             ) : (
-                                <div className="space-y-3 mb-6">
-                                    {/* NUOVO PULSANTE AVVIA COACH */}
-                                    {onStartWorkout && (
-                                        <button 
-                                            onClick={() => {
-                                                if (onCheckAiAccess && !onCheckAiAccess('chat')) return; // Chat/Voice uses credits too
-                                                onStartWorkout(currentSelectedWorkout);
-                                                setSelectedWorkoutId(null);
-                                            }}
-                                            className="w-full bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white font-black py-4 rounded-xl shadow-xl transition-all active:scale-95 flex items-center justify-center gap-3 border border-white/10"
-                                        >
-                                            <HeadsetIcon />
-                                            AVVIA COACH VOCALE
-                                        </button>
-                                    )}
-
+                                <div className="mb-4">
                                     <button 
                                         onClick={() => setShowRescheduleModal(true)}
-                                        className="w-full bg-slate-700 hover:bg-slate-600 text-cyan-400 font-bold py-3 rounded-xl border border-cyan-500/30 transition-colors text-xs flex items-center justify-center gap-2"
+                                        className="w-full bg-slate-700 hover:bg-cyan-600 hover:text-white text-cyan-400 font-bold py-2 rounded-lg border border-cyan-500/30 transition-colors text-xs flex items-center justify-center gap-2"
                                     >
                                         <SparklesIcon /> Sposta con AI
                                     </button>
                                 </div>
                             )}
 
-                            <div className="flex gap-3 pt-4 border-t border-slate-700">
+                            <div className="flex gap-3">
                                 <button 
                                     onClick={() => {
                                         onDeletePlannedWorkout?.(currentSelectedWorkout.id);
                                         setSelectedWorkoutId(null);
                                     }}
-                                    className="flex-1 py-3 bg-red-900/10 text-red-400 border border-red-900/30 rounded-lg hover:bg-red-900/30 transition-colors font-bold text-sm"
+                                    className="flex-1 py-3 bg-red-900/20 text-red-400 border border-red-900/30 rounded-lg hover:bg-red-900/40 transition-colors font-bold text-sm"
                                 >
                                     Rimuovi
                                 </button>
