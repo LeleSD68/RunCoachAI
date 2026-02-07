@@ -77,14 +77,16 @@ const formatPace = (pace: number) => {
 // Helper per parsare valore e unità (es. "10 min" -> {val: 600, type: 'time'})
 const parseValueAndUnit = (rawVal: string, unit: string): { targetValue: number, targetType: 'time' | 'distance' } => {
     const val = parseFloat(rawVal.replace(',', '.'));
+    const u = unit.toLowerCase().trim();
     
     // Distanza
-    if (unit.startsWith('km') || unit.startsWith('chilometr')) return { targetValue: val * 1000, targetType: 'distance' };
-    if (unit.startsWith('m') && !unit.startsWith('min')) return { targetValue: val, targetType: 'distance' };
+    if (u.startsWith('km') || u.startsWith('chilometr')) return { targetValue: val * 1000, targetType: 'distance' };
+    if ((u.startsWith('m') && !u.startsWith('min')) || u === 'mt') return { targetValue: val, targetType: 'distance' };
     
     // Tempo
-    if (unit.startsWith('sec') || unit === '”' || unit === '"') return { targetValue: val, targetType: 'time' };
-    // Default minuti
+    if (u.startsWith('sec') || u === '”' || u === '"') return { targetValue: val, targetType: 'time' };
+    
+    // Default minuti (min, minuti, ')
     return { targetValue: val * 60, targetType: 'time' };
 };
 
@@ -95,16 +97,19 @@ const parseWorkoutStructure = (description: string, title: string): TrainingPhas
     const fullText = (title + " " + description).toLowerCase();
     const phases: TrainingPhase[] = [];
 
+    // Regex per unità di misura. 
+    // Importante: Esclude "min" se seguito da "/km" per non confondere il passo con la durata
+    const unitRegex = "(?:minuti|min(?!\\s*\\/\\s*km)|m(?!\\s*\\/\\s*s)|km|secondi|sec|'|”|chilometri|metri|mt)";
+
     // --- 1. RISCALDAMENTO (Warmup) ---
-    // Cerca esplicitamente "riscaldamento 10 min" o simili
-    const warmupRegex = /(?:riscaldamento|warmup)\s*(?:di|per)?\s*(\d+(?:[.,]\d+)?)\s*(min|m|km|secondi|sec|'|”|chilometri|metri)/i;
+    const warmupRegex = new RegExp(`(?:riscaldamento|warmup|risc)\\s*(?:di|per)?\\s*(\\d+(?:[.,]\\d+)?)\\s*(${unitRegex})`, 'i');
     const warmupMatch = fullText.match(warmupRegex);
 
     if (warmupMatch) {
         const { targetValue, targetType } = parseValueAndUnit(warmupMatch[1], warmupMatch[2]);
         phases.push({
             name: "Riscaldamento",
-            instruction: `Iniziamo. Riscaldamento di ${targetType === 'time' ? formatTime(targetValue) : targetValue + 'm'}.`,
+            instruction: `Iniziamo. Riscaldamento di ${targetType === 'time' ? formatTime(targetValue) : (targetValue >= 1000 ? (targetValue/1000).toFixed(2)+'km' : targetValue + 'm')}.`,
             targetValue,
             targetType,
             type: 'warmup'
@@ -119,7 +124,6 @@ const parseWorkoutStructure = (description: string, title: string): TrainingPhas
         // --- CASO A: RIPETUTE ---
         const count = parseInt(repMatch[1]);
         
-        // Se non c'era riscaldamento esplicito MA sono ripetute, mettiamo un default di 10 min
         if (phases.length === 0) {
             phases.push({ 
                 name: "Riscaldamento", 
@@ -131,14 +135,14 @@ const parseWorkoutStructure = (description: string, title: string): TrainingPhas
         }
 
         const textAfterReps = fullText.substring(fullText.indexOf(repMatch[0]) + repMatch[0].length);
-        const workRegex = /(?:da|di)?\s*(\d+(?:[.,]\d+)?)\s*(min|m|km|secondi|sec|'|”)/i;
+        const workRegex = new RegExp(`(?:da|di)?\\s*(\\d+(?:[.,]\\d+)?)\\s*(${unitRegex})`, 'i');
         const workMatch = textAfterReps.match(workRegex);
 
         if (workMatch) {
             const { targetValue: workTarget, targetType: workType } = parseValueAndUnit(workMatch[1], workMatch[2]);
             
             // Cerca recupero
-            const restRegex = /(?:recupero|rec|lento|piano|rest|off)\s*(\d+(?:[.,]\d+)?)\s*(min|m|km|secondi|sec|'|”)/i;
+            const restRegex = new RegExp(`(?:recupero|rec|lento|piano|rest|off)\\s*(\\d+(?:[.,]\\d+)?)\\s*(${unitRegex})`, 'i');
             const restMatch = textAfterReps.match(restRegex);
             
             let restTarget = 0;
@@ -149,7 +153,7 @@ const parseWorkoutStructure = (description: string, title: string): TrainingPhas
                 restTarget = res.targetValue;
                 restType = res.targetType;
             } else {
-                restTarget = 120; // Default 2 min se non specificato in ripetute
+                restTarget = 120; // Default 2 min se non specificato
             }
 
             for (let i = 1; i <= count; i++) {
@@ -176,21 +180,26 @@ const parseWorkoutStructure = (description: string, title: string): TrainingPhas
         }
     } else {
         // --- CASO B: CORSA CONTINUA / LIBERA ---
-        // Se non sono ripetute, cerchiamo la durata/distanza totale dell'allenamento
-        // Escludiamo la parte "riscaldamento" già parsata
-        
-        // Regex per trovare la parte principale (spesso "Corsa 30 min" o "Lungo 10km")
-        // Cerchiamo numeri che NON sono quelli del riscaldamento (se presente)
-        let mainWorkRegex = /(\d+(?:[.,]\d+)?)\s*(min|m|km|secondi|sec|'|”|chilometri|metri)/g;
+        // Ignoriamo la parte "riscaldamento" già parsata
+        const mainWorkRegex = new RegExp(`(\\d+(?:[.,]\\d+)?)\\s*(${unitRegex})`, 'gi');
         let match;
         let foundMain = false;
 
         while ((match = mainWorkRegex.exec(fullText)) !== null) {
             // Se questo match è identico a quello del riscaldamento (stessa stringa), saltalo
-            if (warmupMatch && match[0] === warmupMatch[0]) continue;
+            if (warmupMatch && match[0].trim() === warmupMatch[0].trim()) continue;
             
-            // Ignora anche defaticamento per ora
+            // Ignora se fa parte di "defaticamento"
             if (fullText.substring(Math.max(0, match.index - 15), match.index).includes('defaticamento')) continue;
+            
+            // Ignora se fa parte di un'indicazione di passo (es "a 5.30 min/km")
+            // Il regex unitRegex esclude già "min" se seguito da "/km", ma controlliamo il contesto precedente per sicurezza (es "a 5:30")
+            const prevText = fullText.substring(Math.max(0, match.index - 10), match.index);
+            if (prevText.includes('passo') || prevText.includes('a ') || prevText.includes('@')) {
+                 // Potrebbe essere un passo, ma se l'unità è valida (es "10 km") allora è distanza.
+                 // Se l'unità è "min" e precede "/km", il regex l'ha già escluso.
+                 // Se è "5 min" allora è durata. OK.
+            }
 
             const { targetValue, targetType } = parseValueAndUnit(match[1], match[2]);
             
@@ -206,7 +215,6 @@ const parseWorkoutStructure = (description: string, title: string): TrainingPhas
         }
 
         if (!foundMain) {
-            // Se non troviamo nulla e non c'è nemmeno riscaldamento, mettiamo default
             if (phases.length === 0) {
                 phases.push({ name: "Corsa Libera", instruction: "Allenamento libero. Corri a sensazione.", targetValue: 3600, targetType: 'time', type: 'work' });
             }
@@ -214,7 +222,7 @@ const parseWorkoutStructure = (description: string, title: string): TrainingPhas
     }
 
     // --- 3. DEFATICAMENTO (Cooldown) ---
-    const cooldownRegex = /(?:defaticamento|cooldown)\s*(?:di|per)?\s*(\d+(?:[.,]\d+)?)\s*(min|m|km|secondi|sec|'|”)/i;
+    const cooldownRegex = new RegExp(`(?:defaticamento|cooldown)\\s*(?:di|per)?\\s*(\\d+(?:[.,]\\d+)?)\\s*(${unitRegex})`, 'i');
     const cooldownMatch = fullText.match(cooldownRegex);
 
     if (cooldownMatch) {
@@ -227,7 +235,6 @@ const parseWorkoutStructure = (description: string, title: string): TrainingPhas
             type: 'cooldown'
         });
     } else if (repMatch) {
-        // Se erano ripetute, aggiungi defaticamento standard se non specificato
         phases.push({ name: "Defaticamento", instruction: "Lavoro finito! Corsetta sciolta.", targetValue: 300, targetType: 'time', type: 'cooldown' });
     }
 
