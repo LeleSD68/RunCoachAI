@@ -9,14 +9,6 @@ export type CalendarPreference = 'google' | 'apple';
 
 export type SubscriptionTier = 'free' | 'pro' | 'elite';
 
-export interface WorkoutPhase {
-    type: 'warmup' | 'work' | 'rest' | 'cooldown';
-    targetType: 'distance' | 'time';
-    targetValue: number; // meters or seconds
-    paceTarget?: number; // seconds per km (e.g. 380 for 6:20/km) - Optional
-    description?: string; // "5 km a 6:20"
-}
-
 export interface TrackPoint {
   lat: number;
   lon: number;
@@ -95,7 +87,6 @@ export interface PlannedWorkout {
     startTime?: string; 
     endTime?: string; 
     isGoogleSynced?: boolean;
-    structure?: WorkoutPhase[]; // Structured workout data from AI
 }
 
 export interface UserProfile {
