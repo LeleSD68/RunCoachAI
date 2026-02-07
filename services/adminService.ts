@@ -49,7 +49,9 @@ export const getAdminStats = async (): Promise<AdminStats> => {
         lastSeenAt: u.last_seen_at,
         logins24h: u.logins_24h,
         logins7d: u.logins_7d,
-        logins30d: u.logins_30d
+        logins30d: u.logins_30d,
+        aiTokens: u.ai_tokens,
+        aiRequests: u.ai_requests
     }));
 
     return {
