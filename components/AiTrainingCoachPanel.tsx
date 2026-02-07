@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Type } from '@google/genai';
-import { Track, TrackStats, UserProfile, PlannedWorkout, ActivityType, WorkoutPhase } from '../types';
+import { Track, TrackStats, UserProfile, PlannedWorkout, ActivityType } from '../types';
 import { calculateTrackStats } from '../services/trackStatsService';
 import FormattedAnalysis from './FormattedAnalysis';
 import { getGenAI, retryWithPolicy } from '../services/aiHelper';
@@ -125,6 +125,7 @@ const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({
                 const prompt = `Sei un Running Coach Professionale.
                 
                 STILE: Italiano tecnico, sintetico.
+                
                 PROFILO: Nome ${userName}, Obiettivi: ${goalsStr}.
                 
                 STORICO RECENTE:
@@ -137,23 +138,22 @@ const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({
                 COMPITO:
                 ${taskDescription}
                 
-                IMPORTANTE: DEVI fornire una "structuredMenu" (array di fasi) che il Virtual Coach userà per guidare vocalmente l'atleta.
-                Esempio logica: Se l'allenamento è "5km a 6:20/km" -> targetType: "distance", targetValue: 5000, paceTarget: 380 (secondi/km).
-                
-                Struttura JSON richiesta per ogni allenamento:
+                REGOLE CRITICHE:
+                1. Analizza gli IMPEGNI: se un atleta è occupato tutto il giorno o ha un impegno lungo, NON pianificare sessioni dure o suggerisci il riposo.
+                2. Leggi le NOTE: se l'atleta segnala stanchezza o dolori, adatta il carico.
+                3. Se c'è un conflitto con un impegno, proponi una soluzione (es. "Visto l'impegno mattutino, corri la sera").
+
+                Rispondi esclusivamente con un array JSON:
                 [{
                     "title": string,
                     "activityType": "Lento"|"Fartlek"|"Ripetute"|"Lungo"|"Gara"|"Recupero",
                     "date": "YYYY-MM-DD",
-                    "structure": "Sintesi testuale",
-                    "description": "Descrizione motivazionale/tecnica",
+                    "structure": "Sintesi (es. 5km Lento)",
+                    "description": "Istruzioni dettagliate includendo adattamenti basati su impegni/note.",
                     "estimatedDuration": string,
                     "estimatedDistance": string,
                     "targetHeartRate": string,
-                    "conflictReasoning": "Motivazione scelta",
-                    "workoutPhases": [ 
-                       { "type": "warmup"|"work"|"rest"|"cooldown", "targetType": "time"|"distance", "targetValue": number (sec o metri), "paceTarget": number (sec/km, opzionale), "description": string }
-                    ]
+                    "conflictReasoning": "Perché hai scelto questo in base agli impegni esistenti?"
                 }]`;
 
                 return await ai.models.generateContent({
@@ -174,23 +174,9 @@ const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({
                                     estimatedDuration: { type: Type.STRING },
                                     estimatedDistance: { type: Type.STRING },
                                     targetHeartRate: { type: Type.STRING },
-                                    conflictReasoning: { type: Type.STRING },
-                                    workoutPhases: {
-                                        type: Type.ARRAY,
-                                        items: {
-                                            type: Type.OBJECT,
-                                            properties: {
-                                                type: { type: Type.STRING, enum: ['warmup', 'work', 'rest', 'cooldown'] },
-                                                targetType: { type: Type.STRING, enum: ['time', 'distance'] },
-                                                targetValue: { type: Type.NUMBER, description: "Seconds for time, Meters for distance" },
-                                                paceTarget: { type: Type.NUMBER, description: "Target Pace in seconds per km (e.g. 300 for 5:00/km)" },
-                                                description: { type: Type.STRING }
-                                            },
-                                            required: ['type', 'targetType', 'targetValue', 'description']
-                                        }
-                                    }
+                                    conflictReasoning: { type: Type.STRING }
                                 },
-                                required: ['title', 'activityType', 'date', 'structure', 'description', 'estimatedDuration', 'estimatedDistance', 'targetHeartRate', 'workoutPhases']
+                                required: ['title', 'activityType', 'date', 'structure', 'description', 'estimatedDuration', 'estimatedDistance', 'targetHeartRate']
                             }
                         }
                     }
@@ -202,7 +188,6 @@ const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({
             setSuggestions(data);
             (window as any).gpxApp?.addTokens(response.usageMetadata?.totalTokenCount ?? 0);
         } catch (e) {
-            console.error(e);
             setError("Il Coach AI non è riuscito ad analizzare il tuo diario.");
         } finally {
             setIsGenerating(false);
@@ -211,11 +196,6 @@ const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({
 
     const handleImport = (suggestion: any, index: number) => {
         if (!onAddPlannedWorkout) return;
-        
-        // Embed the structured phases into the object (will be serialized if saved to DB/LocalStorage)
-        // For compatibility with simple string description, we append a magic string if needed, 
-        // but now PlannedWorkout supports `structure` field directly in our types.
-        
         const entry: PlannedWorkout = {
             id: `ai-gen-${Date.now()}`,
             title: suggestion.title,
@@ -223,8 +203,7 @@ const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({
             date: new Date(suggestion.date),
             activityType: suggestion.activityType as ActivityType,
             isAiSuggested: true,
-            entryType: 'workout',
-            structure: suggestion.workoutPhases as WorkoutPhase[]
+            entryType: 'workout'
         };
         onAddPlannedWorkout(entry);
         setSavedIndex(index);
@@ -264,20 +243,6 @@ const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({
                                 </div>
                             )}
                             <p className="text-xs text-slate-300 line-clamp-4 italic">"{s.description}"</p>
-                            
-                            {/* Visual Phase Preview */}
-                            {s.workoutPhases && s.workoutPhases.length > 0 && (
-                                <div className="flex gap-1 h-2 w-full mt-2 rounded-full overflow-hidden bg-slate-700">
-                                    {s.workoutPhases.map((p: any, idx: number) => {
-                                        let color = 'bg-slate-500';
-                                        if (p.type === 'warmup') color = 'bg-amber-500';
-                                        if (p.type === 'work') color = 'bg-green-500';
-                                        if (p.type === 'rest') color = 'bg-blue-500';
-                                        return <div key={idx} className={`h-full ${color}`} style={{ flex: p.targetValue || 1 }}></div>
-                                    })}
-                                </div>
-                            )}
-
                             <div className="grid grid-cols-2 gap-2 text-[10px] font-bold uppercase text-slate-500">
                                 <div className="bg-slate-900/50 p-2 rounded">📏 {s.estimatedDistance}</div>
                                 <div className="bg-slate-900/50 p-2 rounded">❤️ {s.targetHeartRate}</div>

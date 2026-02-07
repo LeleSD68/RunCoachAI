@@ -7,9 +7,7 @@ interface StravaSyncModalProps {
     onClose: () => void;
     onImportFinished: (tracks: Track[]) => void;
     lastSyncDate: Date | null;
-    autoStart?: boolean; 
-    isAutoSyncEnabled?: boolean;
-    onToggleAutoSync?: (enabled: boolean) => void;
+    autoStart?: boolean; // Nuova prop per avvio automatico
 }
 
 const StravaLogo = () => (
@@ -18,7 +16,7 @@ const StravaLogo = () => (
     </svg>
 );
 
-const StravaSyncModal: React.FC<StravaSyncModalProps> = ({ onClose, onImportFinished, lastSyncDate, autoStart = false, isAutoSyncEnabled, onToggleAutoSync }) => {
+const StravaSyncModal: React.FC<StravaSyncModalProps> = ({ onClose, onImportFinished, lastSyncDate, autoStart = false }) => {
     const [view, setView] = useState<'options' | 'range' | 'select'>('options');
     const [loading, setLoading] = useState(false);
     const [activities, setActivities] = useState<any[]>([]);
@@ -41,11 +39,10 @@ const StravaSyncModal: React.FC<StravaSyncModalProps> = ({ onClose, onImportFini
             }
             
             setView('select');
-        } catch (e: any) {
-            console.error("Strava Fetch Error", e);
-            // Show alert/toast even on auto-start to inform user
-            alert(`Errore sincronizzazione Strava: ${e.message || "Controlla la connessione o riconnetti l'account."}`);
-            if (autoStart) onClose();
+        } catch (e) {
+            // Se fallisce in auto-start, non mostrare alert invasivi, chiudi solo o logga
+            if (!autoStart) alert("Impossibile caricare le attività da Strava.");
+            else console.error(e);
         } finally {
             setLoading(false);
         }
@@ -137,18 +134,6 @@ const StravaSyncModal: React.FC<StravaSyncModalProps> = ({ onClose, onImportFini
                                 <div className="font-black text-white text-sm uppercase">Lista Completa</div>
                                 <p className="text-xs text-slate-400">Vedi le ultime 50 attività e scegli cosa salvare.</p>
                             </button>
-
-                            {onToggleAutoSync && (
-                                <div className="mt-4 pt-4 border-t border-slate-800 flex items-center justify-between">
-                                    <span className="text-xs text-slate-400">Sync automatico all'avvio</span>
-                                    <button 
-                                        onClick={() => onToggleAutoSync(!isAutoSyncEnabled)}
-                                        className={`w-10 h-5 rounded-full relative transition-colors ${isAutoSyncEnabled ? 'bg-green-500' : 'bg-slate-700'}`}
-                                    >
-                                        <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-transform ${isAutoSyncEnabled ? 'left-6' : 'left-1'}`}></div>
-                                    </button>
-                                </div>
-                            )}
                         </div>
                     ) : view === 'range' ? (
                         <div className="space-y-4 animate-fade-in-right">
