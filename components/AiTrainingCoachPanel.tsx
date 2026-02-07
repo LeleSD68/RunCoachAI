@@ -214,8 +214,6 @@ const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({
     const handleImport = (suggestion: any, index: number) => {
         if (!onAddPlannedWorkout) return;
         
-        // Convert structured phases back to readable text for the Description field
-        // This ensures Calendar Exports and the Diary View show useful info even without the structured player
         let textualProgram = "";
         if (suggestion.workoutPhases && suggestion.workoutPhases.length > 0) {
             textualProgram = "\n\n**PROGRAMMA DETTAGLIATO:**\n" + suggestion.workoutPhases.map((p: any) => `- ${formatPhaseText(p)}`).join('\n');
@@ -236,6 +234,9 @@ const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({
         onAddPlannedWorkout(entry);
         setSavedIndex(index);
         setTimeout(() => setSavedIndex(null), 2000);
+        
+        // Return entry for immediate start usage
+        return entry;
     };
 
     return (
@@ -308,12 +309,27 @@ const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({
                                 <div className="bg-slate-900/50 p-2 rounded">📏 {s.estimatedDistance}</div>
                                 <div className="bg-slate-900/50 p-2 rounded">❤️ {s.targetHeartRate}</div>
                             </div>
-                            <button 
-                                onClick={() => handleImport(s, i)}
-                                className={`w-full py-2.5 rounded-xl font-black text-[10px] uppercase transition-all ${savedIndex === i ? 'bg-green-600 text-white' : 'bg-cyan-600 hover:bg-cyan-500 text-white'}`}
-                            >
-                                {savedIndex === i ? 'Salvato ✓' : 'Aggiungi al Diario'}
-                            </button>
+                            
+                            <div className="flex gap-2">
+                                <button 
+                                    onClick={() => handleImport(s, i)}
+                                    className={`flex-1 py-2.5 rounded-xl font-black text-[10px] uppercase transition-all ${savedIndex === i ? 'bg-green-600 text-white' : 'bg-cyan-600 hover:bg-cyan-500 text-white'}`}
+                                >
+                                    {savedIndex === i ? 'Salvato ✓' : 'Aggiungi al Diario'}
+                                </button>
+                                {onStartWorkout && (
+                                    <button 
+                                        onClick={() => {
+                                            const entry = handleImport(s, i);
+                                            if (entry) onStartWorkout(entry);
+                                        }}
+                                        className="px-3 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-bold transition-all shadow-lg active:scale-95"
+                                        title="Avvia Subito"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.647c1.295.742 1.295 2.545 0 3.286L7.279 20.99c-1.25.717-2.779-.217-2.779-1.643V5.653Z" clipRule="evenodd" /></svg>
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </div>
                 ))}
