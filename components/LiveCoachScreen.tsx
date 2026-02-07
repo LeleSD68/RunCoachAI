@@ -331,11 +331,7 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
         
         let msg = `${phase.name}. `;
         
-        // Read full instruction description if available and not just the name
-        // The humanizer will strip symbols like * and @ from this description
-        if (phase.instruction && phase.instruction.toLowerCase() !== phase.name.toLowerCase()) {
-            msg += `${phase.instruction}. `;
-        }
+        // Removed explicit instruction reading. Only critical metrics.
 
         // Add explicit duration/distance target
         if (phase.targetType === 'distance') {
