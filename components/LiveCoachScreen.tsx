@@ -1,6 +1,8 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { GoogleGenAI } from "@google/genai";
 import { PlannedWorkout, WorkoutPhase } from '../types';
+import { getEffectiveApiKey } from '../services/aiHelper';
 
 interface LiveCoachScreenProps {
     workout: PlannedWorkout | null; // Null means "Free Run"
@@ -18,6 +20,7 @@ interface TrainingPhase extends WorkoutPhase {
 // Icons
 const VolumeUpIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 0 0 1.5 12c0 2.485.565 4.817 1.577 6.92.26 1.157 1.439 1.77 2.583 1.77h1.012l3.768 3.768c.944.944 2.56.276 2.56-1.06V4.06ZM18.9 12c0-1.656-.67-3.156-1.755-4.243a.75.75 0 0 1 1.06-1.061 7.5 7.5 0 0 1 0 10.608.75.75 0 0 1-1.06-1.06C18.23 15.156 18.9 13.656 18.9 12ZM17.25 12a5.25 5.25 0 0 0-1.537-3.713.75.75 0 1 1 1.06-1.06 6.75 6.75 0 0 1 0 9.546.75.75 0 1 1-1.06-1.06A5.25 5.25 0 0 0 17.25 12Z" /></svg>);
 const VolumeOffIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 0 0 1.5 12c0 2.485.565 4.817 1.577 6.92.26 1.157 1.439 1.77 2.583 1.77h1.012l3.768 3.768c.944.944 2.56.276 2.56-1.06V4.06Z" /><path d="M17.78 9.22a.75.75 0 1 0-1.06 1.06L18.44 12l-1.72 1.72a.75.75 0 1 0 1.06 1.06l1.72-1.72 1.72 1.72a.75.75 0 1 0 1.06-1.06L20.56 12l1.72-1.72a.75.75 0 1 0-1.06-1.06l-1.72 1.72-1.72-1.72Z" /></svg>);
+const BrainIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M10.89 2.11a.75.75 0 0 0-1.78 0l-1.5 3.22-3.53.51a.75.75 0 0 0-.42 1.28l2.55 2.49-.6 3.52a.75.75 0 0 0 1.09.79l3.16-1.66 3.16 1.66a.75.75 0 0 0 1.09-.79l-.6-3.52 2.55-2.49a.75.75 0 0 0-.42-1.28l-3.53-.51-1.5-3.22Z" /></svg>);
 
 // Haversine formula for distance between two coords (in meters)
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -50,54 +53,35 @@ const formatPace = (pace: number) => {
 
 // Helper for Legacy Parsing (fallback)
 const parseValueAndUnit = (text: string): { targetValue: number, targetType: 'time' | 'distance' } | null => {
-    // Regex matches "2.5 km", "10k", "500 m", "10 min", "30 sec"
-    // Handles dots/commas and spacing
     const regex = /(\d+(?:[.,]\d+)?)\s*(k|km|chilometr|m|metri|min|minuti|sec|secondi|'|”|")/i;
     const match = text.match(regex);
-    
     if (!match) return null;
-    
     const val = parseFloat(match[1].replace(',', '.'));
     const unit = match[2].toLowerCase();
-
-    // 'k' shorthand (10k, 1k) or 'km'
     if (unit === 'k' || unit.startsWith('km') || unit.startsWith('chil')) return { targetValue: val * 1000, targetType: 'distance' };
-    
-    if (unit.startsWith('m') && !unit.startsWith('min')) return { targetValue: val, targetType: 'distance' }; // 'm' or 'metri'
-    
+    if (unit.startsWith('m') && !unit.startsWith('min')) return { targetValue: val, targetType: 'distance' };
     if (unit.startsWith('min') || unit === "'") return { targetValue: val * 60, targetType: 'time' };
-    
-    // Seconds
     return { targetValue: val, targetType: 'time' };
 };
 
 const parsePace = (text: string): number | undefined => {
-    // Matches "@ 5:30", "a 5.30", "ritmo 5:30"
     const regex = /(?:@|a|ritmo)\s*(\d{1,2})[:.](\d{2})/i;
     const match = text.match(regex);
-    if (match) {
-        return parseInt(match[1]) * 60 + parseInt(match[2]);
-    }
+    if (match) return parseInt(match[1]) * 60 + parseInt(match[2]);
     return undefined;
 };
 
-/**
- * Line-by-line robust parser that mimics exactly what the user reads in the text.
- */
 const parseLegacyWorkoutStructure = (description: string, title: string): TrainingPhase[] => {
-    const lines = description.split(/\n+/); // Split by lines
+    const lines = description.split(/\n+/);
     const phases: TrainingPhase[] = [];
-    
     let repCounter = 0;
     let totalReps = 0;
-
     const workLines = lines.filter(l => l.toLowerCase().includes('veloce') || l.toLowerCase().includes('ripetuta') || l.toLowerCase().includes('frazione')).length;
     if (workLines > 1) totalReps = workLines;
 
     for (const line of lines) {
         const lowerLine = line.toLowerCase().trim();
         if (!lowerLine || lowerLine.length < 5) continue;
-
         let type: 'warmup' | 'work' | 'rest' | 'cooldown' | 'other' = 'other';
         if (lowerLine.includes('riscaldamento') || lowerLine.includes('warmup')) type = 'warmup';
         else if (lowerLine.includes('defaticamento') || lowerLine.includes('cooldown')) type = 'cooldown';
@@ -105,26 +89,15 @@ const parseLegacyWorkoutStructure = (description: string, title: string): Traini
         else if (lowerLine.includes('veloce') || lowerLine.includes('ripetuta') || lowerLine.includes('frazione') || lowerLine.includes('gara') || lowerLine.includes('fartlek')) type = 'work';
         
         if (lowerLine.startsWith('info:') || lowerLine.startsWith('obiettivo:')) continue;
-
         const metric = parseValueAndUnit(line);
-        if (!metric && type === 'other') continue; 
-
         if (!metric) continue; 
-
         const pace = parsePace(line);
-        
         let name = "Fase";
         if (type === 'warmup') name = "Riscaldamento";
         if (type === 'cooldown') name = "Defaticamento";
-        if (type === 'work') {
-            repCounter++;
-            name = totalReps > 1 ? `Ripetuta ${repCounter}` : "Fase Veloce";
-        }
+        if (type === 'work') { repCounter++; name = totalReps > 1 ? `Ripetuta ${repCounter}` : "Fase Veloce"; }
         if (type === 'rest') name = "Recupero";
-
-        // Clean up instructions for visual display (keep numbers for visual, but we will process them for audio later)
         let cleanInstruction = line.replace(/^[-*•]\s*/, '').trim();
-        // Remove markdown bold from instruction
         cleanInstruction = cleanInstruction.replace(/\*\*/g, '');
 
         phases.push({
@@ -137,67 +110,38 @@ const parseLegacyWorkoutStructure = (description: string, title: string): Traini
             repInfo: (type === 'work' || type === 'rest') && totalReps > 1 ? { current: repCounter, total: totalReps } : undefined
         });
     }
-
     if (phases.length === 0) {
-        phases.push({ 
-            name: "Allenamento Libero", 
-            instruction: description || "Corri a sensazione.", 
-            targetValue: 3600, 
-            targetType: 'time', 
-            type: 'work' 
-        });
+        phases.push({ name: "Corsa Libera", instruction: description || "Corri a sensazione.", targetValue: 3600, targetType: 'time', type: 'work' });
     }
-
     return phases;
 };
 
 // --- HUMANIZER HELPERS ---
 const humanizeText = (text: string): string => {
     let t = text.toLowerCase();
-
-    // 1. Remove Symbols and Markdown that shouldn't be read
-    t = t.replace(/[*@]/g, ''); // Removes * and @
-    t = t.replace(/\*\*(.*?)\*\*/g, '$1'); // Strips bold markers but keeps content
-
-    // 2. Handle Shorthand Units (1k, 10k)
-    // Needs to happen before general replacements
+    t = t.replace(/[*@]/g, ''); 
+    t = t.replace(/\*\*(.*?)\*\*/g, '$1'); 
     t = t.replace(/\b(\d+)\s?k\b/gi, '$1 chilometri');
-
-    // 3. Smart Decimal Distance Handling
-    // Matches "1.5 km", "1,5 k", "1.2 chilometri"
     t = t.replace(/(\d+)[.,](\d+)\s*(k|km|chilometri)/gi, (match, whole, dec, unit) => {
         const w = parseInt(whole);
         let dStr = dec;
-        
-        // Normalize decimal part to meters (e.g. .5 -> 500, .2 -> 200, .25 -> 250)
-        // Assume max 3 digits for meters
         while (dStr.length < 3) dStr += '0';
         dStr = dStr.substring(0, 3);
         const meters = parseInt(dStr);
-
         let wText = w === 1 ? "un chilometro" : `${w} chilometri`;
-        
         if (meters === 0) return wText;
         if (meters === 500) return `${wText} e mezzo`;
         if (meters > 0) return `${wText} e ${meters} metri`;
         return wText;
     });
-
-    // 4. Fix Thousands separators in Meters (1.500 m -> millecinquecento)
-    // Remove dots followed by 3 digits and 'm' or 'metri'
     t = t.replace(/(\d)\.(\d{3})\s*(m|metri)/g, '$1$2 metri'); 
-
-    // 5. General Replacements & Units expansion
-    t = t.replace(/\//g, ' su '); // e.g. min/km -> minuti su chilometro
+    t = t.replace(/\//g, ' su '); 
     t = t.replace(/-/g, ' '); 
     t = t.replace(/km/g, 'chilometri');
     t = t.replace(/\bmt\b/g, 'metri');
     t = t.replace(/\bmin\b/g, 'minuti');
     t = t.replace(/\bsec\b/g, 'secondi');
-    
-    // 6. Pace formatting: 5:30 -> 5 e 30
     t = t.replace(/(\d{1,2}):(\d{2})/g, '$1 e $2');
-
     return t;
 };
 
@@ -206,20 +150,14 @@ const getDistanceSpeech = (meters: number): string => {
         const km = meters / 1000;
         if (km === 1) return "un chilometro";
         if (km === 1.5) return "un chilometro e mezzo";
-        
-        // Check for .X decimals to read naturally
         const whole = Math.floor(km);
         const decimal = km - whole;
-        
         if (decimal === 0) return `${whole} chilometri`;
-        
         const m = Math.round(decimal * 1000);
         let wText = whole === 1 ? "un chilometro" : `${whole} chilometri`;
-        if (whole === 0) wText = ""; // e.g. 0.5km -> 500m logic handled elsewhere usually, but if here:
-        
+        if (whole === 0) wText = "";
         if (m === 500) return `${wText} e mezzo`;
         if (m > 0) return whole > 0 ? `${wText} e ${m} metri` : `${m} metri`;
-        
         return `${km.toFixed(2).replace('.', ' virgola ')} chilometri`;
     }
     return `${Math.round(meters)} metri`;
@@ -239,6 +177,11 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
     const [currentPhaseIndex, setCurrentPhaseIndex] = useState(0);
     const [isMuted, setIsMuted] = useState(false);
     const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+    
+    // AI Mode State
+    const [isAiMode, setIsAiMode] = useState(false);
+    const [isAiThinking, setIsAiThinking] = useState(false);
+    const [aiTokensUsed, setAiTokensUsed] = useState(0);
     
     const [totalTime, setTotalTime] = useState(0);
     const [totalDistance, setTotalDistance] = useState(0); 
@@ -307,7 +250,7 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
         
         window.speechSynthesis.cancel();
         
-        // Apply humanization
+        // Apply humanization only if standard mode or if AI text needs cleanup
         const cleanText = humanizeText(text);
 
         const u = new SpeechSynthesisUtterance(cleanText);
@@ -324,30 +267,88 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
         window.speechSynthesis.speak(u);
     }, [isMuted, voices]);
 
+    // AI Generation Logic
+    const generateAiFeedback = async (contextType: 'phase_change' | 'feedback', data: any) => {
+        const apiKey = getEffectiveApiKey();
+        if (!isAiMode || !apiKey) return null;
+
+        setIsAiThinking(true);
+        try {
+            const ai = new GoogleGenAI({ apiKey });
+            
+            const systemInstr = `Sei un Running Coach in tempo reale. Stai parlando all'atleta MENTRE corre.
+            Obiettivo: ${workout?.title || 'Corsa Libera'}.
+            Sii brevissimo, chiaro, motivante. 
+            NON usare simboli (*, #). 
+            Rispondi in ITALIANO parlato naturale.`;
+
+            let prompt = "";
+            if (contextType === 'phase_change') {
+                prompt = `Nuova fase: ${data.name}. Obiettivo: ${data.target}. Ritmo target: ${data.pace || 'Libero'}. Dai l'istruzione secca.`;
+            } else {
+                prompt = `Stato attuale: Passo ${data.pace}, Fase ${data.phaseName}. Target ${data.targetPace || 'Nessuno'}. 
+                L'atleta sta andando ${data.diffStatus}. Dagli un feedback correttivo o di supporto rapido (max 10 parole).`;
+            }
+
+            const response = await ai.models.generateContent({
+                model: 'gemini-3-flash-preview',
+                contents: prompt,
+                config: {
+                    maxOutputTokens: 60, // Keep it short for TTS
+                    systemInstruction: systemInstr
+                }
+            });
+
+            if (response.usageMetadata?.totalTokenCount) {
+                setAiTokensUsed(prev => prev + response.usageMetadata!.totalTokenCount);
+            }
+
+            return response.text;
+        } catch (e) {
+            console.error("AI Generation Error", e);
+            return null; // Fallback to standard
+        } finally {
+            setIsAiThinking(false);
+        }
+    };
+
     // Phase Change Announcer
     useEffect(() => {
         if (!isRunning || phases.length === 0) return;
         const phase = phases[currentPhaseIndex];
         
-        let msg = `${phase.name}. `;
-        
-        // Removed explicit instruction reading. Only critical metrics.
+        const announcePhase = async () => {
+            let msg = "";
+            
+            if (isAiMode) {
+                const aiMsg = await generateAiFeedback('phase_change', {
+                    name: phase.name,
+                    target: phase.targetType === 'distance' ? `${(phase.targetValue/1000).toFixed(2)}km` : `${(phase.targetValue/60).toFixed(0)}min`,
+                    pace: phase.paceTarget ? formatPace(phase.paceTarget/60) : null
+                });
+                if (aiMsg) {
+                    speak(aiMsg);
+                    return;
+                }
+            }
 
-        // Add explicit duration/distance target
-        if (phase.targetType === 'distance') {
-            msg += `Per ${getDistanceSpeech(phase.targetValue)}. `;
-        } else {
-            msg += `Per ${getTimeSpeech(phase.targetValue)}. `;
-        }
+            // Standard Fallback
+            msg = `${phase.name}. `;
+            if (phase.targetType === 'distance') {
+                msg += `Per ${getDistanceSpeech(phase.targetValue)}. `;
+            } else {
+                msg += `Per ${getTimeSpeech(phase.targetValue)}. `;
+            }
+            if (phase.paceTarget) {
+                const min = Math.floor(phase.paceTarget / 60);
+                const sec = phase.paceTarget % 60;
+                msg += `Ritmo: ${min} e ${sec}.`;
+            }
+            speak(msg);
+        };
 
-        if (phase.paceTarget) {
-            const min = Math.floor(phase.paceTarget / 60);
-            const sec = phase.paceTarget % 60;
-            msg += `Ritmo: ${min} e ${sec}.`;
-        }
-        
-        speak(msg);
-    }, [currentPhaseIndex, isRunning, phases, speak]);
+        announcePhase();
+    }, [currentPhaseIndex, isRunning, phases, speak, isAiMode]);
 
     // Timer Loop
     useEffect(() => {
@@ -442,35 +443,55 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
         };
     }, [isRunning, phases, currentPhaseIndex, speak]);
 
-    const provideFeedback = (phase: TrainingPhase, currentPace: number) => {
+    const provideFeedback = async (phase: TrainingPhase, currentPace: number) => {
+        let diffStatus = 'ok';
+        let targetPaceFormatted = null;
+
         if (phase.paceTarget) {
             const targetPaceMinKm = phase.paceTarget / 60; 
             const diff = currentPace - targetPaceMinKm;
-            // Tolerance +/- 10 sec/km (~0.16 min/km)
             const tolerance = 0.16;
 
-            if (diff > tolerance) {
-                // Slower -> Pace number is higher
-                const min = Math.floor(currentPace);
-                const sec = Math.round((currentPace - min) * 60);
-                speak(`Sei lento. Vai a ${min} e ${sec}. Accelera.`);
-            } else if (diff < -tolerance) {
-                // Faster -> Pace number is lower
-                const min = Math.floor(currentPace);
-                const sec = Math.round((currentPace - min) * 60);
-                speak(`Troppo veloce. Vai a ${min} e ${sec}. Rallenta.`);
-            } else {
-                speak("Ritmo perfetto.");
+            if (diff > tolerance) diffStatus = 'slow';
+            else if (diff < -tolerance) diffStatus = 'fast';
+            
+            targetPaceFormatted = formatPace(targetPaceMinKm);
+        } else {
+            // General heuristics
+            if (phase.type === 'work' && currentPace > 6.5) diffStatus = 'slow';
+            if (phase.type === 'rest' && currentPace < 6.0) diffStatus = 'fast'; 
+        }
+
+        if (diffStatus === 'ok') {
+            if (Math.random() > 0.7 && isAiMode) { // Occasional praise in AI mode
+                 const aiMsg = await generateAiFeedback('feedback', { pace: formatPace(currentPace), phaseName: phase.name, diffStatus: 'good' });
+                 if (aiMsg) speak(aiMsg);
             }
             return;
         }
 
-        // Generic feedback based on phase type if no specific target
-        if (phase.type === 'work') {
-            if (currentPace > 6.5) speak("Spingi di più.");
-            else if (currentPace < 4.0) speak("Ottimo ritmo!");
-        } else if (phase.type === 'rest') {
-            if (currentPace < 6.0) speak("Recupera, rallenta il passo.");
+        if (isAiMode) {
+            const aiMsg = await generateAiFeedback('feedback', { 
+                pace: formatPace(currentPace), 
+                phaseName: phase.name, 
+                targetPace: targetPaceFormatted, 
+                diffStatus: diffStatus === 'slow' ? 'troppo lento' : 'troppo veloce' 
+            });
+            if (aiMsg) {
+                speak(aiMsg);
+                return;
+            }
+        }
+
+        // Standard Feedback
+        if (diffStatus === 'slow') {
+            const min = Math.floor(currentPace);
+            const sec = Math.round((currentPace - min) * 60);
+            speak(`Sei lento. Vai a ${min} e ${sec}. Accelera.`);
+        } else if (diffStatus === 'fast') {
+            const min = Math.floor(currentPace);
+            const sec = Math.round((currentPace - min) * 60);
+            speak(`Troppo veloce. Vai a ${min} e ${sec}. Rallenta.`);
         }
     };
 
@@ -487,7 +508,6 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
 
     const handleToggle = () => {
         if (!isRunning) {
-            // UNLOCK AUDIO CONTEXT ON START/RESUME
             speak(totalTime === 0 ? "Iniziamo l'allenamento." : "Riprendo.", true);
         } else {
             speak("Allenamento in pausa.");
@@ -518,6 +538,16 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
             paceBufferRef.current = [];
         } else {
             speak("Ultima fase.");
+        }
+    };
+
+    const handleFinish = () => {
+        if(confirm(`Terminare l'allenamento? ${isAiMode ? `(Costo AI stimato: ${aiTokensUsed} token)` : ''}`)) {
+            if (isAiMode && aiTokensUsed > 0) {
+                alert(`Sessione terminata.\nToken AI Utilizzati: ${aiTokensUsed}\nCosto stimato: $${(aiTokensUsed * 0.0000001).toFixed(6)}`);
+            }
+            speak("Allenamento concluso.");
+            onFinish(totalTime * 1000);
         }
     };
 
@@ -563,9 +593,18 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
                 </div>
                 
                 <div className="flex flex-col items-end gap-2">
-                    <button onClick={() => setIsMuted(!isMuted)} className="text-slate-400 p-1 rounded-full hover:bg-slate-800 border border-slate-700">
-                        {isMuted ? <VolumeOffIcon /> : <VolumeUpIcon />}
-                    </button>
+                    <div className="flex gap-2">
+                        <button 
+                            onClick={() => setIsAiMode(!isAiMode)} 
+                            className={`p-1 rounded-full border transition-all ${isAiMode ? 'text-purple-400 border-purple-500 bg-purple-900/20 shadow-[0_0_10px_rgba(168,85,247,0.5)]' : 'text-slate-500 border-slate-700 bg-slate-800'}`}
+                            title={isAiMode ? "Coach AI Attivo (Consuma Token)" : "Coach Standard (Gratis)"}
+                        >
+                            <BrainIcon />
+                        </button>
+                        <button onClick={() => setIsMuted(!isMuted)} className="text-slate-400 p-1 rounded-full hover:bg-slate-800 border border-slate-700">
+                            {isMuted ? <VolumeOffIcon /> : <VolumeUpIcon />}
+                        </button>
+                    </div>
                     <div className="flex items-center gap-1">
                         <span className="text-[10px] font-bold text-slate-400 uppercase">GPS</span>
                         <div className={`w-2 h-2 rounded-full ${gpsAccuracy && gpsAccuracy < 20 ? 'bg-green-500' : gpsAccuracy ? 'bg-amber-500' : 'bg-red-500 animate-pulse'}`}></div>
@@ -576,6 +615,14 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
             {/* Main Center Area */}
             <div className="flex-grow flex flex-col items-center justify-center w-full px-4 relative min-h-0 overflow-hidden space-y-4">
                 
+                {/* AI Thinking Indicator */}
+                {isAiThinking && (
+                    <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-purple-900/80 px-3 py-1 rounded-full flex items-center gap-2 border border-purple-500/50 shadow-lg z-10 animate-pulse">
+                        <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+                        <span className="text-[10px] font-bold text-purple-200 uppercase tracking-widest">Coach AI sta pensando...</span>
+                    </div>
+                )}
+
                 {currentPhase.repInfo && (
                     <div className="bg-slate-800/80 px-3 py-1 rounded-full border border-slate-700 text-xs font-black uppercase tracking-widest text-slate-300 shrink-0">
                         Ripetuta {currentPhase.repInfo.current} / {currentPhase.repInfo.total}
@@ -587,11 +634,7 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
                     <h1 className={`text-3xl sm:text-4xl font-black uppercase leading-tight truncate ${getPhaseColor(currentPhase.type)}`}>
                         {currentPhase.name}
                     </h1>
-                    <div className="bg-slate-900/50 p-2 rounded-xl mt-2 border border-slate-800 mx-auto max-w-sm">
-                        <p className="text-xs sm:text-sm text-slate-200 font-medium italic line-clamp-2">
-                            "{currentPhase.description || currentPhase.instruction}"
-                        </p>
-                    </div>
+                    {/* Simplified Instruction Display - Removed Verbose Description */}
                 </div>
 
                 <div className="flex flex-col items-center gap-1 shrink-0">
@@ -662,12 +705,7 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
                     <button onClick={handleTestAudio} className="text-slate-500 hover:text-cyan-400 text-[10px] uppercase font-bold tracking-widest">Test Audio</button>
                     
                     <button 
-                        onClick={() => {
-                            if(confirm("Terminare l'allenamento?")) {
-                                speak("Allenamento concluso.");
-                                onFinish(totalTime * 1000);
-                            }
-                        }}
+                        onClick={handleFinish}
                         className="flex items-center gap-2 px-6 py-2 rounded-full bg-red-900/20 border border-red-500/30 text-red-400 text-xs font-bold uppercase tracking-widest hover:bg-red-900/40 transition-colors active:scale-95"
                     >
                         Termina
