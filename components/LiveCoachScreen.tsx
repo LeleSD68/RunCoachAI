@@ -50,9 +50,9 @@ const formatPace = (pace: number) => {
 
 // Helper for Legacy Parsing (fallback)
 const parseValueAndUnit = (text: string): { targetValue: number, targetType: 'time' | 'distance' } | null => {
-    // Regex matches "2.5 km", "500 m", "10 min", "30 sec"
+    // Regex matches "2.5 km", "10k", "500 m", "10 min", "30 sec"
     // Handles dots/commas and spacing
-    const regex = /(\d+(?:[.,]\d+)?)\s*(km|chilometr|m|metri|min|minuti|sec|secondi|'|”|")/i;
+    const regex = /(\d+(?:[.,]\d+)?)\s*(k|km|chilometr|m|metri|min|minuti|sec|secondi|'|”|")/i;
     const match = text.match(regex);
     
     if (!match) return null;
@@ -60,8 +60,11 @@ const parseValueAndUnit = (text: string): { targetValue: number, targetType: 'ti
     const val = parseFloat(match[1].replace(',', '.'));
     const unit = match[2].toLowerCase();
 
-    if (unit.startsWith('k') || unit.startsWith('chil')) return { targetValue: val * 1000, targetType: 'distance' };
+    // 'k' shorthand (10k, 1k) or 'km'
+    if (unit === 'k' || unit.startsWith('km') || unit.startsWith('chil')) return { targetValue: val * 1000, targetType: 'distance' };
+    
     if (unit.startsWith('m') && !unit.startsWith('min')) return { targetValue: val, targetType: 'distance' }; // 'm' or 'metri'
+    
     if (unit.startsWith('min') || unit === "'") return { targetValue: val * 60, targetType: 'time' };
     
     // Seconds
@@ -119,9 +122,14 @@ const parseLegacyWorkoutStructure = (description: string, title: string): Traini
         }
         if (type === 'rest') name = "Recupero";
 
+        // Clean up instructions for visual display (keep numbers for visual, but we will process them for audio later)
+        let cleanInstruction = line.replace(/^[-*•]\s*/, '').trim();
+        // Remove markdown bold from instruction
+        cleanInstruction = cleanInstruction.replace(/\*\*/g, '');
+
         phases.push({
             name: name,
-            instruction: line.replace(/^[-*•]\s*/, '').trim(), // Store the full descriptive line
+            instruction: cleanInstruction,
             targetValue: metric.targetValue,
             targetType: metric.targetType,
             type: type !== 'other' ? type : 'work', 
@@ -147,34 +155,47 @@ const parseLegacyWorkoutStructure = (description: string, title: string): Traini
 const humanizeText = (text: string): string => {
     let t = text.toLowerCase();
 
-    // Fix "1.00 km" -> "un chilometro"
-    t = t.replace(/(\d+)[.,]00\s*(km|chilometr)/gi, '$1 chilometri');
-    
-    // Fix "1.5 km" / "1,5 km" -> "un chilometro e mezzo"
-    t = t.replace(/\b1[.,]50?\s*(km|chilometr)/gi, 'un chilometro e mezzo');
-    t = t.replace(/\b1\s*(km|chilometr)/gi, 'un chilometro');
-    
-    // Fix "2.5 km" -> "due chilometri e mezzo"
-    t = t.replace(/\b(\d+)[.,]50?\s*(km|chilometr)/gi, '$1 chilometri e mezzo');
+    // 1. Remove Symbols and Markdown that shouldn't be read
+    t = t.replace(/[*@]/g, ''); // Removes * and @
+    t = t.replace(/\*\*(.*?)\*\*/g, '$1'); // Strips bold markers but keeps content
 
-    // Fix "1.500 metri" (millecinquecento)
-    // The parser keeps meters as numbers (1500), but description might have text.
-    // Replace dots in numbers if they look like thousands separators in context of meters
-    // E.g. "1.500m" -> "millecinquecento metri" is handled by speech engine usually, but let's ensure units
-    t = t.replace(/(\d)\.(\d{3})\s*(m|metr)/g, '$1$2 metri'); 
+    // 2. Handle Shorthand Units (1k, 10k)
+    // Needs to happen before general replacements
+    t = t.replace(/\b(\d+)\s?k\b/gi, '$1 chilometri');
 
-    // Units expansion
-    t = t.replace(/km/gi, 'chilometri');
-    t = t.replace(/mt/gi, 'metri');
-    t = t.replace(/\bmin\b/gi, 'minuti');
-    t = t.replace(/\bsec\b/gi, 'secondi');
-    
-    // Punctuation for pause
-    t = t.replace(/[-]/g, ' '); 
-    t = t.replace(/\*\*/g, '');
+    // 3. Smart Decimal Distance Handling
+    // Matches "1.5 km", "1,5 k", "1.2 chilometri"
+    t = t.replace(/(\d+)[.,](\d+)\s*(k|km|chilometri)/gi, (match, whole, dec, unit) => {
+        const w = parseInt(whole);
+        let dStr = dec;
+        
+        // Normalize decimal part to meters (e.g. .5 -> 500, .2 -> 200, .25 -> 250)
+        // Assume max 3 digits for meters
+        while (dStr.length < 3) dStr += '0';
+        dStr = dStr.substring(0, 3);
+        const meters = parseInt(dStr);
+
+        let wText = w === 1 ? "un chilometro" : `${w} chilometri`;
+        
+        if (meters === 0) return wText;
+        if (meters === 500) return `${wText} e mezzo`;
+        if (meters > 0) return `${wText} e ${meters} metri`;
+        return wText;
+    });
+
+    // 4. Fix Thousands separators in Meters (1.500 m -> millecinquecento)
+    // Remove dots followed by 3 digits and 'm' or 'metri'
+    t = t.replace(/(\d)\.(\d{3})\s*(m|metri)/g, '$1$2 metri'); 
+
+    // 5. General Replacements & Units expansion
     t = t.replace(/\//g, ' su '); // e.g. min/km -> minuti su chilometro
-
-    // Pace formatting: 5:30 -> 5 e 30
+    t = t.replace(/-/g, ' '); 
+    t = t.replace(/km/g, 'chilometri');
+    t = t.replace(/\bmt\b/g, 'metri');
+    t = t.replace(/\bmin\b/g, 'minuti');
+    t = t.replace(/\bsec\b/g, 'secondi');
+    
+    // 6. Pace formatting: 5:30 -> 5 e 30
     t = t.replace(/(\d{1,2}):(\d{2})/g, '$1 e $2');
 
     return t;
@@ -185,8 +206,20 @@ const getDistanceSpeech = (meters: number): string => {
         const km = meters / 1000;
         if (km === 1) return "un chilometro";
         if (km === 1.5) return "un chilometro e mezzo";
-        if (Number.isInteger(km)) return `${km} chilometri`;
-        if (km % 1 === 0.5) return `${Math.floor(km)} chilometri e mezzo`;
+        
+        // Check for .X decimals to read naturally
+        const whole = Math.floor(km);
+        const decimal = km - whole;
+        
+        if (decimal === 0) return `${whole} chilometri`;
+        
+        const m = Math.round(decimal * 1000);
+        let wText = whole === 1 ? "un chilometro" : `${whole} chilometri`;
+        if (whole === 0) wText = ""; // e.g. 0.5km -> 500m logic handled elsewhere usually, but if here:
+        
+        if (m === 500) return `${wText} e mezzo`;
+        if (m > 0) return whole > 0 ? `${wText} e ${m} metri` : `${m} metri`;
+        
         return `${km.toFixed(2).replace('.', ' virgola ')} chilometri`;
     }
     return `${Math.round(meters)} metri`;
@@ -299,10 +332,8 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
         let msg = `${phase.name}. `;
         
         // Read full instruction description if available and not just the name
+        // The humanizer will strip symbols like * and @ from this description
         if (phase.instruction && phase.instruction.toLowerCase() !== phase.name.toLowerCase()) {
-            // Remove target numbers from instruction to avoid redundancy if we speak them next, 
-            // OR just read instruction if it's descriptive.
-            // Let's read instruction as the "What to do".
             msg += `${phase.instruction}. `;
         }
 
