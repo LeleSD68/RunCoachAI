@@ -21,7 +21,6 @@ interface TrainingPhase extends WorkoutPhase {
 const VolumeUpIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 0 0 1.5 12c0 2.485.565 4.817 1.577 6.92.26 1.157 1.439 1.77 2.583 1.77h1.012l3.768 3.768c.944.944 2.56.276 2.56-1.06V4.06ZM18.9 12c0-1.656-.67-3.156-1.755-4.243a.75.75 0 0 1 1.06-1.061 7.5 7.5 0 0 1 0 10.608.75.75 0 0 1-1.06-1.06C18.23 15.156 18.9 13.656 18.9 12ZM17.25 12a5.25 5.25 0 0 0-1.537-3.713.75.75 0 1 1 1.06-1.06 6.75 6.75 0 0 1 0 9.546.75.75 0 1 1-1.06-1.06A5.25 5.25 0 0 0 17.25 12Z" /></svg>);
 const VolumeOffIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 0 0 1.5 12c0 2.485.565 4.817 1.577 6.92.26 1.157 1.439 1.77 2.583 1.77h1.012l3.768 3.768c.944.944 2.56.276 2.56-1.06V4.06Z" /><path d="M17.78 9.22a.75.75 0 1 0-1.06 1.06L18.44 12l-1.72 1.72a.75.75 0 1 0 1.06 1.06l1.72-1.72 1.72 1.72a.75.75 0 1 0 1.06-1.06L20.56 12l1.72-1.72a.75.75 0 1 0-1.06-1.06l-1.72 1.72-1.72-1.72Z" /></svg>);
 const BrainIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M10.89 2.11a.75.75 0 0 0-1.78 0l-1.5 3.22-3.53.51a.75.75 0 0 0-.42 1.28l2.55 2.49-.6 3.52a.75.75 0 0 0 1.09.79l3.16-1.66 3.16 1.66a.75.75 0 0 0 1.09-.79l-.6-3.52 2.55-2.49a.75.75 0 0 0-.42-1.28l-3.53-.51-1.5-3.22Z" /></svg>);
-const ArrowDownIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M12.53 16.28a.75.75 0 0 1-1.06 0l-7.5-7.5a.75.75 0 0 1 1.06-1.06L12 14.69l6.97-6.97a.75.75 0 1 1 1.06 1.06l-7.5 7.5Z" clipRule="evenodd" /></svg>);
 
 // Haversine formula for distance between two coords (in meters)
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -129,8 +128,8 @@ const parseLegacyWorkoutStructure = (description: string, title: string): Traini
     return phases;
 };
 
-// --- SPEECH PROCESSOR ---
-// Transforms text into speakable Italian following specific rules
+// --- ADVANCED SPEECH PROCESSOR ---
+// Transforms text into speakable Italian following specific user rules
 const advancedSpeechProcessor = (text: string): string => {
     if (!text) return "";
     let t = text;
@@ -138,37 +137,41 @@ const advancedSpeechProcessor = (text: string): string => {
     // 1. Remove Markdown
     t = t.replace(/[*@_]/g, ''); 
     
-    // 2. Remove leading list numbers (e.g., "1. ")
-    t = t.replace(/^\d+\.\s*/, '');
-
-    // 3. Handle structure separators: "Fase 1 - Stabilità" -> "Fase 1, Stabilità"
+    // 2. Remove leading list numbers (e.g., "1. ", "2. ")
+    t = t.replace(/^\d+\.\s*/g, '');
+    
+    // 3. Clean up structure separators: "Fase 1 - Stabilità" -> "Fase 1, Stabilità"
     t = t.replace(/\s-\s/g, ', ');
-    t = t.replace(/\s–\s/g, ', '); // En dash
+    t = t.replace(/\s–\s/g, ', '); 
 
     // 4. Handle Parentheses: "Riscaldamento (15')" -> "Riscaldamento, 15 minuti,"
+    // Replace parens with commas for natural pause
     t = t.replace(/\(/g, ', ').replace(/\)/g, ', ');
 
     // 5. Handle Time Units
     // 15' -> 15 minuti
-    t = t.replace(/(\d+)'/g, '$1 minuti');
+    t = t.replace(/\b(\d+)'\b/g, '$1 minuti');
+    t = t.replace(/(\d+)'/g, '$1 minuti'); // catch attached
     // 15" -> 15 secondi
-    t = t.replace(/(\d+)"/g, '$1 secondi');
+    t = t.replace(/\b(\d+)"\b/g, '$1 secondi');
+    t = t.replace(/(\d+)"/g, '$1 secondi'); // catch attached
     
     // 6. Handle Pace (min/km)
-    // Remove "min/km" or "min al km"
+    // Remove "min/km" or "min al km" completely as context implies it
     t = t.replace(/\s?min\/km/gi, '');
     t = t.replace(/\s?min al km/gi, '');
 
     // 7. Handle Pace Format
-    // 7:00 -> 7 (Non leggere "7 zero zero")
+    // 7:00 -> 7 (Do not read "7 zero zero")
     t = t.replace(/\b(\d{1,2}):00\b/g, '$1');
     // 6:50 -> 6 e 50
     t = t.replace(/\b(\d{1,2}):(\d{2})\b/g, '$1 e $2');
 
     // 8. General Cleanup
     t = t.replace(/\s+/g, ' ').trim();
-    // Fix double commas
+    // Fix double commas or trailing commas
     t = t.replace(/,\s*,/g, ',');
+    t = t.replace(/,$/g, '');
     
     return t;
 };
@@ -187,6 +190,7 @@ const getDistanceSpeech = (meters: number): string => {
         
         if (m === 500) return whole > 0 ? `${wText} e mezzo` : "500 metri";
         if (m > 0) return whole > 0 ? `${wText} e ${m} metri` : `${m} metri`;
+        // Fallback roughly
         return `${km.toFixed(1).replace('.', ' virgola ')} chilometri`;
     }
     return `${Math.round(meters)} metri`;
@@ -277,13 +281,15 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
         if (!('speechSynthesis' in window)) return;
         if (isMuted && !force) return;
         
+        // Cancel previous speech to prevent lagging queue
         window.speechSynthesis.cancel();
         
         const u = new SpeechSynthesisUtterance(text);
         u.lang = 'it-IT';
-        u.rate = 1.05;
+        u.rate = 1.05; // Slightly faster for natural feel
         u.pitch = 1.0;
 
+        // Try to find a good IT voice
         const itVoice = voices.find(v => v.lang === 'it-IT' && v.name.includes('Google')) || voices.find(v => v.lang.includes('it'));
         if (itVoice) u.voice = itVoice;
         
@@ -302,35 +308,38 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
         try {
             const ai = new GoogleGenAI({ apiKey });
             
-            const systemInstr = `Sei un Running Coach professionista che guida l'atleta in cuffia.
-            Tono: Energico, Chiaro, Motivante, Professionale.
+            // SYSTEM PROMPT TUNED FOR HUMAN SPEECH
+            const systemInstr = `Sei un Running Coach professionista che parla in cuffia all'atleta.
+            Tono: Energico, Chiaro, Motivante, Umano.
             Lingua: Italiano parlato naturale.
             
             REGOLE DI LETTURA RIGOROSE:
-            1. NON leggere numeri di elenco (es. "1.", "2.").
+            1. NON leggere MAI numeri di elenco (es. "1.", "2.").
             2. "15'" si legge "15 minuti". "15"" si legge "15 secondi".
             3. RITMI: "6:50" si legge "6 e 50". "7:00" si legge "7". 
             4. NON dire mai "zero zero" o "minuti al chilometro".
             5. Usa le pause (virgole) al posto delle parentesi o dei trattini.
+            6. Sii conciso. Non fare monologhi.
             `;
 
             let prompt = "";
             if (contextType === 'phase_change') {
                 prompt = `
-                SITUAZIONE: Inizia il nuovo blocco.
-                
-                TESTO DA LEGGERE: "${data.rawText}"
-                
-                OBIETTIVO (Target): ${data.target}
+                SITUAZIONE: Inizia la fase: "${data.name}".
+                DESCRIZIONE ORIGINALE: "${data.rawText}"
+                TARGET: ${data.target}
                 
                 COACH SCRIPT (Genera solo il parlato pulito seguendo le regole):
-                1. Annuncia la fase e la descrizione in modo fluido.
-                2. Specifica l'obiettivo (es. "per 5 chilometri").
-                3. Concludi con una frase motivante breve (es. "Andiamo!").
+                1. Annuncia la fase.
+                2. Spiega cosa fare basandoti sulla descrizione (semplifica).
+                3. Dai il target.
+                4. Concludi con un comando breve (es. "Partiamo!").
                 `;
             } else {
-                prompt = `Stato: Passo ${data.pace}, Fase ${data.phaseName}. Target ${data.targetPace || 'Nessuno'}. 
-                L'atleta sta andando ${data.diffStatus}. Dagli un feedback correttivo rapido (max 10 parole). Usa "6 e 30" per i tempi.`;
+                prompt = `Stato: Passo attuale ${data.pace}. Fase: ${data.phaseName}. Target: ${data.targetPace || 'Nessuno'}. 
+                Problema: ${data.diffStatus}.
+                
+                Dai un feedback correttivo rapido (max 10 parole). Esempio: "Sei troppo veloce, rallenta a 5 e 30."`;
             }
 
             const response = await ai.models.generateContent({
@@ -365,42 +374,53 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
 
         const announcePhase = async () => {
             let msg = "";
+            let aiSpoken = false;
             
+            // Try AI first if enabled - with TIMEOUT race to prevent blocking
             if (isAiMode) {
-                const aiMsg = await generateAiFeedback('phase_change', {
+                const aiPromise = generateAiFeedback('phase_change', {
                     rawText: rawPhaseText,
                     name: phase.name,
                     target: phase.targetType === 'distance' ? `${(phase.targetValue/1000).toFixed(2)}km` : `${(phase.targetValue/60).toFixed(0)}min`,
                     pace: phase.paceTarget ? formatPace(phase.paceTarget/60) : null
                 });
-                if (aiMsg) {
-                    speak(aiMsg);
-                    return;
+                
+                // Timeout after 3 seconds, if AI is slow, fallback to regex
+                const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000));
+                
+                const aiResult = await Promise.race([aiPromise, timeoutPromise]);
+                
+                if (aiResult) {
+                    speak(aiResult);
+                    aiSpoken = true;
                 }
             }
 
-            // Standard Fallback with Advanced Processor
-            // 1. Process Name & Instruction
-            const cleanText = advancedSpeechProcessor(rawPhaseText);
-            
-            // 2. Add Target Duration/Distance
-            let targetText = "";
-            if (phase.targetType === 'distance') {
-                targetText = `Per ${getDistanceSpeech(phase.targetValue)}. `;
-            } else {
-                targetText = `Per ${getTimeSpeech(phase.targetValue)}. `;
-            }
+            if (!aiSpoken) {
+                // Fallback: Advanced Regex Processor (Standard Mode)
+                // 1. Process Name & Instruction through the rules
+                const cleanText = advancedSpeechProcessor(rawPhaseText);
+                
+                // 2. Add Target Duration/Distance nicely
+                let targetText = "";
+                if (phase.targetType === 'distance') {
+                    targetText = `Per ${getDistanceSpeech(phase.targetValue)}.`;
+                } else {
+                    targetText = `Per ${getTimeSpeech(phase.targetValue)}.`;
+                }
 
-            // 3. Add Pace Target if exists
-            let paceText = "";
-            if (phase.paceTarget) {
-                const min = Math.floor(phase.paceTarget / 60);
-                const sec = phase.paceTarget % 60;
-                paceText = `Ritmo, ${min} e ${sec}.`; // Use "e" for natural reading
-            }
+                // 3. Add Pace Target if exists
+                let paceText = "";
+                if (phase.paceTarget) {
+                    const min = Math.floor(phase.paceTarget / 60);
+                    const sec = phase.paceTarget % 60;
+                    // "Ritmo 5 e 30"
+                    paceText = `Ritmo, ${min} e ${sec}.`; 
+                }
 
-            msg = `${cleanText}. ${targetText} ${paceText}`;
-            speak(msg);
+                msg = `${cleanText}. ${targetText} ${paceText}`;
+                speak(msg);
+            }
         };
 
         announcePhase();
@@ -506,7 +526,7 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
         if (phase.paceTarget) {
             const targetPaceMinKm = phase.paceTarget / 60; 
             const diff = currentPace - targetPaceMinKm;
-            const tolerance = 0.16;
+            const tolerance = 0.16; // Tolerace ~10sec/km
 
             if (diff > tolerance) diffStatus = 'slow';
             else if (diff < -tolerance) diffStatus = 'fast';
@@ -518,6 +538,7 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
         }
 
         if (diffStatus === 'ok') {
+            // Random motivation if AI is on
             if (Math.random() > 0.7 && isAiMode) { 
                  const aiMsg = await generateAiFeedback('feedback', { pace: formatPace(currentPace), phaseName: phase.name, diffStatus: 'good' });
                  if (aiMsg) speak(aiMsg);
@@ -538,7 +559,7 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
             }
         }
 
-        // Standard Feedback
+        // Standard Feedback (Robust Fallback)
         if (diffStatus === 'slow') {
             const min = Math.floor(currentPace);
             const sec = Math.round((currentPace - min) * 60);
@@ -725,16 +746,20 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
 
                 {/* NEXT PHASE PREVIEW - Updated UI Requirement */}
                 {nextPhase && (
-                    <div className="w-full max-w-sm bg-slate-900/40 border border-slate-800 rounded-lg p-2 flex items-center justify-between mt-2 animate-fade-in">
-                        <div className="flex items-center gap-2 overflow-hidden">
-                            <span className="text-xs text-slate-500 font-black uppercase tracking-wider shrink-0">Prossima:</span>
-                            <span className={`text-xs font-bold truncate ${getPhaseColor(nextPhase.type)}`}>
-                                {nextPhase.name}
+                    <div className="w-full max-w-sm bg-slate-800/60 border border-slate-700/80 rounded-xl p-3 flex flex-col justify-center mt-3 animate-fade-in shadow-lg">
+                        <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Prossimo Blocco</span>
+                            <span className={`text-[10px] font-mono font-bold ${getPhaseColor(nextPhase.type)} opacity-80`}>
+                                {nextPhase.targetType === 'time' ? formatTime(nextPhase.targetValue) : `${nextPhase.targetValue}m`}
                             </span>
                         </div>
-                        <div className="text-[10px] text-slate-400 font-mono ml-2 shrink-0">
-                            {nextPhase.targetType === 'time' ? formatTime(nextPhase.targetValue) : `${nextPhase.targetValue}m`}
+                        <div className="flex items-center gap-2">
+                            <div className={`w-1.5 h-1.5 rounded-full ${getPhaseColor(nextPhase.type).replace('text-', 'bg-')}`}></div>
+                            <span className="text-sm font-bold text-white truncate">{nextPhase.name}</span>
                         </div>
+                        <p className="text-xs text-slate-400 italic mt-1 line-clamp-1 truncate opacity-80">
+                            {nextPhase.description || nextPhase.instruction}
+                        </p>
                     </div>
                 )}
 

@@ -18,7 +18,6 @@ interface AiTrainingCoachPanelProps {
     layoutMode?: 'vertical' | 'horizontal';
     targetDate?: Date; 
     onCheckAiAccess?: (feature: 'workout' | 'analysis' | 'chat') => boolean; 
-    onStartWorkout?: (workout: PlannedWorkout | null) => void; 
 }
 
 type GenerationMode = 'today' | 'next2' | 'weekly' | 'specific';
@@ -32,42 +31,40 @@ const formatPace = (pace: number) => {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 };
 
-const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = Math.round(seconds % 60);
-    return `${m}'${s > 0 ? s + '"' : ''}`;
-};
-
-const getPhaseIcon = (type: string) => {
-    switch (type) {
-        case 'warmup': return '🔥';
-        case 'work': return '⚡';
-        case 'rest': return '💤';
-        case 'cooldown': return '❄️';
-        default: return '🏃';
-    }
-};
-
-const formatPhaseText = (p: any) => {
-    const target = p.targetType === 'time' ? formatTime(p.targetValue) : `${(p.targetValue < 1000 ? p.targetValue + 'm' : (p.targetValue/1000).toFixed(2) + 'km')}`;
-    const pace = p.paceTarget ? `@ ${formatPace(p.paceTarget/60)}/km` : '';
-    return `${getPhaseIcon(p.type)} ${p.description || p.type} (${target}) ${pace}`;
-};
-
-const HeadsetIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 mr-2">
-        <path fillRule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75v5.25c0 .621.504 1.125 1.125 1.125h2.25c1.243 0 2.25-1.007 2.25-2.25v-4.5c0-1.243-1.007-2.25-2.25-2.25h-1.5v-2.625a7.5 7.5 0 0 1 15 0v2.625h-1.5c-1.243 0-2.25 1.007-2.25 2.25v4.5c0 1.243 1.007 2.25 2.25 2.25h2.25c.621 0 1.125-.504 1.125-1.125v-5.25c0-5.385-4.365-9.75-9.75-9.75Z" clipRule="evenodd" />
+const SparklesIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 mr-2 text-cyan-400">
+        <path d="M10.89 2.11a.75.75 0 0 0-1.78 0l-1.5 3.22-3.53.51a.75.75 0 0 0-.42 1.28l2.55 2.49-.6 3.52a.75.75 0 0 0 1.09.79l3.16-1.66 3.16 1.66a.75.75 0 0 0 1.09-.79l-.6-3.52 2.55-2.49a.75.75 0 0 0-.42-1.28l-3.53-.51-1.5-3.22Z" />
     </svg>
 );
 
+const HumanCoachCTA = () => (
+    <div className="mt-4 bg-gradient-to-r from-slate-900 to-slate-800 border border-slate-700 rounded-xl p-4 flex items-center justify-between shadow-lg relative overflow-hidden group cursor-pointer hover:border-amber-500/50 transition-all">
+        <div className="absolute inset-0 bg-amber-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+        <div className="relative z-10 flex items-center gap-3">
+            <div className="bg-amber-500/20 p-2 rounded-full text-amber-400 text-xl">🎓</div>
+            <div>
+                <h4 className="text-sm font-bold text-white leading-none mb-1">Vuoi di più?</h4>
+                <p className="text-[10px] text-slate-400 leading-tight">Ottieni una scheda su misura da un<br/><strong>Coach Umano Certificato</strong>.</p>
+            </div>
+        </div>
+        <button 
+            onClick={() => alert("Funzionalità Premium: verrai reindirizzato al modulo di contatto dei nostri Coach Partner.")}
+            className="relative z-10 bg-white text-slate-900 font-bold text-[10px] uppercase px-4 py-2 rounded-lg hover:bg-slate-200 transition-colors shadow-md"
+        >
+            Richiedi Info
+        </button>
+    </div>
+);
+
 const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({ 
-    track, stats, userProfile, allHistory, onAddPlannedWorkout, onDeletePlannedWorkout, plannedWorkouts = [], isCompact, layoutMode = 'vertical', targetDate, onCheckAiAccess, onStartWorkout
+    track, stats, userProfile, allHistory, onAddPlannedWorkout, onDeletePlannedWorkout, plannedWorkouts = [], isCompact, layoutMode = 'vertical', targetDate, onCheckAiAccess
 }) => {
     const [isGenerating, setIsGenerating] = useState(false);
     const [suggestions, setSuggestions] = useState<any[]>([]);
     const [error, setError] = useState('');
     const [savedIndex, setSavedIndex] = useState<number | null>(null);
     
+    // Configuration State
     const [genMode, setGenMode] = useState<GenerationMode>('today');
     const [selectedDays, setSelectedDays] = useState<Set<number>>(new Set([1, 3, 5]));
 
@@ -94,6 +91,7 @@ const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({
                 const referenceDate = targetDate || new Date();
                 const referenceDateStr = referenceDate.toLocaleDateString('it-IT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
                 
+                // CONTESTO IMPEGNI E NOTE
                 const contextEntries = plannedWorkouts
                     .filter(w => new Date(w.date) >= new Date(new Date().setHours(0,0,0,0)))
                     .map(w => {
@@ -139,23 +137,22 @@ const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({
                 COMPITO:
                 ${taskDescription}
                 
-                IMPORTANTE: DEVI fornire una "workoutPhases" (array di fasi) che corrisponda MATEMATICAMENTE e LOGICAMENTE alla descrizione testuale.
-                CRITICO: Se la descrizione dice "2km riscaldamento", la fase DEVE essere targetType="distance" e targetValue=2000. NON usare valori di default temporali.
-                CRITICO: Se la descrizione dice "recupero 500m", la fase DEVE essere targetType="distance" e targetValue=500.
+                IMPORTANTE: DEVI fornire una "structuredMenu" (array di fasi) che il Virtual Coach userà per guidare vocalmente l'atleta.
+                Esempio logica: Se l'allenamento è "5km a 6:20/km" -> targetType: "distance", targetValue: 5000, paceTarget: 380 (secondi/km).
                 
                 Struttura JSON richiesta per ogni allenamento:
                 [{
                     "title": string,
                     "activityType": "Lento"|"Fartlek"|"Ripetute"|"Lungo"|"Gara"|"Recupero",
                     "date": "YYYY-MM-DD",
-                    "structure": "Sintesi testuale molto breve (es. '10k Progressivo')",
-                    "description": "Descrizione motivazionale/tecnica discorsiva.",
+                    "structure": "Sintesi testuale",
+                    "description": "Descrizione motivazionale/tecnica",
                     "estimatedDuration": string,
                     "estimatedDistance": string,
                     "targetHeartRate": string,
                     "conflictReasoning": "Motivazione scelta",
                     "workoutPhases": [ 
-                       { "type": "warmup"|"work"|"rest"|"cooldown", "targetType": "time"|"distance", "targetValue": number (sec o metri), "paceTarget": number (sec/km, opzionale), "description": string (es. '1km a 5:00') }
+                       { "type": "warmup"|"work"|"rest"|"cooldown", "targetType": "time"|"distance", "targetValue": number (sec o metri), "paceTarget": number (sec/km, opzionale), "description": string }
                     ]
                 }]`;
 
@@ -215,17 +212,14 @@ const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({
     const handleImport = (suggestion: any, index: number) => {
         if (!onAddPlannedWorkout) return;
         
-        let textualProgram = "";
-        if (suggestion.workoutPhases && suggestion.workoutPhases.length > 0) {
-            textualProgram = "\n\n**PROGRAMMA DETTAGLIATO:**\n" + suggestion.workoutPhases.map((p: any) => `- ${formatPhaseText(p)}`).join('\n');
-        }
-
-        const fullDescription = `${suggestion.description}\n\n**INFO:** ${suggestion.structure}\n**OBIETTIVO:** ${suggestion.targetHeartRate}${textualProgram}`;
-
+        // Embed the structured phases into the object (will be serialized if saved to DB/LocalStorage)
+        // For compatibility with simple string description, we append a magic string if needed, 
+        // but now PlannedWorkout supports `structure` field directly in our types.
+        
         const entry: PlannedWorkout = {
             id: `ai-gen-${Date.now()}`,
             title: suggestion.title,
-            description: fullDescription,
+            description: `**COACH AI:** ${suggestion.description}\n\n**INFO:** ${suggestion.structure}\n**OBIETTIVO:** ${suggestion.targetHeartRate}`,
             date: new Date(suggestion.date),
             activityType: suggestion.activityType as ActivityType,
             isAiSuggested: true,
@@ -235,36 +229,15 @@ const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({
         onAddPlannedWorkout(entry);
         setSavedIndex(index);
         setTimeout(() => setSavedIndex(null), 2000);
-        
-        // Return entry for immediate start usage
-        return entry;
     };
 
     return (
         <div className="flex flex-col h-full">
-            <div className={`p-2 flex-grow ${layoutMode === 'horizontal' ? 'flex flex-row overflow-x-auto gap-4 pb-6' : 'space-y-4'}`}>
+            <div className={`p-2 flex-grow ${layoutMode === 'horizontal' ? 'flex flex-row overflow-x-auto gap-4' : 'space-y-4'}`}>
                 {!suggestions.length && !isGenerating && (
-                    <div className="text-center p-4 bg-slate-800/40 rounded-2xl border border-slate-700 min-w-[200px] flex flex-col justify-center">
+                    <div className="text-center p-4 bg-slate-800/40 rounded-2xl border border-slate-700 min-w-[200px]">
                         <p className="text-sm text-slate-300 mb-4">Ottieni una scheda basata sui tuoi impegni e note.</p>
-                        
-                        <div className="space-y-3">
-                            <button onClick={handleGenerateProgram} className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-black text-xs uppercase px-6 py-3 rounded-xl transition-all shadow-lg active:scale-95">
-                                Genera Scheda Intelligente
-                            </button>
-                            
-                            {onStartWorkout && (
-                                <button 
-                                    onClick={() => {
-                                        if (onCheckAiAccess && !onCheckAiAccess('chat')) return;
-                                        onStartWorkout(null); // Null triggers Free Run
-                                    }}
-                                    className="w-full bg-purple-600 hover:bg-purple-500 text-white font-black text-xs uppercase px-6 py-3 rounded-xl transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"
-                                >
-                                    <HeadsetIcon />
-                                    Avvia Corsa Libera (Coach Live)
-                                </button>
-                            )}
-                        </div>
+                        <button onClick={handleGenerateProgram} className="bg-cyan-600 hover:bg-cyan-500 text-white font-black text-xs uppercase px-6 py-3 rounded-xl transition-all shadow-lg active:scale-95">Genera Scheda Intelligente</button>
                     </div>
                 )}
 
@@ -290,19 +263,18 @@ const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({
                                     "{s.conflictReasoning}"
                                 </div>
                             )}
-                            <p className="text-xs text-slate-300 line-clamp-3 italic">"{s.description}"</p>
+                            <p className="text-xs text-slate-300 line-clamp-4 italic">"{s.description}"</p>
                             
-                            {/* Visual Phase List - Explicitly showing what to do */}
+                            {/* Visual Phase Preview */}
                             {s.workoutPhases && s.workoutPhases.length > 0 && (
-                                <div className="bg-slate-900/50 rounded-lg p-2 border border-slate-700/50">
-                                    <p className="text-[9px] font-black text-slate-500 uppercase mb-1">Dettaglio:</p>
-                                    <div className="space-y-1 max-h-24 overflow-y-auto custom-scrollbar">
-                                        {s.workoutPhases.map((p: any, idx: number) => (
-                                            <div key={idx} className="text-[10px] text-slate-300 flex items-center gap-1.5">
-                                                <span className="font-mono">{formatPhaseText(p)}</span>
-                                            </div>
-                                        ))}
-                                    </div>
+                                <div className="flex gap-1 h-2 w-full mt-2 rounded-full overflow-hidden bg-slate-700">
+                                    {s.workoutPhases.map((p: any, idx: number) => {
+                                        let color = 'bg-slate-500';
+                                        if (p.type === 'warmup') color = 'bg-amber-500';
+                                        if (p.type === 'work') color = 'bg-green-500';
+                                        if (p.type === 'rest') color = 'bg-blue-500';
+                                        return <div key={idx} className={`h-full ${color}`} style={{ flex: p.targetValue || 1 }}></div>
+                                    })}
                                 </div>
                             )}
 
@@ -310,30 +282,20 @@ const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({
                                 <div className="bg-slate-900/50 p-2 rounded">📏 {s.estimatedDistance}</div>
                                 <div className="bg-slate-900/50 p-2 rounded">❤️ {s.targetHeartRate}</div>
                             </div>
-                            
-                            <div className="flex gap-2">
-                                <button 
-                                    onClick={() => handleImport(s, i)}
-                                    className={`flex-1 py-2.5 rounded-xl font-black text-[10px] uppercase transition-all ${savedIndex === i ? 'bg-green-600 text-white' : 'bg-cyan-600 hover:bg-cyan-500 text-white'}`}
-                                >
-                                    {savedIndex === i ? 'Salvato ✓' : 'Aggiungi al Diario'}
-                                </button>
-                                {onStartWorkout && (
-                                    <button 
-                                        onClick={() => {
-                                            const entry = handleImport(s, i);
-                                            if (entry) onStartWorkout(entry);
-                                        }}
-                                        className="px-3 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-bold transition-all shadow-lg active:scale-95"
-                                        title="Avvia Subito"
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.647c1.295.742 1.295 2.545 0 3.286L7.279 20.99c-1.25.717-2.779-.217-2.779-1.643V5.653Z" clipRule="evenodd" /></svg>
-                                    </button>
-                                )}
-                            </div>
+                            <button 
+                                onClick={() => handleImport(s, i)}
+                                className={`w-full py-2.5 rounded-xl font-black text-[10px] uppercase transition-all ${savedIndex === i ? 'bg-green-600 text-white' : 'bg-cyan-600 hover:bg-cyan-500 text-white'}`}
+                            >
+                                {savedIndex === i ? 'Salvato ✓' : 'Aggiungi al Diario'}
+                            </button>
                         </div>
                     </div>
                 ))}
+            </div>
+            
+            {/* HUMAN COACH UPSOLD */}
+            <div className="px-4 pb-4">
+                <HumanCoachCTA />
             </div>
         </div>
     );
