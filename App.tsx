@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Track, UserProfile, PlannedWorkout, ApiUsage, Toast, RaceRunner, RaceGapSnapshot, PauseSegment } from './types';
 import { saveTracksToDB, loadTracksFromDB, saveProfileToDB, loadProfileFromDB, savePlannedWorkoutsToDB, loadPlannedWorkoutsFromDB, importAllData, exportAllData, deleteUserAccount } from './services/dbService';
@@ -8,6 +9,7 @@ import { mergeTracks } from './services/trackEditorUtils';
 import { trackUsage, getApiUsage, addTokensToUsage, checkDailyLimit, incrementDailyLimit } from './services/usageService';
 import { getUnreadNotificationsCount } from './services/socialService';
 import { generateSmartTitle } from './services/titleGenerator';
+import { handleStravaCallback } from './services/stravaService';
 
 import SplashScreen from './components/SplashScreen';
 import AuthSelectionModal from './components/AuthSelectionModal';
@@ -94,9 +96,29 @@ const App: React.FC = () => {
 
     // --- EFFECTS ---
 
-    // Initial Load
+    // Initial Load & Strava Callback
     useEffect(() => {
-        // Setup Window API for usage tracking
+        // 1. Handle Strava OAuth Callback
+        const params = new URLSearchParams(window.location.search);
+        const stravaCode = params.get('code');
+        if (stravaCode) {
+            window.history.replaceState({}, document.title, window.location.pathname);
+            handleStravaCallback(stravaCode)
+                .then(() => {
+                    addToast("Strava collegato con successo!", "success");
+                    setUserProfile(p => {
+                        const updated = { ...p, stravaAutoSync: true };
+                        saveProfileToDB(updated);
+                        return updated;
+                    });
+                })
+                .catch(err => {
+                    console.error("Strava Auth Error", err);
+                    addToast("Errore collegamento Strava.", "error");
+                });
+        }
+
+        // 2. Setup Window API
         (window as any).gpxApp = {
             addTokens: (count: number) => {
                 const u = addTokensToUsage(count);
@@ -109,6 +131,7 @@ const App: React.FC = () => {
             getUsage: getApiUsage
         };
 
+        // 3. Load Data
         const loadData = async () => {
             const p = await loadProfileFromDB();
             if (p) {
@@ -129,7 +152,7 @@ const App: React.FC = () => {
         };
         loadData();
 
-        // Install prompt logic
+        // 4. Install prompt logic
         window.addEventListener('beforeinstallprompt', (e: any) => {
             e.preventDefault();
             (window as any).deferredPrompt = e;
@@ -208,10 +231,19 @@ const App: React.FC = () => {
 
     const handleStravaImportFinished = async (imported: Track[]) => {
         if (imported.length > 0) {
-            const updated = [...tracks, ...imported].sort((a,b) => b.points[0].time.getTime() - a.points[0].time.getTime());
+            // Filter duplicates by ID (Strava activities have stable IDs)
+            const existingIds = new Set(tracks.map(t => t.id));
+            const uniqueImported = imported.filter(t => !existingIds.has(t.id));
+
+            if (uniqueImported.length === 0) {
+                if (!stravaAutoModal) addToast("Nessuna nuova attività trovata.", "info");
+                return;
+            }
+
+            const updated = [...tracks, ...uniqueImported].sort((a,b) => b.points[0].time.getTime() - a.points[0].time.getTime());
             setTracks(updated);
             await saveTracksToDB(updated);
-            addToast(`${imported.length} attività da Strava importate.`, "success");
+            addToast(`${uniqueImported.length} attività da Strava importate.`, "success");
         }
     };
 
