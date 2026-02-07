@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Track, UserProfile, PlannedWorkout, ApiUsage, Toast, RaceRunner, RaceGapSnapshot, PauseSegment } from './types';
 import { saveTracksToDB, loadTracksFromDB, saveProfileToDB, loadProfileFromDB, savePlannedWorkoutsToDB, loadPlannedWorkoutsFromDB, importAllData, exportAllData, deleteUserAccount } from './services/dbService';
@@ -9,7 +8,6 @@ import { mergeTracks } from './services/trackEditorUtils';
 import { trackUsage, getApiUsage, addTokensToUsage, checkDailyLimit, incrementDailyLimit } from './services/usageService';
 import { getUnreadNotificationsCount } from './services/socialService';
 import { generateSmartTitle } from './services/titleGenerator';
-import { handleStravaCallback } from './services/stravaService';
 
 import SplashScreen from './components/SplashScreen';
 import AuthSelectionModal from './components/AuthSelectionModal';
@@ -75,9 +73,6 @@ const App: React.FC = () => {
     const [editingTrack, setEditingTrack] = useState<Track | null>(null);
     const [hoveredTrackId, setHoveredTrackId] = useState<string | null>(null);
     const [mobileTrackSummary, setMobileTrackSummary] = useState<Track | null>(null);
-    
-    // Diary Specific State
-    const [diarySelectedWorkoutId, setDiarySelectedWorkoutId] = useState<string | null>(null);
 
     // Race Mode State
     const [raceRunners, setRaceRunners] = useState<RaceRunner[]>([]);
@@ -99,29 +94,9 @@ const App: React.FC = () => {
 
     // --- EFFECTS ---
 
-    // Initial Load & Strava Callback
+    // Initial Load
     useEffect(() => {
-        // 1. Handle Strava OAuth Callback
-        const params = new URLSearchParams(window.location.search);
-        const stravaCode = params.get('code');
-        if (stravaCode) {
-            window.history.replaceState({}, document.title, window.location.pathname);
-            handleStravaCallback(stravaCode)
-                .then(() => {
-                    addToast("Strava collegato con successo!", "success");
-                    setUserProfile(p => {
-                        const updated = { ...p, stravaAutoSync: true };
-                        saveProfileToDB(updated);
-                        return updated;
-                    });
-                })
-                .catch(err => {
-                    console.error("Strava Auth Error", err);
-                    addToast("Errore collegamento Strava.", "error");
-                });
-        }
-
-        // 2. Setup Window API
+        // Setup Window API for usage tracking
         (window as any).gpxApp = {
             addTokens: (count: number) => {
                 const u = addTokensToUsage(count);
@@ -134,7 +109,6 @@ const App: React.FC = () => {
             getUsage: getApiUsage
         };
 
-        // 3. Load Data
         const loadData = async () => {
             const p = await loadProfileFromDB();
             if (p) {
@@ -155,7 +129,7 @@ const App: React.FC = () => {
         };
         loadData();
 
-        // 4. Install prompt logic
+        // Install prompt logic
         window.addEventListener('beforeinstallprompt', (e: any) => {
             e.preventDefault();
             (window as any).deferredPrompt = e;
@@ -234,19 +208,10 @@ const App: React.FC = () => {
 
     const handleStravaImportFinished = async (imported: Track[]) => {
         if (imported.length > 0) {
-            // Filter duplicates by ID (Strava activities have stable IDs)
-            const existingIds = new Set(tracks.map(t => t.id));
-            const uniqueImported = imported.filter(t => !existingIds.has(t.id));
-
-            if (uniqueImported.length === 0) {
-                if (!stravaAutoModal) addToast("Nessuna nuova attività trovata.", "info");
-                return;
-            }
-
-            const updated = [...tracks, ...uniqueImported].sort((a,b) => b.points[0].time.getTime() - a.points[0].time.getTime());
+            const updated = [...tracks, ...imported].sort((a,b) => b.points[0].time.getTime() - a.points[0].time.getTime());
             setTracks(updated);
             await saveTracksToDB(updated);
-            addToast(`${uniqueImported.length} attività da Strava importate.`, "success");
+            addToast(`${imported.length} attività da Strava importate.`, "success");
         }
     };
 
@@ -358,7 +323,7 @@ const App: React.FC = () => {
                     onLogout={async () => { await deleteUserAccount(); window.location.reload(); }}
                     onLogin={() => setShowLogin(true)}
                     plannedWorkouts={plannedWorkouts}
-                    onOpenWorkout={(id) => { setDiarySelectedWorkoutId(id); setView('diary'); }}
+                    onOpenWorkout={(id) => { setView('diary'); /* Logic to focus workout */ }}
                     onEnterRaceMode={() => { setView('map'); /* Logic to prep race */ }}
                     onOpenAdmin={() => setShowAdmin(true)}
                 />
@@ -562,7 +527,7 @@ const App: React.FC = () => {
                     tracks={tracks}
                     plannedWorkouts={plannedWorkouts}
                     userProfile={userProfile}
-                    onClose={() => { setView('map'); setDiarySelectedWorkoutId(null); }}
+                    onClose={() => setView('map')}
                     onSelectTrack={handleTrackSelect}
                     onDeletePlannedWorkout={async (id) => {
                         const next = plannedWorkouts.filter(w => w.id !== id);
@@ -590,7 +555,6 @@ const App: React.FC = () => {
                     }}
                     onCheckAiAccess={(feat) => checkDailyLimit(feat)}
                     onStartWorkout={handleStartLiveCoach}
-                    initialSelectedWorkoutId={diarySelectedWorkoutId}
                 />
             )}
 
@@ -617,15 +581,7 @@ const App: React.FC = () => {
                         addToast(`Allenamento completato! Durata: ${(duration/60000).toFixed(0)} min`, "success");
                         setView('map');
                     }}
-                    onExit={() => {
-                        // Return to Diary with the workout open if it was a planned session
-                        if (activeLiveWorkout) {
-                            setDiarySelectedWorkoutId(activeLiveWorkout.id);
-                            setView('diary');
-                        } else {
-                            setView('map');
-                        }
-                    }}
+                    onExit={() => setView('map')}
                 />
             )}
 
