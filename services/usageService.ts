@@ -12,6 +12,23 @@ export const LIMITS = {
     chat: 10 
 };
 
+// Sync local usage to cloud (Fire & Forget)
+const syncUsageToCloud = async (usage: ApiUsage) => {
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+            await supabase.from('user_ai_usage').upsert({
+                user_id: session.user.id,
+                total_tokens: usage.tokens,
+                total_requests: usage.requests,
+                updated_at: new Date().toISOString()
+            });
+        }
+    } catch (e) {
+        console.warn("Usage sync failed", e);
+    }
+};
+
 export const getApiUsage = (): ApiUsage => {
     const stored = localStorage.getItem(USAGE_KEY);
     const today = new Date().toDateString();
@@ -56,6 +73,7 @@ export const trackUsage = (tokens: number = 0) => {
         tokens: current.tokens + tokens
     };
     localStorage.setItem(USAGE_KEY, JSON.stringify(updated));
+    syncUsageToCloud(updated);
     return updated;
 };
 
@@ -66,6 +84,7 @@ export const addTokensToUsage = (tokens: number) => {
         tokens: current.tokens + tokens
     };
     localStorage.setItem(USAGE_KEY, JSON.stringify(updated));
+    syncUsageToCloud(updated);
     return updated;
 };
 
@@ -95,6 +114,7 @@ export const incrementDailyLimit = (type: keyof DailyCounts) => {
     const usage = getApiUsage();
     usage.dailyCounts[type] = (usage.dailyCounts[type] || 0) + 1;
     localStorage.setItem(USAGE_KEY, JSON.stringify(usage));
+    syncUsageToCloud(usage);
     return usage;
 };
 
