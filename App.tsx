@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Track, UserProfile, PlannedWorkout, Toast, ActivityType, RaceRunner, RaceResult, TrackStats, Commentary, TrackPoint, ApiUsage, RaceGapSnapshot, LeaderStats } from './types';
 import Sidebar from './components/Sidebar';
@@ -45,7 +46,7 @@ import {
 import { supabase } from './services/supabaseClient';
 import { handleStravaCallback, fetchStravaActivitiesMetadata, isStravaConnected } from './services/stravaService';
 import { getTrackStateAtTime, mergeTracks } from './services/trackEditorUtils';
-import { getApiUsage, trackUsage, addTokensToUsage, checkDailyLimit, incrementDailyLimit, getRemainingCredits, LIMITS } from './services/usageService';
+import { getApiUsage, trackUsage, addTokensToUsage, checkDailyLimit, incrementDailyLimit, getRemainingCredits, LIMITS, logAppAccess } from './services/usageService';
 import { parseGpx } from './services/gpxService';
 import { parseTcx } from './services/tcxService';
 import { generateSmartTitle } from './services/titleGenerator';
@@ -638,6 +639,8 @@ const App: React.FC = () => {
                 setUserId(session.user.id);
                 setIsGuest(false);
                 updatePresence(session.user.id);
+                // Log app access for admin stats
+                logAppAccess(session.user.id);
                 await loadData();
             } else {
                 setIsAppReady(true);
