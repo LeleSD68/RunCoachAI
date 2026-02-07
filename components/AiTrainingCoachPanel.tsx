@@ -240,7 +240,7 @@ const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({
 
     return (
         <div className="flex flex-col h-full">
-            <div className={`p-2 flex-grow ${layoutMode === 'horizontal' ? 'flex flex-row overflow-x-auto gap-4' : 'space-y-4'}`}>
+            <div className={`p-2 flex-grow ${layoutMode === 'horizontal' ? 'flex flex-row overflow-x-auto gap-4 pb-6' : 'space-y-4'}`}>
                 {!suggestions.length && !isGenerating && (
                     <div className="text-center p-4 bg-slate-800/40 rounded-2xl border border-slate-700 min-w-[200px] flex flex-col justify-center">
                         <p className="text-sm text-slate-300 mb-4">Ottieni una scheda basata sui tuoi impegni e note.</p>
