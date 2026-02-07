@@ -1,6 +1,7 @@
 
 import { ApiUsage, DailyCounts } from '../types';
 import { hasCustomApiKey } from './aiHelper';
+import { supabase } from './supabaseClient';
 
 const USAGE_KEY = 'runcoach_api_usage';
 
@@ -95,4 +96,20 @@ export const incrementDailyLimit = (type: keyof DailyCounts) => {
     usage.dailyCounts[type] = (usage.dailyCounts[type] || 0) + 1;
     localStorage.setItem(USAGE_KEY, JSON.stringify(usage));
     return usage;
+};
+
+// Logs app access for admin analytics. 
+// Uses sessionStorage to debounce (log only once per session/tab load)
+export const logAppAccess = async (userId: string) => {
+    if (!userId || userId === 'guest') return;
+    
+    const key = `logged_access_${new Date().toDateString()}`;
+    if (sessionStorage.getItem(key)) return;
+
+    try {
+        await supabase.from('access_logs').insert({ user_id: userId });
+        sessionStorage.setItem(key, 'true');
+    } catch (e) {
+        console.warn("Log access failed", e);
+    }
 };
