@@ -284,7 +284,17 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
 
             let prompt = "";
             if (contextType === 'phase_change') {
-                prompt = `Nuova fase: ${data.name}. Obiettivo: ${data.target}. Ritmo target: ${data.pace || 'Libero'}. Dai l'istruzione secca.`;
+                prompt = `Nuova fase: ${data.name}. 
+                Istruzione originale: "${data.instruction}".
+                Target: ${data.target}. 
+                Ritmo target: ${data.pace || 'Libero'}. 
+                
+                COMPITO COACH:
+                1. Annuncia la nuova fase.
+                2. SE la fase ha distanza E passo, CALCOLA verbalmente la durata prevista (es. "5km a 6:00 sono circa 30 minuti").
+                3. Dall'istruzione originale, estrai cosa fare e a cosa stare attenti (tecnica, respiro, intensità).
+                
+                Sii diretto e autorevole.`;
             } else {
                 prompt = `Stato attuale: Passo ${data.pace}, Fase ${data.phaseName}. Target ${data.targetPace || 'Nessuno'}. 
                 L'atleta sta andando ${data.diffStatus}. Dagli un feedback correttivo o di supporto rapido (max 10 parole).`;
@@ -294,7 +304,7 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
                 model: 'gemini-3-flash-preview',
                 contents: prompt,
                 config: {
-                    maxOutputTokens: 60, // Keep it short for TTS
+                    maxOutputTokens: 100, // Slightly increased for explanations
                     systemInstruction: systemInstr
                 }
             });
@@ -324,7 +334,8 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
                 const aiMsg = await generateAiFeedback('phase_change', {
                     name: phase.name,
                     target: phase.targetType === 'distance' ? `${(phase.targetValue/1000).toFixed(2)}km` : `${(phase.targetValue/60).toFixed(0)}min`,
-                    pace: phase.paceTarget ? formatPace(phase.paceTarget/60) : null
+                    pace: phase.paceTarget ? formatPace(phase.paceTarget/60) : null,
+                    instruction: phase.instruction || phase.description || ""
                 });
                 if (aiMsg) {
                     speak(aiMsg);
