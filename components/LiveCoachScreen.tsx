@@ -276,25 +276,28 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
         try {
             const ai = new GoogleGenAI({ apiKey });
             
-            const systemInstr = `Sei un Running Coach in tempo reale. Stai parlando all'atleta MENTRE corre.
-            Obiettivo: ${workout?.title || 'Corsa Libera'}.
-            Sii brevissimo, chiaro, motivante. 
-            NON usare simboli (*, #). 
-            Rispondi in ITALIANO parlato naturale.`;
+            const systemInstr = `Sei un Running Coach professionista che guida l'atleta in cuffia.
+            Tono: Energico, Chiaro, Motivante, Professionale.
+            Lingua: Italiano.`;
 
             let prompt = "";
             if (contextType === 'phase_change') {
-                prompt = `Nuova fase: ${data.name}. 
-                Istruzione originale: "${data.instruction}".
-                Target: ${data.target}. 
-                Ritmo target: ${data.pace || 'Libero'}. 
+                prompt = `
+                SITUAZIONE: Il blocco precedente è finito. Inizia ora il nuovo blocco.
                 
-                COMPITO COACH:
-                1. Annuncia la nuova fase.
-                2. SE la fase ha distanza E passo, CALCOLA verbalmente la durata prevista (es. "5km a 6:00 sono circa 30 minuti").
-                3. Dall'istruzione originale, estrai cosa fare e a cosa stare attenti (tecnica, respiro, intensità).
-                
-                Sii diretto e autorevole.`;
+                DATI NUOVO BLOCCO:
+                - NOME FASE (Titolo): "${data.name}"
+                - DESCRIZIONE/ISTRUZIONI: "${data.instruction}"
+                - OBIETTIVO (Durata/Distanza): ${data.target}
+                - RITMO PREVISTO: ${data.pace || 'Libero/A sensazione'}
+
+                COACH SCRIPT (Genera solo il parlato):
+                1. Esordisci annunciando chiaramente il NOME FASE.
+                2. Leggi/Spiega la DESCRIZIONE di cosa bisogna fare (tecnica, intensità).
+                3. Specifica l'OBIETTIVO (es. "per 5 chilometri").
+                4. Se presenti dati di passo, calcola e comunica la stima (es. "a 5:00/km sono circa 25 minuti").
+                5. Concludi con una frase motivante per affrontare questo blocco (es. "Andiamo!", "Forza!").
+                `;
             } else {
                 prompt = `Stato attuale: Passo ${data.pace}, Fase ${data.phaseName}. Target ${data.targetPace || 'Nessuno'}. 
                 L'atleta sta andando ${data.diffStatus}. Dagli un feedback correttivo o di supporto rapido (max 10 parole).`;
@@ -304,7 +307,7 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
                 model: 'gemini-3-flash-preview',
                 contents: prompt,
                 config: {
-                    maxOutputTokens: 100, // Slightly increased for explanations
+                    maxOutputTokens: 150, // Slightly increased for structured explanations
                     systemInstruction: systemInstr
                 }
             });
@@ -343,8 +346,11 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
                 }
             }
 
-            // Standard Fallback
+            // Standard Fallback: Read Title + Instruction + Target + Pace
             msg = `${phase.name}. `;
+            if (phase.instruction) {
+                msg += `${phase.instruction}. `;
+            }
             if (phase.targetType === 'distance') {
                 msg += `Per ${getDistanceSpeech(phase.targetValue)}. `;
             } else {
@@ -645,7 +651,11 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
                     <h1 className={`text-3xl sm:text-4xl font-black uppercase leading-tight truncate ${getPhaseColor(currentPhase.type)}`}>
                         {currentPhase.name}
                     </h1>
-                    {/* Simplified Instruction Display - Removed Verbose Description */}
+                    <div className="bg-slate-900/50 p-2 rounded-xl mt-2 border border-slate-800 mx-auto max-w-sm">
+                        <p className="text-xs sm:text-sm text-slate-200 font-medium italic line-clamp-2">
+                            "{currentPhase.description || currentPhase.instruction}"
+                        </p>
+                    </div>
                 </div>
 
                 <div className="flex flex-col items-center gap-1 shrink-0">
