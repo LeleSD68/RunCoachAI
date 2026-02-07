@@ -80,7 +80,6 @@ const parsePace = (text: string): number | undefined => {
 
 /**
  * Line-by-line robust parser that mimics exactly what the user reads in the text.
- * It does NOT invent defaults (like 10 mins warmup) if a line exists.
  */
 const parseLegacyWorkoutStructure = (description: string, title: string): TrainingPhase[] => {
     const lines = description.split(/\n+/); // Split by lines
@@ -89,7 +88,6 @@ const parseLegacyWorkoutStructure = (description: string, title: string): Traini
     let repCounter = 0;
     let totalReps = 0;
 
-    // Try to guess total reps if not explicit, by counting "Frazione veloce" lines
     const workLines = lines.filter(l => l.toLowerCase().includes('veloce') || l.toLowerCase().includes('ripetuta') || l.toLowerCase().includes('frazione')).length;
     if (workLines > 1) totalReps = workLines;
 
@@ -97,27 +95,18 @@ const parseLegacyWorkoutStructure = (description: string, title: string): Traini
         const lowerLine = line.toLowerCase().trim();
         if (!lowerLine || lowerLine.length < 5) continue;
 
-        // Detect Type
         let type: 'warmup' | 'work' | 'rest' | 'cooldown' | 'other' = 'other';
         if (lowerLine.includes('riscaldamento') || lowerLine.includes('warmup')) type = 'warmup';
         else if (lowerLine.includes('defaticamento') || lowerLine.includes('cooldown')) type = 'cooldown';
         else if (lowerLine.includes('recupero') || lowerLine.includes('lento') || lowerLine.includes('rest')) type = 'rest';
         else if (lowerLine.includes('veloce') || lowerLine.includes('ripetuta') || lowerLine.includes('frazione') || lowerLine.includes('gara') || lowerLine.includes('fartlek')) type = 'work';
         
-        // Skip informational lines that don't have actionable data (unless it's just "Riscaldamento" title)
-        // But we want to avoid "Info: ..." header lines
         if (lowerLine.startsWith('info:') || lowerLine.startsWith('obiettivo:')) continue;
 
-        // Parse metrics
         const metric = parseValueAndUnit(line);
-        if (!metric && type === 'other') continue; // Skip lines without numbers if they aren't labeled phases
+        if (!metric && type === 'other') continue; 
 
-        // If line is just "Riscaldamento" without numbers, skip or set a safe default ONLY if it's the only warmup line
-        if (!metric) {
-            // Very specific fallback only if explicit keyword exists but no number
-            // But usually the AI generated text has numbers. 
-            continue; 
-        }
+        if (!metric) continue; 
 
         const pace = parsePace(line);
         
@@ -130,21 +119,17 @@ const parseLegacyWorkoutStructure = (description: string, title: string): Traini
         }
         if (type === 'rest') name = "Recupero";
 
-        // Handle the case where "Recupero" comes after "Ripetuta" line in text
-        // (The loop order preserves this naturally)
-
         phases.push({
             name: name,
-            instruction: line.replace(/^[-*•]\s*/, ''), // Remove bullet points
+            instruction: line.replace(/^[-*•]\s*/, '').trim(), // Store the full descriptive line
             targetValue: metric.targetValue,
             targetType: metric.targetType,
-            type: type !== 'other' ? type : 'work', // Default 'other' to work
+            type: type !== 'other' ? type : 'work', 
             paceTarget: pace,
             repInfo: (type === 'work' || type === 'rest') && totalReps > 1 ? { current: repCounter, total: totalReps } : undefined
         });
     }
 
-    // Safety fallback: if parsing failed completely (0 phases), add a generic one
     if (phases.length === 0) {
         phases.push({ 
             name: "Allenamento Libero", 
@@ -158,6 +143,63 @@ const parseLegacyWorkoutStructure = (description: string, title: string): Traini
     return phases;
 };
 
+// --- HUMANIZER HELPERS ---
+const humanizeText = (text: string): string => {
+    let t = text.toLowerCase();
+
+    // Fix "1.00 km" -> "un chilometro"
+    t = t.replace(/(\d+)[.,]00\s*(km|chilometr)/gi, '$1 chilometri');
+    
+    // Fix "1.5 km" / "1,5 km" -> "un chilometro e mezzo"
+    t = t.replace(/\b1[.,]50?\s*(km|chilometr)/gi, 'un chilometro e mezzo');
+    t = t.replace(/\b1\s*(km|chilometr)/gi, 'un chilometro');
+    
+    // Fix "2.5 km" -> "due chilometri e mezzo"
+    t = t.replace(/\b(\d+)[.,]50?\s*(km|chilometr)/gi, '$1 chilometri e mezzo');
+
+    // Fix "1.500 metri" (millecinquecento)
+    // The parser keeps meters as numbers (1500), but description might have text.
+    // Replace dots in numbers if they look like thousands separators in context of meters
+    // E.g. "1.500m" -> "millecinquecento metri" is handled by speech engine usually, but let's ensure units
+    t = t.replace(/(\d)\.(\d{3})\s*(m|metr)/g, '$1$2 metri'); 
+
+    // Units expansion
+    t = t.replace(/km/gi, 'chilometri');
+    t = t.replace(/mt/gi, 'metri');
+    t = t.replace(/\bmin\b/gi, 'minuti');
+    t = t.replace(/\bsec\b/gi, 'secondi');
+    
+    // Punctuation for pause
+    t = t.replace(/[-]/g, ' '); 
+    t = t.replace(/\*\*/g, '');
+    t = t.replace(/\//g, ' su '); // e.g. min/km -> minuti su chilometro
+
+    // Pace formatting: 5:30 -> 5 e 30
+    t = t.replace(/(\d{1,2}):(\d{2})/g, '$1 e $2');
+
+    return t;
+};
+
+const getDistanceSpeech = (meters: number): string => {
+    if (meters >= 1000) {
+        const km = meters / 1000;
+        if (km === 1) return "un chilometro";
+        if (km === 1.5) return "un chilometro e mezzo";
+        if (Number.isInteger(km)) return `${km} chilometri`;
+        if (km % 1 === 0.5) return `${Math.floor(km)} chilometri e mezzo`;
+        return `${km.toFixed(2).replace('.', ' virgola ')} chilometri`;
+    }
+    return `${Math.round(meters)} metri`;
+};
+
+const getTimeSpeech = (seconds: number): string => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    if (m > 0 && s > 0) return `${m} minuti e ${s} secondi`;
+    if (m > 0) return `${m} minuti`;
+    return `${s} secondi`;
+};
+
 const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, onExit }) => {
     const [isRunning, setIsRunning] = useState(false);
     const [phases, setPhases] = useState<TrainingPhase[]>([]);
@@ -167,7 +209,7 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
     
     const [totalTime, setTotalTime] = useState(0);
     const [totalDistance, setTotalDistance] = useState(0); 
-    const [phaseValue, setPhaseValue] = useState(0); // Progress in current phase (sec or meters)
+    const [phaseValue, setPhaseValue] = useState(0); 
     const [currentPace, setCurrentPace] = useState(0); 
     const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null); 
 
@@ -177,7 +219,7 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
     const wakeLock = useRef<any>(null);
     const timerRef = useRef<number | null>(null);
     const lastFeedbackTimeRef = useRef<number>(0);
-    const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null); // Ref to prevent GC on iOS
+    const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null); 
 
     // Load Voices
     useEffect(() => {
@@ -195,15 +237,10 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
     useEffect(() => {
         let generatedPhases: TrainingPhase[] = [];
         if (workout) {
-            // Always try legacy parser first IF the description contains the structured data visually
-            // The AI generates the text description to match the user's intent perfectly.
-            // Sometimes the JSON structure is slightly off or missing in DB.
-            // The text parser is now robust enough to be the primary source if "PROGRAMMA DETTAGLIATO" is present.
-            
+            // Priority to text parsing as it aligns with visual description
             if (workout.description.includes("PROGRAMMA DETTAGLIATO") || workout.description.includes("-")) {
                  generatedPhases = parseLegacyWorkoutStructure(workout.description, workout.title);
             } else if (workout.structure && workout.structure.length > 0) {
-                // Fallback to structure object if text parsing yields nothing or text is simple
                 generatedPhases = workout.structure.map(p => ({
                     ...p,
                     name: p.description || (p.type === 'warmup' ? 'Riscaldamento' : p.type === 'cooldown' ? 'Defaticamento' : 'Fase'),
@@ -237,11 +274,8 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
         
         window.speechSynthesis.cancel();
         
-        let cleanText = text.replace(/\*\*/g, '').replace(/[-]/g, ' ').trim();
-        cleanText = cleanText.replace(/(\d{1,2}):(\d{2})/g, '$1 e $2');
-        cleanText = cleanText.replace(/(\d+)x/gi, '$1 per');
-        cleanText = cleanText.replace(/km/gi, 'chilometri');
-        cleanText = cleanText.replace(/mt/gi, 'metri');
+        // Apply humanization
+        const cleanText = humanizeText(text);
 
         const u = new SpeechSynthesisUtterance(cleanText);
         u.lang = 'it-IT';
@@ -251,7 +285,6 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
         const itVoice = voices.find(v => v.lang === 'it-IT' && v.name.includes('Google')) || voices.find(v => v.lang.includes('it'));
         if (itVoice) u.voice = itVoice;
         
-        // IMPORTANT: Reference assignment to prevent iOS Garbage Collection mid-speech
         utteranceRef.current = u;
         u.onend = () => { utteranceRef.current = null; };
         
@@ -262,19 +295,28 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
     useEffect(() => {
         if (!isRunning || phases.length === 0) return;
         const phase = phases[currentPhaseIndex];
-        let msg = `${phase.name}.`;
         
+        let msg = `${phase.name}. `;
+        
+        // Read full instruction description if available and not just the name
+        if (phase.instruction && phase.instruction.toLowerCase() !== phase.name.toLowerCase()) {
+            // Remove target numbers from instruction to avoid redundancy if we speak them next, 
+            // OR just read instruction if it's descriptive.
+            // Let's read instruction as the "What to do".
+            msg += `${phase.instruction}. `;
+        }
+
+        // Add explicit duration/distance target
         if (phase.targetType === 'distance') {
-            const distKm = phase.targetValue / 1000;
-            msg += ` Per ${distKm < 1 ? phase.targetValue + ' metri' : distKm.toFixed(2) + ' chilometri'}.`;
+            msg += `Per ${getDistanceSpeech(phase.targetValue)}. `;
         } else {
-            msg += ` Per ${formatTime(phase.targetValue)}.`;
+            msg += `Per ${getTimeSpeech(phase.targetValue)}. `;
         }
 
         if (phase.paceTarget) {
             const min = Math.floor(phase.paceTarget / 60);
             const sec = phase.paceTarget % 60;
-            msg += ` Ritmo: ${min} e ${sec}.`;
+            msg += `Ritmo: ${min} e ${sec}.`;
         }
         
         speak(msg);
@@ -345,6 +387,7 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
                             });
                         }
 
+                        // Pace calculation (min/km)
                         const rawPace = (timeDelta / 60) / (distDelta / 1000); 
                         paceBufferRef.current.push(rawPace);
                         if (paceBufferRef.current.length > 5) paceBufferRef.current.shift();
@@ -353,6 +396,7 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
                         setCurrentPace(avgPace);
 
                         const now = Date.now();
+                        // Check feedback every 45 seconds
                         if (now - lastFeedbackTimeRef.current > 45000 && avgPace > 0 && avgPace < 20) {
                             provideFeedback(currentPhase, avgPace);
                             lastFeedbackTimeRef.current = now;
@@ -375,23 +419,31 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
         if (phase.paceTarget) {
             const targetPaceMinKm = phase.paceTarget / 60; 
             const diff = currentPace - targetPaceMinKm;
+            // Tolerance +/- 10 sec/km (~0.16 min/km)
             const tolerance = 0.16;
 
             if (diff > tolerance) {
-                speak(`Sei lento. Accelera.`);
+                // Slower -> Pace number is higher
+                const min = Math.floor(currentPace);
+                const sec = Math.round((currentPace - min) * 60);
+                speak(`Sei lento. Vai a ${min} e ${sec}. Accelera.`);
             } else if (diff < -tolerance) {
-                speak(`Rallenta.`);
+                // Faster -> Pace number is lower
+                const min = Math.floor(currentPace);
+                const sec = Math.round((currentPace - min) * 60);
+                speak(`Troppo veloce. Vai a ${min} e ${sec}. Rallenta.`);
             } else {
-                speak("Ritmo ok.");
+                speak("Ritmo perfetto.");
             }
             return;
         }
 
+        // Generic feedback based on phase type if no specific target
         if (phase.type === 'work') {
-            if (currentPace > 6.5) speak("Spingi un po'.");
-            else if (currentPace < 4.0) speak("Vai forte.");
+            if (currentPace > 6.5) speak("Spingi di più.");
+            else if (currentPace < 4.0) speak("Ottimo ritmo!");
         } else if (phase.type === 'rest') {
-            if (currentPace < 6.0) speak("Recupera, rallenta.");
+            if (currentPace < 6.0) speak("Recupera, rallenta il passo.");
         }
     };
 
@@ -402,28 +454,28 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
             paceBufferRef.current = [];
         } else {
             setIsRunning(false);
-            speak("Allenamento completato.");
+            speak("Allenamento completato. Ottimo lavoro!");
         }
     };
 
     const handleToggle = () => {
         if (!isRunning) {
             // UNLOCK AUDIO CONTEXT ON START/RESUME
-            speak(totalTime === 0 ? "Iniziamo." : "Riprendo.", true);
+            speak(totalTime === 0 ? "Iniziamo l'allenamento." : "Riprendo.", true);
         } else {
-            speak("Pausa.");
+            speak("Allenamento in pausa.");
         }
         setIsRunning(!isRunning);
     };
 
     const handleTestAudio = () => {
-        speak("Test audio uno due tre. Volume attivo.", true);
+        speak("Test audio. Volume attivo. Un chilometro e mezzo.", true);
     };
 
     const handlePrevPhase = () => {
         if (currentPhaseIndex > 0) {
             const prevPhase = phases[currentPhaseIndex - 1];
-            speak(`Indietro: ${prevPhase.name}.`);
+            speak(`Torno indietro a: ${prevPhase.name}.`);
             setCurrentPhaseIndex(i => i - 1);
             setPhaseValue(0);
             paceBufferRef.current = [];
@@ -433,7 +485,7 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
     const handleNextPhase = () => {
         if (currentPhaseIndex < phases.length - 1) {
             const nextPhase = phases[currentPhaseIndex + 1];
-            speak(`Avanti: ${nextPhase.name}.`);
+            speak(`Salto a: ${nextPhase.name}.`);
             setCurrentPhaseIndex(i => i + 1);
             setPhaseValue(0);
             paceBufferRef.current = [];
