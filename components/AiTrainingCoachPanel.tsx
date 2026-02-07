@@ -139,8 +139,9 @@ const AiTrainingCoachPanel: React.FC<AiTrainingCoachPanelProps> = ({
                 COMPITO:
                 ${taskDescription}
                 
-                IMPORTANTE: DEVI fornire una "structuredMenu" (array di fasi) che il Virtual Coach userà per guidare vocalmente l'atleta.
-                Esempio logica: Se l'allenamento è "5km a 6:20/km" -> targetType: "distance", targetValue: 5000, paceTarget: 380 (secondi/km).
+                IMPORTANTE: DEVI fornire una "workoutPhases" (array di fasi) che corrisponda MATEMATICAMENTE e LOGICAMENTE alla descrizione testuale.
+                CRITICO: Se la descrizione dice "2km riscaldamento", la fase DEVE essere targetType="distance" e targetValue=2000. NON usare valori di default temporali.
+                CRITICO: Se la descrizione dice "recupero 500m", la fase DEVE essere targetType="distance" e targetValue=500.
                 
                 Struttura JSON richiesta per ogni allenamento:
                 [{
