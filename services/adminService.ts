@@ -1,12 +1,13 @@
 
 import { supabase } from './supabaseClient';
+import { AdminUserStats, SubscriptionTier } from '../types';
 
 export interface AdminStats {
     totalUsers: number;
     activeToday: number;
     totalTracks: number;
     totalWorkouts: number;
-    recentUsers: { name: string; email: string; last_seen_at: string }[];
+    usersList: AdminUserStats[];
 }
 
 export const getAdminStats = async (): Promise<AdminStats> => {
@@ -32,18 +33,39 @@ export const getAdminStats = async (): Promise<AdminStats> => {
         .from('planned_workouts')
         .select('*', { count: 'exact', head: true });
 
-    // 5. Recent Users List (Last 10)
-    const { data: recentUsers } = await supabase
-        .from('profiles')
-        .select('name, last_seen_at') // Email might be restricted or in auth.users, stick to profiles for now
-        .order('last_seen_at', { ascending: false })
-        .limit(10);
+    // 5. Users List with Stats (Via RPC for performance)
+    const { data: usersData, error } = await supabase.rpc('get_admin_users_list');
+    
+    if (error) {
+        console.error("RPC Error", error);
+        throw new Error("Failed to fetch user stats");
+    }
+
+    const usersList: AdminUserStats[] = (usersData || []).map((u: any) => ({
+        id: u.id,
+        name: u.name || 'Senza Nome',
+        isAdmin: u.is_admin,
+        subscriptionTier: u.subscription_tier as SubscriptionTier,
+        lastSeenAt: u.last_seen_at,
+        logins24h: u.logins_24h,
+        logins7d: u.logins_7d,
+        logins30d: u.logins_30d
+    }));
 
     return {
         totalUsers: totalUsers || 0,
         activeToday: activeToday || 0,
         totalTracks: totalTracks || 0,
         totalWorkouts: totalWorkouts || 0,
-        recentUsers: (recentUsers || []) as any
+        usersList
     };
+};
+
+export const updateUserStatus = async (userId: string, tier: SubscriptionTier, isAdmin: boolean) => {
+    const { error } = await supabase
+        .from('profiles')
+        .update({ subscription_tier: tier, is_admin: isAdmin })
+        .eq('id', userId);
+    
+    if (error) throw error;
 };
