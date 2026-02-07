@@ -126,6 +126,8 @@ export interface AdminUserStats {
     logins24h: number;
     logins7d: number;
     logins30d: number;
+    aiTokens: number;
+    aiRequests: number;
 }
 
 export type RunningGoal = 'none' | '5k' | '10k' | 'half_marathon' | 'marathon' | 'speed' | 'endurance' | 'weight_loss';
