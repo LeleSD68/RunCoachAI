@@ -114,6 +114,18 @@ export interface UserProfile {
   isAdmin?: boolean; 
   subscriptionTier?: SubscriptionTier; // NEW
   subscriptionExpiresAt?: string; // NEW
+  lastSeenAt?: string;
+}
+
+export interface AdminUserStats {
+    id: string;
+    name: string;
+    isAdmin: boolean;
+    subscriptionTier: SubscriptionTier;
+    lastSeenAt: string;
+    logins24h: number;
+    logins7d: number;
+    logins30d: number;
 }
 
 export type RunningGoal = 'none' | '5k' | '10k' | 'half_marathon' | 'marathon' | 'speed' | 'endurance' | 'weight_loss';
@@ -222,6 +234,8 @@ export interface MapDisplayProps {
     selectedPoint?: TrackPoint | null;
     onPointClick?: (point: TrackPoint | null) => void;
     hoveredLegendValue?: number | null;
+    onToggleFullScreen?: () => void;
+    isFullScreen?: boolean;
 }
 
 export interface RaceRunner {
@@ -316,6 +330,15 @@ export interface FriendRequest {
   status: 'pending' | 'accepted' | 'rejected';
   createdAt: string;
   requester: UserProfile;
+}
+
+export interface WorkoutPhase {
+    name: string;
+    instruction: string;
+    targetValue: number; 
+    targetType: 'time' | 'distance'; 
+    type: 'warmup' | 'work' | 'rest' | 'cooldown';
+    paceTarget?: number; 
 }
 
 declare global {
