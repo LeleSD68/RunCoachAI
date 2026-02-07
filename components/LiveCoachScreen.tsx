@@ -49,132 +49,110 @@ const formatPace = (pace: number) => {
 };
 
 // Helper for Legacy Parsing (fallback)
-const parseValueAndUnit = (rawVal: string, unit: string): { targetValue: number, targetType: 'time' | 'distance' } => {
-    const val = parseFloat(rawVal.replace(',', '.'));
-    if (unit.startsWith('km') || unit.startsWith('chilometr')) return { targetValue: val * 1000, targetType: 'distance' };
-    if (unit.startsWith('m') && !unit.startsWith('min')) return { targetValue: val, targetType: 'distance' };
-    if (unit.startsWith('sec') || unit === '”' || unit === '"') return { targetValue: val, targetType: 'time' };
-    return { targetValue: val * 60, targetType: 'time' };
+const parseValueAndUnit = (text: string): { targetValue: number, targetType: 'time' | 'distance' } | null => {
+    // Regex matches "2.5 km", "500 m", "10 min", "30 sec"
+    // Handles dots/commas and spacing
+    const regex = /(\d+(?:[.,]\d+)?)\s*(km|chilometr|m|metri|min|minuti|sec|secondi|'|”|")/i;
+    const match = text.match(regex);
+    
+    if (!match) return null;
+    
+    const val = parseFloat(match[1].replace(',', '.'));
+    const unit = match[2].toLowerCase();
+
+    if (unit.startsWith('k') || unit.startsWith('chil')) return { targetValue: val * 1000, targetType: 'distance' };
+    if (unit.startsWith('m') && !unit.startsWith('min')) return { targetValue: val, targetType: 'distance' }; // 'm' or 'metri'
+    if (unit.startsWith('min') || unit === "'") return { targetValue: val * 60, targetType: 'time' };
+    
+    // Seconds
+    return { targetValue: val, targetType: 'time' };
 };
 
+const parsePace = (text: string): number | undefined => {
+    // Matches "@ 5:30", "a 5.30", "ritmo 5:30"
+    const regex = /(?:@|a|ritmo)\s*(\d{1,2})[:.](\d{2})/i;
+    const match = text.match(regex);
+    if (match) {
+        return parseInt(match[1]) * 60 + parseInt(match[2]);
+    }
+    return undefined;
+};
+
+/**
+ * Line-by-line robust parser that mimics exactly what the user reads in the text.
+ * It does NOT invent defaults (like 10 mins warmup) if a line exists.
+ */
 const parseLegacyWorkoutStructure = (description: string, title: string): TrainingPhase[] => {
-    const fullText = (title + " " + description).toLowerCase();
+    const lines = description.split(/\n+/); // Split by lines
     const phases: TrainingPhase[] = [];
+    
+    let repCounter = 0;
+    let totalReps = 0;
 
-    const warmupRegex = /(?:riscaldamento|warmup)\s*(?:di|per)?\s*(\d+(?:[.,]\d+)?)\s*(min|m|km|secondi|sec|'|”|chilometri|metri)/i;
-    const warmupMatch = fullText.match(warmupRegex);
+    // Try to guess total reps if not explicit, by counting "Frazione veloce" lines
+    const workLines = lines.filter(l => l.toLowerCase().includes('veloce') || l.toLowerCase().includes('ripetuta') || l.toLowerCase().includes('frazione')).length;
+    if (workLines > 1) totalReps = workLines;
 
-    if (warmupMatch) {
-        const { targetValue, targetType } = parseValueAndUnit(warmupMatch[1], warmupMatch[2]);
+    for (const line of lines) {
+        const lowerLine = line.toLowerCase().trim();
+        if (!lowerLine || lowerLine.length < 5) continue;
+
+        // Detect Type
+        let type: 'warmup' | 'work' | 'rest' | 'cooldown' | 'other' = 'other';
+        if (lowerLine.includes('riscaldamento') || lowerLine.includes('warmup')) type = 'warmup';
+        else if (lowerLine.includes('defaticamento') || lowerLine.includes('cooldown')) type = 'cooldown';
+        else if (lowerLine.includes('recupero') || lowerLine.includes('lento') || lowerLine.includes('rest')) type = 'rest';
+        else if (lowerLine.includes('veloce') || lowerLine.includes('ripetuta') || lowerLine.includes('frazione') || lowerLine.includes('gara') || lowerLine.includes('fartlek')) type = 'work';
+        
+        // Skip informational lines that don't have actionable data (unless it's just "Riscaldamento" title)
+        // But we want to avoid "Info: ..." header lines
+        if (lowerLine.startsWith('info:') || lowerLine.startsWith('obiettivo:')) continue;
+
+        // Parse metrics
+        const metric = parseValueAndUnit(line);
+        if (!metric && type === 'other') continue; // Skip lines without numbers if they aren't labeled phases
+
+        // If line is just "Riscaldamento" without numbers, skip or set a safe default ONLY if it's the only warmup line
+        if (!metric) {
+            // Very specific fallback only if explicit keyword exists but no number
+            // But usually the AI generated text has numbers. 
+            continue; 
+        }
+
+        const pace = parsePace(line);
+        
+        let name = "Fase";
+        if (type === 'warmup') name = "Riscaldamento";
+        if (type === 'cooldown') name = "Defaticamento";
+        if (type === 'work') {
+            repCounter++;
+            name = totalReps > 1 ? `Ripetuta ${repCounter}` : "Fase Veloce";
+        }
+        if (type === 'rest') name = "Recupero";
+
+        // Handle the case where "Recupero" comes after "Ripetuta" line in text
+        // (The loop order preserves this naturally)
+
         phases.push({
-            name: "Riscaldamento",
-            instruction: `Riscaldamento di ${targetType === 'time' ? formatTime(targetValue) : targetValue + 'm'}.`,
-            targetValue,
-            targetType,
-            type: 'warmup'
+            name: name,
+            instruction: line.replace(/^[-*•]\s*/, ''), // Remove bullet points
+            targetValue: metric.targetValue,
+            targetType: metric.targetType,
+            type: type !== 'other' ? type : 'work', // Default 'other' to work
+            paceTarget: pace,
+            repInfo: (type === 'work' || type === 'rest') && totalReps > 1 ? { current: repCounter, total: totalReps } : undefined
         });
     }
 
-    const repRegex = /(\d+)\s*(?:x|per|volte|ripetute)/i;
-    const repMatch = fullText.match(repRegex);
-
-    if (repMatch) {
-        const count = parseInt(repMatch[1]);
-        if (phases.length === 0) {
-            phases.push({ 
-                name: "Riscaldamento", 
-                instruction: "10 minuti di riscaldamento standard.", 
-                targetValue: 600, 
-                targetType: 'time', 
-                type: 'warmup' 
-            });
-        }
-
-        const textAfterReps = fullText.substring(fullText.indexOf(repMatch[0]) + repMatch[0].length);
-        const workRegex = /(?:da|di)?\s*(\d+(?:[.,]\d+)?)\s*(min|m|km|secondi|sec|'|”)/i;
-        const workMatch = textAfterReps.match(workRegex);
-
-        if (workMatch) {
-            const { targetValue: workTarget, targetType: workType } = parseValueAndUnit(workMatch[1], workMatch[2]);
-            const restRegex = /(?:recupero|rec|lento|piano|rest|off)\s*(\d+(?:[.,]\d+)?)\s*(min|m|km|secondi|sec|'|”)/i;
-            const restMatch = textAfterReps.match(restRegex);
-            
-            let restTarget = 0;
-            let restType: 'time' | 'distance' = 'time';
-
-            if (restMatch) {
-                const res = parseValueAndUnit(restMatch[1], restMatch[2]);
-                restTarget = res.targetValue;
-                restType = res.targetType;
-            } else {
-                restTarget = 120; 
-            }
-
-            for (let i = 1; i <= count; i++) {
-                phases.push({
-                    name: `Ripetuta ${i}`,
-                    instruction: `Vai! ${workType === 'time' ? formatTime(workTarget) : (workTarget < 1000 ? workTarget+' metri' : (workTarget/1000).toFixed(2)+' km')}`,
-                    targetValue: workTarget,
-                    targetType: workType,
-                    type: 'work',
-                    repInfo: { current: i, total: count }
-                });
-
-                if (restTarget > 0 && i < count) {
-                    phases.push({
-                        name: `Recupero ${i}`,
-                        instruction: `Recupera per ${restType === 'time' ? formatTime(restTarget) : (restTarget).toFixed(0)+'m'}.`,
-                        targetValue: restTarget,
-                        targetType: restType,
-                        type: 'rest',
-                        repInfo: { current: i, total: count }
-                    });
-                }
-            }
-        }
-    } else {
-        let mainWorkRegex = /(\d+(?:[.,]\d+)?)\s*(min|m|km|secondi|sec|'|”|chilometri|metri)/g;
-        let match;
-        let foundMain = false;
-
-        while ((match = mainWorkRegex.exec(fullText)) !== null) {
-            if (warmupMatch && match[0] === warmupMatch[0]) continue;
-            if (fullText.substring(Math.max(0, match.index - 15), match.index).includes('defaticamento')) continue;
-
-            const { targetValue, targetType } = parseValueAndUnit(match[1], match[2]);
-            
-            phases.push({
-                name: "Allenamento",
-                instruction: description || "Corri al ritmo previsto.",
-                targetValue,
-                targetType,
-                type: 'work'
-            });
-            foundMain = true;
-            break;
-        }
-
-        if (!foundMain) {
-            if (phases.length === 0) {
-                phases.push({ name: "Corsa Libera", instruction: "Allenamento libero. Corri a sensazione.", targetValue: 3600, targetType: 'time', type: 'work' });
-            }
-        }
-    }
-
-    const cooldownRegex = /(?:defaticamento|cooldown)\s*(?:di|per)?\s*(\d+(?:[.,]\d+)?)\s*(min|m|km|secondi|sec|'|”)/i;
-    const cooldownMatch = fullText.match(cooldownRegex);
-
-    if (cooldownMatch) {
-        const { targetValue, targetType } = parseValueAndUnit(cooldownMatch[1], cooldownMatch[2]);
-        phases.push({
-            name: "Defaticamento",
-            instruction: "Defaticamento finale.",
-            targetValue,
-            targetType,
-            type: 'cooldown'
+    // Safety fallback: if parsing failed completely (0 phases), add a generic one
+    if (phases.length === 0) {
+        phases.push({ 
+            name: "Allenamento Libero", 
+            instruction: description || "Corri a sensazione.", 
+            targetValue: 3600, 
+            targetType: 'time', 
+            type: 'work' 
         });
-    } else if (repMatch) {
-        phases.push({ name: "Defaticamento", instruction: "Lavoro finito! Corsetta sciolta.", targetValue: 300, targetType: 'time', type: 'cooldown' });
     }
 
     return phases;
@@ -217,7 +195,15 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
     useEffect(() => {
         let generatedPhases: TrainingPhase[] = [];
         if (workout) {
-            if (workout.structure && workout.structure.length > 0) {
+            // Always try legacy parser first IF the description contains the structured data visually
+            // The AI generates the text description to match the user's intent perfectly.
+            // Sometimes the JSON structure is slightly off or missing in DB.
+            // The text parser is now robust enough to be the primary source if "PROGRAMMA DETTAGLIATO" is present.
+            
+            if (workout.description.includes("PROGRAMMA DETTAGLIATO") || workout.description.includes("-")) {
+                 generatedPhases = parseLegacyWorkoutStructure(workout.description, workout.title);
+            } else if (workout.structure && workout.structure.length > 0) {
+                // Fallback to structure object if text parsing yields nothing or text is simple
                 generatedPhases = workout.structure.map(p => ({
                     ...p,
                     name: p.description || (p.type === 'warmup' ? 'Riscaldamento' : p.type === 'cooldown' ? 'Defaticamento' : 'Fase'),
@@ -277,14 +263,20 @@ const LiveCoachScreen: React.FC<LiveCoachScreenProps> = ({ workout, onFinish, on
         if (!isRunning || phases.length === 0) return;
         const phase = phases[currentPhaseIndex];
         let msg = `${phase.name}.`;
+        
+        if (phase.targetType === 'distance') {
+            const distKm = phase.targetValue / 1000;
+            msg += ` Per ${distKm < 1 ? phase.targetValue + ' metri' : distKm.toFixed(2) + ' chilometri'}.`;
+        } else {
+            msg += ` Per ${formatTime(phase.targetValue)}.`;
+        }
+
         if (phase.paceTarget) {
             const min = Math.floor(phase.paceTarget / 60);
             const sec = phase.paceTarget % 60;
-            msg += ` Obiettivo passo: ${min} e ${sec}.`;
-        } else if (phase.instruction) {
-            // Keep instructions short for TTS
-            msg += ` ${phase.instruction.substring(0, 50)}`; 
+            msg += ` Ritmo: ${min} e ${sec}.`;
         }
+        
         speak(msg);
     }, [currentPhaseIndex, isRunning, phases, speak]);
 
