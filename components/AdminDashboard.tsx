@@ -8,6 +8,12 @@ interface AdminDashboardProps {
     onClose: () => void;
 }
 
+const formatTokens = (tokens: number) => {
+    if (tokens >= 1000000) return (tokens / 1000000).toFixed(1) + 'M';
+    if (tokens >= 1000) return (tokens / 1000).toFixed(1) + 'k';
+    return tokens.toString();
+};
+
 const StatCard: React.FC<{ title: string; value: string | number; icon: string; color: string }> = ({ title, value, icon, color }) => (
     <div className={`bg-slate-800 p-4 sm:p-6 rounded-2xl border border-slate-700 relative overflow-hidden group`}>
         <div className={`absolute top-0 right-0 p-4 opacity-10 text-6xl group-hover:scale-110 transition-transform ${color}`}>
@@ -88,6 +94,23 @@ const UserRow: React.FC<{ user: AdminUserStats, onUpdate: (id: string, tier: Sub
                             Salva Modifiche
                         </button>
                     )}
+                </div>
+            </div>
+            
+            {/* AI Stats Row */}
+            <div className="flex items-center gap-4 bg-purple-900/10 p-2 rounded-lg border border-purple-500/20">
+                <div className="text-[10px] font-bold text-purple-300 uppercase tracking-wide flex items-center gap-1">
+                    <span>🧠 AI Usage:</span>
+                </div>
+                <div className="flex gap-4">
+                    <div className="flex flex-col items-center">
+                        <span className="text-[9px] text-slate-400">Tokens</span>
+                        <span className="text-sm font-black text-white font-mono">{formatTokens(user.aiTokens)}</span>
+                    </div>
+                    <div className="flex flex-col items-center">
+                        <span className="text-[9px] text-slate-400">Requests</span>
+                        <span className="text-sm font-black text-white font-mono">{user.aiRequests}</span>
+                    </div>
                 </div>
             </div>
 
@@ -206,7 +229,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
                                         </div>
                                         <div className="bg-slate-800 p-4 rounded-xl flex justify-between items-center">
                                             <span className="text-slate-400 text-sm font-bold">Token Usati</span>
-                                            <span className="text-purple-400 font-mono font-black text-xl">{apiUsage?.tokens || 0}</span>
+                                            <span className="text-purple-400 font-mono font-black text-xl">{formatTokens(apiUsage?.tokens || 0)}</span>
                                         </div>
                                         
                                         <div className="p-4 bg-slate-800/50 rounded-xl border border-slate-700">
