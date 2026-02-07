@@ -121,15 +121,11 @@ export const loadTracksFromDB = async (forceLocal: boolean = false): Promise<Tra
 export const saveProfileToDB = async (profile: UserProfile, options: { skipCloud?: boolean } = {}): Promise<void> => {
   const db = await initDB();
   const tx = db.transaction([PROFILE_STORE], 'readwrite');
-  // FIX: Salviamo sempre con id 'current' in locale per poterlo recuperare facilmente
-  // Spreading di profile PRIMA di id='current' assicura che id sia sovrascritto
   tx.objectStore(PROFILE_STORE).put({ ...profile, id: 'current' });
 
   if (!options.skipCloud && isSupabaseConfigured()) {
     const { data: { session } } = await supabase.auth.getSession();
     if (session) {
-      // FIX CRITICO: Non inviamo is_admin al server durante il salvataggio.
-      // Questo impedisce che l'app sovrascriva il valore 'true' del DB con 'false/undefined'.
       await supabase.from('profiles').upsert({
         id: session.user.id,
         name: profile.name,
@@ -146,7 +142,6 @@ export const saveProfileToDB = async (profile: UserProfile, options: { skipCloud
         retired_shoes: profile.retiredShoes || [], 
         weight_history: profile.weightHistory || [],
         strava_auto_sync: profile.stravaAutoSync,
-        // is_admin: profile.isAdmin, <--- RIMOSSO INTENZIONALMENTE
         updated_at: new Date().toISOString()
       });
     }
@@ -160,16 +155,12 @@ export const loadProfileFromDB = async (forceLocal: boolean = false): Promise<Us
     const { data, error } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
     
     if (error) {
-        console.warn("Supabase profile load error:", error);
-        // Se è un errore 500, lo propaghiamo per gestirlo nella UI
         if (error.code === '500' || (error as any).status === 500) {
             throw new Error("SUPABASE_500_RECURSION");
         }
     }
 
     if (data && !error) {
-      console.log("Supabase Raw Profile Data:", data);
-      
       const cloudProfile: UserProfile = {
         id: session.user.id,
         name: data.name,
@@ -187,9 +178,8 @@ export const loadProfileFromDB = async (forceLocal: boolean = false): Promise<Us
         retiredShoes: data.retired_shoes,
         weightHistory: data.weight_history,
         stravaAutoSync: data.strava_auto_sync,
-        isAdmin: data.is_admin === true || data.is_admin === 'true' || data.is_admin === 1 // Parsing permissivo
+        isAdmin: data.is_admin === true || data.is_admin === 'true' || data.is_admin === 1 
       };
-      // Salviamo in locale per cache (skipCloud=true evita loop)
       await saveProfileToDB(cloudProfile, { skipCloud: true });
       return cloudProfile;
     }
@@ -200,7 +190,6 @@ export const loadProfileFromDB = async (forceLocal: boolean = false): Promise<Us
     const req = db.transaction([PROFILE_STORE], 'readonly').objectStore(PROFILE_STORE).get('current');
     req.onsuccess = () => {
         const res = req.result;
-        // FIX: Se abbiamo una sessione attiva, iniettiamo l'ID reale anche se leggiamo dalla cache locale
         if (res && session?.user?.id) {
             res.id = session.user.id;
             res.email = session.user.email;
@@ -222,7 +211,7 @@ export const savePlannedWorkoutsToDB = async (workouts: PlannedWorkout[], option
     const { data: { session } } = await supabase.auth.getSession();
     if (session) {
       for (const w of workouts) {
-        await supabase.from('planned_workouts').upsert({
+        const payload: any = {
           id: w.id.length === 36 ? w.id : undefined,
           user_id: session.user.id,
           title: w.title,
@@ -231,7 +220,13 @@ export const savePlannedWorkoutsToDB = async (workouts: PlannedWorkout[], option
           activity_type: w.activityType,
           is_ai_suggested: w.isAiSuggested,
           completed_track_id: w.completedTrackId
-        });
+        };
+        // Explicitly include structure if present (requires 'structure' column in DB, failing silently if not present usually)
+        if (w.structure) {
+            payload.structure = w.structure;
+        }
+
+        await supabase.from('planned_workouts').upsert(payload);
       }
     }
   }
@@ -243,8 +238,14 @@ export const loadPlannedWorkoutsFromDB = async (forceLocal: boolean = false): Pr
     const { data, error } = await supabase.from('planned_workouts').select('*').eq('user_id', session.user.id);
     if (data && !error) {
       const workouts = data.map((w: any) => ({
-        id: w.id, title: w.title, description: w.description, date: new Date(w.date),
-        activity_type: w.activity_type, isAiSuggested: w.is_ai_suggested, completedTrackId: w.completed_track_id
+        id: w.id, 
+        title: w.title, 
+        description: w.description, 
+        date: new Date(w.date),
+        activityType: w.activity_type, 
+        isAiSuggested: w.is_ai_suggested, 
+        completedTrackId: w.completed_track_id,
+        structure: w.structure // Ensure structure is loaded back
       }));
       await savePlannedWorkoutsToDB(workouts, { skipCloud: true });
       return workouts;
