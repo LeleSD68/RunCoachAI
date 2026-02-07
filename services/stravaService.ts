@@ -97,6 +97,7 @@ const getValidAccessToken = async () => {
     const { clientId, clientSecret } = getStravaConfig();
 
     if (!refreshToken || !clientId || !clientSecret) {
+        disconnectStrava(); // Cleanup invalid state
         throw new Error("AUTH_REQUIRED");
     }
 
@@ -112,12 +113,16 @@ const getValidAccessToken = async () => {
             })
         });
 
-        if (!response.ok) throw new Error("Errore refresh token.");
+        if (!response.ok) {
+            disconnectStrava();
+            throw new Error("Errore refresh token.");
+        }
 
         const data = await response.json();
         saveTokens(data);
         return data.access_token;
     } catch (e) {
+        disconnectStrava();
         throw new Error("AUTH_REQUIRED");
     }
 };
@@ -126,97 +131,111 @@ const getValidAccessToken = async () => {
  * Recupera l'elenco delle attività senza i flussi (streams), molto più veloce.
  */
 export const fetchStravaActivitiesMetadata = async (after?: number, before?: number, limit: number = 50): Promise<any[]> => {
-    const token = await getValidAccessToken();
-    let url = `https://www.strava.com/api/v3/athlete/activities?per_page=${limit}`;
-    if (after) url += `&after=${after}`;
-    if (before) url += `&before=${before}`;
+    try {
+        const token = await getValidAccessToken();
+        let url = `https://www.strava.com/api/v3/athlete/activities?per_page=${limit}`;
+        if (after) url += `&after=${after}`;
+        if (before) url += `&before=${before}`;
 
-    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
-    if (!res.ok) throw new Error("Errore durante il recupero dell'elenco attività.");
-    
-    return await res.json();
+        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (!res.ok) throw new Error("Errore durante il recupero dell'elenco attività.");
+        
+        return await res.json();
+    } catch (e) {
+        throw e; // Propagate for UI handling
+    }
 };
 
 export const fetchDetailedStravaActivity = async (activityId: string | number): Promise<Track | null> => {
-    const token = await getValidAccessToken();
-    
-    // Fetch individual activity to get full details (like description)
-    const actRes = await fetch(`https://www.strava.com/api/v3/activities/${activityId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-    });
-    if (!actRes.ok) return null;
-    const activity = await actRes.json();
-
-    const streamUrl = `https://www.strava.com/api/v3/activities/${activityId}/streams?keys=time,latlng,altitude,heartrate,watts,cadence,velocity_smooth&key_by_type=true`;
-    const streamRes = await fetch(streamUrl, {
-        headers: { 'Authorization': `Bearer ${token}` }
-    });
-
-    if (!streamRes.ok) return null;
-    const streams = await streamRes.json();
-
-    if (!streams.latlng || !streams.time) return null;
-
-    const points: TrackPoint[] = [];
-    const startTime = new Date(activity.start_date);
-    let totalDistance = 0;
-
-    const rawPoints: Omit<TrackPoint, 'cummulativeDistance'>[] = [];
-    for (let i = 0; i < streams.time.data.length; i++) {
-        const latlng = streams.latlng.data[i];
-        const timeOffset = streams.time.data[i];
-        const ele = streams.altitude ? streams.altitude.data[i] : 0;
-        const hr = streams.heartrate ? streams.heartrate.data[i] : undefined;
-        const cad = streams.cadence ? streams.cadence.data[i] : undefined;
-        const power = streams.watts ? streams.watts.data[i] : undefined;
-
-        rawPoints.push({
-            lat: latlng[0],
-            lon: latlng[1],
-            ele: ele,
-            time: new Date(startTime.getTime() + timeOffset * 1000),
-            hr,
-            cad,
-            power
+    try {
+        const token = await getValidAccessToken();
+        
+        // Fetch individual activity to get full details (like description)
+        const actRes = await fetch(`https://www.strava.com/api/v3/activities/${activityId}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
         });
+        if (!actRes.ok) return null;
+        const activity = await actRes.json();
+
+        const streamUrl = `https://www.strava.com/api/v3/activities/${activityId}/streams?keys=time,latlng,altitude,heartrate,watts,cadence,velocity_smooth&key_by_type=true`;
+        const streamRes = await fetch(streamUrl, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!streamRes.ok) return null;
+        const streams = await streamRes.json();
+
+        if (!streams.latlng || !streams.time) return null;
+
+        const points: TrackPoint[] = [];
+        const startTime = new Date(activity.start_date);
+        let totalDistance = 0;
+
+        const rawPoints: Omit<TrackPoint, 'cummulativeDistance'>[] = [];
+        for (let i = 0; i < streams.time.data.length; i++) {
+            const latlng = streams.latlng.data[i];
+            const timeOffset = streams.time.data[i];
+            const ele = streams.altitude ? streams.altitude.data[i] : 0;
+            const hr = streams.heartrate ? streams.heartrate.data[i] : undefined;
+            const cad = streams.cadence ? streams.cadence.data[i] : undefined;
+            const power = streams.watts ? streams.watts.data[i] : undefined;
+
+            rawPoints.push({
+                lat: latlng[0],
+                lon: latlng[1],
+                ele: ele,
+                time: new Date(startTime.getTime() + timeOffset * 1000),
+                hr,
+                cad,
+                power
+            });
+        }
+
+        const smoothed = smoothElevation(rawPoints);
+        smoothed.forEach((p, i) => {
+            if (i > 0) totalDistance += haversineDistance(smoothed[i-1], p);
+            points.push({ ...p, cummulativeDistance: totalDistance });
+        });
+
+        return {
+            id: `strava-${activity.id}`,
+            name: activity.name,
+            points: points,
+            distance: totalDistance,
+            duration: activity.moving_time * 1000,
+            color: '#fc4c02',
+            activityType: 'Lento', 
+            startTime: activity.start_date,
+            isPublic: false,
+            notes: activity.description || '',
+            tags: ['Strava']
+        };
+    } catch (e) {
+        console.error(`Strava detail fetch failed for ${activityId}`, e);
+        return null;
     }
-
-    const smoothed = smoothElevation(rawPoints);
-    smoothed.forEach((p, i) => {
-        if (i > 0) totalDistance += haversineDistance(smoothed[i-1], p);
-        points.push({ ...p, cummulativeDistance: totalDistance });
-    });
-
-    return {
-        id: `strava-${activity.id}`,
-        name: activity.name,
-        points: points,
-        distance: totalDistance,
-        duration: activity.moving_time * 1000,
-        color: '#fc4c02',
-        activityType: 'Lento', 
-        startTime: activity.start_date,
-        isPublic: false,
-        notes: activity.description || '',
-        tags: ['Strava']
-    };
 };
 
 export const fetchRecentStravaActivities = async (limit: number = 30, afterTimestamp?: number): Promise<Track[]> => {
-    const activities = await fetchStravaActivitiesMetadata(afterTimestamp, undefined, limit);
-    const tracks: Track[] = [];
+    try {
+        const activities = await fetchStravaActivitiesMetadata(afterTimestamp, undefined, limit);
+        const tracks: Track[] = [];
 
-    for (const act of activities) {
-        const isRunningType = ['Run', 'TrailRun', 'VirtualRun'].includes(act.type);
-        if (isRunningType) {
-            try {
-                const track = await fetchDetailedStravaActivity(act.id);
-                if (track) tracks.push(track);
-            } catch (e) {
-                console.warn(`Failed to import Strava activity ${act.id}`, e);
+        for (const act of activities) {
+            const isRunningType = ['Run', 'TrailRun', 'VirtualRun'].includes(act.type);
+            if (isRunningType) {
+                try {
+                    const track = await fetchDetailedStravaActivity(act.id);
+                    if (track) tracks.push(track);
+                } catch (e) {
+                    console.warn(`Failed to import Strava activity ${act.id}`, e);
+                }
             }
         }
-    }
 
-    return tracks;
+        return tracks;
+    } catch (e) {
+        console.warn("Strava recent fetch failed", e);
+        return [];
+    }
 };
