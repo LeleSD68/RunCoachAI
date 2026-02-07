@@ -54,9 +54,9 @@ const GlobeIcon = () => (
     </svg>
 );
 
-const WeatherIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 text-yellow-400">
-        <path fillRule="evenodd" d="M10 2a1 1 0 0 1 1 1v1a1 1 0 1 1-2 0V3a1 1 0 0 1 1-1Zm4 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0Zm-.464 4.95l.707.707a1 1 0 0 0 1.414-1.414l-.707-.707a1 1 0 0 0-1.414 1.414Zm2.12-10.607a1 1 0 0 1 0 1.414l-.706.707a1 1 0 1 1-1.414-1.414l.707-.707a1 1 0 0 1 1.414 0ZM17 11a1 1 0 1 0 0-2h-1a1 1 0 1 0 0 2h1Zm-7 4a1 1 0 0 1 1 1v1a1 1 0 1 1-2 0v-1a1 1 0 0 1 1-1ZM5.05 6.464A1 1 0 1 0 6.465 5.05l-.708-.707a1 1 0 0 0-1.414 1.414l.707.707Zm1.414 8.486l-.707.707a1 1 0 0 1-1.414-1.414l.707-.707a1 1 0 0 1 1.414 1.414ZM4 11a1 1 0 1 0 0-2H3a1 1 0 0 0 0 2h1Z" clipRule="evenodd" />
+const HeadsetIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+        <path fillRule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75v5.25c0 .621.504 1.125 1.125 1.125h2.25c1.243 0 2.25-1.007 2.25-2.25v-4.5c0-1.243-1.007-2.25-2.25-2.25h-1.5v-2.625a7.5 7.5 0 0 1 15 0v2.625h-1.5c-1.243 0-2.25 1.007-2.25 2.25v4.5c0 1.243 1.007 2.25 2.25 2.25h2.25c.621 0 1.125-.504 1.125-1.125v-5.25c0-5.385-4.365-9.75-9.75-9.75Z" clipRule="evenodd" />
     </svg>
 );
 
@@ -419,6 +419,17 @@ const DiaryView: React.FC<DiaryViewProps> = ({
                                     <FormattedAnalysis text={currentSelectedWorkout.description} />
                                 </div>
                             </div>
+
+                            {!currentSelectedWorkout.completedTrackId && onStartWorkout && (
+                                <button
+                                    onClick={() => {
+                                        onStartWorkout(currentSelectedWorkout);
+                                    }}
+                                    className="w-full mb-3 bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-xl shadow-lg flex items-center justify-center gap-2 uppercase tracking-widest text-xs transition-all active:scale-95 border border-purple-400/30"
+                                >
+                                    <HeadsetIcon /> Avvia Coach Vocale
+                                </button>
+                            )}
 
                             {currentSelectedWorkout.completedTrackId ? (
                                 <div className="mb-6 p-3 bg-green-900/20 border border-green-500/30 rounded-lg flex items-center justify-between">
